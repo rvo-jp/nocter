@@ -929,6 +929,80 @@ func buffer(): &+[u8] {
 }
 
 #[test]
+fn build_command_lowers_slice_index_compound_assignments() {
+    let project = TempProject::new("cli-build-slice-index-compound-assignments");
+    let source = project.write_source(
+        "slice_index_compound_assignments.nct",
+        r#"func main(): i32 {
+    let numbers = i32_buffer()
+    numbers[0] += 1
+    let words = usize_buffer()
+    words[1] %= 5
+    return 0
+}
+
+func i32_buffer(): &+[i32] {
+    return i32_buffer()
+}
+
+func usize_buffer(): &+[usize] {
+    return usize_buffer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_u8_slice_index_compound_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-u8-slice-index-compound-boundary");
+    let source = project.write_source(
+        "u8_slice_index_compound_boundary.nct",
+        r#"func main(): i32 {
+    let bytes = buffer()
+    bytes[0] += 1
+    return 0
+}
+
+func buffer(): &+[u8] {
+    return buffer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("compound assignment statements"),
+        "expected compound assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("3 |     bytes[0] += 1"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_nonterminal_while_body_scope_drop() {
     let project = TempProject::new("cli-build-nonterminal-while-body-scope-drop");
     let source = project.write_source(

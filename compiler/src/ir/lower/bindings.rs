@@ -1207,6 +1207,7 @@ fn lower_compound_assignment(
         Expr::Member(member) => {
             lower_compound_aggregate_field_assignment(statement, member, context)
         }
+        Expr::Index(index) => lower_compound_slice_index_assignment(statement, index, context),
         _ => Err(unsupported_assignment_diagnostic()),
     }
 }
@@ -1311,6 +1312,86 @@ fn lower_compound_aggregate_field_assignment(
             Ok(instructions)
         }
         _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_compound_slice_index_assignment(
+    statement: &AssignmentStmt,
+    target: &IndexExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let element_kind = slice_index_assignment_element_kind(&target.object, context);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered_slice = lower_slice_expression_to_value(&target.object, context, &mut temporaries)?;
+    let SliceValue::Location(destination) = lowered_slice.value else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let (index_instructions, index) =
+        lower_usize_expression_to_word_with_temporaries(&target.index, context, &mut temporaries)?;
+    let mut instructions = lowered_slice.instructions;
+    instructions.extend(index_instructions);
+    let index =
+        materialize_slice_index_assignment_index(&mut instructions, index, &mut temporaries)?;
+
+    match element_kind {
+        TypecheckSliceElementKind::I32 => {
+            let (value_instructions, right) = lower_i32_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_i32()?;
+            instructions.push(Instruction::SetI32 {
+                destination: current,
+                value: I32Value::SliceIndex {
+                    source: destination,
+                    index: index.clone(),
+                },
+            });
+            instructions.push(i32_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreI32ToSliceIndex {
+                destination,
+                index,
+                value: I32Value::Location(current),
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Usize => {
+            let (value_instructions, right) = lower_usize_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_usize()?;
+            instructions.push(Instruction::SetUsize {
+                destination: current,
+                value: UsizeValue::SliceIndex {
+                    source: destination,
+                    index: Box::new(index.clone()),
+                },
+            });
+            instructions.push(usize_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreUsizeToSliceIndex {
+                destination,
+                index,
+                value: UsizeValue::Location(current),
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::U8
+        | TypecheckSliceElementKind::Bool
+        | TypecheckSliceElementKind::Str
+        | TypecheckSliceElementKind::Other => Err(unsupported_assignment_diagnostic()),
     }
 }
 

@@ -16635,6 +16635,93 @@ func byte(): u8 {
 }
 
 #[test]
+fn lowers_readwrite_i32_slice_index_compound_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(values: &+[i32]): void {
+    values[1] += 2
+    return
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: I32Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    },
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Local(0),
+                    left: i32_local(0),
+                    right: i32_const(2),
+                },
+                Instruction::StoreI32ToSliceIndex {
+                    destination: SliceLocation::Parameter(0),
+                    index: usize_const(1),
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_usize_slice_index_compound_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(values: &+[usize]): void {
+    values[0] %= 5
+    return
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(0),
+                    value: usize_slice_index(SliceLocation::Parameter(0), usize_const(0)),
+                },
+                Instruction::RemainderUsize {
+                    destination: UsizeLocation::Local(0),
+                    left: usize_local(0),
+                    right: usize_const(5),
+                },
+                Instruction::StoreUsizeToSliceIndex {
+                    destination: SliceLocation::Parameter(0),
+                    index: usize_const(0),
+                    value: usize_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_alias_parameter_and_return() {
     let function = lower_named_function(
         r#"type Bytes = [u8]

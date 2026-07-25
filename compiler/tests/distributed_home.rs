@@ -1071,6 +1071,62 @@ func main(): i32! {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_view_mut_integer_compound_assignments_run() {
+    let project = TempProject::new("distributed-home-vec-view-mut-compound-run");
+    let source = project.write_source(
+        "vec_view_mut_compound.nct",
+        r#"use std/vec.Vec
+
+func one(): i32 {
+    return 1
+}
+
+func main(): i32! {
+    var words: Vec<usize> = Vec.empty()
+    words.push(40)?
+    words.push(47)?
+    words.view_mut()[0] += 2
+    words.view_mut()[1] %= 5
+    if words.view()[0] != 42 {
+        return 1
+    }
+    if words.view()[1] != 2 {
+        return 2
+    }
+
+    var numbers: Vec<i32> = Vec.empty()
+    numbers.push(40)?
+    numbers.push(8)?
+    numbers.view_mut()[0] += one()
+    numbers.view_mut()[1] *= 5
+    numbers.view_mut()[1] -= 10
+    if numbers.view()[0] != 41 {
+        return 3
+    }
+    if numbers.view()[1] != 30 {
+        return 4
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 #[test]
 fn distributed_std_vec_fields_are_private() {
     let project = TempProject::new("distributed-home-vec-fields-private");

@@ -623,12 +623,17 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Assignment(statement) => {
-            if !assignment_operator_is_buildable(statement, resolved, typecheck_facts) {
+            if !assignment_operator_is_buildable(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(unsupported_v0_build_diagnostic(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32` or `usize` whole-binding or aggregate-field compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use `i32` or `usize` whole-binding, aggregate-field, or read-write slice element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             if let Some(diagnostic) =
@@ -1076,6 +1081,7 @@ fn assignment_operator_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if statement.operator == AssignmentOperator::Assign {
         return true;
@@ -1093,8 +1099,32 @@ fn assignment_operator_is_buildable(
         Expr::Member(member) => {
             aggregate_field_compound_assignment_is_buildable(member.member_span, typecheck_facts)
         }
+        Expr::Index(index) => slice_index_compound_assignment_is_buildable(
+            &index.object,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
         _ => false,
     }
+}
+
+fn slice_index_compound_assignment_is_buildable(
+    object: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    object.is_direct_slice_index_assignment_object()
+        && matches!(
+            slice_index_assignment_element_kind(
+                object,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ),
+            Some(TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize)
+        )
 }
 
 fn unsupported_index_assignment_target_diagnostic(
@@ -1787,6 +1817,82 @@ fn typecheck_slice_element_kind_is_buildable(element: TypecheckSliceElementKind)
     )
 }
 
+fn slice_index_assignment_element_kind(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypecheckSliceElementKind> {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(identifier) => {
+            let symbol = resolved.local_symbol_for_identifier(identifier)?;
+            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+                TypecheckScalarViewKind::Slice(element) => Some(element),
+                TypecheckScalarViewKind::I32
+                | TypecheckScalarViewKind::U8
+                | TypecheckScalarViewKind::Usize
+                | TypecheckScalarViewKind::Bool
+                | TypecheckScalarViewKind::Str => None,
+            }
+        }
+        Expr::Call(call) => {
+            let return_type = call_return_type_expr_with_substitutions(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )?;
+            slice_index_target_type_expr_element_kind(&return_type, resolved)
+        }
+        Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(
+            &propagation.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Force(force) => slice_index_assignment_fallible_element_kind(
+            &force.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Catch(catch) => slice_index_assignment_fallible_element_kind(
+            &catch.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Group(group) => slice_index_assignment_element_kind(
+            &group.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => None,
+    }
+}
+
+fn slice_index_assignment_fallible_element_kind(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypecheckSliceElementKind> {
+    let Expr::Call(call) = unwrap_group_expr(expression) else {
+        return None;
+    };
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let TypeExpr::Fallible(fallible) = return_type else {
+        return None;
+    };
+    slice_index_target_type_expr_element_kind(&fallible.success, resolved)
+}
+
 fn call_return_type_expr_with_substitutions(
     call: &CallExpr,
     resolved: &ResolveOutput,
@@ -1851,6 +1957,40 @@ fn slice_index_target_type_expr_is_buildable_inner(
             }
             let result =
                 slice_index_target_type_expr_is_buildable_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
+}
+
+fn slice_index_target_type_expr_element_kind(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<TypecheckSliceElementKind> {
+    slice_index_target_type_expr_element_kind_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn slice_index_target_type_expr_element_kind_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<TypecheckSliceElementKind> {
+    match ty {
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            Some(type_expr_slice_element_kind(&view.element, resolved))
+        }
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result =
+                slice_index_target_type_expr_element_kind_inner(target, resolved, resolving_names);
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -1926,40 +2066,55 @@ fn type_expr_is_supported_std_vec_element_storage_inner(
     resolved: &ResolveOutput,
     resolving_names: &mut HashSet<String>,
 ) -> bool {
+    type_expr_slice_element_kind_inner(ty, resolved, resolving_names)
+        != TypecheckSliceElementKind::Other
+}
+
+fn type_expr_slice_element_kind(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> TypecheckSliceElementKind {
+    type_expr_slice_element_kind_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_slice_element_kind_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> TypecheckSliceElementKind {
     match ty {
-        TypeExpr::Reference(reference)
-            if matches!(reference.name.as_str(), "i32" | "u8" | "usize" | "bool") =>
-        {
-            true
+        TypeExpr::Reference(reference) if reference.name == "i32" => TypecheckSliceElementKind::I32,
+        TypeExpr::Reference(reference) if reference.name == "u8" => TypecheckSliceElementKind::U8,
+        TypeExpr::Reference(reference) if reference.name == "usize" => {
+            TypecheckSliceElementKind::Usize
+        }
+        TypeExpr::Reference(reference) if reference.name == "bool" => {
+            TypecheckSliceElementKind::Bool
         }
         TypeExpr::Borrow(borrow)
             if !borrow.is_readwrite
                 && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
         {
-            true
+            TypecheckSliceElementKind::Str
         }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return false;
+                return TypecheckSliceElementKind::Other;
             };
             if symbol.kind != TypeSymbolKind::Alias {
-                return false;
+                return TypecheckSliceElementKind::Other;
             }
             let Some(target) = &symbol.alias_target else {
-                return false;
+                return TypecheckSliceElementKind::Other;
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
+                return TypecheckSliceElementKind::Other;
             }
-            let supported = type_expr_is_supported_std_vec_element_storage_inner(
-                target,
-                resolved,
-                resolving_names,
-            );
+            let kind = type_expr_slice_element_kind_inner(target, resolved, resolving_names);
             resolving_names.remove(&symbol.canonical_name);
-            supported
+            kind
         }
-        _ => false,
+        _ => TypecheckSliceElementKind::Other,
     }
 }
 

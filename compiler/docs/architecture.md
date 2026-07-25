@@ -189,7 +189,7 @@ Currently buildable:
 
 Currently not buildable even when it may be checkable:
 
-- general local storage beyond the listed scalar/view and aggregate slot paths, and compound assignment outside the `i32`/`usize` whole-binding and aggregate scalar field subset
+- general local storage beyond the listed scalar/view and aggregate slot paths, and compound assignment outside the `i32`/`usize` whole-binding, aggregate scalar field, and read-write slice element subset
 - general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, optional `if let`/`while let` outside the direct optional scalar/view call subset, non-`i32`/`usize` range `for`, payload-carrying enum pattern control flow, and pattern conditional values outside the scalar/view subset
 - unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
 - general `&str`/view member operations beyond `.len()`/`.is_empty()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
