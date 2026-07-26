@@ -981,6 +981,81 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_push_value_control_arguments_runs() {
+    let project = TempProject::new("distributed-home-vec-push-value-control-run");
+    let source = project.write_source(
+        "vec_push_value_control.nct",
+        r#"use std/vec.Vec
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32! {
+    let choice = Choice.no
+
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.push(if choice is Choice.no { 5 } else { 1 })?
+    bytes.push(match choice { Choice.no { 7 } else { 1 } })?
+    if bytes.len() != 2 {
+        return 1
+    }
+    if bytes.view()[0] != 5 {
+        return 2
+    }
+    if bytes.view()[1] != 7 {
+        return 3
+    }
+
+    var words: Vec<usize> = Vec.empty()
+    words.push(match choice { Choice.no { 13 } else { 1 } })?
+    if words.len() != 1 {
+        return 4
+    }
+    if words.view()[0] != 13 {
+        return 5
+    }
+
+    var flags: Vec<bool> = Vec.empty()
+    flags.push(if choice is Choice.no { true } else { false })?
+    if flags.len() != 1 {
+        return 6
+    }
+    if flags.view()[0] != true {
+        return 7
+    }
+
+    var texts: Vec<&str> = Vec.empty()
+    texts.push(match choice { Choice.no { "Nocter" } else { "Other" } })?
+    if texts.len() != 1 {
+        return 8
+    }
+    if texts.view()[0] != "Nocter" {
+        return 9
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_view_mut_scalar_values_runs() {
     let project = TempProject::new("distributed-home-vec-view-mut-scalar-run");
     let source = project.write_source(
