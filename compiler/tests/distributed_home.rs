@@ -2419,7 +2419,7 @@ func main(): i32! {
 }
 "#,
     );
-    let executable = project.root().join("process_args_check_only");
+    let executable = project.root().join("process_args_build");
 
     let output = nocter_build(&project, &source, &executable);
 

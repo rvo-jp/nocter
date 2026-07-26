@@ -170,7 +170,7 @@ pub func push<T>(values: &+Vec<T>, value: T): void! {
 }
 
 func unsupported(): error {
-    return Error.new("std.vec.unsupported", "Vec storage is not implemented")
+    return Error.new("std.vec.unsupported", "Vec element storage is not supported")
 }
 
 pub func capacity_overflow(): error {

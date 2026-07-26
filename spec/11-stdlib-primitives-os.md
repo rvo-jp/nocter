@@ -289,8 +289,8 @@ V0 distribution status:
 
 - `exit(code)` and `abort()` are runtime-shipped.
 - `cwd(allocator)` is runtime-shipped on `arm64-darwin` through the standard-library syscall boundary and returns caller-owned `String` storage.
+- `args()` is runtime-shipped on `arm64-darwin` and returns an owned `Vec<&str>` whose string views point into process context storage.
 - `env(name)` reserves the future `&str?!` API shape, but useful runtime behavior is check-only until nested fallible/optional return lowering and process context runtime are promoted. It must not silently succeed with `none` before environment access is implemented.
-- `args()` reserves the future `Vec<&str>!` API shape, but useful runtime behavior is check-only until `Vec` storage and process context runtime are promoted.
 
 Rules:
 

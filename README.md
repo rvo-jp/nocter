@@ -780,7 +780,7 @@ pub func print(text: str): void!
 
 `std/process` の `args(): Vec<&str>!`、`env(name): &str?!`、`cwd(allocator): String!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`&str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。v0 配布 std では `exit`、`abort`、`cwd` は arm64-darwin runtime API として実行できます。`args` と `env` は将来の API 形を予約する check-only API で、実用 runtime は `Vec`、nested fallible/optional return lowering、process context の実装後に昇格します。将来 `args()` と `env(name)` が返す文字列 view は process context storage を指し、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
+`&str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。v0 配布 std では `exit`、`abort`、`cwd`、`args` は arm64-darwin runtime API として実行できます。`env` は将来の API 形を予約する check-only API で、実用 runtime は nested fallible/optional return lowering と environment context の実装後に昇格します。`args()` が返す文字列 view は process context storage を指し、呼び出し側は所有しません。将来 `env(name)` が返す文字列 view も同じ扱いです。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
 `exit` / `abort` は `#target` 付き std 内部の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
