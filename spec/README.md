@@ -1,7 +1,11 @@
 # Nocter Language Specification
 
-This file is the public entry point for the Nocter language specification.
-The detailed specification is split by topic in this directory so each design area can evolve without turning this file into a monolith.
+This directory is the authoritative source for Nocter language behavior.
+It is written for Nocter users, standard-library authors, editor/tool authors,
+and AI assistants that need to generate or analyze Nocter source.
+
+The detailed specification is split by topic so each design area can evolve
+without turning this file into a monolith.
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users.
@@ -11,14 +15,14 @@ Nocter also treats AI readability and writability as a tooling goal: the languag
 
 - [Overview](00-overview.md)
 - [Nocter v0 Contract](00-v0-contract.md)
-- [Modules and Imports](01-modules-imports.md)
+- [Modules and Use Declarations](01-modules-use.md)
 - [Values and Types](02-values-types.md)
 - [Control Flow](03-control-flow.md)
 - [Errors and Optionals](04-errors-optionals.md)
 - [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md)
 - [Memory, Regions, and Allocators](06-memory-region-allocator.md)
 - [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md)
-- [Generics, Interfaces, and Methods](08-generics-traits-methods.md)
+- [Generics, Interfaces, and Methods](08-generics-interfaces-methods.md)
 - [ABI and Layout](09-abi-layout.md)
 - [Targets and Distribution](10-targets-distribution.md)
 - [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md)
@@ -36,7 +40,10 @@ Nocter also treats AI readability and writability as a tooling goal: the languag
 ## Editing Policy
 
 - Keep this file as the table of contents and high-level specification entry point.
-- Put normative language rules in the relevant `spec/*.md` chapter.
+- Put normative language and public standard-library rules in the relevant
+  `spec/*.md` chapter.
 - Keep examples close to the rule they explain.
 - Keep `guides/ai.md` compact and example-oriented; do not let it replace normative specification chapters.
 - When a design is still provisional, mark it explicitly in that chapter instead of hiding uncertainty in broad wording.
+- Keep compiler implementation status, backend work plans, and handoff notes in
+  `../compiler/`.

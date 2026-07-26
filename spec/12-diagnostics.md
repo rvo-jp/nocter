@@ -107,7 +107,7 @@ JSON span rules:
 - `start_column_byte` and `end_column_byte` are 1-based UTF-8 byte columns within the normalized line.
 - These JSON line and column fields are not LSP positions.
 - LSP adapters convert byte offsets or byte columns into the client position encoding.
-- Display path rules and canonical source-file identity are specified in [Modules and Imports](01-modules-imports.md#source-file-identity).
+- Display path rules and canonical source-file identity are specified in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
 
 ## Machine-Readable JSON Diagnostics
 

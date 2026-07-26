@@ -1,8 +1,8 @@
 # Compiler Maintenance Policy
 
 This document records long-lived maintenance rules for the Nocter compiler.
-Short-term handoff notes belong in `../TODO.md`.
-Normative language rules belong in `../../spec/`.
+Short-term handoff notes belong in `../TODO.md`. Normative language rules
+belong in `../../spec/`.
 
 ## Goal
 
@@ -67,6 +67,26 @@ Refactor before adding a feature when the current design would require:
 Prefer small APIs with owned result types over returning raw internal maps.
 Prefer compiler-phase tests for compiler semantics and LSP tests for protocol behavior.
 
+## Documentation Ownership
+
+Keep one source of truth for each kind of information:
+
+- root `README.md`: short public entrance and documentation map
+- `../../spec/`: normative language and standard-library rules
+- `README.md`: compiler directory entrance
+- `docs/README.md`: compiler documentation map
+- `docs/architecture.md`: compiler phase ownership and pipeline design
+- `docs/implementation-status.md`: current user-visible implementation
+  capability
+- `docs/v0-closure.md`: fixed v0 implementation completion gates
+- `docs/backend-v0.md`: backend and ABI implementation notes
+- `docs/std-runtime-status.md`: implementation status of `.nocter/std`
+- `docs/roadmap.md`: recommended implementation order
+- `../TODO.md`: short-lived handoff state
+
+Do not copy large language rules into compiler docs. Link to `spec/` and record
+only implementation status or compiler design.
+
 ## Progress Recording
 
 Every session that changes compiler behavior or structure should leave the repository easier to resume.
@@ -77,6 +97,7 @@ Use this rule:
 - update `v0-closure.md` when the v0 completion gate, target scope, or
   `ship`/`reject`/`defer` decision changes
 - update `implementation-status.md` when user-visible behavior changes
+- update `std-runtime-status.md` when distributed std runtime behavior changes
 - update `roadmap.md` when the recommended next task changes
 - update `architecture.md` when module responsibilities change
 

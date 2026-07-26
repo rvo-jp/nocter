@@ -40,7 +40,7 @@ Allowed responsibilities:
 Rules:
 
 - TextMate grammar must follow [Lexical Grammar](13-lexical-grammar.md).
-- TextMate grammar may use the reserved keyword list from [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md#reserved-keywords).
+- TextMate grammar may use the reserved keyword and token rules from [Lexical Grammar](13-lexical-grammar.md#identifiers).
 - TextMate grammar must not define semantic validity beyond lexical and shallow syntactic patterns.
 - TextMate grammar must not attempt to resolve imports.
 - TextMate grammar must not infer types.
@@ -74,7 +74,7 @@ Editor path mapping rules:
 - Use `span.absolute_path` for editor document identity when it is present.
 - Use `span.file` for human-facing display.
 - Do not use display paths to decide whether two source files are the same file.
-- LSP document mapping must follow the canonical source-file identity rules in [Modules and Imports](01-modules-imports.md#source-file-identity).
+- LSP document mapping must follow the canonical source-file identity rules in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
 
 ## Hover And Documentation
 
@@ -151,7 +151,7 @@ Semantic token rules:
 - The `readonly` semantic token modifier is an editor hint that `=` cannot be used at that token position.
 - `readonly` does not mean that the token was declared with a readonly declaration form.
 - Binding and parameter tokens use `readonly` when the whole binding cannot be assigned with `=`.
-- Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-assignment).
+- Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
 

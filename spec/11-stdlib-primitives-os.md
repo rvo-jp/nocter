@@ -103,7 +103,7 @@ SyscallResult -> Errno -> OSError
 
 The built-in failure payload is `error`. The standard library exposes ordinary names and constructors for it.
 
-Initial public surface direction:
+Initial public surface:
 
 ```nct
 pub type ErrorCode = &str
@@ -136,7 +136,7 @@ Rules:
 
 Adopted: the initial owning-string and formatting boundary is split between `std/string` and `std/fmt`.
 
-Initial `std/string` public surface direction:
+Initial `std/string` public surface:
 
 ```nct
 pub struct String {
@@ -173,7 +173,7 @@ impl String {
 }
 ```
 
-Initial `std/fmt` public surface direction:
+Initial `std/fmt` public surface:
 
 ```nct
 pub func append_str(out: &+String, value: &str): void!
@@ -181,7 +181,6 @@ pub func append_string(out: &+String, value: &String): void!
 pub func append_i32(out: &+String, value: i32): void!
 pub func append_usize(out: &+String, value: usize): void!
 pub func append_bool(out: &+String, value: bool): void!
-pub func unsupported(): error
 ```
 
 Rules:
@@ -192,6 +191,120 @@ Rules:
 - The formatting append functions operate on an already-created `String`; they do not choose an allocator.
 - Future lowering for string interpolation must be expressed in terms of explicit `String` construction and `std/fmt.append_*` calls. It must not silently choose a process-global allocator.
 - `std/fmt` is not part of the initial prelude. User code imports it explicitly unless future prelude policy changes.
+- Module-local helpers such as formatting `unsupported` errors are not public
+  API unless explicitly listed in this chapter.
+
+### Memory and Allocator API
+
+Adopted: v0 exposes a small explicit allocator surface in `std/mem`.
+
+Initial public surface:
+
+```nct
+pub copy struct Layout {
+    pub size: usize
+    pub align: usize
+}
+
+pub struct RawBuffer {
+    pub ptr: *u8
+    pub len: usize
+    pub align: usize
+}
+
+pub struct Allocator {
+    ...
+}
+
+pub func page_allocator(): Allocator
+pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
+pub func free(allocator: &+Allocator, buffer: RawBuffer): void
+pub func bytes(buffer: &RawBuffer): &[u8]
+pub func bytes_mut(buffer: &+RawBuffer): &+[u8]
+pub func prefix(buffer: &RawBuffer, len: usize): &[u8]!
+pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]!
+pub func out_of_memory(): error
+pub func invalid_argument(): error
+
+impl Allocator {
+    pub method &+self.alloc(size: usize, align: usize): RawBuffer!
+    pub method &+self.free(buffer: RawBuffer): void
+}
+
+impl RawBuffer {
+    pub method &self.bytes(): &[u8]
+    pub method &+self.bytes_mut(): &+[u8]
+    pub method &self.prefix(len: usize): &[u8]!
+    pub method &+self.prefix_mut(len: usize): &+[u8]!
+}
+```
+
+Rules:
+
+- Allocation failure is recoverable and returns the built-in `error` payload.
+- The initial allocator is page-backed. General allocator families are deferred.
+- `RawBuffer` owns raw byte storage and is not a typed collection.
+- User-facing collection APIs should be built on ordinary std types such as
+  `Vec<T>`, not by exposing unchecked raw buffer mutation.
+- Target-dependent allocation helpers are std-internal and target-gated.
+
+### Vector API
+
+Adopted: `std/vec` provides the initial owned variable-length collection type.
+`Vec<T>` is an ordinary standard-library type, not a compiler built-in.
+
+Initial public surface:
+
+```nct
+pub struct Vec<T> {
+    ...
+}
+
+pub func Vec.empty<T>(): Vec<T>
+pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>!
+pub func Vec.from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>!
+
+pub func empty<T>(): Vec<T>
+pub func with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>!
+pub func from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>!
+pub func len<T>(values: &Vec<T>): usize
+pub func capacity<T>(values: &Vec<T>): usize
+pub func is_empty<T>(values: &Vec<T>): bool
+pub func view<T>(values: &Vec<T>): &[T]
+pub func view_mut<T>(values: &+Vec<T>): &+[T]
+pub func reserve<T>(values: &+Vec<T>, additional: usize): void!
+pub func clear<T>(values: &+Vec<T>): void
+pub func push<T>(values: &+Vec<T>, value: T): void!
+pub func capacity_overflow(): error
+
+impl<T> Vec<T> {
+    pub method &self.len(): usize
+    pub method &self.capacity(): usize
+    pub method &self.is_empty(): bool
+    pub method &self.view(): &[T]
+    pub method &+self.view_mut(): &+[T]
+    pub method &+self.reserve(additional: usize): void!
+    pub method &+self.clear(): void
+    pub method &+self.push(value: T): void!
+
+    drop &+self {
+        ...
+    }
+}
+```
+
+Rules:
+
+- `Vec<T>` is not exported by `std/prelude`; user code imports `std/vec.Vec`
+  explicitly.
+- The v0 runtime surface is narrow. Scalar, `&str`, and explicitly promoted
+  copy-aggregate element storage paths are supported by the current
+  implementation.
+- Non-copy aggregate element storage, per-element drop glue, insertion/removal
+  APIs, and iterator helpers are deferred.
+- `clear` resets length. Element drop behavior is deferred until per-element
+  drop glue is designed.
+- `view` and `view_mut` expose slices over initialized elements only.
 
 ### I/O API
 
@@ -204,7 +317,11 @@ pub struct File {
     ...
 }
 
+pub func open(path: &str): File!
 pub func File.open(path: &str): File!
+pub func read(file: &+File, buffer: &+[u8]): usize!
+pub func write(file: &+File, bytes: &[u8]): void!
+pub func write_text(file: &+File, text: &str): void!
 
 impl File {
     pub method &+self.read(buffer: &+[u8]): usize!
@@ -224,6 +341,8 @@ pub func print(text: &str): void!
 Rules:
 
 - `File` is a move-only standard-library type with private representation.
+- `open`, `read`, `write`, and `write_text` are ordinary free-function
+  wrappers around the associated function or methods.
 - `File.open(path)` opens an existing file for reading in v0.
 - File creation, append, truncate, read-write modes, and open options are deferred.
 - `File.open(path)` maps path-related OS errors into `"std.io.not_found"`, `"std.io.permission_denied"`, or `"std.io.invalid_path"` when the target can classify them.
@@ -275,7 +394,7 @@ Not adopted in v0:
 
 Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not entry function parameters.
 
-Initial public surface direction:
+Initial public surface:
 
 ```nct
 pub func args(): Vec<&str>!
@@ -361,6 +480,27 @@ Rules:
 - The target implementation uses the active target's syscall or process termination boundary.
 - If the platform termination operation unexpectedly returns, the implementation calls `trap()`.
 - The module path is `std/process`; target-dependent helper or primitive calls inside it are reached through `#target`-gated std internals.
+
+### Pointer API
+
+Adopted: v0 exposes only a narrow raw-pointer surface.
+
+Initial public surface:
+
+```nct
+pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref<T>(value: &T): *T
+pub primitive from_ref_mut<T>(value: &+T): *T
+```
+
+Rules:
+
+- These APIs are ordinary public standard-library primitive declarations under
+  `std/ptr`.
+- Pointer dereference and general user memory mutation through raw pointers are
+  deferred.
+- Raw construction helpers such as `from_addr`, raw-parts string/slice
+  construction, raw stores, and raw copies are `pub(nocter)` std-internal APIs.
 
 ### Not Adopted
 
@@ -619,59 +759,11 @@ Rules:
 - A future compiler primitive may be added only by an explicit language and backend design update, not as the normal way to grow the standard library.
 - User project modules remain outside the primitive declaration boundary. If Nocter later adds an explicit trusted or unsafe extension, it should not make arbitrary user-defined primitive declarations the default extension mechanism.
 
-## Reserved Keywords
+## Keyword Ownership
 
-Initial reserved keywords:
-
-```text
-from
-import
-use
-func
-pub
-type
-struct
-enum
-interface
-impl
-method
-let
-var
-return
-if
-else
-for
-in
-while
-loop
-break
-continue
-match
-is
-catch
-none
-move
-as
-region
-using
-primitive
-void
-never
-```
-
-`nocter` is not a reserved keyword. It is recognized only as the contextual visibility scope in `pub(nocter)`.
-
-`copy` is not a reserved keyword. It is emitted as an identifier token and is
-recognized only by the contextual `copy struct` source form.
-
-`drop` is not a reserved keyword. It is emitted as an identifier token and is recognized only by the contextual inherent destructor member form and explicit drop statement form specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#drop).
-
-`interface` is a reserved keyword for contract-only interface declarations.
-
-`trait` is not a reserved keyword in v0. It is emitted as an identifier token.
-Trait syntax has been removed; use `interface` for contracts.
-
-`@` is reserved for possible future attribute-like syntax, but attributes are not part of v0. A source-level `@` outside string literals, byte literals, or comments is invalid in v0.
+Keyword and lexical rules are specified only in
+[Lexical Grammar](13-lexical-grammar.md). This chapter does not maintain a
+separate keyword list.
 
 ## Open Design Questions
 

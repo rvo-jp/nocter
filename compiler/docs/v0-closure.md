@@ -1,26 +1,26 @@
 # Nocter v0 Closure Definition
 
-This document fixes what "complete" means for Nocter v0 implementation work.
-It is meant to stop the finish line from moving while parser, resolver,
-typechecker, lowering, backend, runtime, and standard-library work continue.
+This document fixes what "complete" means for the Nocter v0 implementation.
+It is an implementation checklist for compiler work, not the public language
+specification. Public source-language rules live in
+[../../spec](../../spec/README.md).
 
-`../../spec/00-v0-contract.md` is the source-language contract.
-`implementation-status.md` records the current implementation state.
-`std-v0-contract.md` fixes the distributable standard-library public surface.
-This file defines the completion gates. A change that broadens accepted source
-syntax, observable typechecking, Nocter ABI, or public `.nocter/std` API must
-update this file in the same commit.
+Changing accepted syntax, observable typechecking, the Nocter ABI, or public
+standard-library API must update the relevant spec chapter and this document in
+the same commit.
 
 ## Target Scope
 
 Nocter v0 completion is scoped to:
 
-- the self-contained compiler in this repository
-- whole-program builds through the native Mach-O backend
-- the initial `arm64-darwin` Nocter ABI
-- a distributed `.nocter/std` tree whose target-dependent declarations are
-  expressed with `#target(...)`, not target-specific source file names
-- CLI `check`, `build`, `run`, `fmt`, `tokens`, and `ast`
+- the self-contained Rust bootstrap compiler in this repository
+- whole-program builds through the native backend
+- the initial `arm64-darwin` target
+- the Nocter ABI v0 described in [ABI and Layout](../../spec/09-abi-layout.md)
+- a distributed `.nocter/std` tree whose target-dependent declarations use
+  `#target(...)` inside stable module files
+- CLI commands: `check`, `build`, `run`, `fmt`, `tokens`, `ast`, `doctor`, and
+  `lsp`
 - basic LSP behavior that presents compiler-owned facts
 
 Nocter v0 completion does not include:
@@ -28,47 +28,41 @@ Nocter v0 completion does not include:
 - Linux, Windows, wasm, or other backend targets
 - C ABI compatibility, dynamic linking interop, or stable public binary ABI
 - package management, separate compilation, incremental compilation, debug info,
-  optimization, self-hosting, or a runtime garbage collector
-- `trait` declarations or code reuse through interfaces
+  optimization, self-hosting, or a runtime GC
+- trait declarations or code reuse through interfaces
 - editor-only language semantics that differ from compiler semantics
 
-## Closure Terms
+## Status Terms
 
-- `ship`: Accepted v0 source must work through the phase named in the row. For
-  runtime rows, this means native `build` and `run` behavior on `arm64-darwin`.
-- `reject`: Source is outside v0 and must produce a stable, source-backed
-  diagnostic before a later compiler phase can panic or emit an internal
-  unsupported error.
-- `defer`: The feature is intentionally not part of v0. It may stay unparsed or
-  parser-rejected. No implementation work is required for v0 closure.
-- `frontend ship`: Parser, resolver, and typechecker support are required, but
-  no backend behavior is required unless the row also says `runtime ship`.
-- `runtime ship`: `check`-accepted source in this row must lower, build, and run.
-- `narrow`: Only the subset named in the row is part of v0 completion. Broader
-  forms in the same language area must remain rejected or deferred until this
-  document promotes them.
+- `ship`: accepted source works through the named phase.
+- `runtime ship`: accepted source builds and runs on `arm64-darwin`.
+- `frontend ship`: parser, resolver, and typechecker behavior is complete; no
+  backend behavior is required.
+- `reject`: source outside v0 produces a stable source-backed diagnostic before
+  a later phase can panic or emit an internal unsupported error.
+- `defer`: intentionally not part of v0. No implementation is required except
+  for parser rejection when the spelling overlaps v0 grammar.
+- `narrow`: only the named subset is part of v0.
 
-An area is complete only when every source form in that area is classified as
-`ship`, `reject`, or `defer`, and the corresponding tests lock that decision.
-Unknown parser-accepted forms are not allowed at v0 closure.
+An area is complete only when every parser-accepted source form in that area is
+classified as `ship`, `reject`, or `defer`, and tests lock that decision.
 
 ## Global Completion Gates
 
-These gates apply to every row in the closure matrix.
+1. Malformed source must not panic the compiler.
+2. Backend lowering must not invent language facts that resolver or typechecker
+   did not provide.
+3. User source outside the runtime subset must fail with a user-facing
+   diagnostic before machine-code emission.
+4. ABI changes must update `../../spec/09-abi-layout.md`, `backend-v0.md`, this
+   document, and ABI tests in the same commit.
+5. Public std API changes must update
+   `../../spec/11-stdlib-primitives-os.md`, `std-runtime-status.md`,
+   distributed-home tests, and `.nocter/std` declarations in the same commit.
+6. LSP features must consume compiler analysis facts rather than duplicating
+   language semantics.
 
-1. Malformed source must not panic the compiler. It must produce diagnostics with
-   source spans when a span can be recovered.
-2. The backend must not infer language semantics that are missing from resolver
-   or typechecker facts. If typed facts are insufficient, frontend rejection is
-   required before lowering.
-3. User source that is outside the runtime-shipped subset must fail with a
-   user-facing diagnostic. It must not reach Mach-O emission as an accidental IR
-   or backend `unsupported` case.
-4. ABI changes require updates to `../../spec/09-abi-layout.md`,
-   `backend-v0.md`, this file, and ABI tests in the same commit.
-5. Standard-library public API changes require distributed std tests and
-   documentation updates in the same commit.
-6. The final v0 closure check must pass:
+The final closure check is:
 
 ```sh
 cargo fmt --manifest-path compiler/Cargo.toml --check
@@ -81,76 +75,48 @@ cargo test --manifest-path compiler/Cargo.toml --test cli_lsp
 cargo test --manifest-path compiler/Cargo.toml --test example_corpus
 ```
 
-## Slice Completion
-
-Frontend v0 is complete when every parser-accepted source form either has
-resolver and typechecker facts described in `../../spec/00-v0-contract.md`, or
-is rejected before lowering with a stable diagnostic. Frontend completion may be
-reached before runtime support for every checked form.
-
-Backend v0 is complete when every `runtime ship` row builds and runs on
-`arm64-darwin`, and every parser/typechecker-supported but non-runtime row has a
-stable rejection boundary before machine-code emission.
-
-Standard library v0 is complete when `.nocter/std` exposes only v0 APIs, target
-dependencies use `#target(...)`, and every public API is classified in
-`std-v0-contract.md` as working, recoverably unsupported, check-only, internal,
-or deferred.
-
-Full Nocter v0 is complete when frontend v0, backend v0, standard library v0,
-the CLI gates, and the documentation gates are all complete.
-
 ## Closure Matrix
 
 | Area | v0 decision | Complete when |
 |---|---|---|
-| Source loading, lexing, parser recovery | ship | All v0 tokens and item/expression forms parse or diagnose without panic. Removed `import`/`from` and top-level `trait` syntax diagnose as removed syntax. |
-| Formatting | ship narrow | Comment-free v0 syntax formats idempotently. Comments may remain a v0 rejection boundary for `fmt` until comment preservation is designed. |
-| Modules, `use`, visibility, prelude | ship | Bare `use path`, `use path.name`, grouped `use`, aliases, `pub use`, private-by-default visibility, `pub`, `pub(nocter)`, and distributed std loading are resolved by compiler-owned facts. Old `import` syntax stays rejected. |
-| Target gating | ship | Target-specific std declarations use `#target(...)`; target-specific file names under `.nocter/std` are not required for distribution. Unsupported targets diagnose explicitly. |
-| Resolver facts | ship | All functions, primitives, namespaces, aliases, structs, enums, interfaces, impl blocks, methods, drop members, and locals resolve or produce source-backed diagnostics. LSP consumes these facts instead of duplicating lookup. |
-| Scalar types and scalar expressions | runtime ship | `i32`, `usize`, `u8`, `bool`, `void`, `never`, scalar locals, scalar calls, scalar arithmetic, whole-binding and aggregate scalar field `i32`/`usize` compound assignment, comparisons, bool operations, and v0 runtime trap checks build and run in the documented subset. Unsupported scalar shapes are rejected before backend emission. |
-| Static strings and views | runtime ship narrow | String literals type as `&str`, static `&str` values pass and return through the documented two-word ABI, `&str` equality and inequality build and run, supported byte-slice views used by std I/O build and run, and `&+[i32]`, `&+[u8]`, `&+[usize]`, `&+[bool]`, and `&+[&str]` element assignment build and run. General view iteration and broader index assignment are deferred unless promoted by this document. |
-| Owned `String` | runtime ship | `String` remains an ordinary std type with private pointer, length, and capacity fields; explicit allocation-backed construction, view access, formatting append, move, return, and drop run through distributed std tests. Bare interpolation is rejected by the buildability preflight until an explicit allocator source is designed. |
-| Fallible values | runtime ship narrow | Entry `T!`, static `error` failures, dynamic `&str` code/message payload expressions in the current call subset, propagation, forced unwrap, and `catch` work for the scalar/view/void and supported aggregate call-result subset. Nested fallible/optional return types and other fallible payload shapes reject before backend emission. |
-| Optional values | runtime ship narrow | Optional scalar/view and supported aggregate success/none returns, force unwrap, `let ... else`, and `??` defaults build and run in the documented subset. Optional local branching syntax is not part of v0. |
-| Control flow | runtime ship narrow | Terminal `if`, supported non-terminal `if`, `while`, `loop`, payloadless enum `if is`, payloadless enum `match`, scalar/view-producing payloadless enum `?{}`, `i32`/`usize` range `for`, `break`, `continue`, `return`, void or ignored scalar/view/aggregate call expression statements, and `never` cleanup build and run in the documented subset. Other value-producing expression statements, explicit aggregate moves in control-flow conditions, payload-carrying enum pattern control flow, non-`i32`/`usize` range `for`, and broader pattern conditional values are frontend-only or rejected by build until promoted. |
-| Aggregates and ABI | runtime ship narrow | Non-generic struct layout, fully concrete generic struct instantiations in supported aggregate paths, direct and indirect aggregate parameters, arguments, returns, call-result slots, supported struct literals, field stores, field reads, aggregate copies, explicit moves, supported aggregate assignments, payloadless enum tag equality/inequality, and payloadless enum `if is`/`match`/`?{}` control flow match Nocter ABI v0 tests. Optional, full enum payload runtime, arrays, and general aggregate expressions remain outside runtime closure unless promoted. |
-| Ownership, borrowing, move, drop | ship | Typechecking rejects use-after-move, double move/drop, invalid explicit drop, escaping local borrows, borrow conflicts, and implicit non-copy aggregate copies for all frontend-shipped forms. Runtime lowering inserts drops for the documented aggregate/control-flow subset and rejects remaining cases before backend emission. |
-| Field-level ownership state | runtime ship narrow | Drop-aware replacement assignment to initialized non-copy aggregate fields is buildable for supported field layouts from struct literals, explicit `move name` sources, aggregate calls, and `&+` aggregate borrow parameters; the old field is dropped after the replacement is staged and before it is copied into place. Explicit moves out of aggregate fields and general field-level reinitialization after moving or dropping individual fields stay rejected with stable diagnostics until broader field live-state tracking is promoted. |
-| Arrays, raw pointers, and general views | runtime ship narrow | Type syntax, borrow/view facts, and primitive pointer boundaries are checked where specified. Readonly scalar and `&str` slice indexing plus read-write scalar and `&str` slice element assignment are runtime-shipped in the documented subset. By-value array literals are rejected by the buildability preflight. General view iteration, pointer dereference, broad index assignment, and other storage-dependent runtime behavior are deferred or rejected before lowering. |
-| Methods | runtime ship narrow | Inherent method declarations, receiver rules, method resolution, drop members, and associated functions are checked. Same-file and imported associated function calls plus method calls whose implicit borrow receiver is a local binding, aggregate field rooted at a binding, or supported readonly aggregate call temporary build in the documented scalar/view/aggregate call subset. Read-write temporary receivers and broader receiver-place lowering are rejected by the buildability preflight until promoted. |
-| Interfaces | frontend ship | `interface` declarations, `pub` interface methods, and explicit structural `impl Interface for Type` conformance are checked. Interface types in value and borrow-like value positions are rejected by type checking. Interfaces provide no v0 code reuse, dynamic dispatch, generic bounds, or backend dispatch requirement. |
-| Generics | runtime ship narrow | Type arity, direct generic inference, generic aggregate substitution, generic enum checks, and fully concrete generic call specializations are checked. Generic functions, associated functions, generic impl methods, concrete generic drop members, concrete generic struct literals, and concrete generic aggregate signatures build and run when every type parameter is fixed by argument types, receiver type, binding or return context, or parameter expectation, and the resulting specialized body stays inside the documented scalar/view/aggregate subset. Unspecialized generic calls, unsupported specialized bodies, generic bounds, interface-bound dispatch, and broad monomorphization remain rejected or deferred. |
-| Standard library primitives | runtime ship narrow | Trusted primitives used by distributed std have explicit target gates, privacy boundaries, typechecked declarations, and native lowering or documented recoverable failure. The distributed `std/io` File, open, read, write, text write, stream, and print APIs build and run in the documented narrow file-descriptor subset. Placeholder public APIs must not silently succeed. |
-| `std/process` | runtime ship narrow | Process exit/status behavior works. `cwd` returns the current working directory as an owned `String` on `arm64-darwin`. `args` returns borrowed argv strings in a caller-owned `Vec<&str>` on `arm64-darwin`. `env` remains check-only until nested fallible/optional returns and process context storage are promoted. |
-| `Vec` and collections | runtime ship narrow | The distributed `Vec<T>` shape, zero-capacity construction, metadata accessors, readonly and read-write views, `clear`, scalar and `&str` storage/growth/push/from-slice/readback/writeback, and storage release on drop build and run. Non-view aggregate element storage, per-element drop glue, insertion/removal APIs, and iteration helpers remain deferred. |
-| CLI diagnostics | ship | `check`, `build`, and `run` render source-backed diagnostics in text and JSON where supported. Internal compiler errors are not acceptable for user source covered by this document. |
-| LSP | ship basic | LSP initializes, syncs documents, publishes compiler diagnostics, semantic tokens, hover, references, definition, document symbols, and basic completions from compiler facts. Richer editor behavior is not a v0 closure blocker. |
-| Documentation | ship | `spec`, `implementation-status.md`, `backend-v0.md`, `roadmap.md`, and this document agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
+| Source loading, lexing, parser recovery | ship | All v0 tokens and item/expression forms parse or diagnose without panic. Legacy `import` / `from`, top-level `trait`, `if let`, `while let`, `if var`, `while var`, `let ... else`, `var ... else`, and `??` produce removed-syntax diagnostics where they overlap parser grammar. |
+| Formatting | ship narrow | Comment-free v0 syntax formats idempotently. Comments may remain a formatter rejection boundary until comment preservation is implemented. |
+| Modules, `use`, visibility, prelude | ship | Bare `use path`, selected `use`, grouped `use`, aliases, `pub use`, private-by-default visibility, `pub`, `pub(nocter)`, source-root lookup, Nocter-home lookup, shadowing rules, and distributed std loading are resolved by compiler-owned facts. |
+| Entry and CLI roots | ship | `main.nct` is the default root file for `build`, `run`, and `check`; `fmt` requires a file; root-file `main` is the entry function; `--entry` is rejected. |
+| Target gating | ship | Target-specific std declarations use `#target(...)`; target-specific std file names are not required for distribution; unsupported targets diagnose explicitly. |
+| Resolver facts | ship | Functions, primitives, namespaces, aliases, structs, enums, interfaces, impl blocks, methods, drop members, fields, variants, and locals resolve or produce source-backed diagnostics. |
+| Typechecker facts | ship | Expression types, signatures, ownership, borrowing, drop obligations, interface conformance, enum payload checks, aggregate facts, and tooling facts are available from typechecker output or rejected. |
+| Scalar and view values | runtime ship narrow | `i32`, `usize`, `u8`, `bool`, `void`, `never`, `&str`, slices, supported arithmetic/comparison/bool operations, runtime traps, `.len()`, `.is_empty()`, and supported indexing build and run. Broader scalar/view forms reject before backend emission. |
+| Blocks and control expressions | runtime ship narrow | Body final-expression values, terminal and supported non-terminal `if`, value-producing `if`, payloadless enum `match`, value-producing supported `match`, `while`, `loop`, `i32`/`usize` range `for`, `break`, `continue`, `return`, and `never` cleanup build and run in the documented subset. Broader effects and joins reject. |
+| Fallible values | runtime ship narrow | `T!`, built-in `error`, static and dynamic error construction in the supported call subset, postfix `?`, postfix `!`, `catch`, and cleanup during propagation build and run for scalar/view/void and supported aggregate paths. Nested fallible/optional return layers remain limited. |
+| Optional values | runtime ship narrow | `T?`, `none`, postfix `?`, postfix `!`, and `otherwise` build and run for scalar/view and supported aggregate values. Optional-specific pattern syntax is not part of v0. |
+| Aggregates and ABI | runtime ship narrow | Non-generic structs and fully concrete generic structs use correct direct/indirect ABI classification for supported parameters, arguments, returns, field loads/stores, copies, explicit moves, call-result slots, replacement assignments, and cleanup. Payload enum runtime, arrays, and general aggregate expressions remain outside runtime closure unless promoted. |
+| Field-level ownership | runtime ship narrow | Supported aggregate slot and field replacement paths stage the replacement, drop the old live value when needed, and restore drop obligations. Explicit moves out of fields and broad per-field live-state tracking remain rejected. |
+| Ownership, borrowing, move, drop | ship | Frontend rejects use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies for frontend-shipped forms. Runtime lowering inserts drops for the documented subset and rejects the rest. |
+| Methods | runtime ship narrow | Associated functions, `method &self`, `method &+self`, consuming receivers, method lookup, imported methods, and `drop &+self` work in the supported scalar/view/aggregate call subset. Broader temporary readwrite receivers reject. |
+| Interfaces | frontend ship | `interface` declarations, required `pub` members, and explicit structural `impl Interface for Type` conformance are checked. Interface values, dispatch, bounds, inheritance, default methods, and code reuse are deferred. |
+| Generics | runtime ship narrow | Type arity, direct inference, concrete function/method/associated-function/drop specializations, concrete generic aggregate signatures, and supported generic bodies build and run. Unspecialized calls, generic bounds, and interface-bound dispatch reject or defer. |
+| Arrays, pointers, and general views | runtime ship narrow | Type syntax and borrow/view facts are checked. Runtime supports the current scalar, `&str`, and copy-aggregate slice element paths plus trusted pointer primitives. Array literals, pointer dereference, broad storage, and general iteration reject or defer. |
+| Standard library | runtime ship narrow | `.nocter/std` exposes only APIs classified by `spec/11` and `std-runtime-status.md`; shipped APIs work or fail recoverably; check-only APIs do not fake success; target-dependent declarations use `#target(...)`. |
+| CLI diagnostics | ship | `check`, `build`, `run`, and `fmt` render source-backed text diagnostics and JSON diagnostics where supported. Internal compiler errors are not acceptable for source covered by this matrix. |
+| LSP | ship basic | LSP initializes, syncs documents, publishes diagnostics, semantic tokens, hover, definition, references, document symbols, and basic completions from compiler facts. Rename, code actions, formatting requests, workspace-wide indexing, and advanced completions are deferred. |
+| Documentation | ship | `README.md`, `spec/`, `compiler/README.md`, and `compiler/docs/` have distinct responsibilities and agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
 
 ## Autonomous Work Order
 
-When continuing without a fresh user choice, close the largest open rows in this
-order:
+When continuing without a fresh user choice, close the largest open rows in
+this order:
 
-1. Frontend closure audit: enumerate parser-accepted forms and add either
-   typechecker coverage or stable rejection diagnostics.
+1. Frontend closure audit: every parser-accepted form needs resolver/typechecker
+   facts or a stable rejection diagnostic.
 2. Backend rejection boundary: replace accidental IR/backend unsupported cases
-   with source-backed diagnostics for non-runtime rows.
-3. Aggregate ABI and ownership: broaden remaining field-level ownership state,
-   enum payload facts, drop glue, direct/indirect ABI edge cases, and aggregate
-   cleanup.
-4. Standard library runtime: keep `std-v0-contract.md` and `.nocter/std`
-   aligned, keep promoted allocator, owned `String`, `fmt`, `Vec`, and `args`
-   behavior covered by distributed tests, and only promote `env` when its ABI
-   and runtime API are stable enough to keep.
-5. Runtime promotion decisions: promote optionals, full control flow, arrays,
-   methods, or generics only by changing the relevant matrix row and adding
+   with source-backed diagnostics.
+3. Aggregate ABI and ownership: broaden field-level state, enum payload facts,
+   direct/indirect ABI edges, cleanup, and drop glue.
+4. Standard-library runtime: keep `.nocter/std`, `spec/11`, and
+   `std-runtime-status.md` aligned while promoting only stable APIs.
+5. Runtime promotion decisions: promote broader optionals, control flow, arrays,
+   methods, generics, or collection behavior only by updating this matrix and
    tests in the same commit.
-6. Release hardening: run the full closure command set, fix diagnostics, remove
-   stale docs, and keep LSP aligned with compiler facts.
-
-Do not add a new language feature merely because it is convenient for the next
-test. First classify it in this document, then implement the smallest behavior
-that closes that row.
+6. Release hardening: run the full closure suite, fix diagnostics, remove stale
+   docs, and keep LSP aligned with compiler facts.

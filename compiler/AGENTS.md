@@ -9,8 +9,10 @@ Before making compiler changes, read:
 
 - `README.md`
 - `TODO.md`
+- `docs/README.md`
 - `docs/architecture.md`
 - `docs/implementation-status.md`
+- `docs/v0-closure.md`
 - `docs/roadmap.md`
 - `docs/maintenance.md`
 
@@ -57,6 +59,8 @@ At the end of a session, update the smallest relevant document set:
 
 - `TODO.md`: short-term handoff state, known unrelated local changes, next concrete task
 - `docs/implementation-status.md`: user-visible implementation capability changed
+- `docs/v0-closure.md`: v0 completion gate or ship/reject/defer decision changed
+- `docs/std-runtime-status.md`: distributed standard-library runtime behavior changed
 - `docs/roadmap.md`: current priority or recommended next task changed
 - `docs/architecture.md`: module responsibility or pipeline design changed
 - `docs/maintenance.md`: long-lived development policy changed

@@ -216,7 +216,7 @@ Rules:
 - Method call receiver expressions are evaluated before method arguments.
 - For evaluated method arguments, evaluation remains left-to-right.
 - Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.
-- Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-assignment).
+- Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-mutability).
 - Operators and expressions with conditional evaluation, such as `&&`, `||`, `otherwise`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.

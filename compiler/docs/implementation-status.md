@@ -1,126 +1,100 @@
 # Nocter Implementation Status
 
-This document tracks the gap between the language specification and the current compiler.
-Normative language rules live in `../../spec/`.
-This file describes implementation state only.
-The fixed completion definition lives in `v0-closure.md`.
-The distributable standard-library public surface lives in `std-v0-contract.md`.
+This document summarizes the current compiler implementation. It is not the
+language specification. Normative source-language rules live in
+[../../spec](../../spec/README.md). The fixed implementation completion gates
+live in [v0-closure.md](v0-closure.md).
 
-## Legend
+## Status Terms
 
-- Specified: covered by the language specification.
-- Parsed: accepted by the parser and represented in the AST.
-- Checked: covered by name resolution, type checking, or control-flow diagnostics.
-- Buildable: lowerable through IR and the native ARM64 Darwin backend.
-- Runtime: has meaningful executable behavior today.
+- `specified`: described in `spec/`
+- `parsed`: represented in the AST
+- `checked`: resolved, typechecked, ownership-checked, or diagnosed before
+  lowering
+- `buildable`: lowerable through IR and the native backend
+- `runtime`: has meaningful native behavior on `arm64-darwin`
+- `check-only`: intentionally present for type/API shape, but not runtime-shipped
 
-## Feature Matrix
+## Current Summary
 
-| Feature | Specified | Parsed | Checked | Buildable | Runtime | Notes |
-|---|---:|---:|---:|---:|---:|---|
-| Fixed root `main` entry | yes | yes | yes | yes | yes | Entry function must be named `main` and defined in the root file. |
-| `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
-| `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, entry `usize`/`usize!` success returns, `usize` literal/local/call/arithmetic/shift returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, `usize` arithmetic and shifts in lowerable expressions, and `usize` comparisons in lowerable bool positions, including scalar aggregate field operands. |
-| `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
-| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32`, `u8`, and `usize` comparisons including scalar aggregate field operands, bool equality/inequality over lowerable bool operands including nested short-circuit bool call operands, and bool call arguments in lowerable positions. |
-| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `&str`, buildable as `&str` call arguments, buildable as direct non-entry `&str` returns, buildable through annotated `&str` locals plus narrow `&str` normal-call result staging, and buildable in `&str` equality/inequality comparisons. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape builds and runs through allocation-backed standard-library bodies. Bare interpolation is rejected by the buildability preflight because the source form has no explicit allocator. |
-| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `u8`, annotated `usize`, `bool`, annotated `&str`, annotated slice initializers, narrow aggregate call result bindings used by a same-function aggregate return, direct aggregate normal call-result slots, aggregate struct-literal locals with word-sized fields, aggregate copy bindings from copy aggregate locals, and explicit aggregate move bindings. |
-| `var` and reassignment | yes | yes | partial | partial | partial | Build supports stack-backed scalar/view `var` initializers, simple whole-binding `=` assignment, simple `&+[i32]`, `&+[u8]`, `&+[usize]`, `&+[bool]`, and `&+[&str]` element assignment, and `i32`/`usize` whole-binding, aggregate scalar field, or read-write slice element compound assignment with `+=`, `-=`, `*=`, `/=`, and `%=` in the current straight-line and supported non-terminal control-flow subsets. ABI-indirect aggregate call-result slots, fallible direct aggregate call-result slots, aggregate struct-literal `var` slots, aggregate copy bindings from copy aggregate locals, explicit aggregate move bindings, and direct aggregate normal call-result `var` slots are buildable for aggregate borrow arguments and same-function return-by-name. Simple aggregate slot reassignment is buildable from supported struct literals, normal or propagated fallible aggregate call results, matching copy struct local aggregate slots, and explicit `move name` aggregate slot sources. Scalar aggregate field assignment, copy aggregate field assignment, and drop-aware non-copy aggregate field replacement assignment are buildable for supported field layouts. Whole-binding and non-copy field aggregate replacement with drop glue evaluates the replacement first, drops the old value after success, then copies the replacement into the destination. Supported aggregate slot reinitialization after explicit move/drop is buildable through the same assignment paths and restores the destination drop obligation. Self-move aggregate assignment is rejected by type checking. Compound assignment outside the `i32`/`usize` whole-binding, aggregate scalar field, and read-write slice element subset, broad index assignment outside supported read-write slice element stores, and field-level reinitialization outside the supported aggregate slot paths are not buildable. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic tail calls with scalar `i32`/`usize`/`bool` arguments plus `&str` slice arguments when the total register ABI footprint is at most 8 words, `bool` tail returns, and a narrow scalar/view normal-call subset. |
-| Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic calls through the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering. |
-| General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar/view normal calls in selected expression positions, including `&str` results staged into annotated `&str` locals or `&str` call arguments. ABI-indirect aggregate normal and propagated fallible calls, plus direct aggregate normal calls, can be staged into reserved aggregate slots for narrow `let`/`var` binding paths, and aggregate slot or field borrows can be passed as `&T`/`&+T` arguments. Unsupported shapes still report IR lowering diagnostics. |
-| Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches that contain supported leading bindings, assignments, explicit `drop`, or void/ignored scalar/view/aggregate call statements followed by direct return, or contain a nested terminal `if`, for direct entry `i32`, `usize`, or `void`, and non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, slices, or supported aggregate return expressions. Direct aggregate branches with pending drops are staged through branch-local aggregate slots before copying to the direct return location. |
-| `never` termination | yes | yes | partial | partial | yes | Type checking accepts terminal expression statements whose type is `never` and rejects `return` in `never` functions. Build supports lowerable calls returning `never`, including `std/os.trap` and `unreachable` as ARM64 traps, and inserts pending aggregate scope-end drops before supported `never` exits. |
-| General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | partial | partial | Several forms are checkable. Build supports narrow non-terminal `if`, `while`, `loop`, and `i32`/`usize` range `for` subsets before a final return, with branch/body-local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, function-exit-only outer aggregate whole-binding assignments, direct `target = move source` assignments from outer aggregate sources, explicit drops, and direct `move name` bindings, void/ignored scalar/view/aggregate call statements, supported return statements, supported `never` expression statements, nested supported non-terminal control flow, local scope-end drops, and `break`/`continue` cleanup from supported `while`/`loop`/range-`for` bodies. `while` re-evaluates lowerable condition instructions at the loop head, source `loop` lowers as an always-true loop over the same supported body subset, and range `for` evaluates start/end once before looping. Build also supports payloadless enum `if is`, payloadless enum `match`, and payloadless enum pattern conditional `?{}` expressions whose arms and fallback produce scalar/view values. Payload-carrying enum pattern control flow, non-`i32`/`usize` range `for`, and broader pattern conditional values are rejected by the buildability preflight until lowering is promoted. |
-| Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports success, static `error` constructor failure returns, dynamic `&str` code/message payload expressions in the current call subset, propagated/caught failures through the current scalar/view/void call subset, propagated ABI-indirect aggregate call-result staging, and propagated direct aggregate call-result staging, reporting `code: message` on stderr. |
-| Optional values | yes | yes | yes | partial | partial | Build supports optional scalar/view and supported aggregate success/none returns, force unwrap, `let ... else`, and `??` defaults in current lowerable positions, including scope-end cleanup for supported aggregate paths. `if is` is enum-only, so optional local branching syntax is not part of v0. Nested fallible/optional return types and broader optional storage forms remain frontend-only or are rejected by the buildability preflight. |
-| Structs and enums | yes | yes | partial | partial | partial | Type checking exists for several cases. `copy struct` declarations reject non-copy fields and `drop` members. Payloadless enum equality and inequality build and run through the v0 `u8` tag representation. Build supports ABI-indirect and direct struct return signatures, non-entry aggregate returns including terminal `if` branches over supported struct literals, calls, and local/member copies or moves, direct aggregate branch staging across pending drops, aggregate struct-literal local slots including explicit aggregate field moves, copying copy aggregate fields out of non-copy local or call-result owners, explicit aggregate move bindings, direct and indirect aggregate return calls, narrow aggregate call result slot returns, aggregate slot and scalar field borrow arguments, copy struct local slot assignment, and reserved aggregate slot `return move name`; general aggregate values and payload-carrying enum values remain unsupported. |
-| Arrays, views, and pointers | yes | yes | partial | partial | partial | Fixed-array syntax, array literals, view types, indexing, and pointer boundaries are checked in the frontend. Build supports readonly slice indexing for `u8`, `i32`, `usize`, `bool`, and `&str` element views in the current lowerable expression subset, including `Vec.view()` readback for runtime-shipped scalar and `&str` vectors. Build also supports bounds-checked assignment through read-write slice elements for `u8`, `i32`, `usize`, `bool`, and `&str`, plus `i32`/`usize` read-write slice element compound assignment, including `Vec.view_mut()` writeback. Aggregate element view indexing and assignment are rejected by the buildability preflight before IR lowering. Reachable array literals are rejected by the buildability preflight; compiler-owned array storage, general view iteration, pointer dereference, broader provenance rules, and broad index assignment are still future work. |
-| Methods, interfaces, and generics | yes | yes | partial | partial | partial | Contract-only interfaces and explicit conformance checks exist; interface types in value, borrow, pointer, view, optional, fallible, and generic-argument value positions are rejected by type checking because v0 has no interface dispatch representation. Same-file and loaded imported associated function calls are buildable in the current call subset. Method calls are buildable when the implicit borrow receiver is a local binding, an aggregate field rooted at a binding, or a supported readonly aggregate call temporary; read-write temporary borrow receivers are rejected by the buildability preflight before IR lowering. Generic type arity is checked, generic function/primitive calls infer direct `T`, pointer, borrow, array, optional, fallible, and direct generic container parameter shapes, and type checking keeps generic aggregate instantiations plus `T` parameters as structured types. Generic struct literals, field access, aliases, generic enum variant construction through existing `Enum.variant` syntax, enum payload checks, and `match`/`if is`/`?{}` payload bindings are checked with type-argument substitution. Fully concrete generic functions, associated functions, generic impl methods, concrete generic drop members, generic function body method calls, concrete generic struct literals, and concrete generic aggregate signatures build and run in the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected by the buildability preflight; trusted generic primitives remain limited to the std/runtime-supported primitive boundary. Generic bounds, interface-bound dispatch, and broad monomorphization remain deferred. |
-| Ownership, borrowing, move, drop | yes | partial | partial | partial | partial | Explicit scalar and aggregate borrow expressions are parsed and checked, `&+` requires a writable place such as a `var` binding or `&+T` aggregate borrow parameter field, `move name` parses and checks the v0 binding-name operand shape and rejects copy/borrow/scalar operands, and local scalar borrow arguments, readonly scalar parameter borrow arguments, readonly scalar temporary borrow arguments, aggregate slot borrow arguments, scalar aggregate field borrow arguments from slots, aggregate borrow parameters, and supported aggregate call results, and implicit method borrow receivers from local bindings or aggregate fields are buildable for normal calls. Binding initializers and whole-binding assignments from another binding reject implicit copies of non-copy structs and allow copy structs or explicit `move name` sources. Type checking now tracks initialized/moved/dropped state for owned non-copy struct bindings through straight-line code, simple `if`/`if is` joins, `match` joins, conservative loop joins, and unreachable-path pruning after `return`, `break`, `continue`, and `never` expression statements. It rejects use/double-move/double-drop after explicit `move name` or `drop name`, rejects direct move/drop/assignment/use and explicit or receiver-borrow conflicts with active direct borrow bindings in straight-line blocks, rejects explicit drop of copy/borrowed/scalar values, rejects returning borrows of local bindings, owned parameters, temporaries, aliases derived from those borrows through straight-line code and simple branch joins, and aggregate literals or aliases that contain those escaping borrows, requires drop members to be written as `drop &+self`, diagnoses maybe-initialized use after paths disagree, and accepts `var` reinitialization after move/drop. Resolver records one drop member per type, IR indexes reachable drop bodies as `Type.drop`, and explicit `drop name` lowers to a normal `CallVoid` with an aggregate `&+T` borrow argument when the local type has drop glue. Explicit aggregate `let`/`var target = move source`, reserved aggregate slot `return move name`, and whole-binding `target = move source` lower through the aggregate slot copy path. IR lowering now tracks pending drop state for aggregate locals and by-value aggregate parameters with drop glue in the straight-line subset, inserts scope-end drop calls before top-level return/fallible return/tail-call exits, supported `never` exits, and terminal `if` branch returns, lowers supported branch-local bindings, assignments, explicit `drop name`, and void/ignored scalar/view/aggregate call statements before terminal return/nested-terminal-if leaves, lowers branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, function-exit-only outer aggregate whole-binding assignments, direct `target = move source` assignments from outer aggregate sources, explicit drops, direct `move name` bindings, return statements, and supported `never` expression statements in supported non-terminal `if`/`while`/`loop`/range-`for`, inserts local scope-end drops at the end of supported non-terminal `if` branches and `while`/`loop`/range-`for` bodies, inserts loop-body cleanup before supported `while`/`loop`/range-`for` `break`/`continue`, stages terminal-if and supported non-terminal return values across pending drops, inserts pending aggregate drops into current fallible propagation and supported catch-handler failure paths while preserving the original error payload, suppresses caller-side drops after explicit `drop name` and explicit `move name`, restores drop obligations after supported aggregate slot reinitialization, drops by-value aggregate parameters in the callee, and lowers drop-aware whole-binding aggregate replacement after replacement RHS success. Explicit aggregate moves inside reachable control-flow conditions are rejected by the buildability preflight. Broader loop cleanup outside the supported subsets, broader branch scope-end insertion, drop-obligation export from type checking, dereference, broader escape provenance, and general move-only/copy enforcement are not implemented. |
-| Standard library API names | yes | yes | partial | partial | partial | `.nocter/std` is classified by `std-v0-contract.md`. The prelude now exports only `Error`, `ErrorCode`, and `String`; `Int` is removed, and `Vec<T>` requires explicit `use std/vec.Vec`. Runtime-shipped modules include error, memory with target-gated page helpers, owning string with private `ptr`/`len`/`capacity` fields, formatting append helpers for `&str`, `String`, `i32`, `usize`, and `bool`, pointer, OS internals, I/O declarations with `File`, `open`, read/write/text operations, free `read`/`write`/`write_text` wrappers, private close-on-drop state, raw file-descriptor helpers, scalar and `&str` `Vec` allocation/growth/push/from-slice/view readback/writeback operations with storage release on drop, and `std/process.exit`/`abort`/`cwd`/`args`. `process.cwd` uses the closed `std/os.syscall*` boundary on `arm64-darwin` and returns an owned `String`; `process.args` returns borrowed argv strings in a caller-owned `Vec<&str>` on `arm64-darwin`, while `process.env` keeps its future shape as check-only until nested fallible/optional return lowering and process context storage exist. Target-dependent primitive and helper declarations use `#target`. |
-| CLI text diagnostics | yes | n/a | yes | n/a | yes | `check`, `build`, `run`, and `fmt` render compiler-owned diagnostics with `file:line:column`, source line, and caret underline when the diagnostic span resolves to loaded source text. Command-line, target-selection, filesystem, Nocter-home, formatting-difference, and temporary-executable failures render as spanless diagnostics with stable codes and help text. |
-| `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. Early `check --format json` command-line, target-selection, and root-file filesystem failures also return one diagnostics envelope on stdout. |
-| `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
-| `fmt` | yes | yes | n/a | n/a | partial | v0 rejects files with comments instead of rewriting them. |
-| `lsp` | yes | n/a | yes | n/a | yes | v0 JSON-RPC server supports initialize, workspace root recording, shutdown, exit status semantics, full document sync, stale version rejection, open-document import reuse, stale diagnostic clearing, UTF-16 positions, publishDiagnostics, semantic tokens, Markdown hover, definition, references, document symbols, and basic completions for keywords and visible resolved symbols. Rename, formatting requests, workspace-wide indexing, context-sensitive member completion, and incremental parsing are deferred beyond v0. |
+Nocter is currently a small native compiler, not just a frontend prototype.
+It can load a v0 compile unit, typecheck a meaningful language subset, lower the
+runtime subset to IR, emit ARM64 Darwin machine code, write a Mach-O executable,
+and run that executable.
 
-## Buildable Subset
+The buildable subset remains narrower than the checked subset. Code outside the
+runtime subset should fail through buildability diagnostics before IR or backend
+emission.
 
-The current buildable language subset is intentionally smaller than the checkable subset.
-The front end can parse and type-check more Nocter syntax than the backend can lower.
+## Implemented Capability
 
-Currently buildable:
+| Area | Current state |
+|---|---|
+| Entry and CLI root | `build`, `run`, and `check` use `main.nct` when no file is provided. The root-file `func main` is the executable entry. `fmt` still requires an explicit file. `--entry` is removed. |
+| Modules and `use` | Bare, selected, grouped, aliased, relative, absolute, source-root, Nocter-home, and `pub use` forms are implemented. Legacy `import` / `from` forms are removed syntax. |
+| Target and distribution | The active Nocter home comes from `NOCTER_HOME`, otherwise the compiler executable's parent. Target-dependent std declarations use `#target("arm64-darwin")` inside stable std files. |
+| Scalars and strings | `i32`, `usize`, `u8`, `bool`, `void`, `never`, `&str`, string literals, selected arithmetic, comparisons, bool operators, shifts, and runtime trap checks are implemented in the buildable subset. |
+| Blocks and control expressions | Blocks can produce a value from the final expression. `if` and `match` can be value expressions in the supported subset. Loops remain statement-oriented in v0. |
+| Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. Scalar/view and supported aggregate paths build and run. Nested fallible/optional return shapes remain limited. |
+| Struct aggregates | Struct literals, fields, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, replacement drops, and cleanup paths are implemented for the current subset. |
+| Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
+| Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies. Lowering inserts drop glue for the documented aggregate/control-flow subset. |
+| Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. |
+| Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
+| Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
+| Slices and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
+| Standard library | `.nocter/std` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`. See [Std Runtime Status](std-runtime-status.md). |
+| CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
+| LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and basic completion using compiler facts. |
 
-- root-file `main`
-- custom executable output paths through `build -o <path>`
-- explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
-- entry return types `i32`, `usize`, `i32!`, `usize!`, `void`, and `void!`
-- literal `i32` returns
-- local `let` and `var` bindings whose initializer is lowerable as `i32`, annotated `u8`, annotated `usize`, `bool`, annotated `&str`, or annotated `&[T]`/`&+[T]`
-- simple whole-binding `=` assignment to stack-backed scalar/view local bindings, simple `&+[i32]`, `&+[u8]`, `&+[usize]`, `&+[bool]`, and `&+[&str]` element assignment, plus whole-binding `i32`/`usize` `+=`, `-=`, `*=`, `/=`, and `%=` assignment, in leading statement position
-- `void` entry with an empty body or bare `return`
-- optional scalar/view and supported aggregate success or `none` returns from non-entry functions
-- optional force unwrap in lowerable return/value positions, trapping on `none`
-- optional `let ... else` call-result bindings for scalar/view and supported aggregate payloads, including supported cleanup before terminating `else` paths
-- optional `??` defaults for scalar/view and supported aggregate payloads in lowerable binding and return positions
-- same-file and loaded imported non-generic tail calls returning `i32`, `u8`, `usize`, or `bool`
-- same-file and loaded imported calls returning `never` in terminal return or expression-statement position, with pending aggregate scope-end drops inserted before the supported `never` exit
-- same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
-- same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
-- same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
-- same-file and loaded imported non-generic normal calls returning `u8` or `usize` in annotated `let` initializers, plus `usize` arithmetic or shift expressions, including calls with scalar arguments
-- functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
-- `usize` comparisons over literals, locals, scalar aggregate field reads, lowerable arithmetic or shift expressions, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
-- same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers
-- same-file and loaded imported non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
-- same-file and loaded imported non-generic normal calls returning `bool` as bool equality/inequality operands, including atomic operands such as `ready() == true` and nested short-circuit operands such as `(ready() && other()) == true`
-- same-file and loaded imported non-generic normal calls returning `bool` in short-circuit bool value expressions such as `let value = ready() && other()` and `return ready() || other()`
-- same-file and loaded imported non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
-- same-file and loaded imported non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
-- short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`, and short-circuit conditions whose comparison operands include scalar aggregate field reads such as `if value.code == 42 && value.len == 11`
-- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
-- nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
-- explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, readonly scalar parameter and temporary borrow arguments such as `return choose(&value, 42)` and `choose(&answer(), 42)`, and scalar aggregate field borrow arguments such as `choose(&pair.value, 42)`, `choose(&make().value, 42)`, and `choose(&+pair.value, 42)` from local aggregate slots, supported aggregate call results, or aggregate borrow parameters, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
-- static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
-- same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- `.len()` and `.is_empty()` on `&str`, string literals, `&[T]`, `&+[T]`, and supported call results in lowerable `usize` or `bool` positions; byte indexing into `&str`, string literals, `&[u8]`, and `&+[u8]` in lowerable `u8` positions
-- aliases to supported scalar/view/borrow/fallible parameter, return, entry return, call signature, annotated local binding, and explicit scalar conversion targets lower through the same resolved type and ABI classification as their targets
-- normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail-position calls that need stack-passed arguments or borrow arguments lower through the normal-call-plus-return path, and direct backend `TailCall` emission rejects borrow arguments
-- reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- fully concrete generic function, associated function, generic impl method, and concrete generic drop member calls lower through specialized call targets when type parameters are fixed by argument types, receiver type, binding or return context, catch return context, or parameter expectation, including nested concrete generic calls and concrete generic aggregate struct literals
-- non-entry functions returning `bool` or direct `&str` literal/parameter/local/tail-call values
-- `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
-- `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
-- `usize` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `usize` expressions; addition traps on carry, subtraction traps on borrow, multiplication traps when the high product word is non-zero, and division and remainder trap on zero divisors
-- `usize` shifts with `<<` and `>>` used in lowerable `usize` expressions; shift counts trap when greater than or equal to 64
-- bool `!`, `&&`, `||`, bool equality/inequality over lowerable bool operands including nested short-circuit bool call operands, and `i32`, `u8`, or `usize` comparisons used in lowerable bool expressions, including scalar aggregate field operands
-- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over lowerable bool operands including nested short-circuit bool call operands, or `i32`/`u8`/`usize` comparison conditions including scalar aggregate field operands, and supported leading bindings, assignments, explicit `drop`, or void/ignored scalar/view/aggregate call statements before direct or nested terminal branches returning entry `i32`/`usize`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
-- non-terminal `if`, `while`, `loop`, and `i32`/`usize` range `for` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, function-exit-only outer aggregate whole-binding assignments, direct `target = move source` assignments from outer aggregate sources, explicit drops, and direct `move name` bindings, void/ignored scalar/view/aggregate call statements, supported returns, supported `never` expression statements, supported `while`/`loop`/range-`for` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop`/range-`for` statements; local aggregate values with drop glue are dropped at branch/body scope end, before supported loop exits, and before supported return exits, lowerable `while` condition instructions are re-evaluated at the loop head, source `loop` lowers as an always-true loop, and range `for` evaluates start/end once before looping
-- payloadless enum `if is`, payloadless enum `match`, and payloadless enum pattern conditional `?{}` expressions whose arms and fallback produce scalar/view values
-- non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
-- the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
-- simple fallible entry success
-- simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
-- fallible `?`, `!`, and `catch` lowering for the current scalar/view/void normal-call subset: `i32`, `u8`, `usize`, `bool`, `&str`, slices, and `void`
-- propagated fallible failures that leave a scope with pending aggregate drops in the current lowerable subset, preserving the original built-in error payload after cleanup
-- `catch` blocks that contain leading scalar/view `let` bindings or void/ignored scalar/view/aggregate call statements followed by a terminating `return`, including `error.code` and `error.message` payload access
-- direct aggregate value parameters, call arguments, and returns for supported non-generic structs and fully concrete generic struct instantiations up to 16 bytes, including partial final ABI words and shifted, boundary, or split register/stack normal-call argument placement
-- indirect aggregate parameters, call arguments, and returns for supported non-generic structs and fully concrete generic struct instantiations larger than 16 bytes, passed by slot address in registers or stack argument words, or returned through caller-provided `x8` storage; framed callees save and restore that hidden return pointer before nested calls can clobber `x8`
-- aggregate struct-literal returns and local slots, aggregate call-result slot bindings and assignments, copy aggregate bindings, copy aggregate field bindings from non-copy local or call-result owners, drop-aware non-copy aggregate field replacement assignment, explicit aggregate move bindings and struct-literal aggregate field moves, aggregate slot and scalar field borrow arguments, matching copy-struct or explicit-move slot assignment, and scalar field reads from supported aggregate slots, parameters, and call results, including comparison operands in short-circuit bool conditions
-- drop-aware whole-binding aggregate replacement in the current supported aggregate assignment paths, with replacement RHS staging before the old value is dropped
-- type checking diagnoses implicit binding, assignment, by-value argument, and return copies from non-copy aggregate bindings and non-copy aggregate fields; non-copy aggregate local slots can be rebound, passed by value, or returned by name only through the current explicit `move name` form, and implicit copy is limited to aggregate locals, parameters, and fields whose source type is `copy struct`
-- distributed `std/io.print` execution through the target-gated `std/io.write_text_raw` bootstrap primitive
+## Runtime-Shipped Standard Library
 
-Currently not buildable even when it may be checkable:
+The current distributed std supports:
 
-- compound assignment outside the `i32`/`usize` whole-binding, aggregate scalar field, and read-write slice element subset, general field/index assignment outside supported read-write slice element stores, reinitialization outside the supported aggregate slot paths, aggregate mutable storage, and general local storage beyond the current scalar/view subset; unsupported compound assignment is rejected by the buildability preflight
-- general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and branch/body-local non-terminal subsets, non-`i32`/`usize` range `for`, payload-carrying enum `if is`/`match`/`?{}`, and pattern conditional values outside the scalar/view subset; the unsupported control-flow forms are rejected by the buildability preflight
-- value-producing expression statements outside ignored direct scalar/view/aggregate calls; non-call value statements are rejected by the buildability preflight
-- explicit aggregate moves inside control-flow conditions
-- nested fallible or optional return types
-- unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
-- read-write borrow arguments from non-binding expressions, readwrite borrows from scalar parameters, scalar borrow arguments outside the documented temporary and aggregate field subset, and dereferencing scalar borrow parameters
-- general `&str`/view member operations beyond `.len()`/`.is_empty()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
-- interpolated string construction; bare interpolation is rejected by the buildability preflight
-- general aggregate value expressions outside the supported struct-literal, call-result, slot-copy, explicit-move, explicit-drop, whole-binding replacement, and borrow paths; arrays, views, pointers, method receiver places beyond local bindings, aggregate fields, and readonly aggregate call temporaries, unspecialized generic calls, unsupported specialized generic bodies, automatic ownership lowering, and broad branch/loop drop cleanup. Reachable array literals, unsupported method borrow receivers, unspecialized generic functions or impl members, generic bounds, interface-bound dispatch, unsupported generic aggregate shapes, and `Vec` element storage/growth outside scalar and `&str` are rejected by the buildability preflight
+- `std/error`: built-in `error` construction through ordinary public names
+- `std/string`: owned `String`, explicit allocation, views, metadata, reserve,
+  clear, append support, bytes view, and drop
+- `std/fmt`: append helpers for `&str`, `String`, `i32`, `usize`, and `bool`
+- `std/mem`: page allocator, raw buffers, and byte-slice views
+- `std/io`: `File`, open/read/write/write_text, stdout/stderr, and `print`
+- `std/process`: `exit`, `abort`, `cwd`, and `args`
+- `std/vec`: construction, capacity, push, from-slice, views, mutation through
+  views, clear, reserve, and storage release for shipped element kinds
+- `std/ptr`: narrow pointer address and std-internal raw storage boundaries
+
+`std/process.env` is check-only. It reserves the future `&str?!` shape but is
+not runtime-shipped.
+
+## Known Runtime Gaps
+
+- targets other than `arm64-darwin`
+- broad control-flow lowering outside the documented subset
+- payload-carrying enum `if is` and `match` runtime lowering
+- array literal storage and general array runtime behavior
+- broad pointer dereference and user memory mutation APIs
+- broad view iteration
+- bare string interpolation lowering without an explicit allocator source
+- non-copy aggregate `Vec<T>` element storage and per-element drop glue
+- insertion/removal/iterator collection APIs
+- interface dispatch, interface-bound generics, and trait-style code reuse
+- package management, separate compilation, incremental compilation, debug info,
+  optimization, dynamic linking, and stable public binary ABI
+
+## Verification
+
+The full v0 closure suite is listed in [v0-closure.md](v0-closure.md). For a
+broad compiler change, run the relevant subset of:
+
+```sh
+cargo fmt --manifest-path compiler/Cargo.toml --check
+cargo test --manifest-path compiler/Cargo.toml --lib
+cargo test --manifest-path compiler/Cargo.toml --test cli_build
+cargo test --manifest-path compiler/Cargo.toml --test cli_run
+cargo test --manifest-path compiler/Cargo.toml --test distributed_home
+cargo test --manifest-path compiler/Cargo.toml --test cli_fmt
+cargo test --manifest-path compiler/Cargo.toml --test cli_lsp
+cargo test --manifest-path compiler/Cargo.toml --test example_corpus
+```
+
+Documentation-only changes usually need only formatting verification unless
+they alter examples, CLI contracts, or generated outputs.

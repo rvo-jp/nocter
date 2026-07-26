@@ -1,4 +1,4 @@
-# Modules and Imports
+# Modules and Use Declarations
 
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
@@ -19,14 +19,14 @@ examples/word_count.nct                                  => examples/word_count
 
 The file path is the source of truth. There is no separate module name inside the file.
 
-Imports make names from another module available.
+`use` declarations make names from another module available.
 
 ```nct
 use std/io.{File, stdout}
 use std/mem.Allocator
 ```
 
-Adopted import forms:
+Adopted `use` forms:
 
 ```nct
 use std/mem.Allocator
@@ -166,7 +166,7 @@ pub use std/error.{Error, ErrorCode}
 pub use std/string.String
 ```
 
-The prelude must remain small. `Int` is not part of v0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0 because general collections are not runtime-shipped. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude must remain small. `Int` is not part of v0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0 because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Package Layout
 

@@ -129,7 +129,6 @@ Rules:
 - A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
-- Borrowed optional projections create a borrow only inside the then body, as specified in [Errors and Optionals](04-errors-optionals.md#borrowed-optional-projections).
 - `&str`, `&[T]`, `&+[T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
 - Borrow-like return values are governed by [Borrow-like Return Values](#borrow-like-return-values).
 

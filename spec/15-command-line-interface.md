@@ -90,7 +90,7 @@ Rules:
 - The root file must have the `.nct` extension.
 - The source root is the canonical parent directory of the entry file.
 - The compiler follows imports from the root file to form the compile unit.
-- The compile unit rules are specified in [Modules and Imports](01-modules-imports.md#compile-unit).
+- The compile unit rules are specified in [Modules and Use Declarations](01-modules-use.md#compile-unit).
 - Package manifests, project-root discovery, workspaces, lockfiles, package registries, separate compilation, and incremental artifacts are not part of v0.
 
 `fmt` takes one `.nct` source file but does not treat it as a compile-unit root. It formats only the file named on the command line.
@@ -225,7 +225,7 @@ Rules:
 
 The JSON diagnostic envelope is specified in [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 
-The root path and source span path rules are specified in [Modules and Imports](01-modules-imports.md#source-file-identity).
+The root path and source span path rules are specified in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
 
 Initial implementation note:
 
