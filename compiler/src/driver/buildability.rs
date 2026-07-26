@@ -1632,14 +1632,15 @@ fn unsupported_index_assignment_target_diagnostic(
     let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
         return None;
     };
-    if slice_index_assignment_target_is_buildable(
-        &index.object,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )
-    .unwrap_or(false)
-    {
+    if matches!(
+        slice_index_assignment_target_is_buildable(
+            &index.object,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Some(true) | None
+    ) {
         return None;
     }
 
@@ -1662,7 +1663,7 @@ fn slice_index_assignment_target_is_buildable(
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
             match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Slice(element) => {
-                    Some(typecheck_slice_element_kind_is_buildable(element))
+                    typecheck_slice_element_kind_is_buildable(element).then_some(true)
                 }
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8
@@ -1682,7 +1683,7 @@ fn slice_index_assignment_target_is_buildable(
         }
         Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Slice(element) => {
-                Some(typecheck_slice_element_kind_is_buildable(element))
+                typecheck_slice_element_kind_is_buildable(element).then_some(true)
             }
             TypecheckScalarViewKind::I32
             | TypecheckScalarViewKind::U8
@@ -2464,7 +2465,7 @@ fn slice_index_target_is_buildable(
             match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Str => Some(true),
                 TypecheckScalarViewKind::Slice(element) => {
-                    Some(typecheck_slice_element_kind_is_buildable(element))
+                    typecheck_slice_element_kind_is_buildable(element).then_some(true)
                 }
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8
@@ -2484,7 +2485,7 @@ fn slice_index_target_is_buildable(
         Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Str => Some(true),
             TypecheckScalarViewKind::Slice(element) => {
-                Some(typecheck_slice_element_kind_is_buildable(element))
+                typecheck_slice_element_kind_is_buildable(element).then_some(true)
             }
             TypecheckScalarViewKind::I32
             | TypecheckScalarViewKind::U8

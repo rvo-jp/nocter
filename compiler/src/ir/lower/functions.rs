@@ -9,7 +9,7 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, ErrorPayloads,
     FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
-    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources,
+    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
     drop_glue_for_type_expr_with_resolver,
 };
 use super::control_flow::{
@@ -449,8 +449,12 @@ fn lower_scalar_parameters(
                 slots.push_str_parameter(parameter.name.clone());
                 slots.push_empty_abi_word();
             }
-            ScalarParameterKind::Slice(element_kind) => {
-                slots.push_slice_parameter(parameter.name.clone(), element_kind);
+            ScalarParameterKind::Slice(info) => {
+                slots.push_slice_parameter(
+                    parameter.name.clone(),
+                    info.element_kind,
+                    info.element_type,
+                );
                 slots.push_empty_abi_word();
             }
             ScalarParameterKind::Error => {
@@ -611,7 +615,7 @@ enum ScalarParameterKind {
     Usize,
     Bool,
     Str,
-    Slice(TypecheckSliceElementKind),
+    Slice(SliceTypeInfo),
     Error,
     Borrow,
     BorrowAggregate {
@@ -646,9 +650,11 @@ fn lower_scalar_parameter_kind(
         Some(Type::Bool) => return Ok(ScalarParameterKind::Bool),
         Some(Type::Str) => return Ok(ScalarParameterKind::Str),
         Some(Type::Slice { .. }) => {
-            return Ok(ScalarParameterKind::Slice(
-                slice_element_kind_from_type_expr(&parameter.ty, resolved, resolved_sources),
-            ));
+            return Ok(ScalarParameterKind::Slice(slice_type_info_from_type_expr(
+                &parameter.ty,
+                resolved,
+                resolved_sources,
+            )));
         }
         Some(Type::Error) => return Ok(ScalarParameterKind::Error),
         _ => {}
@@ -692,6 +698,50 @@ fn slice_element_kind_from_type_expr(
         Some(Type::Bool) => TypecheckSliceElementKind::Bool,
         Some(Type::Str) => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
+    }
+}
+
+fn slice_type_info_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> SliceTypeInfo {
+    SliceTypeInfo {
+        element_kind: slice_element_kind_from_type_expr(ty, resolved, resolved_sources),
+        element_type: view_element_type_expr_from_type_expr_with_resolver(
+            ty,
+            resolved,
+            resolved_sources,
+        ),
+    }
+}
+
+fn view_element_type_expr_from_type_expr_with_resolver(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<TypeExpr> {
+    match ty {
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            Some(*view.element.clone())
+        }
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            let target_resolved = resolved_sources
+                .get(&target.span().source)
+                .copied()
+                .unwrap_or(resolved);
+            view_element_type_expr_from_type_expr_with_resolver(
+                target,
+                target_resolved,
+                resolved_sources,
+            )
+        }
+        _ => None,
     }
 }
 

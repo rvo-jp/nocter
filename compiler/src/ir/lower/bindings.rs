@@ -7,7 +7,7 @@ use super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
 };
-use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
+use super::context::{AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
@@ -119,9 +119,7 @@ pub(super) fn lower_local_binding_with_loop_control(
         ScalarBindingKind::Usize => lower_usize_local_binding(statement, context),
         ScalarBindingKind::Bool => lower_bool_local_binding(statement, context),
         ScalarBindingKind::Str => lower_str_local_binding(statement, context),
-        ScalarBindingKind::Slice(element_kind) => {
-            lower_slice_local_binding(statement, context, element_kind)
-        }
+        ScalarBindingKind::Slice(info) => lower_slice_local_binding(statement, context, info),
     }
 }
 
@@ -145,9 +143,9 @@ fn optional_success_scalar_binding_kind(
         Some(Type::Usize) => Some(ScalarBindingKind::Usize),
         Some(Type::Bool) => Some(ScalarBindingKind::Bool),
         Some(Type::Str) => Some(ScalarBindingKind::Str),
-        Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice(
-            slice_element_kind_from_type_expr(ty, context),
-        )),
+        Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice(slice_type_info_from_type_expr(
+            ty, context,
+        ))),
         _ => None,
     })
 }
@@ -487,7 +485,7 @@ fn lower_otherwise_scalar_call_binding(
             context.define_str_local(statement.name.clone());
             Ok(instructions)
         }
-        ScalarBindingKind::Slice(element_kind) => {
+        ScalarBindingKind::Slice(info) => {
             let destination = context.next_slice_local_location()?;
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
@@ -505,7 +503,11 @@ fn lower_otherwise_scalar_call_binding(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_slice_local(statement.name.clone(), element_kind);
+            context.define_slice_local(
+                statement.name.clone(),
+                info.element_kind,
+                info.element_type,
+            );
             Ok(instructions)
         }
     }
@@ -1179,6 +1181,7 @@ fn slice_target_element_type_expr(
     context: &LoweringContext,
 ) -> Option<TypeExpr> {
     match unwrap_group(expression) {
+        Expr::Identifier(identifier) => context.slice_element_type_expr(&identifier.name).cloned(),
         Expr::Call(call) => {
             let return_type = context.call_return_type_expr(call)?;
             slice_element_type_expr_from_type_expr(&return_type, context)
@@ -1219,6 +1222,15 @@ fn slice_element_type_expr_from_type_expr(
     ty: &TypeExpr,
     context: &LoweringContext,
 ) -> Option<TypeExpr> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    slice_element_type_expr_from_type_expr_with_resolved(ty, resolved, context)
+}
+
+fn slice_element_type_expr_from_type_expr_with_resolved(
+    ty: &TypeExpr,
+    resolved: &crate::resolve::ResolveOutput,
+    context: &LoweringContext,
+) -> Option<TypeExpr> {
     match ty {
         TypeExpr::Borrow(borrow) => {
             let TypeExpr::View(view) = borrow.inner.as_ref() else {
@@ -1227,10 +1239,12 @@ fn slice_element_type_expr_from_type_expr(
             Some(*view.element.clone())
         }
         TypeExpr::Reference(reference) => {
-            let (_root_source, resolved) = context.resolved_calls()?;
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let target = symbol.alias_target.as_ref()?;
-            slice_element_type_expr_from_type_expr(target, context)
+            let target_resolved = context
+                .resolved_source(target.span().source)
+                .unwrap_or(resolved);
+            slice_element_type_expr_from_type_expr_with_resolved(target, target_resolved, context)
         }
         _ => None,
     }
@@ -2816,12 +2830,12 @@ fn lower_str_local_binding(
 fn lower_slice_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
-    element_kind: TypecheckSliceElementKind,
+    info: SliceTypeInfo,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let destination = context.next_slice_local_location()?;
     let instructions =
         lower_slice_expression_to_location(&statement.initializer, destination, context)?;
-    context.define_slice_local(statement.name.clone(), element_kind);
+    context.define_slice_local(statement.name.clone(), info.element_kind, info.element_type);
     Ok(instructions)
 }
 
@@ -2843,37 +2857,98 @@ fn scalar_binding_kind(
                 Some(Type::Bool) => Ok(ScalarBindingKind::Bool),
                 Some(Type::Str) => Ok(ScalarBindingKind::Str),
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice(
-                    slice_element_kind_from_type_expr(ty, context),
+                    slice_type_info_from_type_expr(ty, context),
                 )),
                 _ => Err(unsupported_binding_diagnostic(
                     "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, or aliases to those types",
                 )),
             }
         }
-        None => Ok(context
-            .binding_scalar_view_kind(statement.name_span)
-            .map(scalar_binding_kind_from_typecheck_kind)
-            .or_else(|| {
+        None => {
+            if let Some(kind) = context.binding_scalar_view_kind(statement.name_span) {
+                return Ok(scalar_binding_kind_from_typecheck_kind(
+                    kind,
+                    slice_type_info_from_expression(&statement.initializer, context),
+                ));
+            }
+            Ok(
                 expression_is_lowerable_bool_binding(&statement.initializer, context)
                     .then_some(ScalarBindingKind::Bool)
-            })
-            .or_else(|| {
-                expression_is_bool_returning_call(&statement.initializer, context)
-                    .then_some(ScalarBindingKind::Bool)
-            })
-            .or_else(|| expression_scalar_binding_kind(&statement.initializer, context))
-            .unwrap_or(ScalarBindingKind::I32)),
+                    .or_else(|| {
+                        expression_is_bool_returning_call(&statement.initializer, context)
+                            .then_some(ScalarBindingKind::Bool)
+                    })
+                    .or_else(|| expression_scalar_binding_kind(&statement.initializer, context))
+                    .unwrap_or(ScalarBindingKind::I32),
+            )
+        }
     }
 }
 
-fn scalar_binding_kind_from_typecheck_kind(kind: TypecheckScalarViewKind) -> ScalarBindingKind {
+fn scalar_binding_kind_from_typecheck_kind(
+    kind: TypecheckScalarViewKind,
+    slice_info: Option<SliceTypeInfo>,
+) -> ScalarBindingKind {
     match kind {
         TypecheckScalarViewKind::I32 => ScalarBindingKind::I32,
         TypecheckScalarViewKind::U8 => ScalarBindingKind::U8,
         TypecheckScalarViewKind::Usize => ScalarBindingKind::Usize,
         TypecheckScalarViewKind::Bool => ScalarBindingKind::Bool,
         TypecheckScalarViewKind::Str => ScalarBindingKind::Str,
-        TypecheckScalarViewKind::Slice(element_kind) => ScalarBindingKind::Slice(element_kind),
+        TypecheckScalarViewKind::Slice(element_kind) => {
+            ScalarBindingKind::Slice(slice_info.unwrap_or(SliceTypeInfo {
+                element_kind,
+                element_type: None,
+            }))
+        }
+    }
+}
+
+fn slice_type_info_from_type_expr(ty: &TypeExpr, context: &LoweringContext) -> SliceTypeInfo {
+    let element_type = slice_element_type_expr_from_type_expr(ty, context);
+    let element_kind = element_type
+        .as_ref()
+        .map(|element_type| slice_element_kind_from_element_type_expr(element_type, context))
+        .unwrap_or_else(|| slice_element_kind_from_type_expr(ty, context));
+    SliceTypeInfo {
+        element_kind,
+        element_type,
+    }
+}
+
+fn slice_type_info_from_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<SliceTypeInfo> {
+    let element_type = slice_target_element_type_expr(expression, context)?;
+    Some(SliceTypeInfo {
+        element_kind: slice_element_kind_from_element_type_expr(&element_type, context),
+        element_type: Some(element_type),
+    })
+}
+
+fn slice_type_info_from_call_return(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<SliceTypeInfo> {
+    let return_type = context.call_return_type_expr(call)?;
+    Some(slice_type_info_from_type_expr(&return_type, context))
+}
+
+fn slice_type_info_from_call_success(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<SliceTypeInfo> {
+    let TypeExpr::Fallible(fallible) = context.call_return_type_expr(call)? else {
+        return None;
+    };
+    Some(slice_type_info_from_type_expr(&fallible.success, context))
+}
+
+fn slice_type_info_from_kind(element_kind: TypecheckSliceElementKind) -> SliceTypeInfo {
+    SliceTypeInfo {
+        element_kind,
+        element_type: None,
     }
 }
 
@@ -2937,13 +3012,19 @@ fn primitive_call_scalar_binding_kind(
     match context.primitive_name_for_call(call)? {
         "addr" | "pointee_size" => Some(ScalarBindingKind::Usize),
         "str_from_raw_parts" => Some(ScalarBindingKind::Str),
-        "bytes_from_str" => Some(ScalarBindingKind::Slice(TypecheckSliceElementKind::U8)),
+        "bytes_from_str" => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
+            TypecheckSliceElementKind::U8,
+        ))),
         "slice_from_raw_parts"
         | "slice_from_raw_parts_mut"
         | "slice_from_raw_parts_value"
         | "slice_from_raw_parts_value_mut" => Some(ScalarBindingKind::Slice(
-            call_return_slice_element_kind(call, context)
-                .unwrap_or(TypecheckSliceElementKind::Other),
+            slice_type_info_from_call_return(call, context).unwrap_or_else(|| {
+                slice_type_info_from_kind(
+                    call_return_slice_element_kind(call, context)
+                        .unwrap_or(TypecheckSliceElementKind::Other),
+                )
+            }),
         )),
         _ => None,
     }
@@ -2967,7 +3048,9 @@ fn scalar_binding_kind_from_type(ty: &Type) -> Option<ScalarBindingKind> {
         Type::Usize => Some(ScalarBindingKind::Usize),
         Type::Bool => Some(ScalarBindingKind::Bool),
         Type::Str => Some(ScalarBindingKind::Str),
-        Type::Slice { .. } => Some(ScalarBindingKind::Slice(TypecheckSliceElementKind::Other)),
+        Type::Slice { .. } => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
+            TypecheckSliceElementKind::Other,
+        ))),
         _ => None,
     }
 }
@@ -2979,8 +3062,12 @@ fn scalar_binding_kind_from_call_return_type(
 ) -> Option<ScalarBindingKind> {
     match ty {
         Type::Slice { .. } => Some(ScalarBindingKind::Slice(
-            call_return_slice_element_kind(call, context)
-                .unwrap_or(TypecheckSliceElementKind::Other),
+            slice_type_info_from_call_return(call, context).unwrap_or_else(|| {
+                slice_type_info_from_kind(
+                    call_return_slice_element_kind(call, context)
+                        .unwrap_or(TypecheckSliceElementKind::Other),
+                )
+            }),
         )),
         _ => scalar_binding_kind_from_type(ty),
     }
@@ -2993,8 +3080,12 @@ fn scalar_binding_kind_from_call_success_type(
 ) -> Option<ScalarBindingKind> {
     match ty {
         Type::Slice { .. } => Some(ScalarBindingKind::Slice(
-            call_success_slice_element_kind(call, context)
-                .unwrap_or(TypecheckSliceElementKind::Other),
+            slice_type_info_from_call_success(call, context).unwrap_or_else(|| {
+                slice_type_info_from_kind(
+                    call_success_slice_element_kind(call, context)
+                        .unwrap_or(TypecheckSliceElementKind::Other),
+                )
+            }),
         )),
         _ => scalar_binding_kind_from_type(ty),
     }
@@ -3008,6 +3099,16 @@ fn slice_element_kind_from_type_expr(
         return TypecheckSliceElementKind::Other;
     };
     slice_element_kind_from_type(view_element_type_from_type_expr(ty, resolved))
+}
+
+fn slice_element_kind_from_element_type_expr(
+    ty: &TypeExpr,
+    context: &LoweringContext,
+) -> TypecheckSliceElementKind {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return TypecheckSliceElementKind::Other;
+    };
+    slice_element_kind_from_type(scalar_or_view_type_from_type_expr(ty, resolved))
 }
 
 fn call_return_slice_element_kind(
@@ -3146,7 +3247,7 @@ enum ScalarBindingKind {
     Usize,
     Bool,
     Str,
-    Slice(TypecheckSliceElementKind),
+    Slice(SliceTypeInfo),
 }
 
 impl ScalarBindingKind {

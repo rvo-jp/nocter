@@ -111,14 +111,19 @@ impl LoweringParameterSlots {
         &mut self,
         name: String,
         element_kind: TypecheckSliceElementKind,
+        element_type: Option<TypeExpr>,
     ) {
+        let info = SliceTypeInfo {
+            element_kind,
+            element_type,
+        };
         self.push_abi_word(
             None,
             None,
             None,
             None,
             None,
-            Some(SliceBinding { name, element_kind }),
+            Some(SliceBinding { name, info }),
             None,
         );
     }
@@ -731,8 +736,15 @@ impl<'a> LoweringContext<'a> {
         &mut self,
         name: String,
         element_kind: TypecheckSliceElementKind,
+        element_type: Option<TypeExpr>,
     ) {
-        self.define_local(name, LocalKind::Slice(element_kind));
+        self.define_local(
+            name,
+            LocalKind::Slice(SliceTypeInfo {
+                element_kind,
+                element_type,
+            }),
+        );
     }
 
     pub(super) fn rename_local(&mut self, old_name: &str, new_name: String) -> bool {
@@ -873,14 +885,35 @@ impl<'a> LoweringContext<'a> {
         self.locals
             .iter()
             .find_map(|local| match &local.kind {
-                LocalKind::Slice(element_kind) if local.name == name => Some(*element_kind),
+                LocalKind::Slice(info) if local.name == name => Some(info.element_kind),
                 _ => None,
             })
             .or_else(|| {
                 self.slice_parameters
                     .iter()
                     .find_map(|parameter| match parameter {
-                        Some(parameter) if parameter.name == name => Some(parameter.element_kind),
+                        Some(parameter) if parameter.name == name => {
+                            Some(parameter.info.element_kind)
+                        }
+                        _ => None,
+                    })
+            })
+    }
+
+    pub(super) fn slice_element_type_expr(&self, name: &str) -> Option<&TypeExpr> {
+        self.locals
+            .iter()
+            .find_map(|local| match &local.kind {
+                LocalKind::Slice(info) if local.name == name => info.element_type.as_ref(),
+                _ => None,
+            })
+            .or_else(|| {
+                self.slice_parameters
+                    .iter()
+                    .find_map(|parameter| match parameter {
+                        Some(parameter) if parameter.name == name => {
+                            parameter.info.element_type.as_ref()
+                        }
                         _ => None,
                     })
             })
@@ -1350,7 +1383,13 @@ struct LocalBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SliceBinding {
     pub(super) name: String,
+    pub(super) info: SliceTypeInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SliceTypeInfo {
     pub(super) element_kind: TypecheckSliceElementKind,
+    pub(super) element_type: Option<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1416,7 +1455,7 @@ enum LocalKind {
     Usize,
     Bool,
     Str,
-    Slice(TypecheckSliceElementKind),
+    Slice(SliceTypeInfo),
     Error,
     Aggregate {
         layout: ValueLayout,

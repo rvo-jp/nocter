@@ -1649,6 +1649,39 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_std_vec_runs_bound_copy_aggregate_view_index() {
+    let project = TempProject::new("distributed-home-vec-bound-aggregate-view-index-run");
+    let source = project.write_source(
+        "vec_bound_aggregate_view_index_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 9, right: 14 })?
+    let view = values.view()
+    let first = view[0]
+    return first.left + first.right
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
 fn distributed_std_vec_builds_copy_aggregate_view_mut_index_assignment() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-boundary");
     let source = project.write_source(
@@ -1717,6 +1750,50 @@ func main(): i32! {
     assert_eq!(
         output.status.code(),
         Some(8),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn distributed_std_vec_runs_copy_aggregate_slice_parameter_indexing() {
+    let project = TempProject::new("distributed-home-vec-aggregate-slice-parameter-index-run");
+    let source = project.write_source(
+        "vec_aggregate_slice_parameter_index_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+func replace(view: &+[Pair]): void {
+    view[0] = Pair { left: 17, right: 6 }
+    return
+}
+
+func sum(view: &[Pair]): i32 {
+    let first = view[0]
+    return first.left + first.right
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 1, right: 2 })?
+    let mutable_view = values.view_mut()
+    replace(mutable_view)
+    let view = values.view()
+    return sum(view)
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
