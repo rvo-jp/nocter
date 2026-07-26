@@ -1,15 +1,15 @@
 use super::aggregates::{
-    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
+    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr_with_resolver,
     aggregate_type_layout, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct,
+    type_expr_is_copy_struct_with_resolver,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, ErrorPayloads,
     FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
-    LoweringParameterSlots, PendingAggregateDrop, drop_glue_for_type_expr,
+    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, drop_glue_for_type_expr,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
@@ -35,13 +35,14 @@ use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
-    borrow_inner_type, borrow_type_from_type_expr, parameter_type_from_type_expr,
-    return_type_expr_is_top_level_optional, return_type_from_type_expr, type_expr_with_self_type,
-    view_element_type_from_type_expr,
+    borrow_inner_type_with_resolver, borrow_type_from_type_expr,
+    parameter_type_from_type_expr_with_resolver,
+    return_type_expr_is_top_level_optional_with_resolver, return_type_from_type_expr_with_resolver,
+    type_expr_with_self_type, view_element_type_from_type_expr_with_resolver,
 };
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
-    function_parameter_abi_word_count_from_signature,
+    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr_with_resolver,
+    function_parameter_abi_word_count_from_signature_with_resolver,
 };
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr, FunctionDecl,
@@ -63,7 +64,7 @@ use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{TypecheckFacts, TypecheckSliceElementKind};
 use std::collections::HashMap;
 
-pub(super) fn lower_function(
+pub(super) fn lower_function<'a>(
     function: &FunctionDecl,
     substitutions: &HashMap<String, TypeExpr>,
     name: String,
@@ -72,8 +73,9 @@ pub(super) fn lower_function(
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &'a TypecheckFacts,
+    resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function
@@ -97,33 +99,40 @@ pub(super) fn lower_function(
 
     let parameters = function_parameters(function, substitutions);
     let return_type_expr = substitute_type_expr_parameters(&function.return_type, substitutions);
-    let parameter_slots =
-        lower_scalar_parameters(&name, &parameters, root_source, resolved, sources).map_err(
-            |diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
-            },
-        )?;
+    let parameter_slots = lower_scalar_parameters(
+        &name,
+        &parameters,
+        root_source,
+        resolved,
+        &resolved_sources,
+        sources,
+    )
+    .map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
+    })?;
     validate_parameter_slots_match_function_abi(
         &name,
         &parameters,
         &return_type_expr,
         resolved,
+        &resolved_sources,
         &parameter_slots,
     )
     .map_err(|diagnostics| {
         attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
     })?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
-    let return_type = match lower_function_return_type(&return_type_expr, &name, resolved) {
-        Ok(return_type) => return_type,
-        Err(diagnostics) => {
-            return Err(attach_primary_span_if_absent(
-                diagnostics,
-                sources,
-                function.return_type.span(),
-            ));
-        }
-    };
+    let return_type =
+        match lower_function_return_type(&return_type_expr, &name, resolved, &resolved_sources) {
+            Ok(return_type) => return_type,
+            Err(diagnostics) => {
+                return Err(attach_primary_span_if_absent(
+                    diagnostics,
+                    sources,
+                    function.return_type.span(),
+                ));
+            }
+        };
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
         name.clone(),
@@ -132,11 +141,18 @@ pub(super) fn lower_function(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+    .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
         &return_type_expr,
         resolved,
+        |source| resolved_sources.get(&source).copied(),
     ))
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_call_resolution(
+        root_source,
+        resolved,
+        typecheck_facts,
+        function_names,
+        resolved_sources,
+    )
     .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -175,7 +191,7 @@ fn function_parameters(
         .collect()
 }
 
-pub(super) fn lower_drop_function(
+pub(super) fn lower_drop_function<'a>(
     drop_: &DropDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
@@ -185,8 +201,9 @@ pub(super) fn lower_drop_function(
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &'a TypecheckFacts,
+    resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     let binding = Parameter {
@@ -203,6 +220,7 @@ pub(super) fn lower_drop_function(
         std::slice::from_ref(&binding),
         root_source,
         resolved,
+        &resolved_sources,
         sources,
     )
     .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
@@ -211,6 +229,7 @@ pub(super) fn lower_drop_function(
         std::slice::from_ref(&binding),
         &void_type_expr(drop_.span),
         resolved,
+        &resolved_sources,
         &parameters,
     )
     .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
@@ -224,7 +243,13 @@ pub(super) fn lower_drop_function(
     )
     .with_function_return_type(return_type.clone())
     .with_function_returns_optional(false)
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_call_resolution(
+        root_source,
+        resolved,
+        typecheck_facts,
+        function_names,
+        resolved_sources,
+    )
     .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -246,7 +271,7 @@ pub(super) fn lower_drop_function(
     })
 }
 
-pub(super) fn lower_method_function(
+pub(super) fn lower_method_function<'a>(
     method: &MethodDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
@@ -256,8 +281,9 @@ pub(super) fn lower_method_function(
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &'a TypecheckFacts,
+    resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     let Some(body) = &method.body else {
@@ -276,31 +302,38 @@ pub(super) fn lower_method_function(
         &type_expr_with_self_type(&method.return_type, self_ty),
         substitutions,
     );
-    let parameter_slots =
-        lower_scalar_parameters(&name, &parameters, root_source, resolved, sources).map_err(
-            |diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, method.parameters.span)
-            },
-        )?;
+    let parameter_slots = lower_scalar_parameters(
+        &name,
+        &parameters,
+        root_source,
+        resolved,
+        &resolved_sources,
+        sources,
+    )
+    .map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, method.parameters.span)
+    })?;
     validate_parameter_slots_match_function_abi(
         &name,
         &parameters,
         &return_type_expr,
         resolved,
+        &resolved_sources,
         &parameter_slots,
     )
     .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, method.span))?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
-    let return_type = match lower_function_return_type(&return_type_expr, &name, resolved) {
-        Ok(return_type) => return_type,
-        Err(diagnostics) => {
-            return Err(attach_primary_span_if_absent(
-                diagnostics,
-                sources,
-                method.return_type.span(),
-            ));
-        }
-    };
+    let return_type =
+        match lower_function_return_type(&return_type_expr, &name, resolved, &resolved_sources) {
+            Ok(return_type) => return_type,
+            Err(diagnostics) => {
+                return Err(attach_primary_span_if_absent(
+                    diagnostics,
+                    sources,
+                    method.return_type.span(),
+                ));
+            }
+        };
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
         name.clone(),
@@ -309,11 +342,18 @@ pub(super) fn lower_method_function(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+    .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
         &return_type_expr,
         resolved,
+        |source| resolved_sources.get(&source).copied(),
     ))
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_call_resolution(
+        root_source,
+        resolved,
+        typecheck_facts,
+        function_names,
+        resolved_sources,
+    )
     .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -377,13 +417,21 @@ fn lower_scalar_parameters(
     parameters: &[Parameter],
     root_source: SourceId,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     sources: &SourceMap,
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut slots = LoweringParameterSlots::default();
     for parameter in parameters {
-        match lower_scalar_parameter_kind(parameter, function_name, root_source, resolved).map_err(
-            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, parameter.span),
-        )? {
+        match lower_scalar_parameter_kind(
+            parameter,
+            function_name,
+            root_source,
+            resolved,
+            resolved_sources,
+        )
+        .map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, parameter.span)
+        })? {
             ScalarParameterKind::I32 => {
                 slots.push_i32_parameter(parameter.name.clone());
             }
@@ -432,7 +480,11 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
-                    is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
+                    is_copy: type_expr_is_copy_struct_with_resolver(
+                        &parameter.ty,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
                     drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
                     fields,
                 });
@@ -449,7 +501,11 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
-                    is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
+                    is_copy: type_expr_is_copy_struct_with_resolver(
+                        &parameter.ty,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
                     drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
                     fields,
                 });
@@ -465,11 +521,16 @@ fn validate_parameter_slots_match_function_abi(
     parameters: &[Parameter],
     return_type: &TypeExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     slots: &LoweringParameterSlots,
 ) -> Result<(), Vec<Diagnostic>> {
     let signature = resolved_function_signature(parameters, return_type.clone());
-    let expected = function_parameter_abi_word_count_from_signature(&signature, resolved)
-        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    let expected = function_parameter_abi_word_count_from_signature_with_resolver(
+        &signature,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
+    )
+    .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     let actual = slots.parameter_abi_word_count();
     if actual == expected {
         return Ok(());
@@ -563,8 +624,11 @@ fn lower_scalar_parameter_kind(
     function_name: &str,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    match parameter_type_from_type_expr(&parameter.ty, resolved) {
+    match parameter_type_from_type_expr_with_resolver(&parameter.ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    }) {
         Some(Type::I32) => return Ok(ScalarParameterKind::I32),
         Some(Type::U8) => return Ok(ScalarParameterKind::U8),
         Some(Type::Usize) => return Ok(ScalarParameterKind::Usize),
@@ -572,22 +636,33 @@ fn lower_scalar_parameter_kind(
         Some(Type::Str) => return Ok(ScalarParameterKind::Str),
         Some(Type::Slice { .. }) => {
             return Ok(ScalarParameterKind::Slice(
-                slice_element_kind_from_type_expr(&parameter.ty, resolved),
+                slice_element_kind_from_type_expr(&parameter.ty, resolved, resolved_sources),
             ));
         }
         Some(Type::Error) => return Ok(ScalarParameterKind::Error),
         _ => {}
     }
 
-    let value = abi_value_from_type_expr(&parameter.ty, resolved)
-        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    let value = abi_value_from_type_expr_with_resolver(&parameter.ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     match &value.ty {
-        AbiType::Borrow => {
-            lower_borrow_parameter_kind(parameter, function_name, root_source, resolved)
-        }
-        AbiType::Struct(_) => {
-            lower_aggregate_parameter_kind(parameter, function_name, root_source, resolved, &value)
-        }
+        AbiType::Borrow => lower_borrow_parameter_kind(
+            parameter,
+            function_name,
+            root_source,
+            resolved,
+            resolved_sources,
+        ),
+        AbiType::Struct(_) => lower_aggregate_parameter_kind(
+            parameter,
+            function_name,
+            root_source,
+            resolved,
+            resolved_sources,
+            &value,
+        ),
         _ => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
 }
@@ -595,8 +670,11 @@ fn lower_scalar_parameter_kind(
 fn slice_element_kind_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> TypecheckSliceElementKind {
-    match view_element_type_from_type_expr(ty, resolved) {
+    match view_element_type_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    }) {
         Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
@@ -611,13 +689,22 @@ fn lower_borrow_parameter_kind(
     function_name: &str,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     };
-    match borrow_inner_type(&borrow.inner, resolved) {
+    match borrow_inner_type_with_resolver(&borrow.inner, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    }) {
         Some(Type::Aggregate { .. } | Type::DirectAggregate { .. }) => {
-            lower_aggregate_borrow_parameter_kind(parameter, function_name, root_source, resolved)
+            lower_aggregate_borrow_parameter_kind(
+                parameter,
+                function_name,
+                root_source,
+                resolved,
+                resolved_sources,
+            )
         }
         Some(_) => Ok(ScalarParameterKind::Borrow),
         None => Err(unsupported_parameter_type_diagnostic(function_name)),
@@ -629,17 +716,25 @@ fn lower_aggregate_borrow_parameter_kind(
     function_name: &str,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
         unreachable!("aggregate borrow parameter lowering requires a borrow type");
     };
-    let value = abi_value_from_type_expr(&borrow.inner, resolved)
-        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    let value = abi_value_from_type_expr_with_resolver(&borrow.inner, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     if !matches!(value.ty, AbiType::Struct(_)) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr(&borrow.inner, root_source, resolved)
-        .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
+    let fields = aggregate_fields_from_type_expr_with_resolver(
+        &borrow.inner,
+        root_source,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
+    )
+    .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     Ok(ScalarParameterKind::BorrowAggregate {
         layout: value.layout,
         is_readwrite: borrow.is_readwrite,
@@ -652,13 +747,19 @@ fn lower_aggregate_parameter_kind(
     function_name: &str,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr(&parameter.ty, root_source, resolved)
-        .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
+    let fields = aggregate_fields_from_type_expr_with_resolver(
+        &parameter.ty,
+        root_source,
+        resolved,
+        |source| resolved_sources.get(&source).copied(),
+    )
+    .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     match value.classification {
         ValueClassification::Indirect => Ok(ScalarParameterKind::AggregateIndirect {
             layout: value.layout,
@@ -685,9 +786,12 @@ fn lower_function_return_type(
     ty: &TypeExpr,
     name: &str,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Result<Type, Vec<Diagnostic>> {
-    return_type_from_type_expr(ty, resolved)
-        .ok_or_else(|| unsupported_function_return_type_diagnostic(name))
+    return_type_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .ok_or_else(|| unsupported_function_return_type_diagnostic(name))
 }
 
 fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
@@ -3858,7 +3962,9 @@ fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &Loweri
     let Some(return_type) = context.call_return_type_expr(call) else {
         return false;
     };
-    return_type_expr_is_top_level_optional(&return_type, resolved)
+    return_type_expr_is_top_level_optional_with_resolver(&return_type, resolved, |source| {
+        context.resolved_source(source)
+    })
 }
 
 fn lower_otherwise_return_failure_mode(

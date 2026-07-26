@@ -15261,6 +15261,7 @@ func main(): i32 {
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
+        index.resolved_sources(),
         index.error_payloads(root.ast.span.source),
     )
     .unwrap();
@@ -27286,6 +27287,11 @@ fn lower_named_function_with_signatures(
     }) else {
         panic!("missing function `{function_name}`");
     };
+    let resolved_sources = analysis
+        .files
+        .iter()
+        .map(|file| (file.ast.span.source, &file.resolved))
+        .collect();
 
     functions::lower_function(
         function,
@@ -27298,6 +27304,7 @@ fn lower_named_function_with_signatures(
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
+        resolved_sources,
         context::ErrorPayloads::default(),
     )
 }
@@ -27332,6 +27339,7 @@ fn lower_imported_named_function_with_nocter_home_files(
             index.signatures(),
             index.names(),
             index.error_payloads(root.ast.span.source),
+            index.resolved_sources(),
             root.ast.span.source,
         )
         .unwrap()

@@ -16,8 +16,8 @@ mod tests;
 
 use super::{CallTarget, Function, IrModule};
 use crate::abi::{
-    ReturnPassing, function_parameter_abi_word_count_from_signature,
-    function_success_return_passing_from_signature,
+    ReturnPassing, function_parameter_abi_word_count_from_signature_with_resolver,
+    function_success_return_passing_from_signature_with_resolver,
 };
 use crate::analysis::{
     CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
@@ -34,11 +34,16 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
-use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures};
+use context::{
+    ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures, ResolvedSources,
+};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
-use types::{parameter_type_from_type_expr, return_type_from_type_expr, type_expr_with_self_type};
+use types::{
+    parameter_type_from_type_expr_with_resolver, return_type_from_type_expr_with_resolver,
+    type_expr_with_self_type,
+};
 
 pub(crate) fn lower_executable(
     analysis: &CompileUnitAnalysis,
@@ -74,6 +79,7 @@ pub(crate) fn lower_executable(
     let function_signatures = function_index.signatures();
     let function_names = function_index.names();
     let error_payloads = function_index.error_payloads(root.ast.span.source);
+    let resolved_sources = function_index.resolved_sources();
     let mut functions = vec![
         entry::lower_entry_function(
             entry,
@@ -83,6 +89,7 @@ pub(crate) fn lower_executable(
             root.ast.span.source,
             &root.resolved,
             &root.typecheck_facts,
+            resolved_sources.clone(),
             error_payloads.clone(),
         )
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
@@ -93,6 +100,7 @@ pub(crate) fn lower_executable(
         &function_signatures,
         &function_names,
         &error_payloads,
+        &resolved_sources,
         root.ast.span.source,
         sources,
     )?;
@@ -100,12 +108,24 @@ pub(crate) fn lower_executable(
     Ok(IrModule::new(functions))
 }
 
-fn lower_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    return_type_from_type_expr(ty, resolved)
+fn lower_signature_return_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<Type> {
+    return_type_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
 }
 
-fn lower_signature_parameter_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    parameter_type_from_type_expr(ty, resolved)
+fn lower_signature_parameter_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<Type> {
+    parameter_type_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
 }
 
 fn lower_reachable_functions(
@@ -114,6 +134,7 @@ fn lower_reachable_functions(
     function_signatures: &FunctionSignatures,
     function_names: &FunctionNames,
     error_payloads: &ErrorPayloads,
+    resolved_sources: &ResolvedSources<'_>,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -145,6 +166,7 @@ fn lower_reachable_functions(
             function_signatures.clone(),
             function_names.clone(),
             error_payloads.clone(),
+            resolved_sources.clone(),
             root_source,
         )?;
         queue.extend(reachable_call_targets(&function));
@@ -156,6 +178,7 @@ fn lower_reachable_functions(
 
 struct FunctionIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
+    resolved_sources: ResolvedSources<'a>,
 }
 
 struct IndexedCallable<'a> {
@@ -187,6 +210,11 @@ enum IndexedDeclaration<'a> {
 impl<'a> FunctionIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
+        let resolved_sources = analysis
+            .files
+            .iter()
+            .map(|file| (file.ast.span.source, &file.resolved))
+            .collect();
         let call_specializations = collect_call_specializations(analysis);
         for file in &analysis.files {
             for item in &file.ast.items {
@@ -331,7 +359,10 @@ impl<'a> FunctionIndex<'a> {
                 }
             }
         }
-        Self { definitions }
+        Self {
+            definitions,
+            resolved_sources,
+        }
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
@@ -344,11 +375,15 @@ impl<'a> FunctionIndex<'a> {
                 .iter()
                 .filter_map(|(target, function)| {
                     function
-                        .signature()
+                        .signature(&self.resolved_sources)
                         .map(|signature| (target.clone(), signature))
                 })
                 .collect(),
         )
+    }
+
+    fn resolved_sources(&self) -> ResolvedSources<'a> {
+        self.resolved_sources.clone()
     }
 
     fn names(&self) -> FunctionNames {
@@ -496,6 +531,7 @@ impl<'a> IndexedCallable<'a> {
         function_signatures: FunctionSignatures,
         function_names: FunctionNames,
         error_payloads: ErrorPayloads,
+        resolved_sources: ResolvedSources<'a>,
         root_source: SourceId,
     ) -> Result<Function, Vec<Diagnostic>> {
         let span = self.declaration.span();
@@ -515,6 +551,7 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                resolved_sources,
                 error_payloads,
             ),
             IndexedDeclaration::Drop {
@@ -534,6 +571,7 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                resolved_sources,
                 error_payloads,
             ),
             IndexedDeclaration::Method {
@@ -553,13 +591,14 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                resolved_sources,
                 error_payloads,
             ),
         }
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, span))
     }
 
-    fn signature(&self) -> Option<FunctionSignature> {
+    fn signature(&self, resolved_sources: &ResolvedSources<'a>) -> Option<FunctionSignature> {
         match &self.declaration {
             IndexedDeclaration::Function {
                 declaration: function,
@@ -571,27 +610,35 @@ impl<'a> IndexedCallable<'a> {
                     substitute_type_expr_parameters(&function.return_type, substitutions);
                 let resolved_signature =
                     resolved_function_signature(&parameters, return_type.clone());
-                lower_signature_return_type(&return_type, self.resolved).map(|return_type| {
-                    let parameter_types = parameters
-                        .iter()
-                        .map(|parameter| {
-                            lower_signature_parameter_type(&parameter.ty, self.resolved)
-                        })
-                        .collect::<Option<Vec<_>>>();
+                lower_signature_return_type(&return_type, self.resolved, resolved_sources).map(
+                    |return_type| {
+                        let parameter_types = parameters
+                            .iter()
+                            .map(|parameter| {
+                                lower_signature_parameter_type(
+                                    &parameter.ty,
+                                    self.resolved,
+                                    resolved_sources,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>();
 
-                    FunctionSignature {
-                        return_type,
-                        parameter_types,
-                        parameter_abi_word_count: parameter_abi_word_count(
-                            &resolved_signature,
-                            self.resolved,
-                        ),
-                        success_return_passing: success_return_passing(
-                            &resolved_signature,
-                            self.resolved,
-                        ),
-                    }
-                })
+                        FunctionSignature {
+                            return_type,
+                            parameter_types,
+                            parameter_abi_word_count: parameter_abi_word_count(
+                                &resolved_signature,
+                                self.resolved,
+                                resolved_sources,
+                            ),
+                            success_return_passing: success_return_passing(
+                                &resolved_signature,
+                                self.resolved,
+                                resolved_sources,
+                            ),
+                        }
+                    },
+                )
             }
             IndexedDeclaration::Drop {
                 declaration,
@@ -603,7 +650,8 @@ impl<'a> IndexedCallable<'a> {
                     &type_expr_with_self_type(&declaration.binding.ty, self_ty),
                     substitutions,
                 );
-                let parameter_type = lower_signature_parameter_type(&parameter_ty, self.resolved)?;
+                let parameter_type =
+                    lower_signature_parameter_type(&parameter_ty, self.resolved, resolved_sources)?;
                 let resolved_signature = resolved_function_signature(
                     &[Parameter {
                         span: declaration.binding.span,
@@ -619,10 +667,12 @@ impl<'a> IndexedCallable<'a> {
                     parameter_abi_word_count: parameter_abi_word_count(
                         &resolved_signature,
                         self.resolved,
+                        resolved_sources,
                     ),
                     success_return_passing: success_return_passing(
                         &resolved_signature,
                         self.resolved,
+                        resolved_sources,
                     ),
                 })
             }
@@ -639,27 +689,35 @@ impl<'a> IndexedCallable<'a> {
                 );
                 let resolved_signature =
                     resolved_function_signature(&parameters, return_type.clone());
-                lower_signature_return_type(&return_type, self.resolved).map(|return_type| {
-                    let parameter_types = parameters
-                        .iter()
-                        .map(|parameter| {
-                            lower_signature_parameter_type(&parameter.ty, self.resolved)
-                        })
-                        .collect::<Option<Vec<_>>>();
+                lower_signature_return_type(&return_type, self.resolved, resolved_sources).map(
+                    |return_type| {
+                        let parameter_types = parameters
+                            .iter()
+                            .map(|parameter| {
+                                lower_signature_parameter_type(
+                                    &parameter.ty,
+                                    self.resolved,
+                                    resolved_sources,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>();
 
-                    FunctionSignature {
-                        return_type,
-                        parameter_types,
-                        parameter_abi_word_count: parameter_abi_word_count(
-                            &resolved_signature,
-                            self.resolved,
-                        ),
-                        success_return_passing: success_return_passing(
-                            &resolved_signature,
-                            self.resolved,
-                        ),
-                    }
-                })
+                        FunctionSignature {
+                            return_type,
+                            parameter_types,
+                            parameter_abi_word_count: parameter_abi_word_count(
+                                &resolved_signature,
+                                self.resolved,
+                                resolved_sources,
+                            ),
+                            success_return_passing: success_return_passing(
+                                &resolved_signature,
+                                self.resolved,
+                                resolved_sources,
+                            ),
+                        }
+                    },
+                )
             }
         }
     }
@@ -758,15 +816,23 @@ fn resolved_function_signature(
 fn parameter_abi_word_count(
     signature: &ResolvedFunctionSignature,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Option<usize> {
-    function_parameter_abi_word_count_from_signature(signature, resolved).ok()
+    function_parameter_abi_word_count_from_signature_with_resolver(signature, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .ok()
 }
 
 fn success_return_passing(
     signature: &ResolvedFunctionSignature,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Option<ReturnPassing> {
-    function_success_return_passing_from_signature(signature, resolved).ok()
+    function_success_return_passing_from_signature_with_resolver(signature, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+    .ok()
 }
 
 fn void_type_expr(span: ByteSpan) -> TypeExpr {

@@ -18,6 +18,7 @@ use super::errors::ErrorPayload;
 use super::types::type_expr_with_self_type;
 
 pub(super) type ErrorPayloads = HashMap<CallTarget, ErrorPayload>;
+pub(super) type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
 
 pub(super) struct LoweringContext<'a> {
     function_name: String,
@@ -291,11 +292,13 @@ impl<'a> LoweringContext<'a> {
         resolved: &'a ResolveOutput,
         typecheck_facts: &'a TypecheckFacts,
         function_names: FunctionNames,
+        resolved_sources: ResolvedSources<'a>,
     ) -> Self {
         self.call_resolution = Some(CallResolution {
             root_source,
             resolved,
             typecheck_facts,
+            resolved_sources,
         });
         self.function_names = function_names;
         self
@@ -501,6 +504,12 @@ impl<'a> LoweringContext<'a> {
         self.call_resolution
             .as_ref()
             .map(|resolution| (resolution.root_source, resolution.resolved))
+    }
+
+    pub(super) fn resolved_source(&self, source: SourceId) -> Option<&'a ResolveOutput> {
+        self.call_resolution
+            .as_ref()
+            .and_then(|resolution| resolution.resolved_sources.get(&source).copied())
     }
 
     pub(super) fn payloadless_enum_variant_tag(&self, member: &MemberExpr) -> Option<u8> {
@@ -1205,6 +1214,7 @@ struct CallResolution<'a> {
     root_source: SourceId,
     resolved: &'a ResolveOutput,
     typecheck_facts: &'a TypecheckFacts,
+    resolved_sources: ResolvedSources<'a>,
 }
 
 #[derive(Debug, Clone, Default)]

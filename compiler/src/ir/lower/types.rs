@@ -186,13 +186,6 @@ where
     }
 }
 
-pub(super) fn parameter_type_from_type_expr(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Type> {
-    parameter_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
-}
-
 pub(super) fn parameter_type_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -382,10 +375,6 @@ pub(super) fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
             words,
         }),
     }
-}
-
-pub(super) fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    borrow_inner_type_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
 pub(super) fn borrow_inner_type_with_resolver<'a, F>(

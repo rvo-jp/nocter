@@ -1,5 +1,7 @@
 use super::bindings::{lower_assignment, lower_local_binding};
-use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, LoweringContext};
+use super::context::{
+    ErrorPayloads, FunctionNames, FunctionSignatures, LoweringContext, ResolvedSources,
+};
 use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
     lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
@@ -31,6 +33,7 @@ pub(super) fn lower_entry_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
@@ -58,6 +61,7 @@ pub(super) fn lower_entry_function(
         root_source,
         resolved,
         typecheck_facts,
+        resolved_sources,
         error_payloads,
     )?;
 
@@ -107,6 +111,7 @@ fn lower_entry_body(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    resolved_sources: ResolvedSources<'_>,
     error_payloads: ErrorPayloads,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
@@ -126,7 +131,13 @@ fn lower_entry_body(
         &function.return_type,
         resolved,
     ))
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_call_resolution(
+        root_source,
+        resolved,
+        typecheck_facts,
+        function_names,
+        resolved_sources,
+    )
     .with_error_payloads(error_payloads);
 
     if let Some(result) = &function.body.result {

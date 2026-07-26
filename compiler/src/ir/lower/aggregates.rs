@@ -11,8 +11,11 @@ use super::expressions::{
 };
 use super::functions::propagating_failure_mode;
 use super::literals::{lower_u16_literal, lower_u32_literal};
-use super::types::view_element_type_from_type_expr;
-use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
+use super::types::view_element_type_from_type_expr_with_resolver;
+use crate::abi::{
+    AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
+    layout_of, layout_struct,
+};
 use crate::ast::{
     CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
 };
@@ -43,7 +46,10 @@ pub(super) fn aggregate_call_return_layout_from_resolved(
 ) -> Option<ValueLayout> {
     let (_root_source, resolved) = context.resolved_calls()?;
     let return_type = context.call_return_type_expr(call)?;
-    let value = abi_value_from_type_expr(&return_type, resolved).ok()?;
+    let value = abi_value_from_type_expr_with_resolver(&return_type, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
     if matches!(value.ty, AbiType::Struct(_)) {
         Some(value.layout)
     } else {
@@ -52,16 +58,32 @@ pub(super) fn aggregate_call_return_layout_from_resolved(
 }
 
 pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
+    type_expr_is_copy_struct_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
-fn type_expr_is_copy_struct_inner(
+pub(super) fn type_expr_is_copy_struct_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_copy_struct_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+fn type_expr_is_copy_struct_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
@@ -75,7 +97,12 @@ fn type_expr_is_copy_struct_inner(
                         return false;
                     }
                     let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
-                        type_expr_is_copy_struct_inner(target, resolved, resolving_names)
+                        type_expr_is_copy_struct_inner(
+                            target,
+                            fallback_resolved,
+                            resolver,
+                            resolving_names,
+                        )
                     });
                     resolving_names.remove(&symbol.canonical_name);
                     is_copy
@@ -84,6 +111,7 @@ fn type_expr_is_copy_struct_inner(
             }
         }
         TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
                 return false;
             };
@@ -98,7 +126,12 @@ fn type_expr_is_copy_struct_inner(
                     }
                     let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
                         let target = substitute_type_expr_parameters(target, &substitutions);
-                        type_expr_is_copy_struct_inner(&target, resolved, resolving_names)
+                        type_expr_is_copy_struct_inner(
+                            &target,
+                            fallback_resolved,
+                            resolver,
+                            resolving_names,
+                        )
                     });
                     resolving_names.remove(&symbol.canonical_name);
                     is_copy
@@ -106,12 +139,18 @@ fn type_expr_is_copy_struct_inner(
                 TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
             }
         }
-        TypeExpr::Fallible(fallible) => {
-            type_expr_is_copy_struct_inner(&fallible.success, resolved, resolving_names)
-        }
-        TypeExpr::Optional(optional) => {
-            type_expr_is_copy_struct_inner(&optional.inner, resolved, resolving_names)
-        }
+        TypeExpr::Fallible(fallible) => type_expr_is_copy_struct_inner(
+            &fallible.success,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_is_copy_struct_inner(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
         _ => false,
     }
 }
@@ -314,17 +353,31 @@ pub(super) fn aggregate_fields_from_type_expr(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Option<Vec<AggregateField>> {
+    aggregate_fields_from_type_expr_with_resolver(ty, root_source, resolved, |_| Some(resolved))
+}
+
+pub(super) fn aggregate_fields_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Vec<AggregateField>>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     let ty = match ty {
         TypeExpr::Fallible(fallible) => &fallible.success,
         TypeExpr::Optional(optional) => &optional.inner,
         _ => ty,
     };
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    let value =
+        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+            .ok()?;
     let AbiType::Struct(fields) = value.ty else {
         return Some(Vec::new());
     };
     let struct_layout = layout_struct(&fields).ok()?;
-    let source_fields = struct_field_signatures_from_type_expr(ty, resolved)?;
+    let source_fields = struct_field_signatures_from_type_expr(ty, fallback_resolved, &resolver)?;
     if fields.len() != source_fields.len() {
         return None;
     }
@@ -341,19 +394,25 @@ pub(super) fn aggregate_fields_from_type_expr(
             Some(&source_field.ty),
             layout.offset,
             root_source,
-            resolved,
+            fallback_resolved,
+            &resolver,
             &mut aggregate_fields,
         )?;
     }
     Some(aggregate_fields)
 }
 
-fn struct_field_signatures_from_type_expr(
+fn struct_field_signatures_from_type_expr<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Vec<StructFieldSignature>> {
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<Vec<StructFieldSignature>>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             if symbol.generic_arity > 0 {
                 return None;
@@ -362,12 +421,13 @@ fn struct_field_signatures_from_type_expr(
                 TypeSymbolKind::Struct => Some(symbol.fields.clone()),
                 TypeSymbolKind::Alias => {
                     let target = symbol.alias_target.as_ref()?;
-                    struct_field_signatures_from_type_expr(target, resolved)
+                    struct_field_signatures_from_type_expr(target, fallback_resolved, resolver)
                 }
                 TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
             }
         }
         TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
             let substitutions = generic_type_expr_substitutions(symbol, ty)?;
             match symbol.kind {
@@ -385,16 +445,16 @@ fn struct_field_signatures_from_type_expr(
                 TypeSymbolKind::Alias => {
                     let target = symbol.alias_target.as_ref()?;
                     let target = substitute_type_expr_parameters(target, &substitutions);
-                    struct_field_signatures_from_type_expr(&target, resolved)
+                    struct_field_signatures_from_type_expr(&target, fallback_resolved, resolver)
                 }
                 TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
             }
         }
         TypeExpr::Fallible(fallible) => {
-            struct_field_signatures_from_type_expr(&fallible.success, resolved)
+            struct_field_signatures_from_type_expr(&fallible.success, fallback_resolved, resolver)
         }
         TypeExpr::Optional(optional) => {
-            struct_field_signatures_from_type_expr(&optional.inner, resolved)
+            struct_field_signatures_from_type_expr(&optional.inner, fallback_resolved, resolver)
         }
         _ => None,
     }
@@ -420,16 +480,33 @@ fn generic_type_expr_substitutions(
     )
 }
 
-fn collect_aggregate_fields(
+fn resolved_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> &'a ResolveOutput
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    resolver(ty.span().source).unwrap_or(fallback_resolved)
+}
+
+fn collect_aggregate_fields<'a, F>(
     name: &str,
     ty: &AbiType,
     source_ty: Option<&TypeExpr>,
     base_offset: u64,
     root_source: SourceId,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     aggregate_fields: &mut Vec<AggregateField>,
-) -> Option<()> {
-    if let Some(kind) = aggregate_field_kind_from_abi_type(ty, source_ty, resolved) {
+) -> Option<()>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if let Some(kind) =
+        aggregate_field_kind_from_abi_type(ty, source_ty, fallback_resolved, resolver)
+    {
         let offset = u32::try_from(base_offset).ok()?;
         aggregate_fields.push(AggregateField {
             name: name.to_string(),
@@ -448,7 +525,8 @@ fn collect_aggregate_fields(
     let offset = u32::try_from(base_offset).ok()?;
     let mut nested_fields = Vec::new();
     let nested_source_fields = if let Some(source_ty) = source_ty {
-        let source_fields = struct_field_signatures_from_type_expr(source_ty, resolved)?;
+        let source_fields =
+            struct_field_signatures_from_type_expr(source_ty, fallback_resolved, resolver)?;
         if fields.len() != source_fields.len() {
             return None;
         }
@@ -467,7 +545,8 @@ fn collect_aggregate_fields(
             nested_source_ty,
             layout.offset,
             root_source,
-            resolved,
+            fallback_resolved,
+            resolver,
             &mut nested_fields,
         )?;
     }
@@ -478,8 +557,11 @@ fn collect_aggregate_fields(
             layout: ValueLayout::new(struct_layout.size, struct_layout.align),
             fields: nested_fields,
         },
-        is_copy: source_ty.is_some_and(|ty| type_expr_is_copy_struct(ty, resolved)),
-        drop_glue: source_ty.and_then(|ty| drop_glue_for_type_expr(ty, root_source, resolved)),
+        is_copy: source_ty.is_some_and(|ty| {
+            type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, |source| resolver(source))
+        }),
+        drop_glue: source_ty
+            .and_then(|ty| drop_glue_for_type_expr(ty, root_source, fallback_resolved)),
     });
 
     for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
@@ -494,18 +576,23 @@ fn collect_aggregate_fields(
             nested_source_ty,
             offset,
             root_source,
-            resolved,
+            fallback_resolved,
+            resolver,
             aggregate_fields,
         )?;
     }
     Some(())
 }
 
-fn aggregate_field_kind_from_abi_type(
+fn aggregate_field_kind_from_abi_type<'a, F>(
     ty: &AbiType,
     source_ty: Option<&TypeExpr>,
-    resolved: &ResolveOutput,
-) -> Option<AggregateFieldKind> {
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<AggregateFieldKind>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         AbiType::I32 => Some(AggregateFieldKind::I32),
         AbiType::U16 => Some(AggregateFieldKind::U16),
@@ -516,7 +603,13 @@ fn aggregate_field_kind_from_abi_type(
         AbiType::StrView => Some(AggregateFieldKind::Str),
         AbiType::SliceView => Some(AggregateFieldKind::Slice(
             source_ty
-                .and_then(|ty| view_element_type_from_type_expr(ty, resolved))
+                .and_then(|ty| {
+                    view_element_type_from_type_expr_with_resolver(
+                        ty,
+                        fallback_resolved,
+                        |source| resolver(source),
+                    )
+                })
                 .map(typecheck_slice_element_kind_from_type)
                 .unwrap_or(TypecheckSliceElementKind::Other),
         )),
