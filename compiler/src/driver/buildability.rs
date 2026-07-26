@@ -1172,6 +1172,13 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Assignment(statement) => {
+            enqueue_member_replacement_drop_target(
+                statement,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                queue,
+            );
             if !assignment_operator_is_buildable(
                 statement,
                 resolved,
@@ -1487,6 +1494,34 @@ fn collect_statement_diagnostics(
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
     }
+}
+
+fn enqueue_member_replacement_drop_target(
+    statement: &AssignmentStmt,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    queue: &mut VecDeque<CallTarget>,
+) {
+    if statement.operator != AssignmentOperator::Assign {
+        return;
+    }
+    let Expr::Member(member) = unwrap_group_expr(&statement.target) else {
+        return;
+    };
+    let Some(specialization) = typecheck_facts.field_drop_type_specialization(member.member_span)
+    else {
+        return;
+    };
+    let Some(specialization) = specialization.with_context_substitutions(generic_substitutions)
+    else {
+        return;
+    };
+    queue.push_back(call_target_for_source(
+        specialization.declaration_span.source,
+        root_source,
+        specialization.target_name,
+    ));
 }
 
 fn unsupported_expression_statement_diagnostic(
@@ -3749,6 +3784,70 @@ impl<T> Box<T> {
 func main(): i32 {
     let box = Box<i32>{ value: 1 }
     return box.value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("array literals"));
+    }
+
+    #[test]
+    fn reports_reachable_field_replacement_drop_body_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Resource {
+    value: i32
+}
+
+impl Resource {
+    drop &+self {
+        let bytes: [u8; 2] = [1, 2]
+        return
+    }
+}
+
+struct Holder {
+    inner: Resource
+}
+
+func main(): i32 {
+    var holder = Holder{ inner: Resource{ value: 1 } }
+    holder.inner = Resource{ value: 2 }
+    return holder.inner.value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("array literals"));
+    }
+
+    #[test]
+    fn reports_reachable_generic_field_replacement_drop_body_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Resource {
+    value: i32
+}
+
+impl Resource {
+    drop &+self {
+        let bytes: [u8; 2] = [1, 2]
+        return
+    }
+}
+
+struct Holder<T> {
+    inner: T
+}
+
+func main(): i32 {
+    var holder = Holder<Resource>{ inner: Resource{ value: 1 } }
+    holder.inner = Resource{ value: 2 }
+    return holder.inner.value
 }
 "#,
         );

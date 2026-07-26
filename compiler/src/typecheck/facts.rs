@@ -14,7 +14,9 @@ use super::environments::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::places::field_member_is_writable_place;
-use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
+use super::structs::{
+    resolved_struct_field_for_literal_field, resolved_struct_field_for_member, struct_member_type,
+};
 use super::type_expr::{
     infer_type_expr_substitutions, simple_type_from_display_name, type_expr_display_lossy,
     type_expr_to_type_in_environment, type_expr_to_type_with_self_type,
@@ -56,6 +58,7 @@ pub(crate) struct TypecheckFacts {
     generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
     method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
     drop_type_specializations: Vec<DropTypeSpecialization>,
+    field_drop_type_specializations: HashMap<ByteSpan, DropTypeSpecialization>,
 }
 
 impl TypecheckFacts {
@@ -208,6 +211,13 @@ impl TypecheckFacts {
         &self,
     ) -> impl Iterator<Item = &DropTypeSpecialization> + '_ {
         self.drop_type_specializations.iter()
+    }
+
+    pub(crate) fn field_drop_type_specialization(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<&DropTypeSpecialization> {
+        self.field_drop_type_specializations.get(&member_span)
     }
 
     pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
@@ -1463,19 +1473,19 @@ impl TypecheckFactCollector<'_> {
     }
 
     fn record_drop_type_specialization(&mut self, span: ByteSpan, ty: &Type) {
-        let mut free_type_parameters = HashSet::new();
-        let Some(self_ty) =
-            type_to_type_expr_allowing_parameters(ty, span, &mut free_type_parameters)
-        else {
-            return;
-        };
-        let Some(specialization) =
-            drop_type_specialization_from_self_ty(&self_ty, self.resolved, free_type_parameters)
-        else {
-            return;
-        };
+        if let Some(specialization) = self.drop_type_specialization(span, ty) {
+            self.facts.drop_type_specializations.push(specialization);
+        }
+    }
 
-        self.facts.drop_type_specializations.push(specialization);
+    fn drop_type_specialization(
+        &self,
+        span: ByteSpan,
+        ty: &Type,
+    ) -> Option<DropTypeSpecialization> {
+        let mut free_type_parameters = HashSet::new();
+        let self_ty = type_to_type_expr_allowing_parameters(ty, span, &mut free_type_parameters)?;
+        drop_type_specialization_from_self_ty(&self_ty, self.resolved, free_type_parameters)
     }
 
     fn record_struct_field_member_reference(
@@ -1494,6 +1504,14 @@ impl TypecheckFactCollector<'_> {
             !field_member_is_writable_place(member, self.resolved, environment),
         );
         self.record_struct_field_reference(member.member_span, owner, field, environment);
+        if let Some(field_ty) = struct_member_type(member, self.resolved, environment)
+            && let Some(specialization) =
+                self.drop_type_specialization(member.member_span, &field_ty)
+        {
+            self.facts
+                .field_drop_type_specializations
+                .insert(member.member_span, specialization);
+        }
     }
 
     fn record_struct_literal_field_reference(
