@@ -1,4 +1,4 @@
-# Generics, Interfaces, and Methods
+# Generics, Interfaces, Embedding, and Methods
 
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
@@ -11,10 +11,13 @@ explicit interface conformance declarations, and `Self` type syntax inside
 inherent member and interface method contexts.
 
 Nocter v0 does not include traits.
+Embedding is an adopted future composition feature, but it is not part of the
+v0 implementation contract.
 
 Not part of v0:
 
 - `trait` declarations
+- embedding declarations such as `...Type` and `pub ...Type`
 - generic bounds such as `T: Interface`
 - interface-bound method lookup
 - interface objects such as `dyn Printable`
@@ -264,6 +267,27 @@ This model prevents accidental conformance while keeping the contract check
 structural. It also keeps code reuse out of v0: interface declarations describe
 requirements only.
 
+## Interface And Embedding Separation
+
+Adopted: Nocter separates contract checking from implementation reuse.
+
+An `interface` describes a public capability. It does not store data, provide
+method bodies, forward calls, inject members, or reuse code.
+
+Embedding owns another value inside a struct and promotes only that value's
+public contract through the embedding owner. It is Nocter's planned
+composition-based reuse feature. It is not inheritance, not a trait, not a
+mixin, and not implicit interface conformance.
+
+This separation is part of Nocter's core direction:
+
+- `interface` answers "what public capability does this type promise?"
+- `embedding` answers "what contained value does this type own and expose?"
+
+The two features may work together, but neither feature includes the other.
+A type that embeds a value does not automatically conform to an interface, and
+an interface does not provide reusable implementation.
+
 ## Generics
 
 Adopted: generic type parameters use angle brackets.
@@ -315,16 +339,238 @@ Deferred generic features:
 - generic associated types
 - const generics beyond the minimum needed for fixed-size arrays
 
-## Future Code Reuse Direction
+## Embedding
 
-Interfaces do not provide code reuse in v0. Any future code reuse design must
-be separate from interface conformance and must specify at least:
+Adopted future design: embedding is Nocter's privacy-preserving composition
+feature.
 
-- declaration syntax for reusable code
-- whether reusable code may depend on interface contracts
-- interaction with inherent methods
-- generic checking rules
-- LSP hover, semantic token, completion, and diagnostic facts
-- backend lowering model
+Embedding declares that a struct stores an unnamed value of another struct type.
+The embedding owner may use only the embedded type's public surface. Private
+fields, private methods, private associated functions, and other implementation
+details of the embedded type are not promoted, even when the embedding owner is
+declared in the same module.
 
-Class inheritance is not part of the core language direction.
+Initial syntax:
+
+```nct
+struct Profile {
+    ...User
+    pub ...Article
+
+    visits: i32
+}
+```
+
+The leading `...` form is recognized only in struct bodies and struct literals.
+It does not change the existing variadic parameter suffix form such as
+`parts: &str...`.
+
+Meaning:
+
+- `...User` stores a `User` value and promotes `User`'s public instance members
+  to the `Profile` implementation scope only.
+- `pub ...Article` stores an `Article` value and promotes `Article`'s public
+  instance members as public `Profile` members.
+- The embedded values do not receive source-level field names such as `user`,
+  `article`, `User`, or `Article`.
+- The embedded types do not know that they are embedded.
+
+Embedding is directional. If `Profile` embeds `User`, `Profile` owns a `User`
+value. `User` does not gain access to `Profile`, does not see `Profile`'s
+private or public members, and does not dispatch to `Profile` overrides.
+`self` inside a promoted `User` method is still the embedded `User`, not the
+outer `Profile`.
+
+Example:
+
+```nct
+struct User {
+    id: u64
+    name: String
+    pub age: i32
+}
+
+impl User {
+    pub method &self.print(): void {
+        print(self.name)
+    }
+}
+
+struct Article {
+    title: String
+    pub text: String
+}
+
+struct Profile {
+    ...User
+    pub ...Article
+
+    visits: i32
+}
+
+impl Profile {
+    method &self.run(): void {
+        self.print() // OK: User.print is public, promoted inside Profile
+        self.id      // error: User.id is not public
+        self.age     // OK: User.age is public, promoted inside Profile
+        self.title   // error: Article.title is not public
+        self.text    // OK: Article.text is public and promoted
+        self.visits  // OK: Profile's own private field
+    }
+}
+```
+
+Outside `Profile`'s implementation scope:
+
+```nct
+let profile = make_profile()
+
+profile.print()  // error: User was embedded privately
+profile.id       // error: User.id is private to User
+profile.age      // error: User was embedded privately
+profile.title    // error: Article.title is private to Article
+profile.text     // OK: Article was embedded publicly and text is public
+profile.visits   // error: visits is private to Profile
+```
+
+### Embedded Initialization
+
+Struct literals initialize embedded values with embedded initializers:
+
+```nct
+func Profile.new(
+    name: String,
+    age: i32,
+    title: String,
+    text: String,
+): Profile {
+    return Profile{
+        ...User.new(move name, age),
+        ...Article.new(move title, move text),
+        visits: 0,
+    }
+}
+```
+
+Rules:
+
+- An embedded initializer has the form `...expr`.
+- `expr` must have the embedded target type after generic substitution.
+- Every embedding declaration must be initialized exactly once.
+- Unknown embedded initializers are compile errors.
+- Duplicate embedded initializers are compile errors.
+- Field initializers and embedded initializers are evaluated left to right in
+  the order written in the struct literal.
+- If initialization fails through postfix `?`, already initialized ordinary
+  fields and embedded values are dropped in reverse initialization order.
+- A struct may not embed the same concrete target type more than once in the
+  initial design.
+
+### Promotion And Visibility
+
+Embedding promotion is not ordinary import, not ordinary module-private access,
+and not a named field.
+
+Only the embedded type's public instance members are promotable:
+
+- public fields
+- public `&self` receiver methods
+- public `&+self` receiver methods
+
+Not promoted in the initial design:
+
+- private fields
+- private methods
+- associated functions
+- `drop` members
+- enum variants
+- type aliases
+- nested declarations
+- consuming `self` receiver methods
+- `pub(nocter)` members
+
+Consuming receiver methods are not promoted initially because calling one would
+partially move the embedding owner. A future design may allow them only after
+partial-move and drop-state rules for embedded values are fully specified.
+
+For `...T`, promoted members are visible only inside the embedding owner's
+implementation scope:
+
+- inherent methods in `impl Owner`
+- `drop &+self` in `impl Owner`
+- qualified associated functions declared as `func Owner.name`
+
+They are not visible to unrelated top-level functions in the same module.
+This is stricter than ordinary module-private visibility because embedding is a
+type-contract boundary.
+
+For `pub ...T`, promoted members become public members of the embedding owner.
+They are available anywhere the owner type is visible and the promoted member's
+use satisfies normal borrow, assignment, and ownership rules. Reading or writing
+a promoted public field reads or writes the field inside the embedded value.
+
+### Name Collisions
+
+Embedding does not provide renaming, aliasing, override order, or explicit
+disambiguation.
+
+A promoted member name must not collide with:
+
+- an ordinary field declared directly by the embedding owner
+- an inherent method declared directly by the embedding owner
+- a member promoted by another embedding
+- another member promoted by the same embedding target
+
+Collisions are compile errors regardless of whether the colliding members would
+be private or public after promotion.
+
+Rationale: a collision means the composed API has stopped being self-evident.
+Nocter requires the author to choose clearer names at the source types instead
+of adding local rename syntax.
+
+### Interface Interaction
+
+Embedding does not create implicit interface conformance.
+
+```nct
+pub interface Printable {
+    pub method &self.print(): i32
+}
+
+struct User {
+    id: u64
+}
+
+impl User {
+    pub method &self.print(): i32 {
+        return 0
+    }
+}
+
+struct Profile {
+    pub ...User
+}
+
+impl Printable for Profile // explicit conformance is still required
+```
+
+When checking an explicit `impl Interface for Owner`, public methods promoted by
+`pub ...T` may satisfy interface requirements as public `Owner` methods.
+Methods promoted by private `...T` cannot satisfy a public interface because
+they are not public on `Owner`.
+
+### Non-Goals
+
+Embedding is not:
+
+- class inheritance
+- subclassing
+- trait implementation reuse
+- interface default methods
+- mixins
+- extension methods
+- implicit conversion
+- automatic delegation to private implementation details
+
+Class inheritance is not part of the core language direction. Interface default
+methods and trait-style code reuse are not part of the core language direction.

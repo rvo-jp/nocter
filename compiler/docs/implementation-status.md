@@ -76,7 +76,8 @@ not runtime-shipped.
 - bare string interpolation lowering without an explicit allocator source
 - non-copy aggregate `Vec<T>` element storage and per-element drop glue
 - insertion/removal/iterator collection APIs
-- interface dispatch, interface-bound generics, and trait-style code reuse
+- interface dispatch, interface-bound generics, embedding, and trait-style code
+  reuse
 - package management, separate compilation, incremental compilation, debug info,
   optimization, dynamic linking, and stable public binary ABI
 

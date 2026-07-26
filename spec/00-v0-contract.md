@@ -33,6 +33,7 @@ The compiler does not infer accidental conformance from a matching shape alone.
 The following features are not part of v0:
 
 - `trait` declarations
+- embedding declarations such as `...Type` and `pub ...Type`
 - generic bounds such as `T: Interface`
 - interface-bound method lookup
 - dynamic dispatch and interface objects such as `dyn Printable`
@@ -73,6 +74,8 @@ The v0 parser rejects these forms with diagnostics instead of accepting them as
 partial language support:
 
 - `trait Name { ... }`
+- `struct Name { ...Type }`
+- `struct Name { pub ...Type }`
 - `impl Interface for Type { method ... }`
 - generic bounds such as `<T: Interface>`
 - `func` declarations inside `impl`

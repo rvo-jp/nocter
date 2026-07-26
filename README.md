@@ -139,8 +139,8 @@ Nocter v0 focuses on a small, coherent core:
 - deterministic `drop` instead of a runtime GC
 
 Nocter v0 deliberately does not include class inheritance, trait code reuse,
-interface dispatch, package management, Linux or Windows backends, or a stable
-public binary ABI.
+interface dispatch, embedding, package management, Linux or Windows backends,
+or a stable public binary ABI.
 
 ## Current Status
 

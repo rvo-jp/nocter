@@ -70,6 +70,12 @@ internal structure. An interface member must be public, and conformance is
 explicit through forms such as `impl Printable for User` so accidental shape
 matches do not silently become API commitments.
 
+Embedding is Nocter's planned composition-based reuse feature. It is separate
+from interfaces: an interface describes capability, while embedding owns a
+contained value and promotes only that value's public contract. Embedding must
+not give the owner access to the contained value's private implementation, and
+the contained value must not gain access back to the owner.
+
 Standard-library and compiler-trusted boundaries must follow the same rule.
 Low-level primitives may exist inside the active Nocter home, but ordinary
 source should interact with them through public Nocter APIs.

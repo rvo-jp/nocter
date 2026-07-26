@@ -29,7 +29,7 @@ Nocter v0 completion does not include:
 - C ABI compatibility, dynamic linking interop, or stable public binary ABI
 - package management, separate compilation, incremental compilation, debug info,
   optimization, self-hosting, or a runtime GC
-- trait declarations or code reuse through interfaces
+- trait declarations, embedding declarations, or code reuse through interfaces
 - editor-only language semantics that differ from compiler semantics
 
 ## Status Terms
@@ -94,7 +94,7 @@ cargo test --manifest-path compiler/Cargo.toml --test example_corpus
 | Field-level ownership | runtime ship narrow | Supported aggregate slot and field replacement paths stage the replacement, drop the old live value when needed, and restore drop obligations. Explicit moves out of fields and broad per-field live-state tracking remain rejected. |
 | Ownership, borrowing, move, drop | ship | Frontend rejects use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies for frontend-shipped forms. Runtime lowering inserts drops for the documented subset and rejects the rest. |
 | Methods | runtime ship narrow | Associated functions, `method &self`, `method &+self`, consuming receivers, method lookup, imported methods, and `drop &+self` work in the supported scalar/view/aggregate call subset. Broader temporary readwrite receivers reject. |
-| Interfaces | frontend ship | `interface` declarations, required `pub` members, and explicit structural `impl Interface for Type` conformance are checked. Interface values, dispatch, bounds, inheritance, default methods, and code reuse are deferred. |
+| Interfaces | frontend ship | `interface` declarations, required `pub` members, and explicit structural `impl Interface for Type` conformance are checked. Interface values, dispatch, bounds, inheritance, default methods, embedding, and code reuse are deferred. |
 | Generics | runtime ship narrow | Type arity, direct inference, concrete function/method/associated-function/drop specializations, concrete generic aggregate signatures, and supported generic bodies build and run. Unspecialized calls, generic bounds, and interface-bound dispatch reject or defer. |
 | Arrays, pointers, and general views | runtime ship narrow | Type syntax and borrow/view facts are checked. Runtime supports the current scalar, `&str`, and copy-aggregate slice element paths plus trusted pointer primitives. Array literals, pointer dereference, broad storage, and general iteration reject or defer. |
 | Standard library | runtime ship narrow | `.nocter/std` exposes only APIs classified by `spec/11` and `std-runtime-status.md`; shipped APIs work or fail recoverably; check-only APIs do not fake success; target-dependent declarations use `#target(...)`. |
