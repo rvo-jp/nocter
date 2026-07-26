@@ -4742,6 +4742,52 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_str_view_aggregate_fields() {
+    let project = TempProject::new("cli-build-str-view-aggregate-fields");
+    let source = project.write_source(
+        "str_view_aggregate_fields.nct",
+        r#"copy struct Label {
+    text: &str
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func make_label(text: &str): Label {
+    return Label{ text: text }
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    var label = Label{ text: if choice is Choice.yes { "old" } else { "bad" } }
+    if label.text != "old" {
+        return 1
+    }
+
+    label.text = match choice { Choice.yes { "Nocter" } else { "Other" } }
+    if label.text != "Nocter" {
+        return 2
+    }
+
+    let returned = make_label("Done")
+    if returned.text == "Done" {
+        return 0
+    }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(

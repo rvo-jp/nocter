@@ -5,7 +5,8 @@ use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_word, lower_macos_syscall_primitive_call_to_location,
-    lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    push_store_str_view_to_aggregate_field,
 };
 use super::functions::propagating_failure_mode;
 use super::literals::{lower_u16_literal, lower_u32_literal};
@@ -505,6 +506,7 @@ fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind
         AbiType::U8 => Some(AggregateFieldKind::U8),
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
+        AbiType::StrView => Some(AggregateFieldKind::Str),
         _ => None,
     }
 }
@@ -576,6 +578,15 @@ fn lower_aggregate_field_to_location(
             });
             Ok(lowered.instructions)
         }
+        AbiType::StrView => lower_str_view_field_to_location(
+            expression,
+            destination,
+            offset,
+            diagnostic_code,
+            subject,
+            context,
+            temporaries,
+        ),
         AbiType::Pointer => {
             let (mut instructions, value) = lower_aggregate_pointer_field_value(
                 expression,
@@ -775,6 +786,27 @@ fn lower_aggregate_field_to_location(
             subject,
         )),
     }
+}
+
+fn lower_str_view_field_to_location(
+    expression: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut lowered = lower_str_expression_to_value(expression, context, temporaries)?;
+    push_store_str_view_to_aggregate_field(
+        &mut lowered.instructions,
+        destination,
+        offset,
+        lowered.value,
+        temporaries,
+        || unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject),
+    )?;
+    Ok(lowered.instructions)
 }
 
 fn lower_aggregate_struct_fields_to_location(
@@ -1139,7 +1171,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar values (u8, u16, u32, bool, i32, usize/u64, or pointer), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values (u8, u16, u32, bool, i32, usize/u64, pointer, or &str), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

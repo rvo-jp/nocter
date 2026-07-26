@@ -880,6 +880,7 @@ fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) ->
             | TypecheckScalarViewKind::U8
             | TypecheckScalarViewKind::Usize
             | TypecheckScalarViewKind::Bool
+            | TypecheckScalarViewKind::Str
     )
 }
 

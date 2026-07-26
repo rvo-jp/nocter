@@ -9275,6 +9275,57 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_str_view_aggregate_field_exit_code() {
+    let project = TempProject::new("cli-run-str-view-aggregate-field");
+    let source = project.write_source(
+        "str_view_aggregate_field.nct",
+        r#"copy struct Label {
+    text: &str
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func make_label(text: &str): Label {
+    return Label{ text: text }
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    var label = Label{ text: if choice is Choice.yes { "old" } else { "bad" } }
+    if label.text != "old" {
+        return 1
+    }
+
+    label.text = match choice { Choice.yes { "Nocter" } else { "Other" } }
+    if label.text != "Nocter" {
+        return 2
+    }
+
+    let returned = make_label("Done")
+    if returned.text == "Done" {
+        return 42
+    }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

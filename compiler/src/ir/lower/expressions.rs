@@ -772,6 +772,24 @@ fn lower_bool_if_expression_to_value(
     })
 }
 
+fn lower_str_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_str()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredStrValue {
+        instructions: lower_str_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: StrValue::Location(temporary),
+    })
+}
+
 fn lower_i32_match_expression_to_value(
     statement: &SwitchStmt,
     context: &LoweringContext,
@@ -2284,6 +2302,12 @@ pub(super) fn lower_str_expression_to_value(
         Expr::Match(statement) => {
             lower_str_match_expression_to_value(statement, context, temporaries)
         }
+        Expr::If(statement) => lower_str_if_expression_to_value(statement, context, temporaries),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
+            lower_str_if_expression_to_value(&if_statement, context, temporaries)
+        }
+        Expr::Member(_) => lower_aggregate_str_field_to_value(expression, context, temporaries),
         Expr::Index(index) => {
             lower_str_slice_index_expression_to_value(index, context, temporaries)
         }
@@ -3312,6 +3336,74 @@ fn lower_aggregate_bool_field_to_location(
         offset: access.offset,
     });
     Ok(instructions)
+}
+
+fn lower_aggregate_str_field_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
+        .filter(|access| access.kind == AggregateFieldKind::Str)
+        .ok_or_else(unsupported_str_expression_diagnostic)?;
+    let temporary = temporaries.next_str()?;
+    let StrLocation::Local(index) = temporary else {
+        unreachable!("temporary str locations are local pairs");
+    };
+    let len_index = index
+        .checked_add(1)
+        .ok_or_else(unsupported_str_expression_diagnostic)?;
+    let len_offset = access
+        .offset
+        .checked_add(8)
+        .ok_or_else(unsupported_str_expression_diagnostic)?;
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(index),
+        source: access.source,
+        offset: access.offset,
+    });
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(len_index),
+        source: access.source,
+        offset: len_offset,
+    });
+    Ok(LoweredStrValue {
+        instructions,
+        value: StrValue::Location(temporary),
+    })
+}
+
+pub(super) fn push_store_str_view_to_aggregate_field(
+    instructions: &mut Vec<Instruction>,
+    destination: AggregateLocation,
+    offset: u32,
+    value: StrValue,
+    temporaries: &mut TemporaryAllocator,
+    unsupported_diagnostic: impl Fn() -> Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    let temporary = temporaries.next_str()?;
+    let StrLocation::Local(index) = temporary else {
+        unreachable!("temporary str locations are local pairs");
+    };
+    let len_index = index.checked_add(1).ok_or_else(&unsupported_diagnostic)?;
+    let len_offset = offset.checked_add(8).ok_or_else(unsupported_diagnostic)?;
+
+    instructions.push(Instruction::SetStr {
+        destination: temporary,
+        value,
+    });
+    instructions.push(Instruction::StoreAggregateUsize {
+        destination,
+        offset,
+        value: UsizeValue::Location(UsizeLocation::Local(index)),
+    });
+    instructions.push(Instruction::StoreAggregateUsize {
+        destination,
+        offset: len_offset,
+        value: UsizeValue::Location(UsizeLocation::Local(len_index)),
+    });
+    Ok(())
 }
 
 pub(super) struct LoweredAggregateFieldAccess {

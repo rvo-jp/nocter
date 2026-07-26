@@ -697,6 +697,9 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
             expression_is_lowerable_str_slice_index_object(&index.object, context)
                 && expression_is_lowerable_usize_expression(&index.index, context)
         }
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::Str, context)
+        }
         Expr::Group(group) => expression_is_lowerable_str_expression(&group.expression, context),
         _ => expression_is_lowerable_str_value(expression, context),
     }

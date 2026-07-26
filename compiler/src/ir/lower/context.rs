@@ -1348,6 +1348,7 @@ pub(super) enum AggregateFieldKind {
     U8,
     Usize,
     Bool,
+    Str,
     Aggregate {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
