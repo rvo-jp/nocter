@@ -9166,6 +9166,53 @@ func score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_control_struct_literal_scalar_field_exit_code() {
+    let project = TempProject::new("cli-run-value-control-struct-literal-scalar-field");
+    let source = project.write_source(
+        "value_control_struct_literal_scalar_field.nct",
+        r#"copy struct Header {
+    code: i32
+    tag: u8
+    size: usize
+    ok: bool
+}
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let header = Header{
+        code: if choice is Choice.no { 10 } else { 1 },
+        tag: match choice { Choice.no { 5 } else { 1 } },
+        size: match choice { Choice.no { 7 } else { 1 } },
+        ok: if choice is Choice.no { true } else { false }
+    }
+    return if header.ok && header.tag == 5 && header.size == 7 {
+        header.code + 32
+    } else {
+        1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

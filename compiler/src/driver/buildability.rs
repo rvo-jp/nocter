@@ -815,6 +815,15 @@ fn call_argument_parameter_type(
     Some(ty)
 }
 
+fn struct_literal_field_may_use_value_control_expression(
+    field_name_span: ByteSpan,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    typecheck_facts
+        .field_scalar_view_kind(field_name_span)
+        .is_some_and(field_kind_may_use_value_control_expression)
+}
+
 fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) -> bool {
     matches!(
         kind,
@@ -1711,18 +1720,36 @@ fn collect_expression_diagnostics(
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                collect_expression_diagnostics(
-                    &field.value,
-                    sources,
-                    resolved,
+                if struct_literal_field_may_use_value_control_expression(
+                    field.name_span,
                     typecheck_facts,
-                    generic_substitutions,
-                    root_source,
-                    names,
-                    nocter_home,
-                    queue,
-                    diagnostics,
-                );
+                ) {
+                    collect_value_expression_diagnostics(
+                        &field.value,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                } else {
+                    collect_expression_diagnostics(
+                        &field.value,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                }
             }
         }
         Expr::Propagate(expression) => collect_expression_diagnostics(

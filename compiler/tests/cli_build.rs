@@ -4597,6 +4597,48 @@ func score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
 }
 
 #[test]
+fn build_command_accepts_value_control_struct_literal_scalar_fields() {
+    let project = TempProject::new("cli-build-value-control-struct-literal-scalar-fields");
+    let source = project.write_source(
+        "value_control_struct_literal_scalar_fields.nct",
+        r#"copy struct Header {
+    code: i32
+    tag: u8
+    size: usize
+    ok: bool
+}
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let header = Header{
+        code: if choice is Choice.no { 10 } else { 1 },
+        tag: match choice { Choice.no { 5 } else { 1 } },
+        size: match choice { Choice.no { 7 } else { 1 } },
+        ok: if choice is Choice.no { true } else { false }
+    }
+    return if header.ok && header.tag == 5 && header.size == 7 {
+        header.code + 32
+    } else {
+        1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(
