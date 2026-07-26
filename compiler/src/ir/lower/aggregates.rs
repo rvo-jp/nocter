@@ -1,5 +1,6 @@
 use super::context::{
-    AggregateField, AggregateFieldKind, LoweringContext, drop_glue_for_type_expr_with_resolver,
+    AggregateField, AggregateFieldKind, LoweringContext, SliceTypeInfo,
+    drop_glue_for_type_expr_with_resolver,
 };
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
@@ -604,8 +605,8 @@ where
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
-        AbiType::SliceView => Some(AggregateFieldKind::Slice(
-            source_ty
+        AbiType::SliceView => {
+            let element_kind = source_ty
                 .and_then(|ty| {
                     view_element_type_from_type_expr_with_resolver(
                         ty,
@@ -614,8 +615,40 @@ where
                     )
                 })
                 .map(typecheck_slice_element_kind_from_type)
-                .unwrap_or(TypecheckSliceElementKind::Other),
-        )),
+                .unwrap_or(TypecheckSliceElementKind::Other);
+            let element_type = source_ty.and_then(|ty| {
+                view_element_type_expr_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
+            });
+            Some(AggregateFieldKind::Slice(SliceTypeInfo {
+                element_kind,
+                element_type,
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn view_element_type_expr_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            Some(*view.element.clone())
+        }
+        TypeExpr::Reference(reference) => {
+            let symbol = fallback_resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            let resolved = resolver(target.span().source).unwrap_or(fallback_resolved);
+            view_element_type_expr_from_type_expr_with_resolver(target, resolved, resolver)
+        }
         _ => None,
     }
 }

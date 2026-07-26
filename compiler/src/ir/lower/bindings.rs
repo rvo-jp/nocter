@@ -1182,6 +1182,13 @@ fn slice_target_element_type_expr(
 ) -> Option<TypeExpr> {
     match unwrap_group(expression) {
         Expr::Identifier(identifier) => context.slice_element_type_expr(&identifier.name).cloned(),
+        Expr::Member(member) => match aggregate_member_field_kind_from_member(member, context)
+            .ok()
+            .flatten()
+        {
+            Some(AggregateFieldKind::Slice(info)) => info.element_type,
+            _ => None,
+        },
         Expr::Call(call) => {
             let return_type = context.call_return_type_expr(call)?;
             slice_element_type_expr_from_type_expr(&return_type, context)
@@ -1944,7 +1951,7 @@ fn slice_index_assignment_element_kind(
             .ok()
             .flatten()
         {
-            Some(AggregateFieldKind::Slice(element)) => element,
+            Some(AggregateFieldKind::Slice(info)) => info.element_kind,
             _ => TypecheckSliceElementKind::Other,
         },
         Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(

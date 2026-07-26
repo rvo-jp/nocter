@@ -1800,6 +1800,81 @@ func main(): i32! {
     );
 }
 
+#[test]
+fn distributed_std_vec_runs_copy_aggregate_slice_field_indexing() {
+    let project = TempProject::new("distributed-home-vec-aggregate-slice-field-index-run");
+    let source = project.write_source(
+        "vec_aggregate_slice_field_index_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+copy struct Holder {
+    pub view: &[Pair]
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 5, right: 18 })?
+    let holder = Holder { view: values.view() }
+    let first = holder.view[0]
+    return first.left + first.right
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn distributed_std_vec_runs_copy_aggregate_slice_field_index_assignment() {
+    let project = TempProject::new("distributed-home-vec-aggregate-slice-field-index-assign-run");
+    let source = project.write_source(
+        "vec_aggregate_slice_field_index_assign_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+struct Holder {
+    pub view: &+[Pair]
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 1, right: 2 })?
+    var holder = Holder { view: values.view_mut() }
+    holder.view[0] = Pair { left: 19, right: 4 }
+    let first = values.view()[0]
+    return first.left + first.right
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_error_helper_return_runs() {

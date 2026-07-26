@@ -738,7 +738,11 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
         }
         Expr::Member(member) => aggregate_member_field_kind(member, context).is_some_and(|kind| {
             kind == AggregateFieldKind::Str
-                || kind == AggregateFieldKind::Slice(TypecheckSliceElementKind::U8)
+                || matches!(
+                    kind,
+                    AggregateFieldKind::Slice(info)
+                        if info.element_kind == TypecheckSliceElementKind::U8
+                )
         }),
         Expr::Group(group) => expression_is_lowerable_byte_index_object(&group.expression, context),
         _ => false,
@@ -838,8 +842,12 @@ fn expression_is_aggregate_slice_field_element_kind(
     expected: TypecheckSliceElementKind,
     context: &LoweringContext,
 ) -> bool {
-    aggregate_member_field_kind(member, context)
-        .is_some_and(|kind| kind == AggregateFieldKind::Slice(expected))
+    aggregate_member_field_kind(member, context).is_some_and(|kind| {
+        matches!(
+            kind,
+            AggregateFieldKind::Slice(info) if info.element_kind == expected
+        )
+    })
 }
 
 fn identifier_slice_element_kind(

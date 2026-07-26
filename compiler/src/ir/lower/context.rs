@@ -1441,7 +1441,7 @@ pub(super) enum AggregateFieldKind {
     Usize,
     Bool,
     Str,
-    Slice(TypecheckSliceElementKind),
+    Slice(SliceTypeInfo),
     Aggregate {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
