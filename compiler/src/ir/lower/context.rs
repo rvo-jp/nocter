@@ -1,6 +1,7 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::ast::{
-    CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy,
+    CallExpr, Expr, MemberExpr, TypeExpr, TypeReference, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -354,6 +355,9 @@ impl<'a> LoweringContext<'a> {
         if let Some(return_type) = self.method_call_return_type_expr(call) {
             return Some(return_type);
         }
+        if let Some(return_type) = self.primitive_call_return_type_expr(call) {
+            return Some(return_type);
+        }
 
         let resolution = self.call_resolution.as_ref()?;
         let signature = resolution.resolved.call_signature_for_call(call)?;
@@ -371,6 +375,25 @@ impl<'a> LoweringContext<'a> {
             &return_type,
             &self.generic_substitutions,
         ))
+    }
+
+    fn primitive_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        if let Some(signature) = self
+            .call_resolution
+            .as_ref()
+            .and_then(|resolution| resolution.resolved.call_signature_for_call(call))
+        {
+            return Some(signature.return_type.clone());
+        }
+
+        match self.primitive_name_for_call(call)? {
+            "syscall0" | "syscall1" | "syscall2" | "syscall3" | "syscall4" | "syscall5"
+            | "syscall6" => Some(TypeExpr::Reference(TypeReference {
+                span: call.span,
+                name: "std/os.SyscallResult".to_string(),
+            })),
+            _ => None,
+        }
     }
 
     pub(super) fn function_call_type_substitution(
@@ -496,6 +519,9 @@ impl<'a> LoweringContext<'a> {
         let symbol = resolution.resolved.symbol_for_call(call)?;
         match &symbol.kind {
             SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
+            SymbolKind::Imported(_) if std_os_imported_primitive_name(&symbol.name) => {
+                Some(symbol.name.as_str())
+            }
             SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
         }
     }
@@ -1197,7 +1223,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn drop_glue_for_type_expr(&self, ty: &TypeExpr) -> Option<DropGlue> {
         let (root_source, resolved) = self.resolved_calls()?;
-        drop_glue_for_type_expr(ty, root_source, resolved)
+        let ty = substitute_type_expr_parameters(ty, &self.generic_substitutions);
+        drop_glue_for_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            self.resolved_source(source)
+        })
     }
 }
 
@@ -1207,6 +1236,20 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
     } else {
         CallTarget::imported(source, name)
     }
+}
+
+fn std_os_imported_primitive_name(name: &str) -> bool {
+    matches!(
+        name,
+        "syscall0"
+            | "syscall1"
+            | "syscall2"
+            | "syscall3"
+            | "syscall4"
+            | "syscall5"
+            | "syscall6"
+            | "trap"
+    )
 }
 
 #[derive(Clone)]
@@ -1411,26 +1454,41 @@ impl AggregateDropState {
     }
 }
 
-pub(super) fn drop_glue_for_type_expr(
+pub(super) fn drop_glue_for_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
     root_source: SourceId,
-    resolved: &ResolveOutput,
-) -> Option<DropGlue> {
-    drop_glue_for_type_expr_inner(ty, root_source, resolved, &mut HashSet::new())
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<DropGlue>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    drop_glue_for_type_expr_inner(
+        ty,
+        root_source,
+        fallback_resolved,
+        &resolver,
+        &mut HashSet::new(),
+    )
 }
 
-fn drop_glue_for_type_expr_inner(
+fn drop_glue_for_type_expr_inner<'a, F>(
     ty: &TypeExpr,
     root_source: SourceId,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<DropGlue> {
+) -> Option<DropGlue>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Fallible(fallible) => {
             return drop_glue_for_type_expr_inner(
                 &fallible.success,
                 root_source,
-                resolved,
+                fallback_resolved,
+                resolver,
                 resolving_names,
             );
         }
@@ -1438,13 +1496,15 @@ fn drop_glue_for_type_expr_inner(
             return drop_glue_for_type_expr_inner(
                 &optional.inner,
                 root_source,
-                resolved,
+                fallback_resolved,
+                resolver,
                 resolving_names,
             );
         }
         _ => {}
     }
 
+    let resolved = resolver(ty.span().source).unwrap_or(fallback_resolved);
     let (type_name, substitutions) = match ty {
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
@@ -1469,8 +1529,13 @@ fn drop_glue_for_type_expr_inner(
             return None;
         }
         let target = substitute_type_expr_parameters(target, &substitutions);
-        let drop_glue =
-            drop_glue_for_type_expr_inner(&target, root_source, resolved, resolving_names);
+        let drop_glue = drop_glue_for_type_expr_inner(
+            &target,
+            root_source,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        );
         resolving_names.remove(&type_symbol.canonical_name);
         return drop_glue;
     }

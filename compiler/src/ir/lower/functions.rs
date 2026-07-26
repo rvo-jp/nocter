@@ -9,7 +9,8 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, ErrorPayloads,
     FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
-    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, drop_glue_for_type_expr,
+    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources,
+    drop_glue_for_type_expr_with_resolver,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
@@ -485,7 +486,12 @@ fn lower_scalar_parameters(
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
                     ),
-                    drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
+                    drop_glue: drop_glue_for_type_expr_with_resolver(
+                        &parameter.ty,
+                        root_source,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
                     fields,
                 });
             }
@@ -506,7 +512,12 @@ fn lower_scalar_parameters(
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
                     ),
-                    drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
+                    drop_glue: drop_glue_for_type_expr_with_resolver(
+                        &parameter.ty,
+                        root_source,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
                     fields,
                 });
             }

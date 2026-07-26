@@ -333,6 +333,20 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CopySliceElementToAggregate {
+                destination,
+                source,
+                index,
+                layout,
+            } => {
+                self.emit_copy_slice_element_to_aggregate(
+                    *destination,
+                    *source,
+                    *index,
+                    *layout,
+                    frame,
+                )?;
+            }
             Instruction::DarwinSyscall {
                 destination,
                 arity,
@@ -2348,6 +2362,7 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
         Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
+        | Instruction::CopySliceElementToAggregate { .. }
         | Instruction::LoadAggregateUsize { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }

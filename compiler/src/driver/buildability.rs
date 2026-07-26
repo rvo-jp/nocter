@@ -2659,15 +2659,15 @@ fn unsupported_std_vec_element_call_diagnostic(
         generic_substitutions,
         nocter_home,
     )?;
-    if type_expr_is_supported_std_vec_element_storage(&element, resolved) {
+    if type_expr_is_supported_std_vec_element_storage(&element, resolved, call.span.source) {
         return None;
     }
 
     Some(unsupported_v0_build_diagnostic(
         sources,
         call.span,
-        "`Vec` element storage outside scalar and `&str`",
-        "use `Vec<i32>`, `Vec<u8>`, `Vec<usize>`, `Vec<bool>`, or `Vec<&str>` until broader element storage and per-element drop glue are promoted",
+        "`Vec` element storage outside scalar, `&str`, and copy aggregate elements",
+        "use `Vec<i32>`, `Vec<u8>`, `Vec<usize>`, `Vec<bool>`, `Vec<&str>`, or a non-empty `copy struct` element until per-element drop glue is promoted",
     ))
 }
 
@@ -2703,8 +2703,107 @@ fn std_vec_element_storage_type(
     }
 }
 
-fn type_expr_is_supported_std_vec_element_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other
+fn type_expr_is_supported_std_vec_element_storage(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    current_source: SourceId,
+) -> bool {
+    if type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other {
+        return true;
+    }
+
+    if ty.span().source != current_source {
+        return true;
+    }
+
+    type_expr_is_supported_copy_aggregate_vec_element(ty, resolved)
+}
+
+fn type_expr_is_supported_copy_aggregate_vec_element(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    let Ok(value) = abi_value_from_type_expr(ty, resolved) else {
+        return false;
+    };
+    if !matches!(value.ty, AbiType::Struct(_)) || value.layout.size == 0 {
+        return false;
+    }
+    type_expr_is_copy_struct_for_vec_element(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_copy_struct_for_vec_element(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            if symbol.generic_arity > 0 {
+                return false;
+            }
+            match symbol.kind {
+                TypeSymbolKind::Struct => symbol.is_copy,
+                TypeSymbolKind::Alias => {
+                    let Some(target) = &symbol.alias_target else {
+                        return false;
+                    };
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return false;
+                    }
+                    let is_copy =
+                        type_expr_is_copy_struct_for_vec_element(target, resolved, resolving_names);
+                    resolving_names.remove(&symbol.canonical_name);
+                    is_copy
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return false;
+            };
+            if symbol.generic_arity != generic.arguments.len() {
+                return false;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            match symbol.kind {
+                TypeSymbolKind::Struct => symbol.is_copy,
+                TypeSymbolKind::Alias => {
+                    let Some(target) = &symbol.alias_target else {
+                        return false;
+                    };
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return false;
+                    }
+                    let target = substitute_type_expr_parameters(target, &substitutions);
+                    let is_copy = type_expr_is_copy_struct_for_vec_element(
+                        &target,
+                        resolved,
+                        resolving_names,
+                    );
+                    resolving_names.remove(&symbol.canonical_name);
+                    is_copy
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+            }
+        }
+        TypeExpr::Fallible(fallible) => {
+            type_expr_is_copy_struct_for_vec_element(&fallible.success, resolved, resolving_names)
+        }
+        TypeExpr::Optional(optional) => {
+            type_expr_is_copy_struct_for_vec_element(&optional.inner, resolved, resolving_names)
+        }
+        _ => false,
+    }
 }
 
 fn type_expr_slice_element_kind(

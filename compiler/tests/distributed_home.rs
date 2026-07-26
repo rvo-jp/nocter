@@ -1326,7 +1326,7 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_push_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_push() {
     let project = TempProject::new("distributed-home-vec-aggregate-push-boundary");
     let source = project.write_source(
         "vec_aggregate_push_boundary.nct",
@@ -1347,32 +1347,26 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("`Vec` element storage outside scalar and `&str`"),
-        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("9 |     values.push(Pair { value: 1 })?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec push"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_free_push_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_free_push() {
     let project = TempProject::new("distributed-home-vec-aggregate-free-push-boundary");
     let source = project.write_source(
         "vec_aggregate_free_push_boundary.nct",
@@ -1393,23 +1387,21 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("`Vec` element storage outside scalar and `&str`"),
-        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("9 |     push(&+values, Pair { value: 1 })?"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for free copy aggregate Vec push"
     );
 }
 
@@ -1462,7 +1454,7 @@ func main(): void! {
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_with_capacity_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_with_capacity() {
     let project = TempProject::new("distributed-home-vec-aggregate-with-capacity-boundary");
     let source = project.write_source(
         "vec_aggregate_with_capacity_boundary.nct",
@@ -1484,28 +1476,26 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("`Vec` element storage outside scalar and `&str`"),
-        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("10 |     let values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec.with_capacity"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_reserve_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_reserve() {
     let project = TempProject::new("distributed-home-vec-aggregate-reserve-boundary");
     let source = project.write_source(
         "vec_aggregate_reserve_boundary.nct",
@@ -1526,28 +1516,26 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("`Vec` element storage outside scalar and `&str`"),
-        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("9 |     values.reserve(1)?"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec.reserve"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_from_slice_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_from_slice() {
     let project = TempProject::new("distributed-home-vec-aggregate-from-slice-boundary");
     let source = project.write_source(
         "vec_aggregate_from_slice_boundary.nct",
@@ -1570,23 +1558,21 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("`Vec` element storage outside scalar and `&str`"),
-        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("11 |     let copy = Vec.from_slice(&+allocator, values.view())?"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec.from_slice"
     );
 }
 

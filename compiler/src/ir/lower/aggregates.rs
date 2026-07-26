@@ -1,5 +1,5 @@
 use super::context::{
-    AggregateField, AggregateFieldKind, LoweringContext, drop_glue_for_type_expr,
+    AggregateField, AggregateFieldKind, LoweringContext, drop_glue_for_type_expr_with_resolver,
 };
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
@@ -560,8 +560,11 @@ where
         is_copy: source_ty.is_some_and(|ty| {
             type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, |source| resolver(source))
         }),
-        drop_glue: source_ty
-            .and_then(|ty| drop_glue_for_type_expr(ty, root_source, fallback_resolved)),
+        drop_glue: source_ty.and_then(|ty| {
+            drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, |source| {
+                resolver(source)
+            })
+        }),
     });
 
     for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {

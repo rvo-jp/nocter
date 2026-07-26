@@ -2,12 +2,14 @@ use super::super::aggregates::{
     aggregate_call_instruction, aggregate_type_layout,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct,
+    type_expr_is_copy_struct_with_resolver,
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
-use super::super::types::{scalar_or_view_type_from_type_expr, view_element_type_from_type_expr};
+use super::super::types::{
+    scalar_or_view_type_from_type_expr_with_resolver, view_element_type_from_type_expr,
+};
 use super::temporaries::TemporaryAllocator;
 use super::{
     aggregate_member_field_kind_from_member, lower_aggregate_member_field_access,
@@ -16,7 +18,9 @@ use super::{
     lower_u8_expression_to_value, lower_usize_expression_to_value,
     unsupported_non_tail_call_diagnostic,
 };
-use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, ValueLayout, abi_value_from_type_expr};
+use crate::abi::{
+    ARGUMENT_REGISTER_COUNT, AbiType, ValueLayout, abi_value_from_type_expr_with_resolver,
+};
 use crate::ast::{CallExpr, Expr, IndexExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -738,7 +742,10 @@ pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
             "missing resolved call signature",
         ));
     };
-    let value = abi_value_from_type_expr(&signature.return_type, resolved)
+    let value =
+        abi_value_from_type_expr_with_resolver(&signature.return_type, resolved, |source| {
+            context.resolved_source(source)
+        })
         .map_err(|_error| unsupported_macos_syscall_diagnostic("invalid return ABI layout"))?;
     if value.layout != expected_layout {
         return Err(unsupported_macos_syscall_diagnostic(
@@ -844,6 +851,14 @@ fn lower_aggregate_argument_source(
         ),
         Expr::Member(_) => lower_aggregate_member_argument_source(
             argument,
+            expected_layout,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        ),
+        Expr::Index(index) => lower_aggregate_slice_index_argument_source(
+            index,
             expected_layout,
             parameter_type,
             callee_name,
@@ -975,6 +990,42 @@ fn lower_aggregate_local_argument_source(
         ));
     }
     Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
+}
+
+fn lower_aggregate_slice_index_argument_source(
+    expression: &IndexExpr,
+    expected_layout: crate::abi::ValueLayout,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)
+        .map_err(|_| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)
+        .map_err(|_| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
+    let SliceValue::Location(source_location) = source.value else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(source.instructions);
+    instructions.extend(index.instructions);
+    let index = materialize_slice_borrow_index(&mut instructions, index.value, temporaries)?;
+    instructions.push(Instruction::CopySliceElementToAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        source: source_location,
+        index,
+        layout: expected_layout,
+    });
+    Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2328,7 +2379,10 @@ pub(super) fn lower_pointee_size_primitive_call_to_word(
             "`pointee_size` requires resolved type information",
         ));
     };
-    let value = abi_value_from_type_expr(&pointee_type, resolved).map_err(|_error| {
+    let value = abi_value_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| {
         unsupported_pointer_primitive_diagnostic(
             "`pointee_size` requires a pointer element type with an ABI layout",
         )
@@ -2468,7 +2522,11 @@ pub(super) fn lower_store_value_to_ptr_primitive_call(
     let offset = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
     instructions.extend(offset.instructions);
 
-    if let Some(value_type) = scalar_or_view_type_from_type_expr(&pointee_type, resolved) {
+    if let Some(value_type) =
+        scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
+            context.resolved_source(source)
+        })
+    {
         match value_type {
             Type::U8 => {
                 let value = lower_u8_expression_to_value(&call.arguments[2], context, temporaries)?;
@@ -2539,8 +2597,13 @@ pub(super) fn lower_store_value_to_ptr_primitive_call(
         return Ok(instructions);
     }
 
-    if type_expr_is_copy_struct(&pointee_type, resolved) {
-        let value = abi_value_from_type_expr(&pointee_type, resolved).map_err(|_error| {
+    if type_expr_is_copy_struct_with_resolver(&pointee_type, resolved, |source| {
+        context.resolved_source(source)
+    }) {
+        let value = abi_value_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .map_err(|_error| {
             unsupported_pointer_primitive_diagnostic(
                 "`store_value_to_ptr` requires aggregate element types with an ABI layout",
             )

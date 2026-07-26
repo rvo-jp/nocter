@@ -1906,6 +1906,103 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_copy_slice_element_to_aggregate(
+        &mut self,
+        destination: AggregateLocation,
+        source: SliceLocation,
+        index: SliceElementIndex,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice aggregate copy emission requires a stack frame",
+            )]);
+        };
+        let layout_size = u32::try_from(layout.size)
+            .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        if layout_size == 0 {
+            return Err(aggregate_copy_diagnostic(
+                "slice aggregate copy requires a non-empty aggregate layout",
+            ));
+        }
+        validate_aggregate_copy_destination_exact(destination, 0, layout_size, frame)?;
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_checked_slice_aggregate_element_address_to_x(
+            source,
+            index,
+            layout_size,
+            XReg::X9,
+        )?;
+
+        let mut chunk_offset = 0_u32;
+        while chunk_offset < layout_size {
+            let remaining = layout_size
+                .checked_sub(chunk_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
+            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X9, chunk_offset, chunk_bytes)?;
+            self.emit_aggregate_copy_scratch_to_destination(
+                destination,
+                chunk_offset,
+                chunk_bytes,
+                frame,
+            )?;
+            chunk_offset = chunk_offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+
+        self.emit_scalar_reloads(frame)
+    }
+
+    fn emit_checked_slice_aggregate_element_address_to_x(
+        &mut self,
+        source: SliceLocation,
+        index: SliceElementIndex,
+        element_size: u32,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_slice_element_index_to_x(index, XReg::X16)?;
+        match source {
+            SliceLocation::Parameter(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("parameter slice length word index overflows")
+                })?;
+                self.emit_parameter_word_to_x(len_word_index, XReg::X8)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                self.emit_parameter_word_to_x(ptr_word_index, XReg::X8)?;
+            }
+            SliceLocation::Local(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("local slice length word index overflows")
+                })?;
+                self.emit_local_word_to_x(len_word_index, XReg::X8)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                self.emit_local_word_to_x(ptr_word_index, XReg::X8)?;
+            }
+            SliceLocation::Return => {
+                let (ptr, len) = self.slice_location_registers(source)?;
+                if len != XReg::X8 {
+                    self.encoder.emit_mov_x(XReg::X8, len);
+                }
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                if ptr != XReg::X8 {
+                    self.encoder.emit_mov_x(XReg::X8, ptr);
+                }
+            }
+        }
+
+        if element_size != 1 {
+            emit_mov_u64_to_x(&mut self.encoder, XReg::X17, u64::from(element_size));
+            self.encoder.emit_mul_x(XReg::X16, XReg::X16, XReg::X17);
+        }
+        self.encoder.emit_adds_x(destination, XReg::X8, XReg::X16);
+        Ok(())
+    }
+
     pub(super) fn emit_store_u8_to_pointer(
         &mut self,
         pointer: &UsizeValue,

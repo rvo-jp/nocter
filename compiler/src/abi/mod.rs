@@ -419,7 +419,7 @@ where
     }
 
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-    let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+    let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
         return false;
     };
     let Some(target) = &symbol.alias_target else {
@@ -470,7 +470,7 @@ where
     match ty {
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return abi_return_from_type_expr(ty, fallback_resolved, resolver)
                     .map(|return_value| return_value.passing());
             };
@@ -592,7 +592,7 @@ where
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(AbiReturn::Never),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return abi_value_from_type_expr_inner(ty, fallback_resolved, resolver)
                     .map(AbiReturn::Value);
             };
@@ -645,6 +645,20 @@ where
     resolver(ty.span().source).unwrap_or(fallback_resolved)
 }
 
+fn type_symbol_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<&'a TypeSymbol> {
+    resolved.type_symbol_by_reference_name(name).or_else(|| {
+        short_qualified_type_name(name)
+            .and_then(|short| resolved.type_symbol_by_reference_name(short))
+    })
+}
+
+fn short_qualified_type_name(name: &str) -> Option<&str> {
+    name.rsplit_once('.').map(|(_module, short)| short)
+}
+
 fn abi_type_kind_from_type_expr<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -687,7 +701,7 @@ where
             }
             name => {
                 let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-                let Some(symbol) = resolved.type_symbol_by_reference_name(name) else {
+                let Some(symbol) = type_symbol_by_reference_name(resolved, name) else {
                     return Err(AbiTypeError::UnresolvedType(name.to_string()));
                 };
                 if symbol.generic_arity > 0 {
@@ -704,7 +718,7 @@ where
         },
         TypeExpr::Generic(generic) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
                 return Err(AbiTypeError::UnresolvedType(generic.name.clone()));
             };
             if symbol.generic_arity != generic.arguments.len() {
@@ -845,7 +859,7 @@ mod tests {
         function_parameter_abi_word_count_from_signature, function_parameters_abi_from_signature,
         function_success_return_passing_from_signature, layout_of, layout_struct,
     };
-    use crate::ast::{AstFile, Item, TypeExpr, substitute_type_expr_parameters};
+    use crate::ast::{AstFile, Item, TypeExpr, TypeReference, substitute_type_expr_parameters};
     use crate::lexer::lex;
     use crate::parser::parse;
     use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, resolve};
@@ -1088,6 +1102,44 @@ func make_box<T>(): Box<T> {
             value.classification,
             ValueClassification::Direct { words: 2 }
         );
+    }
+
+    #[test]
+    fn source_aware_abi_resolves_qualified_type_name_in_declaring_source() {
+        let mut sources = SourceMap::new();
+        let library_ast = parse_source(
+            &mut sources,
+            "std/os.nct",
+            r#"copy struct SyscallResult {
+    value: usize
+    errno: i32
+}
+"#,
+        );
+        let library_resolved = resolve(&sources, &library_ast);
+        assert!(
+            library_resolved.diagnostics.is_empty(),
+            "{:?}",
+            library_resolved.diagnostics
+        );
+
+        let ty = TypeExpr::Reference(TypeReference {
+            span: library_ast.span,
+            name: "std/os.SyscallResult".to_string(),
+        });
+        let value = abi_value_from_type_expr_with_resolver(&ty, &library_resolved, |source| {
+            (source == library_ast.span.source).then_some(&library_resolved)
+        })
+        .unwrap();
+
+        assert_eq!(
+            value.ty,
+            AbiType::Struct(vec![
+                AbiField::new("value", AbiType::Usize),
+                AbiField::new("errno", AbiType::I32),
+            ])
+        );
+        assert_eq!(value.layout, ValueLayout::new(16, 8));
     }
 
     #[test]
