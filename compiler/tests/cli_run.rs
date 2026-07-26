@@ -9111,6 +9111,61 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_control_call_argument_exit_code() {
+    let project = TempProject::new("cli-run-value-control-call-argument");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "value_control_call_argument.nct",
+        r#"use std/string.bytes
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    return score(
+        if choice is Choice.no { 5 } else { 1 },
+        match choice { Choice.no { 7 } else { 1 } },
+        if choice is Choice.no { true } else { false },
+        match choice { Choice.no { "Nocter" } else { "Other" } },
+        match choice { Choice.no { bytes("abc") } else { bytes("x") } }
+    )
+}
+
+func score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
+    if byte == 5 && size == 7 && ok && text == "Nocter" && data.len() == 3 {
+        42
+    } else {
+        1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

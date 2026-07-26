@@ -778,6 +778,43 @@ fn assignment_value_may_use_value_control_expression(
     }
 }
 
+fn call_argument_may_use_value_control_expression(
+    call: &CallExpr,
+    index: usize,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    call_argument_parameter_type(
+        call,
+        index,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+    .is_some_and(|ty| type_expr_is_buildable_scalar_or_view(&ty, resolved))
+}
+
+fn call_argument_parameter_type(
+    call: &CallExpr,
+    index: usize,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let signature = resolved.call_signature_for_call(call)?;
+    let parameter = signature.parameters.get(index)?;
+    let mut ty = parameter.ty.clone();
+
+    if let Some(specialization) =
+        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)
+    {
+        ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+    }
+
+    Some(ty)
+}
+
 fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) -> bool {
     matches!(
         kind,
@@ -1877,19 +1914,40 @@ fn collect_expression_diagnostics(
             {
                 queue.push_back(target);
             }
-            for argument in &expression.arguments {
-                collect_expression_diagnostics(
-                    argument,
-                    sources,
+            for (index, argument) in expression.arguments.iter().enumerate() {
+                if call_argument_may_use_value_control_expression(
+                    expression,
+                    index,
                     resolved,
                     typecheck_facts,
                     generic_substitutions,
-                    root_source,
-                    names,
-                    nocter_home,
-                    queue,
-                    diagnostics,
-                );
+                ) {
+                    collect_value_expression_diagnostics(
+                        argument,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                } else {
+                    collect_expression_diagnostics(
+                        argument,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                }
             }
         }
         Expr::Member(expression) => collect_expression_diagnostics(
