@@ -1411,6 +1411,14 @@ impl EntryEmitter {
                 }
                 return Ok(());
             }
+            BorrowSource::SliceIndex {
+                source,
+                index,
+                element,
+            } => {
+                return self
+                    .emit_checked_slice_element_address_to_x(source, index, element, register);
+            }
             BorrowSource::I32(I32Location::Return)
             | BorrowSource::U8(U8Location::Return)
             | BorrowSource::Usize(UsizeLocation::Return)

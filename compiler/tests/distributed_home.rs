@@ -1414,10 +1414,10 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_rejects_view_mut_index_method_borrow_argument_before_ir_lowering() {
-    let project = TempProject::new("distributed-home-vec-view-mut-index-method-borrow-boundary");
+fn distributed_std_vec_builds_view_mut_index_method_borrow_argument() {
+    let project = TempProject::new("distributed-home-vec-view-mut-index-method-borrow");
     let source = project.write_source(
-        "vec_view_mut_index_method_borrow_boundary.nct",
+        "vec_view_mut_index_method_borrow.nct",
         r#"use std/vec.Vec
 
 copy struct Checker {
@@ -1439,33 +1439,25 @@ func main(): void! {
 }
 "#,
     );
-    let executable = project
-        .root()
-        .join("vec_view_mut_index_method_borrow_boundary");
+    let executable = project.root().join("vec_view_mut_index_method_borrow");
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("17 |     checker.touch(&+values.view_mut()[0])"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("read-write borrow call arguments from unsupported expressions"),
-        "expected read-write borrow argument boundary, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "method read-write argument should be rejected before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for slice index read-write borrow arguments"
     );
 }
 

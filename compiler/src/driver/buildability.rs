@@ -2003,9 +2003,13 @@ fn collect_expression_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
-            if let Some(diagnostic) =
-                unsupported_method_borrow_receiver_diagnostic(sources, expression, typecheck_facts)
-            {
+            if let Some(diagnostic) = unsupported_method_borrow_receiver_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(diagnostic);
             }
             if let Some(diagnostic) = unsupported_unspecialized_generic_function_call_diagnostic(
@@ -2859,7 +2863,12 @@ fn unsupported_borrow_call_argument_diagnostic(
             match unwrap_group_expr(argument) {
                 Expr::Borrow(borrow)
                     if borrow.is_readwrite
-                        && !borrow_argument_source_is_binding_or_field(&borrow.expression) =>
+                        && !readwrite_borrow_argument_source_is_buildable(
+                            &borrow.expression,
+                            resolved,
+                            typecheck_facts,
+                            generic_substitutions,
+                        ) =>
                 {
                     Some(argument)
                 }
@@ -2871,14 +2880,16 @@ fn unsupported_borrow_call_argument_diagnostic(
         sources,
         argument.span(),
         "read-write borrow call arguments from unsupported expressions",
-        "borrow a mutable local binding or mutable aggregate field rooted at a binding until read-write temporary borrow lowering is promoted",
+        "borrow a mutable local binding, mutable aggregate field rooted at a binding, or supported mutable slice element until read-write temporary borrow lowering is promoted",
     ))
 }
 
 fn unsupported_method_borrow_receiver_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
+    resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
@@ -2887,7 +2898,12 @@ fn unsupported_method_borrow_receiver_diagnostic(
     if !method_call_receiver_is_readwrite_borrow(member.member_span, typecheck_facts) {
         return None;
     }
-    if borrow_argument_source_is_binding_or_field(&member.object) {
+    if readwrite_borrow_argument_source_is_buildable(
+        &member.object,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
         return None;
     }
 
@@ -2895,7 +2911,7 @@ fn unsupported_method_borrow_receiver_diagnostic(
         sources,
         member.object.span(),
         "read-write method borrow receivers from unsupported expressions",
-        "call the method on a mutable local binding or mutable aggregate field rooted at a binding until read-write temporary receiver lowering is promoted",
+        "call the method on a mutable local binding, mutable aggregate field rooted at a binding, or supported mutable slice element until read-write temporary receiver lowering is promoted",
     ))
 }
 
@@ -2974,10 +2990,22 @@ fn method_call_receiver_is_readwrite_borrow(
         .is_some_and(|label| label.starts_with("&+"))
 }
 
-fn borrow_argument_source_is_binding_or_field(expression: &Expr) -> bool {
+fn readwrite_borrow_argument_source_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Identifier(_) => true,
         Expr::Member(member) => aggregate_member_root_is_identifier(&member.object),
+        Expr::Index(index) => slice_index_assignment_element_kind(
+            &index.object,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+        .is_some_and(typecheck_slice_element_kind_is_buildable),
         _ => false,
     }
 }

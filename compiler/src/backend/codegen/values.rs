@@ -7,8 +7,8 @@ use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolValue, I32Location, I32Value,
-    SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    SliceElementAddressKind, SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
 
@@ -2145,6 +2145,65 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_checked_slice_element_address_to_x(
+        &mut self,
+        source: SliceLocation,
+        index: SliceElementIndex,
+        element: SliceElementAddressKind,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_slice_element_index_to_x(index, XReg::X16)?;
+        match source {
+            SliceLocation::Parameter(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("parameter slice length word index overflows")
+                })?;
+                self.emit_parameter_word_to_x(len_word_index, XReg::X8)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                self.emit_parameter_word_to_x(ptr_word_index, XReg::X8)?;
+            }
+            SliceLocation::Local(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("local slice length word index overflows")
+                })?;
+                self.emit_local_word_to_x(len_word_index, XReg::X8)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                self.emit_local_word_to_x(ptr_word_index, XReg::X8)?;
+            }
+            SliceLocation::Return => {
+                let (ptr, len) = self.slice_location_registers(source)?;
+                if len != XReg::X8 {
+                    self.encoder.emit_mov_x(XReg::X8, len);
+                }
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X8)?;
+                if ptr != XReg::X8 {
+                    self.encoder.emit_mov_x(XReg::X8, ptr);
+                }
+            }
+        }
+        if let Some(shift) = slice_element_address_shift(element) {
+            self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+        }
+        self.encoder.emit_adds_x(destination, XReg::X8, XReg::X16);
+        Ok(())
+    }
+
+    fn emit_slice_element_index_to_x(
+        &mut self,
+        index: SliceElementIndex,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match index {
+            SliceElementIndex::Const(value) => {
+                emit_mov_u64_to_x(&mut self.encoder, destination, value);
+                Ok(())
+            }
+            SliceElementIndex::Location(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), destination)
+            }
+        }
+    }
+
     fn emit_i32_overflow_check(&mut self, target_description: &str) -> Result<(), Vec<Diagnostic>> {
         let no_overflow = self.emit_cond_branch_placeholder(BranchCondition::Vc);
         self.emit_trap();
@@ -3170,6 +3229,15 @@ fn aggregate_copy_chunk_has_aligned_offset(offset: u32, chunk_bytes: u32) -> boo
             | AGGREGATE_U16_STORE_BYTES
             | AGGREGATE_U8_STORE_BYTES
     ) && offset.is_multiple_of(chunk_bytes)
+}
+
+fn slice_element_address_shift(element: SliceElementAddressKind) -> Option<u32> {
+    match element {
+        SliceElementAddressKind::U8 | SliceElementAddressKind::Bool => None,
+        SliceElementAddressKind::I32 => Some(2),
+        SliceElementAddressKind::Usize => Some(3),
+        SliceElementAddressKind::Str => Some(4),
+    }
 }
 
 fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {

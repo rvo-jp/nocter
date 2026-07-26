@@ -7,23 +7,25 @@ use super::super::aggregates::{
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
-use super::super::types::scalar_or_view_type_from_type_expr;
+use super::super::types::{scalar_or_view_type_from_type_expr, view_element_type_from_type_expr};
 use super::temporaries::TemporaryAllocator;
 use super::{
-    lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
-    lower_catch_failure_mode, lower_i32_expression_to_value, lower_slice_expression_to_value,
-    lower_str_expression_to_value, lower_u8_expression_to_value, lower_usize_expression_to_value,
+    aggregate_member_field_kind_from_member, lower_aggregate_member_field_access,
+    lower_bool_expression_to_value_with_temporaries, lower_catch_failure_mode,
+    lower_i32_expression_to_value, lower_slice_expression_to_value, lower_str_expression_to_value,
+    lower_u8_expression_to_value, lower_usize_expression_to_value,
     unsupported_non_tail_call_diagnostic,
 };
 use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, ValueLayout, abi_value_from_type_expr};
-use crate::ast::{CallExpr, Expr};
+use crate::ast::{CallExpr, Expr, IndexExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
     BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
-    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    U8Location, UsizeLocation, UsizeValue,
+    Instruction, ScalarArgument, SliceElementAddressKind, SliceElementIndex, SliceLocation,
+    SliceValue, StrLocation, StrValue, Type, U8Location, UsizeLocation, UsizeValue,
 };
+use crate::typecheck::TypecheckSliceElementKind;
 
 pub(super) fn lower_i32_normal_call(
     call: &CallExpr,
@@ -1263,6 +1265,15 @@ fn lower_borrow_source_from_expression(
             context,
             temporaries,
         ),
+        Expr::Index(index) => lower_borrow_source_from_slice_index_expression(
+            index,
+            inner,
+            is_readwrite,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        ),
         _ if !is_readwrite => lower_readonly_temporary_borrow_source(
             expression,
             inner,
@@ -1275,6 +1286,167 @@ fn lower_borrow_source_from_expression(
             callee_name,
             parameter_type,
         )),
+    }
+}
+
+fn lower_borrow_source_from_slice_index_expression(
+    expression: &IndexExpr,
+    inner: &Type,
+    is_readwrite: bool,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    if !is_readwrite {
+        return lower_readonly_temporary_borrow_source(
+            &Expr::Index(expression.clone()),
+            inner,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        );
+    }
+
+    let element_kind = slice_index_borrow_element_kind(&expression.object, context);
+    let Some(element) = slice_element_address_kind_for_borrow(element_kind, inner) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(index.instructions);
+    let index = materialize_slice_borrow_index(&mut instructions, index.value, temporaries)?;
+
+    let SliceValue::Location(source) = source.value else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    Ok((
+        instructions,
+        BorrowSource::SliceIndex {
+            source,
+            index,
+            element,
+        },
+    ))
+}
+
+fn materialize_slice_borrow_index(
+    instructions: &mut Vec<Instruction>,
+    value: UsizeValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<SliceElementIndex, Vec<Diagnostic>> {
+    match value {
+        UsizeValue::Const(value) => Ok(SliceElementIndex::Const(value)),
+        UsizeValue::Location(location) => Ok(SliceElementIndex::Location(location)),
+        value => {
+            let destination = temporaries.next_usize()?;
+            instructions.push(Instruction::SetUsize { destination, value });
+            Ok(SliceElementIndex::Location(destination))
+        }
+    }
+}
+
+fn slice_index_borrow_element_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> TypecheckSliceElementKind {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => context
+            .slice_element_kind(&identifier.name)
+            .unwrap_or(TypecheckSliceElementKind::Other),
+        Expr::Call(call) => call_return_slice_element_kind(call, context)
+            .unwrap_or(TypecheckSliceElementKind::Other),
+        Expr::Member(member) => match aggregate_member_field_kind_from_member(member, context)
+            .ok()
+            .flatten()
+        {
+            Some(kind) => match kind {
+                AggregateFieldKind::Slice(element) => element,
+                _ => TypecheckSliceElementKind::Other,
+            },
+            None => TypecheckSliceElementKind::Other,
+        },
+        Expr::Propagate(propagation) => {
+            slice_index_borrow_fallible_element_kind(unwrap_group(&propagation.expression), context)
+        }
+        Expr::Force(force) => {
+            slice_index_borrow_fallible_element_kind(unwrap_group(&force.expression), context)
+        }
+        Expr::Catch(catch) => {
+            slice_index_borrow_fallible_element_kind(unwrap_group(&catch.expression), context)
+        }
+        Expr::Group(group) => slice_index_borrow_element_kind(&group.expression, context),
+        _ => TypecheckSliceElementKind::Other,
+    }
+}
+
+fn slice_index_borrow_fallible_element_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> TypecheckSliceElementKind {
+    let Expr::Call(call) = expression else {
+        return TypecheckSliceElementKind::Other;
+    };
+    call_success_slice_element_kind(call, context).unwrap_or(TypecheckSliceElementKind::Other)
+}
+
+fn call_return_slice_element_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<TypecheckSliceElementKind> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let return_type = context.call_return_type_expr(call)?;
+    Some(slice_element_kind_from_type(
+        view_element_type_from_type_expr(&return_type, resolved),
+    ))
+}
+
+fn call_success_slice_element_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<TypecheckSliceElementKind> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let return_type = context.call_return_type_expr(call)?;
+    let crate::ast::TypeExpr::Fallible(fallible) = return_type else {
+        return None;
+    };
+    Some(slice_element_kind_from_type(
+        view_element_type_from_type_expr(&fallible.success, resolved),
+    ))
+}
+
+fn slice_element_kind_from_type(ty: Option<Type>) -> TypecheckSliceElementKind {
+    match ty {
+        Some(Type::I32) => TypecheckSliceElementKind::I32,
+        Some(Type::U8) => TypecheckSliceElementKind::U8,
+        Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        Some(Type::Bool) => TypecheckSliceElementKind::Bool,
+        Some(Type::Str) => TypecheckSliceElementKind::Str,
+        _ => TypecheckSliceElementKind::Other,
+    }
+}
+
+fn slice_element_address_kind_for_borrow(
+    element: TypecheckSliceElementKind,
+    inner: &Type,
+) -> Option<SliceElementAddressKind> {
+    match (element, inner) {
+        (TypecheckSliceElementKind::U8, Type::U8) => Some(SliceElementAddressKind::U8),
+        (TypecheckSliceElementKind::I32, Type::I32) => Some(SliceElementAddressKind::I32),
+        (TypecheckSliceElementKind::Usize, Type::Usize) => Some(SliceElementAddressKind::Usize),
+        (TypecheckSliceElementKind::Bool, Type::Bool) => Some(SliceElementAddressKind::Bool),
+        (TypecheckSliceElementKind::Str, Type::Str) => Some(SliceElementAddressKind::Str),
+        _ => None,
     }
 }
 

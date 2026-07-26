@@ -2,8 +2,8 @@ use crate::abi::{ReturnPassing, ValueLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation,
-    StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
+    I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
+    SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use std::collections::BTreeSet;
 
@@ -1837,12 +1837,25 @@ fn record_borrow_source_parameter_spill_request(
         } => {
             requests.insert(index);
         }
+        BorrowSource::SliceIndex { source, index, .. } => {
+            record_slice_location_parameter_pair_spill_requests(source, requests);
+            record_slice_element_index_parameter_spill_request(index, requests);
+        }
         BorrowSource::I32(I32Location::Return | I32Location::Local(_))
         | BorrowSource::U8(U8Location::Return | U8Location::Local(_))
         | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Local(_))
         | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Local(_))
         | BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. } => {}
+    }
+}
+
+fn record_slice_element_index_parameter_spill_request(
+    index: SliceElementIndex,
+    requests: &mut BTreeSet<usize>,
+) {
+    if let SliceElementIndex::Location(UsizeLocation::Parameter(index)) = index {
+        requests.insert(index);
     }
 }
 
@@ -2445,10 +2458,20 @@ fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<u
         BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
+        BorrowSource::SliceIndex { source, index, .. } => {
+            record_slice_location(source, highest_local_index);
+            record_slice_element_index(index, highest_local_index);
+        }
         BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. }
         | BorrowSource::AggregateParameter(_)
         | BorrowSource::AggregateParameterField { .. } => {}
+    }
+}
+
+fn record_slice_element_index(index: SliceElementIndex, highest_local_index: &mut Option<usize>) {
+    if let SliceElementIndex::Location(location) = index {
+        record_usize_location(location, highest_local_index);
     }
 }
 

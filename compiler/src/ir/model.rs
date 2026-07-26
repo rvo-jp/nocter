@@ -610,10 +610,36 @@ pub(crate) enum BorrowSource {
     U8(U8Location),
     Usize(UsizeLocation),
     Bool(BoolLocation),
+    SliceIndex {
+        source: SliceLocation,
+        index: SliceElementIndex,
+        element: SliceElementAddressKind,
+    },
     AggregateSlot(usize),
-    AggregateSlotField { slot_index: usize, offset: u32 },
+    AggregateSlotField {
+        slot_index: usize,
+        offset: u32,
+    },
     AggregateParameter(usize),
-    AggregateParameterField { parameter_index: usize, offset: u32 },
+    AggregateParameterField {
+        parameter_index: usize,
+        offset: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SliceElementAddressKind {
+    U8,
+    I32,
+    Usize,
+    Bool,
+    Str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SliceElementIndex {
+    Const(u64),
+    Location(UsizeLocation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

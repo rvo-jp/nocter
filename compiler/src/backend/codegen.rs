@@ -2974,8 +2974,9 @@ mod tests {
     use crate::ir::{
         AggregateArgumentSource, AggregateLocation, BoolLocation, BoolValue, BorrowArgument,
         BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function,
-        I32ComparisonOperator, I32Location, I32Value, ScalarArgument, SliceLocation, SliceValue,
-        StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+        I32ComparisonOperator, I32Location, I32Value, ScalarArgument, SliceElementAddressKind,
+        SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location,
+        U8Value, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -4470,6 +4471,54 @@ mod tests {
         assert!(contains_instruction(
             &code.text,
             encoded_str_w_imm(WReg::W2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
+    fn slice_i32_index_borrow_argument_uses_element_address() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "forward".to_string(),
+                target: crate::ir::CallTarget::same_file("forward".to_string()),
+                return_type: Type::Void,
+                instructions: vec![
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("touch"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::SliceIndex {
+                                source: SliceLocation::Parameter(0),
+                                index: SliceElementIndex::Const(1),
+                                element: SliceElementAddressKind::I32,
+                            },
+                        })],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "touch".to_string(),
+                target: crate::ir::CallTarget::same_file("touch".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsl_x_imm(XReg::X16, XReg::X16, 2),
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_adds_x(XReg::X16, XReg::X8, XReg::X16),
         ));
     }
 

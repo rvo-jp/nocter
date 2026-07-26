@@ -7,8 +7,9 @@ use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolComparisonOperator,
     BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument, BorrowSource, CallTarget,
     DirectAggregateArgument, FallibleFailureMode, Function, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation,
-    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    I32Value, Instruction, IrModule, ScalarArgument, SliceElementAddressKind, SliceElementIndex,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -15568,6 +15569,57 @@ func choose(value: &+i32, code: i32): i32 {
                 ],
             },
         ])
+    );
+}
+
+#[test]
+fn lowers_readwrite_slice_index_borrow_call_argument() {
+    let function = lower_named_function_with_signatures(
+        r#"func touch(value: &+i32): void {
+    return
+}
+
+func use_first(values: &+[i32]): void {
+    touch(&+values[0])
+    return
+}
+
+func main(): void {
+    return
+}
+"#,
+        "use_first",
+        function_signatures(vec![(
+            "touch",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(Type::I32),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_first".to_string(),
+            target: CallTarget::same_file("use_first"),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: SliceElementIndex::Const(0),
+                            element: SliceElementAddressKind::I32,
+                        },
+                    })],
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 
