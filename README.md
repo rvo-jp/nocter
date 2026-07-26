@@ -3,41 +3,75 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-The core distribution idea is intentionally simple: install one `.nocter/`
-directory, add it to `PATH`, and start writing Nocter. To uninstall, delete that
-directory and remove the `PATH` entry. Nocter should be easy to try and easy to
-leave.
-
-Nocter's design starts from a practical frustration with existing toolchains and
-languages: trying a compiler should not install a stack of unrelated tools,
-using an API should not require reading private implementation details, and
-writing source should not require remembering several spellings for one idea.
-Nocter is built around simplicity, encapsulation, and foolproof design.
-
 Nocter is still pre-v0. The first implementation target is `arm64-darwin`.
 
-## Why Nocter
+## Why Nocter Exists
 
-- **One directory install**: the compiler, metadata, and standard library live
-  under `.nocter/`.
-- **Easy uninstall**: remove `.nocter/` and delete the shell `PATH` line.
-- **Self-contained native output**: normal builds do not require LLVM, `clang`,
-  `as`, `ld`, Xcode Command Line Tools, or an external runtime library.
-- **Private by default**: public API is explicit, and ordinary use should be
-  possible from the public contract alone.
-- **Clear source model**: one `.nct` file is one module, imports use `use`, and
-  declarations are private unless marked `pub`.
-- **Explicit resource handling**: ownership, borrowing, `drop`, `T!` failures,
-  and `T?` absence are visible in source.
-- **Small standard library first**: `String`, `Vec`, `File`, process APIs,
-  formatting, and allocation grow as ordinary Nocter APIs.
-- **Tool-friendly syntax**: one canonical style, source-backed diagnostics, JSON
-  output, and LSP support are part of the v0 direction.
+Nocter exists because trying a programming language should not require accepting
+a large toolchain, a package-manager commitment, or a pile of system-wide
+dependencies.
 
-## Install
+Normal Nocter builds should compile `.nct` source directly to native executable
+output without requiring LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or
+an external runtime library from the user.
 
-Nocter release archives are designed to unpack to a single `.nocter/` directory.
-A release archive should contain:
+A language should be easy to try and easy to leave. The intended Nocter release
+shape is one `.nocter/` directory containing the compiler, metadata, and the
+standard library. Installing Nocter should mean unpacking that directory and
+adding it to `PATH`. Uninstalling Nocter should mean deleting that directory and
+removing the `PATH` entry.
+
+Nocter also comes from frustration with APIs that require users to inspect
+private implementation details before they can use the public surface safely.
+Public API should be explicit, narrow, and sufficient. Private details should
+stay private by default.
+
+Nocter avoids adding many spellings for the same idea. Extra syntax can make a
+language feel convenient in isolation, but it increases what humans and AI
+assistants must remember. Nocter favors one clear form, source-backed
+diagnostics, and formatting rules over a wide menu of equivalent forms.
+
+These motivations become three design pillars:
+
+- **Simplicity**: small distribution shape, low toolchain dependency, and one
+  canonical source style.
+- **Encapsulation**: public API is the exception; private implementation is the
+  default.
+- **Foolproof design**: the language should guide ordinary code toward correct
+  use and diagnose misuse before backend lowering or runtime execution.
+
+The longer rationale lives in
+[Design Principles](spec/00-design-principles.md).
+
+## Language Direction
+
+Nocter is designed around values, modules, explicit contracts, and deterministic
+resource handling.
+
+- `struct`, `enum`, `func`, `impl`, and `method` form the value-oriented core.
+- Declarations are private unless marked `pub`.
+- `interface` is contract-only: it describes public capability without reusable
+  code.
+- Future `embedding` is composition-only: it will own contained values and
+  promote only their public contracts without exposing private internals.
+- `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
+- `T!` represents recoverable failure.
+- `T?` represents absence.
+- postfix `?` propagates both `T!` and `T?` early.
+- `otherwise` is the single optional fallback form.
+- `if` and `match` are value-producing expressions.
+- `drop` provides deterministic cleanup instead of a runtime GC.
+
+Nocter deliberately avoids class inheritance, trait-based code reuse, implicit
+interface conformance, and hidden runtime machinery in its core direction.
+
+The normative language definition lives in
+[spec/](spec/README.md).
+
+## One Directory Install
+
+Nocter release archives are designed to unpack to a single `.nocter/`
+directory:
 
 ```text
 .nocter/
@@ -62,14 +96,7 @@ To make the `PATH` change persistent on zsh:
 printf '\nexport PATH="$HOME/.nocter:$PATH"\n' >> ~/.zshrc
 ```
 
-The current repository is pre-v0, so source builds are still the main way to
-try the compiler before an official release archive exists. Compiler developer
-setup lives in [compiler/](compiler/README.md).
-
-## Uninstall
-
-Nocter does not need a package manager-specific uninstall step when installed
-as `.nocter/`.
+Uninstalling a `.nocter/` installation is intentionally plain:
 
 ```sh
 rm -rf "$HOME/.nocter"
@@ -80,6 +107,10 @@ Then remove this line from your shell configuration:
 ```sh
 export PATH="$HOME/.nocter:$PATH"
 ```
+
+The current repository is pre-v0, so source builds are still the main way to
+try the compiler before an official release archive exists. Compiler developer
+setup lives in [compiler/](compiler/README.md).
 
 ## First Program
 
@@ -122,26 +153,6 @@ Format a file:
 nocter fmt main.nct
 ```
 
-## Language Snapshot
-
-Nocter v0 focuses on a small, coherent core:
-
-- `struct`, `enum`, `func`, `impl`, `method`, and contract-only `interface`
-- `let` and `var`
-- `&T` readonly borrows and `&+T` readwrite borrows
-- `String` as an ordinary standard-library owned type
-- `Vec<T>` as an explicit standard-library collection
-- `T!` for recoverable failure
-- `T?` for absence
-- postfix `?` for early propagation of both `T!` and `T?`
-- `otherwise` for optional fallback
-- `if` and `match` as value-producing expressions
-- deterministic `drop` instead of a runtime GC
-
-Nocter v0 deliberately does not include class inheritance, trait code reuse,
-interface dispatch, embedding, package management, Linux or Windows backends,
-or a stable public binary ABI.
-
 ## Current Status
 
 The current compiler can parse, check, build, and run a meaningful v0 subset on
@@ -158,8 +169,10 @@ code is emitted. For the exact implementation boundary, see
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
 - [Design Principles](spec/00-design-principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
+- [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
+  the separation between explicit contracts and composition-based reuse.
+- [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
+  boundary.
 - [Compiler Development](compiler/README.md): Rust bootstrap compiler
   architecture, backend work, implementation status, tests, and maintenance
   notes.
-- [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
-  boundary.
