@@ -420,6 +420,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
         | Instruction::CopySliceElementToAggregate { .. }
+        | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -555,6 +556,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
         | Instruction::CopySliceElementToAggregate { .. }
+        | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -750,6 +752,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
         | Instruction::CopySliceElementToAggregate { .. }
+        | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -852,6 +855,12 @@ fn record_instruction_aggregate_slot_requests(
             ..
         } => {
             if let AggregateLocation::Slot(slot_index) = destination {
+                record_aggregate_slot_request(*slot_index, *layout, requests)?;
+            }
+            Ok(())
+        }
+        Instruction::CopyAggregateToSliceElement { source, layout, .. } => {
+            if let AggregateLocation::Slot(slot_index) = source {
                 record_aggregate_slot_request(*slot_index, *layout, requests)?;
             }
             Ok(())
@@ -1266,6 +1275,23 @@ fn record_instruction_parameter_spill_requests(
                 );
                 record_slice_location_parameter_pair_spill_requests(*source, requests);
                 record_slice_element_index_parameter_spill_request(*index, requests);
+            }
+        }
+        Instruction::CopyAggregateToSliceElement {
+            destination,
+            index,
+            source,
+            layout,
+        } => {
+            if include_value_parameters {
+                record_slice_location_parameter_pair_spill_requests(*destination, requests);
+                record_slice_element_index_parameter_spill_request(*index, requests);
+                record_aggregate_location_parameter_spill_request(
+                    *source,
+                    0,
+                    layout.size,
+                    requests,
+                );
             }
         }
         Instruction::StoreU8ToPointer {
@@ -2015,6 +2041,12 @@ fn record_instruction_scalar_locals(
         }
         Instruction::CopySliceElementToAggregate { source, index, .. } => {
             record_slice_location(*source, highest_local_index);
+            record_slice_element_index(*index, highest_local_index);
+        }
+        Instruction::CopyAggregateToSliceElement {
+            destination, index, ..
+        } => {
+            record_slice_location(*destination, highest_local_index);
             record_slice_element_index(*index, highest_local_index);
         }
         Instruction::StoreU8ToPointer {

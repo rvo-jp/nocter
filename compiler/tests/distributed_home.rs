@@ -1577,7 +1577,7 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_view_index_before_ir_lowering() {
+fn distributed_std_vec_builds_copy_aggregate_view_index() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-index-boundary");
     let source = project.write_source(
         "vec_aggregate_view_index_boundary.nct",
@@ -1598,28 +1598,58 @@ func main(): i32 {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("slice indexing outside scalar and `&str` elements"),
-        "expected slice index boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("9 |     let first = values.view()[0]"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec.view index"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_aggregate_view_mut_index_assignment_before_ir_lowering() {
+fn distributed_std_vec_runs_copy_aggregate_view_index() {
+    let project = TempProject::new("distributed-home-vec-aggregate-view-index-run");
+    let source = project.write_source(
+        "vec_aggregate_view_index_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 7, right: 11 })?
+    let first = values.view()[0]
+    return first.left + first.right
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(18),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn distributed_std_vec_builds_copy_aggregate_view_mut_index_assignment() {
     let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-boundary");
     let source = project.write_source(
         "vec_aggregate_view_mut_index_assign_boundary.nct",
@@ -1642,23 +1672,54 @@ func main(): i32 {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("slice indexing outside scalar and `&str` elements"),
-        "expected slice index boundary diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("9 |     values.view_mut()[0] = Pair { value: 1 }"),
-        "expected source line, got:\n{stderr}"
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        executable.exists(),
+        "build should produce an executable for copy aggregate Vec.view_mut index assignment"
     );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+}
+
+#[test]
+fn distributed_std_vec_runs_copy_aggregate_view_mut_index_assignment() {
+    let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-run");
+    let source = project.write_source(
+        "vec_aggregate_view_mut_index_assign_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub left: i32
+    pub right: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { left: 1, right: 2 })?
+    values.view_mut()[0] = Pair { left: 13, right: 5 }
+    let first = values.view()[0]
+    return first.left - first.right
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(8),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
 }
 

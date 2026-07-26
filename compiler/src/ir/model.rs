@@ -181,6 +181,12 @@ pub(crate) enum Instruction {
         index: SliceElementIndex,
         layout: ValueLayout,
     },
+    CopyAggregateToSliceElement {
+        destination: SliceLocation,
+        index: SliceElementIndex,
+        source: AggregateLocation,
+        layout: ValueLayout,
+    },
     DarwinSyscall {
         destination: AggregateLocation,
         arity: u8,

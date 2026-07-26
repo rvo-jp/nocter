@@ -1958,6 +1958,54 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_copy_aggregate_to_slice_element(
+        &mut self,
+        destination: SliceLocation,
+        index: SliceElementIndex,
+        source: AggregateLocation,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "aggregate slice element copy emission requires a stack frame",
+            )]);
+        };
+        let layout_size = u32::try_from(layout.size)
+            .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        if layout_size == 0 {
+            return Err(aggregate_copy_diagnostic(
+                "aggregate slice element copy requires a non-empty aggregate layout",
+            ));
+        }
+        let source = self.aggregate_copy_source(source, layout_size, frame)?;
+        validate_aggregate_copy_source_exact(source, 0, layout_size)?;
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_checked_slice_aggregate_element_address_to_x(
+            destination,
+            index,
+            layout_size,
+            XReg::X9,
+        )?;
+
+        let mut chunk_offset = 0_u32;
+        while chunk_offset < layout_size {
+            let remaining = layout_size
+                .checked_sub(chunk_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
+            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            self.emit_aggregate_copy_source_chunk_to_scratch(source, chunk_offset, chunk_bytes)?;
+            self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X9, chunk_offset, chunk_bytes)?;
+            chunk_offset = chunk_offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+
+        self.emit_scalar_reloads(frame)
+    }
+
     fn emit_checked_slice_aggregate_element_address_to_x(
         &mut self,
         source: SliceLocation,

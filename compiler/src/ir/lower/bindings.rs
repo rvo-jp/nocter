@@ -1,9 +1,11 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
-    aggregate_type_layout, lower_aggregate_struct_literal_to_location,
-    lower_aggregate_struct_literal_to_location_at_offset, push_aggregate_call_instruction,
+    aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
+    lower_aggregate_struct_literal_to_location,
+    lower_aggregate_struct_literal_to_location_at_offset,
+    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct,
+    type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
 };
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::lower_error_payload;
@@ -37,7 +39,9 @@ use super::types::{
     return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr,
     view_element_type_from_type_expr,
 };
-use crate::abi::{ValueLayout, abi_value_from_type_expr};
+use crate::abi::{
+    AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
+};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Block, CallExpr, Expr,
     IndexExpr, MemberExpr, Stmt, TypeExpr, UnaryOperator,
@@ -45,8 +49,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation,
-    Type, U8Location, UsizeLocation, UsizeValue,
+    I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
+    SliceValue, StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -98,6 +102,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_aggregate_member_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_aggregate_slice_index_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -1073,10 +1081,159 @@ fn lower_aggregate_fallible_call_member_binding(
     Ok(Some(instructions))
 }
 
+fn lower_aggregate_slice_index_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Index(index) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some(element) = copy_aggregate_slice_index_element(index, context) else {
+        return Ok(None);
+    };
+
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        element.layout,
+        true,
+        element.drop_glue,
+        element.fields,
+    );
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered_slice = lower_slice_expression_to_value(&index.object, context, &mut temporaries)?;
+    let SliceValue::Location(source) = lowered_slice.value else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate slice index bindings from slice locations",
+        ));
+    };
+    let (index_instructions, element_index) =
+        lower_usize_expression_to_word_with_temporaries(&index.index, context, &mut temporaries)?;
+
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: element.layout,
+    }];
+    instructions.extend(lowered_slice.instructions);
+    instructions.extend(index_instructions);
+    let element_index =
+        materialize_slice_aggregate_index(&mut instructions, element_index, &mut temporaries)?;
+    instructions.push(Instruction::CopySliceElementToAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        source,
+        index: element_index,
+        layout: element.layout,
+    });
+    Ok(Some(instructions))
+}
+
 enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
     FallibleCall(&'a CallExpr, FallibleFailureMode),
+}
+
+struct CopyAggregateSliceElement {
+    layout: ValueLayout,
+    fields: Vec<super::context::AggregateField>,
+    drop_glue: Option<DropGlue>,
+}
+
+fn copy_aggregate_slice_index_element(
+    index: &IndexExpr,
+    context: &LoweringContext,
+) -> Option<CopyAggregateSliceElement> {
+    let element_ty = slice_index_element_type_expr(index, context)?;
+    let (root_source, resolved) = context.resolved_calls()?;
+    if !type_expr_is_copy_struct_with_resolver(&element_ty, resolved, |source| {
+        context.resolved_source(source)
+    }) {
+        return None;
+    }
+
+    let value = abi_value_from_type_expr_with_resolver(&element_ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+    if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
+        return None;
+    }
+    let fields = aggregate_fields_from_type_expr_with_resolver(
+        &element_ty,
+        root_source,
+        resolved,
+        |source| context.resolved_source(source),
+    )?;
+    Some(CopyAggregateSliceElement {
+        layout: value.layout,
+        fields,
+        drop_glue: context.drop_glue_for_type_expr(&element_ty),
+    })
+}
+
+fn slice_index_element_type_expr(index: &IndexExpr, context: &LoweringContext) -> Option<TypeExpr> {
+    slice_target_element_type_expr(&index.object, context)
+}
+
+fn slice_target_element_type_expr(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<TypeExpr> {
+    match unwrap_group(expression) {
+        Expr::Call(call) => {
+            let return_type = context.call_return_type_expr(call)?;
+            slice_element_type_expr_from_type_expr(&return_type, context)
+        }
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return None;
+            };
+            let TypeExpr::Fallible(fallible) = context.call_return_type_expr(call)? else {
+                return None;
+            };
+            slice_element_type_expr_from_type_expr(&fallible.success, context)
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return None;
+            };
+            let TypeExpr::Fallible(fallible) = context.call_return_type_expr(call)? else {
+                return None;
+            };
+            slice_element_type_expr_from_type_expr(&fallible.success, context)
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return None;
+            };
+            let TypeExpr::Fallible(fallible) = context.call_return_type_expr(call)? else {
+                return None;
+            };
+            slice_element_type_expr_from_type_expr(&fallible.success, context)
+        }
+        Expr::Group(group) => slice_target_element_type_expr(&group.expression, context),
+        _ => None,
+    }
+}
+
+fn slice_element_type_expr_from_type_expr(
+    ty: &TypeExpr,
+    context: &LoweringContext,
+) -> Option<TypeExpr> {
+    match ty {
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            Some(*view.element.clone())
+        }
+        TypeExpr::Reference(reference) => {
+            let (_root_source, resolved) = context.resolved_calls()?;
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            slice_element_type_expr_from_type_expr(target, context)
+        }
+        _ => None,
+    }
 }
 
 fn aggregate_member_binding_path<'a>(
@@ -1646,7 +1803,85 @@ fn lower_slice_index_assignment(
             });
             Ok(instructions)
         }
-        TypecheckSliceElementKind::Other => Err(unsupported_assignment_diagnostic()),
+        TypecheckSliceElementKind::Other => lower_copy_aggregate_slice_index_assignment(
+            target,
+            value,
+            destination,
+            index,
+            instructions,
+            context,
+            &mut temporaries,
+        ),
+    }
+}
+
+fn lower_copy_aggregate_slice_index_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    destination: SliceLocation,
+    index: UsizeValue,
+    mut instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(element) = copy_aggregate_slice_index_element(target, context) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let source_slot = temporaries.next_aggregate_slot();
+    instructions.push(Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout: element.layout,
+    });
+    instructions.extend(lower_copy_aggregate_value_to_slot_with_temporaries(
+        source_slot,
+        element.layout,
+        value,
+        context,
+        temporaries,
+    )?);
+    let index = materialize_slice_aggregate_index(&mut instructions, index, temporaries)?;
+    instructions.push(Instruction::CopyAggregateToSliceElement {
+        destination,
+        index,
+        source: AggregateLocation::Slot(source_slot),
+        layout: element.layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_copy_aggregate_value_to_slot_with_temporaries(
+    slot_index: usize,
+    layout: ValueLayout,
+    value: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(value) {
+        Expr::StructLiteral(literal) => {
+            lower_aggregate_struct_literal_to_location_with_temporaries(
+                literal,
+                layout,
+                AggregateLocation::Slot(slot_index),
+                "E8008",
+                "slice index assignments",
+                context
+                    .resolved_calls()
+                    .map(|(_root_source, resolved)| resolved)
+                    .ok_or_else(unsupported_assignment_diagnostic)?,
+                context,
+                temporaries,
+            )
+        }
+        Expr::Identifier(identifier) => {
+            lower_aggregate_copy_assignment(slot_index, layout, &identifier.name, context)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_move_assignment(slot_index, layout, &identifier.name, context)
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
     }
 }
 
@@ -1661,6 +1896,22 @@ fn materialize_slice_index_assignment_index(
             let destination = temporaries.next_usize()?;
             instructions.push(Instruction::SetUsize { destination, value });
             Ok(UsizeValue::Location(destination))
+        }
+    }
+}
+
+fn materialize_slice_aggregate_index(
+    instructions: &mut Vec<Instruction>,
+    value: UsizeValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<SliceElementIndex, Vec<Diagnostic>> {
+    match value {
+        UsizeValue::Const(value) => Ok(SliceElementIndex::Const(value)),
+        UsizeValue::Location(location) => Ok(SliceElementIndex::Location(location)),
+        value => {
+            let destination = temporaries.next_usize()?;
+            instructions.push(Instruction::SetUsize { destination, value });
+            Ok(SliceElementIndex::Location(destination))
         }
     }
 }

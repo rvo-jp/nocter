@@ -1632,13 +1632,13 @@ fn unsupported_index_assignment_target_diagnostic(
     let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
         return None;
     };
-    if slice_index_assignment_element_kind(
+    if slice_index_assignment_target_is_buildable(
         &index.object,
         resolved,
         typecheck_facts,
         generic_substitutions,
     )
-    .is_some_and(typecheck_slice_element_kind_is_buildable)
+    .unwrap_or(false)
     {
         return None;
     }
@@ -1649,6 +1649,94 @@ fn unsupported_index_assignment_target_diagnostic(
         "index assignment targets outside supported slice values",
         "assign through a slice binding, supported slice-returning call result, or slice aggregate field until broader index assignment lowering is promoted",
     ))
+}
+
+fn slice_index_assignment_target_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<bool> {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(identifier) => {
+            let symbol = resolved.local_symbol_for_identifier(identifier)?;
+            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+                TypecheckScalarViewKind::Slice(element) => {
+                    Some(typecheck_slice_element_kind_is_buildable(element))
+                }
+                TypecheckScalarViewKind::I32
+                | TypecheckScalarViewKind::U8
+                | TypecheckScalarViewKind::Usize
+                | TypecheckScalarViewKind::Bool
+                | TypecheckScalarViewKind::Str => None,
+            }
+        }
+        Expr::Call(call) => {
+            let return_type = call_return_type_expr_with_substitutions(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )?;
+            slice_index_target_type_expr_is_buildable(&return_type, resolved)
+        }
+        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+            TypecheckScalarViewKind::Slice(element) => {
+                Some(typecheck_slice_element_kind_is_buildable(element))
+            }
+            TypecheckScalarViewKind::I32
+            | TypecheckScalarViewKind::U8
+            | TypecheckScalarViewKind::Usize
+            | TypecheckScalarViewKind::Bool
+            | TypecheckScalarViewKind::Str => None,
+        },
+        Expr::Propagate(propagation) => slice_index_assignment_fallible_target_is_buildable(
+            &propagation.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Force(force) => slice_index_assignment_fallible_target_is_buildable(
+            &force.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Catch(catch) => slice_index_assignment_fallible_target_is_buildable(
+            &catch.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Group(group) => slice_index_assignment_target_is_buildable(
+            &group.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => None,
+    }
+}
+
+fn slice_index_assignment_fallible_target_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<bool> {
+    let Expr::Call(call) = unwrap_group_expr(expression) else {
+        return None;
+    };
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let TypeExpr::Fallible(fallible) = return_type else {
+        return None;
+    };
+    slice_index_target_type_expr_is_buildable(&fallible.success, resolved)
 }
 
 fn aggregate_field_compound_assignment_is_buildable(
@@ -2344,8 +2432,8 @@ fn unsupported_slice_index_diagnostic(
     Some(unsupported_v0_build_diagnostic(
         sources,
         expression.span,
-        "slice indexing outside scalar and `&str` elements",
-        "use `&[i32]`, `&[u8]`, `&[usize]`, `&[bool]`, or `&[&str]` indexing until aggregate element view readback is promoted",
+        "slice indexing outside scalar, `&str`, and copy aggregate elements",
+        "use `&[i32]`, `&[u8]`, `&[usize]`, `&[bool]`, `&[&str]`, or a non-empty `copy struct` element until broader slice element lowering is promoted",
     ))
 }
 
@@ -2422,6 +2510,11 @@ fn typecheck_slice_element_kind_is_buildable(element: TypecheckSliceElementKind)
             | TypecheckSliceElementKind::Bool
             | TypecheckSliceElementKind::Str
     )
+}
+
+fn type_expr_is_supported_slice_index_element(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other
+        || type_expr_is_supported_copy_aggregate_vec_element(ty, resolved)
 }
 
 fn slice_index_assignment_element_kind(
@@ -2590,10 +2683,10 @@ fn slice_index_target_type_expr_is_buildable_inner(
             let TypeExpr::View(view) = borrow.inner.as_ref() else {
                 return None;
             };
-            Some(
-                type_expr_slice_element_kind(&view.element, resolved)
-                    != TypecheckSliceElementKind::Other,
-            )
+            Some(type_expr_is_supported_slice_index_element(
+                &view.element,
+                resolved,
+            ))
         }
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
