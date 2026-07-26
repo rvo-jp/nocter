@@ -15,9 +15,9 @@ use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
-    payloadless_switch_as_if_statement,
+    lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -988,14 +988,20 @@ fn lower_nonterminal_loop_block_statements(
             }
             Stmt::Return(statement) => {
                 instructions.extend(
-                    lower_return_statement_with_scope_drops(statement, context, diagnostic_code)
-                        .map_err(|diagnostics| {
-                            let span = statement
-                                .expression
-                                .as_ref()
-                                .map_or(statement.span, |expression| expression.span());
-                            attach_primary_span_if_absent(diagnostics, sources, span)
-                        })?,
+                    lower_terminal_return_statement_with_scope_drops(
+                        statement,
+                        context,
+                        diagnostic_code,
+                        subject,
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        let span = statement
+                            .expression
+                            .as_ref()
+                            .map_or(statement.span, |expression| expression.span());
+                        attach_primary_span_if_absent(diagnostics, sources, span)
+                    })?,
                 );
                 ends_execution = true;
                 break;
@@ -1680,10 +1686,12 @@ fn lower_i32_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Return(statement)) => {
-            let return_instructions = lower_return_statement_with_scope_drops(
+            let return_instructions = lower_terminal_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
+                subject,
+                sources,
             )?;
             instructions.extend(return_instructions);
             Ok(instructions)
@@ -1786,10 +1794,12 @@ fn lower_bool_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Return(statement)) => {
-            let return_instructions = lower_return_statement_with_scope_drops(
+            let return_instructions = lower_terminal_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
+                subject,
+                sources,
             )?;
             instructions.extend(return_instructions);
             Ok(instructions)
@@ -1989,10 +1999,12 @@ fn lower_scalar_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Return(statement)) => {
-            let return_instructions = lower_return_statement_with_scope_drops(
+            let return_instructions = lower_terminal_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
+                subject,
+                sources,
             )?;
             instructions.extend(return_instructions);
             Ok(instructions)
@@ -2155,10 +2167,12 @@ fn lower_void_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Return(statement)) => {
-            let return_instructions = lower_return_statement_with_scope_drops(
+            let return_instructions = lower_terminal_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
+                subject,
+                sources,
             )?;
             instructions.extend(return_instructions);
             Ok(instructions)

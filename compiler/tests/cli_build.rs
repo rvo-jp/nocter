@@ -4373,6 +4373,54 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_accepts_terminal_control_return_expressions() {
+    let project = TempProject::new("cli-build-terminal-control-return-expressions");
+    let source = project.write_source(
+        "terminal_control_return_expressions.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    return from_if(1) + from_if_is(Choice.no) + from_match(Choice.maybe)
+}
+
+func from_if(value: i32): i32 {
+    return if value == 1 {
+        10
+    } else {
+        1
+    }
+}
+
+func from_if_is(choice: Choice): i32 {
+    return if choice is Choice.no {
+        20
+    } else {
+        2
+    }
+}
+
+func from_match(choice: Choice): i32 {
+    return match choice {
+        Choice.yes { 3 }
+        Choice.no { 4 }
+        else { 12 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(

@@ -738,8 +738,12 @@ fn lower_callable_body(
 
     match last {
         Stmt::Return(statement) => {
-            let return_instructions = lower_return_statement_with_scope_drops(
-                statement, context, "E8007",
+            let return_instructions = lower_terminal_return_statement_with_scope_drops(
+                statement,
+                context,
+                "E8007",
+                "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 let span = statement
@@ -757,6 +761,8 @@ fn lower_callable_body(
                 context,
                 function_name,
                 return_type,
+                "E8007",
+                "functions",
                 resolved,
                 sources,
             )
@@ -783,6 +789,8 @@ fn lower_callable_body(
                 context,
                 function_name,
                 return_type,
+                "E8007",
+                "functions",
                 resolved,
                 sources,
             )
@@ -809,6 +817,8 @@ fn lower_callable_body(
                 context,
                 function_name,
                 return_type,
+                "E8007",
+                "functions",
                 resolved,
                 sources,
             )
@@ -955,6 +965,8 @@ fn lower_callable_control_body_result(
             context,
             function_name,
             return_type,
+            "E8007",
+            "functions",
             context
                 .resolved_calls()
                 .map(|(_, resolved)| resolved)
@@ -968,6 +980,8 @@ fn lower_callable_control_body_result(
                 context,
                 function_name,
                 return_type,
+                "E8007",
+                "functions",
                 context
                     .resolved_calls()
                     .map(|(_, resolved)| resolved)
@@ -982,10 +996,100 @@ fn lower_callable_control_body_result(
                 context,
                 function_name,
                 return_type,
+                "E8007",
+                "functions",
                 context
                     .resolved_calls()
                     .map(|(_, resolved)| resolved)
                     .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+                sources,
+            )?
+            else {
+                return Ok(None);
+            };
+            let mut instructions = switch.leading_instructions;
+            instructions.append(&mut branch_instructions);
+            Ok(Some(instructions))
+        }
+        _ => Ok(None),
+    }
+}
+
+pub(super) fn lower_terminal_return_statement_with_scope_drops(
+    statement: &ReturnStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(expression) = &statement.expression
+        && let Some(instructions) = lower_terminal_control_return_expression(
+            expression,
+            context,
+            diagnostic_code,
+            subject,
+            sources,
+        )?
+    {
+        return Ok(instructions);
+    }
+
+    lower_return_statement_with_scope_drops(statement, context, diagnostic_code)
+}
+
+fn lower_terminal_control_return_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let return_type = context.function_return_type().clone();
+    let function_name = context.function_name().to_string();
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_if_statement_for_success_type(
+            statement,
+            context,
+            &function_name,
+            &return_type,
+            diagnostic_code,
+            subject,
+            context
+                .resolved_calls()
+                .map(|(_, resolved)| resolved)
+                .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_terminal_if_statement_for_success_type(
+                &if_statement,
+                context,
+                &function_name,
+                &return_type,
+                diagnostic_code,
+                subject,
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let Some(mut branch_instructions) = lower_terminal_if_statement_for_success_type(
+                &switch.if_statement,
+                context,
+                &function_name,
+                &return_type,
+                diagnostic_code,
+                subject,
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
                 sources,
             )?
             else {
@@ -1004,6 +1108,8 @@ fn lower_terminal_if_statement_for_success_type(
     context: &LoweringContext,
     function_name: &str,
     return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
     resolved: &ResolveOutput,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
@@ -1013,56 +1119,56 @@ fn lower_terminal_if_statement_for_success_type(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Bool => lower_terminal_bool_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::U8 => lower_terminal_u8_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Usize => lower_terminal_usize_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Str => lower_terminal_str_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Slice { .. } => lower_terminal_slice_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Void => lower_terminal_void_if_statement(
             statement,
             context,
             return_type,
-            "E8007",
-            "functions",
+            diagnostic_code,
+            subject,
             sources,
         )?,
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
@@ -1612,6 +1718,21 @@ fn lower_terminal_aggregate_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Return(statement)) => {
+            if statement.expression.as_ref().is_some_and(|expression| {
+                matches!(
+                    unwrap_group(expression),
+                    Expr::If(_) | Expr::IfIs(_) | Expr::Match(_)
+                )
+            }) {
+                instructions.extend(lower_terminal_return_statement_with_scope_drops(
+                    statement,
+                    &mut branch_context,
+                    "E8007",
+                    "functions",
+                    sources,
+                )?);
+                return Ok(instructions);
+            }
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
             };

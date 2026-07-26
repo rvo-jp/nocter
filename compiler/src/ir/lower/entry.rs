@@ -152,16 +152,19 @@ fn lower_entry_body(
 
     match last {
         Stmt::Return(statement) => {
-            let return_instructions =
-                lower_return_statement_with_scope_drops(statement, &mut context, "E8002").map_err(
-                    |diagnostics| {
-                        let span = statement
-                            .expression
-                            .as_ref()
-                            .map_or(statement.span, |expression| expression.span());
-                        attach_primary_span_if_absent(diagnostics, sources, span)
-                    },
-                )?;
+            let return_instructions = lower_entry_return_statement_with_scope_drops(
+                statement,
+                return_type,
+                &mut context,
+                sources,
+            )
+            .map_err(|diagnostics| {
+                let span = statement
+                    .expression
+                    .as_ref()
+                    .map_or(statement.span, |expression| expression.span());
+                attach_primary_span_if_absent(diagnostics, sources, span)
+            })?;
             instructions.extend(return_instructions);
             Ok(instructions)
         }
@@ -340,6 +343,22 @@ fn lower_entry_body_result(
     lower_return_statement_with_scope_drops(&statement, context, "E8002").map_err(|diagnostics| {
         attach_primary_span_if_absent(diagnostics, sources, expression.span())
     })
+}
+
+fn lower_entry_return_statement_with_scope_drops(
+    statement: &ReturnStmt,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(expression) = &statement.expression
+        && let Some(instructions) =
+            lower_entry_control_body_result(expression, return_type, context, sources)?
+    {
+        return Ok(instructions);
+    }
+
+    lower_return_statement_with_scope_drops(statement, context, "E8002")
 }
 
 fn lower_entry_control_body_result(

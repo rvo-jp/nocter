@@ -8917,6 +8917,59 @@ func same(value: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_terminal_control_return_expression_exit_code() {
+    let project = TempProject::new("cli-run-terminal-control-return-expression");
+    let source = project.write_source(
+        "terminal_control_return_expression.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    return from_if(1) + from_if_is(Choice.no) + from_match(Choice.maybe)
+}
+
+func from_if(value: i32): i32 {
+    return if value == 1 {
+        10
+    } else {
+        1
+    }
+}
+
+func from_if_is(choice: Choice): i32 {
+    return if choice is Choice.no {
+        20
+    } else {
+        2
+    }
+}
+
+func from_match(choice: Choice): i32 {
+    return match choice {
+        Choice.yes { 3 }
+        Choice.no { 4 }
+        else { 12 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

@@ -688,7 +688,7 @@ fn collect_statement_diagnostics(
     match statement {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
-                collect_expression_diagnostics(
+                collect_terminal_return_expression_diagnostics(
                     expression,
                     sources,
                     resolved,
@@ -2828,7 +2828,7 @@ func main(): i32 {
     }
 
     #[test]
-    fn reports_reachable_match_expression_until_lowering_is_promoted() {
+    fn does_not_report_terminal_match_expression_return_statement() {
         let (sources, analysis) = analyze_text(
             r#"enum Choice {
     yes
@@ -2840,6 +2840,29 @@ func main(): i32 {
     return match choice {
         Choice.yes { 0 }
         else { 1 }
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_payload_match_expression_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(10)
+    return match result {
+        Result.ok(value) { value }
+        else { 0 }
     }
 }
 "#,
