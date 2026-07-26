@@ -2,6 +2,7 @@
 
 use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
 use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
+use crate::source::SourceId;
 use std::collections::{HashMap, HashSet};
 
 pub const ABI_WORD_SIZE: u64 = 8;
@@ -280,15 +281,39 @@ pub fn abi_value_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Result<AbiValue, AbiTypeError> {
-    AbiValue::from_abi_type(abi_type_from_type_expr(ty, resolved)?)
+    abi_value_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub fn abi_value_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<AbiValue, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_value_from_type_expr_inner(ty, fallback_resolved, &resolver)
 }
 
 pub fn function_abi_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<FunctionAbi, AbiTypeError> {
-    let parameters = function_parameters_abi_from_signature(signature, resolved)?;
-    let return_value = abi_return_from_type_expr(&signature.return_type, resolved)?;
+    function_abi_from_signature_with_resolver(signature, resolved, |_| Some(resolved))
+}
+
+pub fn function_abi_from_signature_with_resolver<'a, F>(
+    signature: &FunctionSignature,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<FunctionAbi, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let parameters =
+        function_parameters_abi_from_signature_inner(signature, fallback_resolved, &resolver)?;
+    let return_value =
+        abi_return_from_type_expr(&signature.return_type, fallback_resolved, &resolver)?;
 
     Ok(FunctionAbi {
         parameters,
@@ -300,13 +325,35 @@ pub fn function_parameters_abi_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<Vec<AbiParameter>, AbiTypeError> {
+    function_parameters_abi_from_signature_with_resolver(signature, resolved, |_| Some(resolved))
+}
+
+pub fn function_parameters_abi_from_signature_with_resolver<'a, F>(
+    signature: &FunctionSignature,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<Vec<AbiParameter>, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    function_parameters_abi_from_signature_inner(signature, fallback_resolved, &resolver)
+}
+
+fn function_parameters_abi_from_signature_inner<'a, F>(
+    signature: &FunctionSignature,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Result<Vec<AbiParameter>, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     signature
         .parameters
         .iter()
         .map(|parameter| {
             Ok(AbiParameter {
                 name: parameter.name.clone(),
-                value: abi_value_from_type_expr(&parameter.ty, resolved)?,
+                value: abi_value_from_type_expr_inner(&parameter.ty, fallback_resolved, resolver)?,
             })
         })
         .collect()
@@ -316,9 +363,27 @@ pub fn function_parameter_abi_word_count_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<usize, AbiTypeError> {
+    function_parameter_abi_word_count_from_signature_with_resolver(signature, resolved, |_| {
+        Some(resolved)
+    })
+}
+
+pub fn function_parameter_abi_word_count_from_signature_with_resolver<'a, F>(
+    signature: &FunctionSignature,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<usize, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     let mut count = 0_usize;
     for parameter in &signature.parameters {
-        if type_expr_resolves_to_error(&parameter.ty, resolved, &mut HashSet::new()) {
+        if type_expr_resolves_to_error(
+            &parameter.ty,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        ) {
             count = count
                 .checked_add(4)
                 .ok_or(AbiTypeError::Layout(LayoutError::SizeOverflow))?;
@@ -327,7 +392,7 @@ pub fn function_parameter_abi_word_count_from_signature(
 
         let parameter = AbiParameter {
             name: parameter.name.clone(),
-            value: abi_value_from_type_expr(&parameter.ty, resolved)?,
+            value: abi_value_from_type_expr_inner(&parameter.ty, fallback_resolved, &resolver)?,
         };
         count = count
             .checked_add(parameter.value.parameter_abi_word_count())
@@ -336,11 +401,15 @@ pub fn function_parameter_abi_word_count_from_signature(
     Ok(count)
 }
 
-fn type_expr_resolves_to_error(
+fn type_expr_resolves_to_error<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     let TypeExpr::Reference(reference) = ty else {
         return false;
     };
@@ -349,6 +418,7 @@ fn type_expr_resolves_to_error(
         return true;
     }
 
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
         return false;
     };
@@ -358,7 +428,7 @@ fn type_expr_resolves_to_error(
     if !resolving_names.insert(symbol.canonical_name.clone()) {
         return false;
     }
-    let result = type_expr_resolves_to_error(target, resolved, resolving_names);
+    let result = type_expr_resolves_to_error(target, fallback_resolved, resolver, resolving_names);
     resolving_names.remove(&symbol.canonical_name);
     result
 }
@@ -367,34 +437,69 @@ pub fn function_success_return_passing_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<ReturnPassing, AbiTypeError> {
-    let success_type =
-        top_level_success_return_type_expr(&signature.return_type, resolved, &mut HashSet::new())?;
-    abi_return_from_type_expr(success_type, resolved).map(|return_value| return_value.passing())
+    function_success_return_passing_from_signature_with_resolver(signature, resolved, |_| {
+        Some(resolved)
+    })
 }
 
-fn top_level_success_return_type_expr<'a>(
-    ty: &'a TypeExpr,
-    resolved: &'a ResolveOutput,
+pub fn function_success_return_passing_from_signature_with_resolver<'a, F>(
+    signature: &FunctionSignature,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<ReturnPassing, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    top_level_success_return_passing_from_type_expr(
+        &signature.return_type,
+        fallback_resolved,
+        &resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn top_level_success_return_passing_from_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Result<&'a TypeExpr, AbiTypeError> {
+) -> Result<ReturnPassing, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return Ok(ty);
+                return abi_return_from_type_expr(ty, fallback_resolved, resolver)
+                    .map(|return_value| return_value.passing());
             };
             let Some(target) = &symbol.alias_target else {
-                return Ok(ty);
+                return abi_return_from_type_expr(ty, fallback_resolved, resolver)
+                    .map(|return_value| return_value.passing());
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
             }
-            let result = top_level_success_return_type_expr(target, resolved, resolving_names);
+            let result = top_level_success_return_passing_from_type_expr(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
-        TypeExpr::Fallible(fallible) => Ok(&fallible.success),
-        TypeExpr::Optional(optional) => Ok(&optional.inner),
-        _ => Ok(ty),
+        TypeExpr::Fallible(fallible) => {
+            abi_return_from_type_expr(&fallible.success, fallback_resolved, resolver)
+                .map(|return_value| return_value.passing())
+        }
+        TypeExpr::Optional(optional) => {
+            abi_return_from_type_expr(&optional.inner, fallback_resolved, resolver)
+                .map(|return_value| return_value.passing())
+        }
+        _ => abi_return_from_type_expr(ty, fallback_resolved, resolver)
+            .map(|return_value| return_value.passing()),
     }
 }
 
@@ -402,43 +507,112 @@ pub fn abi_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Result<AbiType, AbiTypeError> {
-    match abi_type_kind_from_type_expr(ty, resolved, &HashMap::new(), &mut HashSet::new())? {
+    abi_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub fn abi_type_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Result<AbiType, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match abi_type_kind_from_type_expr(
+        ty,
+        fallback_resolved,
+        &resolver,
+        &HashMap::new(),
+        &mut HashSet::new(),
+    )? {
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
         AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
     }
 }
 
-fn abi_return_from_type_expr(
+fn abi_value_from_type_expr_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Result<AbiReturn, AbiTypeError> {
-    abi_return_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Result<AbiValue, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    AbiValue::from_abi_type(abi_type_from_type_expr_with_resolver_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+    )?)
 }
 
-fn abi_return_from_type_expr_inner(
+fn abi_type_from_type_expr_with_resolver_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Result<AbiType, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match abi_type_kind_from_type_expr(
+        ty,
+        fallback_resolved,
+        resolver,
+        &HashMap::new(),
+        &mut HashSet::new(),
+    )? {
+        AbiTypeKind::Value(ty) => Ok(ty),
+        AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
+        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
+    }
+}
+
+fn abi_return_from_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Result<AbiReturn, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_return_from_type_expr_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn abi_return_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Result<AbiReturn, AbiTypeError> {
+) -> Result<AbiReturn, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(AbiReturn::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(AbiReturn::Never),
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value);
+                return abi_value_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    .map(AbiReturn::Value);
             };
             let Some(target) = &symbol.alias_target else {
-                return abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value);
+                return abi_value_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    .map(AbiReturn::Value);
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
             }
-            let result = abi_return_from_type_expr_inner(target, resolved, resolving_names);
+            let result = abi_return_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
-        _ => abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value),
+        _ => abi_value_from_type_expr_inner(ty, fallback_resolved, resolver).map(AbiReturn::Value),
     }
 }
 
@@ -460,12 +634,27 @@ enum AbiTypeKind {
     UnsizedArray,
 }
 
-fn abi_type_kind_from_type_expr(
+fn resolved_for_type_expr<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> &'a ResolveOutput
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    resolver(ty.span().source).unwrap_or(fallback_resolved)
+}
+
+fn abi_type_kind_from_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     substitutions: &HashMap<String, TypeExpr>,
     resolving_names: &mut HashSet<String>,
-) -> Result<AbiTypeKind, AbiTypeError> {
+) -> Result<AbiTypeKind, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" => Ok(AbiTypeKind::Value(AbiType::Bool)),
@@ -490,22 +679,31 @@ fn abi_type_kind_from_type_expr(
                 let substitution = substitute_type_expr_parameters(substitution, substitutions);
                 abi_type_kind_from_type_expr(
                     &substitution,
-                    resolved,
+                    fallback_resolved,
+                    resolver,
                     substitutions,
                     resolving_names,
                 )
             }
             name => {
+                let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
                 let Some(symbol) = resolved.type_symbol_by_reference_name(name) else {
                     return Err(AbiTypeError::UnresolvedType(name.to_string()));
                 };
                 if symbol.generic_arity > 0 {
                     return Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()));
                 }
-                abi_type_kind_from_symbol(symbol, resolved, substitutions, resolving_names)
+                abi_type_kind_from_symbol(
+                    symbol,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                    resolving_names,
+                )
             }
         },
         TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
                 return Err(AbiTypeError::UnresolvedType(generic.name.clone()));
             };
@@ -526,7 +724,8 @@ fn abi_type_kind_from_type_expr(
             }
             abi_type_kind_from_symbol(
                 symbol,
-                resolved,
+                fallback_resolved,
+                resolver,
                 &instantiated_substitutions,
                 resolving_names,
             )
@@ -535,7 +734,8 @@ fn abi_type_kind_from_type_expr(
         TypeExpr::Borrow(borrow) => {
             match abi_type_kind_from_type_expr(
                 &borrow.inner,
-                resolved,
+                fallback_resolved,
+                resolver,
                 substitutions,
                 resolving_names,
             )? {
@@ -561,12 +761,16 @@ fn abi_type_kind_from_type_expr(
     }
 }
 
-fn abi_type_kind_from_symbol(
+fn abi_type_kind_from_symbol<'a, F>(
     symbol: &TypeSymbol,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     substitutions: &HashMap<String, TypeExpr>,
     resolving_names: &mut HashSet<String>,
-) -> Result<AbiTypeKind, AbiTypeError> {
+) -> Result<AbiTypeKind, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     if !resolving_names.insert(symbol.canonical_name.clone()) {
         return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
     }
@@ -574,7 +778,13 @@ fn abi_type_kind_from_symbol(
     let result = (|| match symbol.kind {
         TypeSymbolKind::Alias => {
             if let Some(target) = &symbol.alias_target {
-                abi_type_kind_from_type_expr(target, resolved, substitutions, resolving_names)
+                abi_type_kind_from_type_expr(
+                    target,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                    resolving_names,
+                )
             } else {
                 Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
             }
@@ -584,7 +794,8 @@ fn abi_type_kind_from_symbol(
             for field in &symbol.fields {
                 let ty = match abi_type_kind_from_type_expr(
                     &field.ty,
-                    resolved,
+                    fallback_resolved,
+                    resolver,
                     substitutions,
                     resolving_names,
                 )? {
@@ -629,15 +840,17 @@ fn payloadless_enum_tag_type(symbol: &TypeSymbol) -> Result<AbiTypeKind, AbiType
 mod tests {
     use super::{
         AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
-        ValueLayout, abi_type_from_type_expr, classify_value, function_abi_from_signature,
+        ValueLayout, abi_type_from_type_expr, abi_value_from_type_expr_with_resolver,
+        classify_value, function_abi_from_signature,
         function_parameter_abi_word_count_from_signature, function_parameters_abi_from_signature,
         function_success_return_passing_from_signature, layout_of, layout_struct,
     };
-    use crate::ast::Item;
+    use crate::ast::{AstFile, Item, TypeExpr, substitute_type_expr_parameters};
     use crate::lexer::lex;
     use crate::parser::parse;
     use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, resolve};
     use crate::source::SourceMap;
+    use std::collections::HashMap;
 
     #[test]
     fn lays_out_scalar_and_view_values() {
@@ -800,6 +1013,79 @@ func make(): Box<i32> {
         assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(16, 8));
         assert_eq!(
             classify_value(&ty).unwrap(),
+            ValueClassification::Direct { words: 2 }
+        );
+    }
+
+    #[test]
+    fn source_aware_abi_lays_out_generic_struct_with_foreign_type_argument() {
+        let mut sources = SourceMap::new();
+        let root_ast = parse_source(
+            &mut sources,
+            "app.nct",
+            r#"struct Pair {
+    left: i32
+    right: usize
+}
+
+func make_pair(): Pair {
+}
+"#,
+        );
+        let library_ast = parse_source(
+            &mut sources,
+            "std/box.nct",
+            r#"struct Box<T> {
+    value: T
+}
+
+func make_box<T>(): Box<T> {
+}
+"#,
+        );
+        let root_resolved = resolve(&sources, &root_ast);
+        let library_resolved = resolve(&sources, &library_ast);
+        assert!(
+            root_resolved.diagnostics.is_empty(),
+            "{:?}",
+            root_resolved.diagnostics
+        );
+        assert!(
+            library_resolved.diagnostics.is_empty(),
+            "{:?}",
+            library_resolved.diagnostics
+        );
+
+        let pair_ty = function_return_type(&root_ast, "make_pair").clone();
+        let box_template_ty = function_return_type(&library_ast, "make_box");
+        let box_pair_ty = substitute_type_expr_parameters(
+            box_template_ty,
+            &HashMap::from([("T".to_string(), pair_ty)]),
+        );
+
+        let value =
+            abi_value_from_type_expr_with_resolver(&box_pair_ty, &library_resolved, |source| {
+                match source {
+                    source if source == root_ast.span.source => Some(&root_resolved),
+                    source if source == library_ast.span.source => Some(&library_resolved),
+                    _ => None,
+                }
+            })
+            .unwrap();
+
+        assert_eq!(
+            value.ty,
+            AbiType::Struct(vec![AbiField::new(
+                "value",
+                AbiType::Struct(vec![
+                    AbiField::new("left", AbiType::I32),
+                    AbiField::new("right", AbiType::Usize),
+                ])
+            )])
+        );
+        assert_eq!(value.layout, ValueLayout::new(16, 8));
+        assert_eq!(
+            value.classification,
             ValueClassification::Direct { words: 2 }
         );
     }
@@ -1171,12 +1457,7 @@ func load(text: Text, view: &str): i32! {
 
     fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
         let mut sources = SourceMap::new();
-        let source = sources.add_source("app.nct", None, text);
-        let lexed = lex(&sources, source);
-        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
-        let parsed = parse(&sources, source, &lexed.tokens);
-        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-        let ast = parsed.ast.unwrap();
+        let ast = parse_source(&mut sources, "app.nct", text);
         let resolved = resolve(&sources, &ast);
         assert!(
             resolved.diagnostics.is_empty(),
@@ -1184,6 +1465,25 @@ func load(text: Text, view: &str): i32! {
             resolved.diagnostics
         );
         (ast, resolved)
+    }
+
+    fn parse_source(sources: &mut SourceMap, display_path: &str, text: &str) -> AstFile {
+        let source = sources.add_source(display_path, None, text);
+        let lexed = lex(&sources, source);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&sources, source, &lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        parsed.ast.unwrap()
+    }
+
+    fn function_return_type<'a>(ast: &'a AstFile, name: &str) -> &'a TypeExpr {
+        ast.items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == name => Some(&function.return_type),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("expected function `{name}`"))
     }
 
     fn resolved_function_signature<'a>(
