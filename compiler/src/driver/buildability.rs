@@ -2142,14 +2142,6 @@ fn collect_expression_diagnostics(
             if let Some(diagnostic) = &unsupported_std_vec_element_call {
                 diagnostics.push(diagnostic.clone());
             }
-            if let Some(diagnostic) = unsupported_payload_enum_constructor_diagnostic(
-                sources,
-                expression,
-                resolved,
-                typecheck_facts,
-            ) {
-                diagnostics.push(diagnostic);
-            }
             if let Some(diagnostic) =
                 unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
             {
@@ -2250,18 +2242,28 @@ fn collect_expression_diagnostics(
                 }
             }
         }
-        Expr::Member(expression) => collect_expression_diagnostics(
-            &expression.object,
-            sources,
-            resolved,
-            typecheck_facts,
-            generic_substitutions,
-            root_source,
-            names,
-            nocter_home,
-            queue,
-            diagnostics,
-        ),
+        Expr::Member(expression) => {
+            if let Some(diagnostic) = unsupported_payload_enum_value_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+            ) {
+                diagnostics.push(diagnostic);
+            }
+            collect_expression_diagnostics(
+                &expression.object,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Expr::Index(expression) => {
             if let Some(diagnostic) = unsupported_slice_index_diagnostic(
                 sources,
@@ -2837,25 +2839,25 @@ fn unsupported_std_vec_element_call_diagnostic(
     ))
 }
 
-fn unsupported_payload_enum_constructor_diagnostic(
+fn unsupported_payload_enum_value_diagnostic(
     sources: &SourceMap,
-    call: &CallExpr,
+    member: &crate::ast::MemberExpr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
 ) -> Option<Diagnostic> {
-    let Expr::Member(member) = call.callee.as_ref() else {
-        return None;
-    };
     let variant_name_span = typecheck_facts.enum_variant_target(member.member_span)?;
-    let variant = resolved
+    let owner = resolved
         .symbols
         .symbols()
         .find_map(|symbol| match &symbol.kind {
-            SymbolKind::Type(type_symbol) if type_symbol.kind == TypeSymbolKind::Enum => {
-                type_symbol
-                    .variants
-                    .iter()
-                    .find(|variant| variant.name_span == variant_name_span)
+            SymbolKind::Type(type_symbol)
+                if type_symbol.kind == TypeSymbolKind::Enum
+                    && type_symbol
+                        .variants
+                        .iter()
+                        .any(|variant| variant.name_span == variant_name_span) =>
+            {
+                Some(type_symbol)
             }
             SymbolKind::Function(_)
             | SymbolKind::Primitive(_)
@@ -2863,13 +2865,17 @@ fn unsupported_payload_enum_constructor_diagnostic(
             | SymbolKind::Imported(_) => None,
         })?;
 
-    if variant.payload.is_empty() {
+    if owner
+        .variants
+        .iter()
+        .all(|variant| variant.payload.is_empty())
+    {
         return None;
     }
 
     Some(unsupported_v0_build_diagnostic(
         sources,
-        call.span,
+        member.span,
         "payload enum values",
         "use payloadless enum values, or keep payload enum construction on the `check` path until payload enum storage lowering is promoted",
     ))
@@ -3800,6 +3806,27 @@ func main(): i32 {
 
 func main(): i32 {
     let result = Result.ok(10)
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("payload enum values"));
+    }
+
+    #[test]
+    fn reports_reachable_payload_enum_member_value_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
     return 0
 }
 "#,
