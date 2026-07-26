@@ -1,121 +1,155 @@
 # Nocter
 
-Nocter is a statically typed, value-centered systems language that aims to
-produce native executables directly from `.nct` source files.
+Nocter is a statically typed, value-centered systems language for building
+native executables from `.nct` source files.
 
-The first implementation target is `arm64-darwin`. The compiler currently emits
-ARM64 Mach-O executables itself; it does not route normal user builds through
-LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or an external runtime
-library.
+The core distribution idea is intentionally simple: install one `.nocter/`
+directory, add it to `PATH`, and start writing Nocter. To uninstall, delete that
+directory and remove the `PATH` entry. Nocter should be easy to try and easy to
+leave.
 
-Nocter is still pre-v0. The repository is useful for language design,
-compiler development, and experimenting with the current buildable subset. It
-is not yet a stable general-purpose release.
+Nocter is still pre-v0. The first implementation target is `arm64-darwin`.
 
-## Direction
+## Why Nocter
 
-Nocter is designed around:
+- **One directory install**: the compiler, metadata, and standard library live
+  under `.nocter/`.
+- **Easy uninstall**: remove `.nocter/` and delete the shell `PATH` line.
+- **Self-contained native output**: normal builds do not require LLVM, `clang`,
+  `as`, `ld`, Xcode Command Line Tools, or an external runtime library.
+- **Clear source model**: one `.nct` file is one module, imports use `use`, and
+  declarations are private unless marked `pub`.
+- **Explicit resource handling**: ownership, borrowing, `drop`, `T!` failures,
+  and `T?` absence are visible in source.
+- **Small standard library first**: `String`, `Vec`, `File`, process APIs,
+  formatting, and allocation grow as ordinary Nocter APIs.
+- **Tool-friendly syntax**: one canonical style, source-backed diagnostics, JSON
+  output, and LSP support are part of the v0 direction.
 
-- direct native output from one self-contained compiler
-- explicit modules derived from file paths
-- private-by-default declarations with `pub` for public API
-- `struct`, `enum`, `func`, `impl`, `method`, and contract-only `interface`
-- ownership, borrowing, and deterministic `drop`
-- recoverable failure through `T!` and absence through `T?`
-- a small standard library written in Nocter behind trusted primitive
-  boundaries
-- one canonical source style for humans, editors, and AI tools
+## Install
 
-Nocter v0 deliberately does not include a runtime GC, class inheritance, trait
-code reuse, package management, external linker integration, Linux or Windows
-backends, or a stable public binary ABI.
-
-## Current Capability
-
-The current compiler can parse, check, build, and run a meaningful v0 subset on
-`arm64-darwin`.
-
-Working areas include:
-
-- `main.nct` as the default root file for `check`, `build`, and `run`
-- root-file `func main` as the executable entry point
-- `use` declarations for ordinary modules and `std/...`
-- scalar values, `&str`, slices, optionals, fallible values, and selected
-  aggregate values
-- `if` and `match` as value-producing expressions
-- `otherwise` for optional fallback and optional-side early exit
-- postfix `?` propagation for both `T?` and `T!`
-- ownership checks for moves, drops, borrows, and common aggregate paths
-- direct and indirect aggregate ABI lowering for the current runtime subset
-- a distributable `.nocter/std` tree with `Error`, `String`, `Vec`, `File`,
-  allocator, formatting, process, and OS-internal modules
-- CLI diagnostics, JSON diagnostics, formatting, token/AST JSON output, and a
-  basic LSP server
-
-The buildable subset is intentionally smaller than the checkable language.
-Unsupported runtime forms should be rejected before machine-code emission with
-source-backed diagnostics. See
-[compiler/docs/implementation-status.md](compiler/docs/implementation-status.md)
-for the implementation boundary.
-
-## Quick Start From Source
-
-Rust and Cargo are required only for compiler development.
-
-```sh
-cd compiler
-cargo test
-```
-
-Run the checked-in example with the repository-local Nocter home:
-
-```sh
-cd compiler
-NOCTER_HOME="$PWD/../.nocter" cargo run -- run ../example.nct
-```
-
-Run the broader compiler verification suite:
-
-```sh
-./compiler/scripts/verify.sh
-```
-
-Released Nocter archives are intended to contain a `.nocter/` root with the
-compiler binary, release metadata, and standard-library source. Users of a
-released archive should not need a Rust toolchain.
-
-## Repository Layout
+Nocter release archives are designed to unpack to a single `.nocter/` directory.
+A release archive should contain:
 
 ```text
-.
-├── README.md
-├── example.nct
-├── spec/
-├── compiler/
-└── .nocter/
+.nocter/
+|-- nocter
+|-- VERSION
+|-- MANIFEST.json
+`-- std/
 ```
 
-- `README.md` is the public project entry point. It explains what Nocter is and
-  links to the right detailed documents.
-- `spec/` is the authoritative Nocter language specification for Nocter users,
-  library authors, editor/tool authors, and AI assistants.
-- `compiler/` contains the Rust bootstrap compiler and implementation-facing
-  documentation for compiler engineers and AI coding agents.
-- `.nocter/` is the repository-local distribution image used by tests and local
-  development. It contains the current standard library under `.nocter/std`.
-- `example.nct` is a small current-syntax example, not the full language
-  specification.
+Install by placing `.nocter/` somewhere stable, for example under your home
+directory:
 
-## Documentation Map
+```sh
+tar -xzf nocter-v0-arm64-darwin.tar.gz -C "$HOME"
+export PATH="$HOME/.nocter:$PATH"
+nocter doctor
+```
 
-- [Language Specification](spec/README.md): syntax, type system, semantics,
-  standard library, CLI contract, diagnostics, and tooling behavior.
-- [Compiler Documentation](compiler/README.md): architecture, implementation
-  status, backend design, maintenance policy, roadmap, and handoff notes.
+To make the `PATH` change persistent on zsh:
+
+```sh
+printf '\nexport PATH="$HOME/.nocter:$PATH"\n' >> ~/.zshrc
+```
+
+The current repository is pre-v0, so source builds are still the main way to
+try the compiler before an official release archive exists. Compiler developer
+setup lives in [compiler/](compiler/README.md).
+
+## Uninstall
+
+Nocter does not need a package manager-specific uninstall step when installed
+as `.nocter/`.
+
+```sh
+rm -rf "$HOME/.nocter"
+```
+
+Then remove this line from your shell configuration:
+
+```sh
+export PATH="$HOME/.nocter:$PATH"
+```
+
+## First Program
+
+Create `main.nct`:
+
+```nct
+use std/io.print
+
+func main(): i32! {
+    print("Hello from Nocter\n")?
+    return 0
+}
+```
+
+Run it:
+
+```sh
+nocter run
+```
+
+`nocter run`, `nocter build`, and `nocter check` use `main.nct` when no file is
+specified. The entry function is the root-file function named `main`.
+
+Build an executable:
+
+```sh
+nocter build -o hello
+./hello
+```
+
+Check without building:
+
+```sh
+nocter check
+```
+
+Format a file:
+
+```sh
+nocter fmt main.nct
+```
+
+## Language Snapshot
+
+Nocter v0 focuses on a small, coherent core:
+
+- `struct`, `enum`, `func`, `impl`, `method`, and contract-only `interface`
+- `let` and `var`
+- `&T` readonly borrows and `&+T` readwrite borrows
+- `String` as an ordinary standard-library owned type
+- `Vec<T>` as an explicit standard-library collection
+- `T!` for recoverable failure
+- `T?` for absence
+- postfix `?` for early propagation of both `T!` and `T?`
+- `otherwise` for optional fallback
+- `if` and `match` as value-producing expressions
+- deterministic `drop` instead of a runtime GC
+
+Nocter v0 deliberately does not include class inheritance, trait code reuse,
+interface dispatch, package management, Linux or Windows backends, or a stable
+public binary ABI.
+
+## Current Status
+
+The current compiler can parse, check, build, and run a meaningful v0 subset on
+`arm64-darwin`. It emits ARM64 Mach-O executables directly.
+
+The buildable subset is still narrower than the checkable language. Unsupported
+runtime forms should be rejected with source-backed diagnostics before machine
+code is emitted. For the exact implementation boundary, see
+[compiler/docs/implementation-status.md](compiler/docs/implementation-status.md).
+
+## Learn More
+
+- [Language Specification](spec/README.md): Nocter syntax, type system,
+  ownership, standard library, CLI behavior, diagnostics, and tooling contract.
+- [Compiler Development](compiler/README.md): Rust bootstrap compiler
+  architecture, backend work, implementation status, tests, and maintenance
+  notes.
 - [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
   boundary.
-- [Nocter v0 Closure](compiler/docs/v0-closure.md): implementation completion
-  gates for compiler work.
-
-The specification is the source of truth for language behavior. Compiler docs
-explain how the current implementation reaches or rejects that behavior.
