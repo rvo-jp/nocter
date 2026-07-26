@@ -1431,6 +1431,8 @@ fn collect_statement_diagnostics(
                 sources,
                 &statement.expression,
                 resolved,
+                typecheck_facts,
+                generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
             }
@@ -1455,8 +1457,15 @@ fn unsupported_expression_statement_diagnostic(
     sources: &SourceMap,
     expression: &Expr,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    if expression_statement_is_supported(expression, resolved) {
+    if expression_statement_is_supported(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
         return None;
     }
 
@@ -1468,28 +1477,44 @@ fn unsupported_expression_statement_diagnostic(
     ))
 }
 
-fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+fn expression_statement_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
     match unwrap_group_expr(expression) {
-        Expr::Call(call) => match call_return_shape(call, resolved) {
-            Some(
-                ReturnShape::Void
-                | ReturnShape::Never
-                | ReturnShape::DiscardableScalar
-                | ReturnShape::DiscardableView
-                | ReturnShape::DiscardableAggregate,
-            )
-            | None => true,
-            Some(ReturnShape::FallibleDiscardable | ReturnShape::Other) => false,
-        },
-        Expr::Propagate(expression) => {
-            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
+        Expr::Call(call) => {
+            match call_return_shape(call, resolved, typecheck_facts, generic_substitutions) {
+                Some(
+                    ReturnShape::Void
+                    | ReturnShape::Never
+                    | ReturnShape::DiscardableScalar
+                    | ReturnShape::DiscardableView
+                    | ReturnShape::DiscardableAggregate,
+                )
+                | None => true,
+                Some(ReturnShape::FallibleDiscardable | ReturnShape::Other) => false,
+            }
         }
-        Expr::Force(expression) => {
-            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
-        }
-        Expr::Catch(expression) => {
-            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
-        }
+        Expr::Propagate(expression) => fallible_void_statement_inner_is_supported(
+            &expression.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Force(expression) => fallible_void_statement_inner_is_supported(
+            &expression.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Catch(expression) => fallible_void_statement_inner_is_supported(
+            &expression.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
         Expr::StructLiteral(literal) => aggregate_literal_statement_is_supported(literal, resolved),
         _ => false,
     }
@@ -1504,19 +1529,26 @@ fn aggregate_literal_statement_is_supported(
         .unwrap_or(false)
 }
 
-fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+fn fallible_void_statement_inner_is_supported(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
     match unwrap_group_expr(expression) {
-        Expr::Call(call) => match call_return_shape(call, resolved) {
-            Some(ReturnShape::FallibleDiscardable) | None => true,
-            Some(
-                ReturnShape::Void
-                | ReturnShape::Never
-                | ReturnShape::DiscardableScalar
-                | ReturnShape::DiscardableView
-                | ReturnShape::DiscardableAggregate
-                | ReturnShape::Other,
-            ) => false,
-        },
+        Expr::Call(call) => {
+            match call_return_shape(call, resolved, typecheck_facts, generic_substitutions) {
+                Some(ReturnShape::FallibleDiscardable) | None => true,
+                Some(
+                    ReturnShape::Void
+                    | ReturnShape::Never
+                    | ReturnShape::DiscardableScalar
+                    | ReturnShape::DiscardableView
+                    | ReturnShape::DiscardableAggregate
+                    | ReturnShape::Other,
+                ) => false,
+            }
+        }
         _ => false,
     }
 }
@@ -1624,12 +1656,19 @@ enum ReturnShape {
     Other,
 }
 
-fn call_return_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<ReturnShape> {
-    let signature = resolved.call_signature_for_call(call)?;
-    Some(return_shape_from_type_expr(
-        &signature.return_type,
+fn call_return_shape(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<ReturnShape> {
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
         resolved,
-    ))
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    Some(return_shape_from_type_expr(&return_type, resolved))
 }
 
 fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
@@ -2433,14 +2472,42 @@ fn call_return_type_expr_with_substitutions(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    if let Expr::Member(member) = call.callee.as_ref()
-        && let Some(specialization) =
+    if let Expr::Member(member) = call.callee.as_ref() {
+        if let Some(specialization) =
             concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
-    {
-        let signature = resolved.method_signature_by_name_span(specialization.declaration_span)?;
-        let mut return_type = signature.signature.return_type.clone();
-        return_type = substitute_type_expr_parameters(&return_type, &specialization.substitutions);
-        return Some(return_type);
+        {
+            let signature =
+                resolved.method_signature_by_name_span(specialization.declaration_span)?;
+            let mut return_type = signature.signature.return_type.clone();
+            let self_substitution =
+                HashMap::from([("Self".to_string(), specialization.self_ty.clone())]);
+            return_type = substitute_type_expr_parameters(&return_type, &self_substitution);
+            return_type =
+                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+            return Some(substitute_type_expr_parameters(
+                &return_type,
+                generic_substitutions,
+            ));
+        }
+
+        if let Some(method_name_span) = typecheck_facts.method_call_target(member.member_span) {
+            if typecheck_facts
+                .generic_method_call_target(member.member_span)
+                .is_some()
+            {
+                return None;
+            }
+            let method = resolved.method_signature_by_name_span(method_name_span)?;
+            let mut return_type = method.signature.return_type.clone();
+            if let Some(self_ty) = &method.impl_target_ty {
+                let self_substitution = HashMap::from([("Self".to_string(), self_ty.clone())]);
+                return_type = substitute_type_expr_parameters(&return_type, &self_substitution);
+            }
+            return Some(substitute_type_expr_parameters(
+                &return_type,
+                generic_substitutions,
+            ));
+        }
     }
 
     let signature = resolved.call_signature_for_call(call)?;
@@ -2452,7 +2519,10 @@ fn call_return_type_expr_with_substitutions(
         return_type = substitute_type_expr_parameters(&return_type, &specialization.substitutions);
     }
 
-    Some(return_type)
+    Some(substitute_type_expr_parameters(
+        &return_type,
+        generic_substitutions,
+    ))
 }
 
 fn slice_index_target_type_expr_is_buildable(
