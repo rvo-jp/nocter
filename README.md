@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./assets/logo.svg" alt="Nocter Logo" width="128">
+</div>
+
 # Nocter
 
 Nocter is a statically typed, value-centered systems language for building
