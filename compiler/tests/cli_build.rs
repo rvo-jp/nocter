@@ -4189,6 +4189,56 @@ fn build_command_reports_reachable_array_literal_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_scope_drop_body_before_ir_lowering() {
+    let project = TempProject::new("cli-build-scope-drop-body-boundary");
+    let source = project.write_source(
+        "scope_drop_body_boundary.nct",
+        r#"struct Resource {
+    value: i32
+}
+
+impl Resource {
+    drop &+self {
+        let bytes: [u8; 2] = [1, 2]
+        return
+    }
+}
+
+func main(): i32 {
+    let resource = Resource{ value: 1 }
+    return resource.value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("array literals"),
+        "expected array literal diagnostic from drop body, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |         let bytes: [u8; 2] = [1, 2]"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_member_rooted_slice_index_assignment() {
     let project = TempProject::new("cli-build-member-rooted-slice-index-assignment");
     project.write_nocter_home_file(

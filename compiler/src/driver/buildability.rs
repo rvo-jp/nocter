@@ -214,6 +214,7 @@ impl<'a> CallableIndex<'a> {
 }
 
 struct IndexedCallable<'a> {
+    span: ByteSpan,
     body: &'a Block,
     substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
@@ -233,6 +234,7 @@ impl<'a> IndexedCallable<'a> {
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
+            span: function.span,
             body: &function.body,
             substitutions: HashMap::new(),
             resolved: &file.resolved,
@@ -250,6 +252,7 @@ impl<'a> IndexedCallable<'a> {
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
+            span: function.span,
             body: &function.body,
             substitutions,
             resolved: &file.resolved,
@@ -271,6 +274,7 @@ impl<'a> IndexedCallable<'a> {
         ));
 
         Self {
+            span: method.span,
             body,
             substitutions,
             resolved: &file.resolved,
@@ -285,6 +289,7 @@ impl<'a> IndexedCallable<'a> {
         file: &'a FileAnalysis,
     ) -> Self {
         Self {
+            span: drop_.span,
             body: &drop_.body,
             substitutions,
             resolved: &file.resolved,
@@ -312,6 +317,8 @@ fn collect_callable_diagnostics(
         ));
     }
 
+    enqueue_drop_targets_in_callable(callable, root_source, queue);
+
     collect_terminal_return_block_diagnostics(
         callable.body,
         sources,
@@ -324,6 +331,28 @@ fn collect_callable_diagnostics(
         queue,
         diagnostics,
     );
+}
+
+fn enqueue_drop_targets_in_callable(
+    callable: &IndexedCallable<'_>,
+    root_source: SourceId,
+    queue: &mut VecDeque<CallTarget>,
+) {
+    for specialization in callable.typecheck_facts.drop_type_specializations() {
+        if !span_contains(callable.span, specialization.self_ty.span()) {
+            continue;
+        }
+        let Some(specialization) =
+            specialization.with_context_substitutions(&callable.substitutions)
+        else {
+            continue;
+        };
+        queue.push_back(call_target_for_source(
+            specialization.declaration_span.source,
+            root_source,
+            specialization.target_name,
+        ));
+    }
 }
 
 fn collect_terminal_return_block_diagnostics(
@@ -3338,6 +3367,10 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
     }
 }
 
+fn span_contains(outer: ByteSpan, inner: ByteSpan) -> bool {
+    outer.source == inner.source && outer.start <= inner.start && inner.end <= outer.end
+}
+
 fn method_target_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}.{method_name}")
 }
@@ -3670,6 +3703,60 @@ func main(): i32 {
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert!(diagnostics[0].message.contains("`match` expressions"));
+    }
+
+    #[test]
+    fn reports_reachable_scope_drop_body_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Resource {
+    value: i32
+}
+
+impl Resource {
+    drop &+self {
+        let bytes: [u8; 2] = [1, 2]
+        return
+    }
+}
+
+func main(): i32 {
+    let resource = Resource{ value: 1 }
+    return resource.value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("array literals"));
+    }
+
+    #[test]
+    fn reports_reachable_generic_scope_drop_body_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+impl<T> Box<T> {
+    drop &+self {
+        let bytes: [u8; 2] = [1, 2]
+        return
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 1 }
+    return box.value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("array literals"));
     }
 
     #[test]
