@@ -46,6 +46,7 @@ pub(crate) struct TypecheckFacts {
     enum_variant_hover_labels: HashMap<ByteSpan, String>,
     type_references: Vec<TypeReferenceFact>,
     field_targets: HashMap<ByteSpan, ByteSpan>,
+    field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     field_readonly: HashMap<ByteSpan, bool>,
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
@@ -132,6 +133,13 @@ impl TypecheckFacts {
 
     pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.field_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn field_scalar_view_kind(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<TypecheckScalarViewKind> {
+        self.field_scalar_view_kinds.get(&member_span).copied()
     }
 
     pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -1510,21 +1518,19 @@ impl TypecheckFactCollector<'_> {
         field: &crate::resolve::StructFieldSignature,
         environment: &TypeEnvironment,
     ) {
+        let field_ty =
+            type_expr_to_type_with_self_type(&field.ty, self.resolved, environment.self_type());
         self.facts.field_targets.insert(span, field.name_span);
+        if let Some(kind) = scalar_view_kind(&field_ty) {
+            self.facts.field_scalar_view_kinds.insert(span, kind);
+        }
         self.facts.field_hover_labels.insert(
             span,
             format!(
                 "field {}.{}: {}",
                 type_owner_hover_label(owner, self.resolved),
                 field.name,
-                type_hover_label(
-                    &type_expr_to_type_with_self_type(
-                        &field.ty,
-                        self.resolved,
-                        environment.self_type()
-                    ),
-                    self.resolved
-                )
+                type_hover_label(&field_ty, self.resolved)
             ),
         );
     }

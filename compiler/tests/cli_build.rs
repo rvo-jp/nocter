@@ -4451,6 +4451,42 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_accepts_value_if_aggregate_scalar_field_assignments() {
+    let project = TempProject::new("cli-build-value-if-aggregate-scalar-field-assignments");
+    let source = project.write_source(
+        "value_if_aggregate_scalar_field_assignments.nct",
+        r#"copy struct Packet {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    var packet = Packet{ count: 0, byte: 0, size: 0, ok: false }
+    let choice = Choice.no
+    packet.count = if choice is Choice.no { 10 } else { 1 }
+    packet.byte = if packet.count == 10 { 5 } else { 1 }
+    packet.size = if packet.count == 10 { 7 } else { 1 }
+    packet.ok = if packet.count == 10 { true } else { false }
+    return if packet.ok { packet.count + 32 } else { 1 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(

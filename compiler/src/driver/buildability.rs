@@ -720,15 +720,30 @@ fn assignment_value_may_use_value_control_expression(
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
 ) -> bool {
-    let Expr::Identifier(identifier) = unwrap_group_expr(&statement.target) else {
-        return false;
-    };
-    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
-        return false;
-    };
-    typecheck_facts
-        .binding_scalar_view_kind(symbol.name_span)
-        .is_some()
+    match unwrap_group_expr(&statement.target) {
+        Expr::Identifier(identifier) => {
+            let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+                return false;
+            };
+            typecheck_facts
+                .binding_scalar_view_kind(symbol.name_span)
+                .is_some()
+        }
+        Expr::Member(member) => typecheck_facts
+            .field_scalar_view_kind(member.member_span)
+            .is_some_and(field_kind_may_use_value_control_expression),
+        _ => false,
+    }
+}
+
+fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) -> bool {
+    matches!(
+        kind,
+        TypecheckScalarViewKind::I32
+            | TypecheckScalarViewKind::U8
+            | TypecheckScalarViewKind::Usize
+            | TypecheckScalarViewKind::Bool
+    )
 }
 
 fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -1440,21 +1455,10 @@ fn aggregate_field_compound_assignment_is_buildable(
     member_span: ByteSpan,
     typecheck_facts: &TypecheckFacts,
 ) -> bool {
-    let Some((span, target)) = typecheck_facts.field_target_at_offset(member_span.start) else {
-        return false;
-    };
-    if span != member_span {
-        return false;
-    }
-    let Some(label) = typecheck_facts.declaration_hover_label(target) else {
-        return false;
-    };
-    matches!(field_declaration_type_label(label), Some("i32" | "usize"))
-}
-
-fn field_declaration_type_label(label: &str) -> Option<&str> {
-    let (_, ty) = label.rsplit_once(": ")?;
-    Some(ty)
+    matches!(
+        typecheck_facts.field_scalar_view_kind(member_span),
+        Some(TypecheckScalarViewKind::I32 | TypecheckScalarViewKind::Usize)
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

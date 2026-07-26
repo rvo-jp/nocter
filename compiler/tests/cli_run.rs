@@ -9005,6 +9005,47 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_if_aggregate_scalar_field_assignment_exit_code() {
+    let project = TempProject::new("cli-run-value-if-aggregate-scalar-field-assignment");
+    let source = project.write_source(
+        "value_if_aggregate_scalar_field_assignment.nct",
+        r#"copy struct Packet {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    var packet = Packet{ count: 0, byte: 0, size: 0, ok: false }
+    let choice = Choice.no
+    packet.count = if choice is Choice.no { 10 } else { 1 }
+    packet.byte = if packet.count == 10 { 5 } else { 1 }
+    packet.size = if packet.count == 10 { 7 } else { 1 }
+    packet.ok = if packet.count == 10 { true } else { false }
+    return if packet.ok { packet.count + 32 } else { 1 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

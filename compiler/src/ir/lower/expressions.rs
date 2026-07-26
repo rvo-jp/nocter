@@ -545,6 +545,80 @@ fn lower_slice_if_expression_to_location(
     })
 }
 
+fn lower_i32_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_i32()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredI32Value {
+        instructions: lower_i32_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: I32Value::Location(temporary),
+    })
+}
+
+fn lower_u8_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_u8()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredU8Value {
+        instructions: lower_u8_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: U8Value::Location(temporary),
+    })
+}
+
+fn lower_usize_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_usize()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredUsizeValue {
+        instructions: lower_usize_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: UsizeValue::Location(temporary),
+    })
+}
+
+fn lower_bool_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_bool()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredBoolValue {
+        instructions: lower_bool_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+            diagnostic_code,
+        )?,
+        value: BoolValue::Location(temporary),
+    })
+}
+
 fn lower_if_expression_to_location(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -1489,6 +1563,11 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
+        Expr::If(statement) => lower_i32_if_expression_to_value(statement, context, temporaries),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
+            lower_i32_if_expression_to_value(&if_statement, context, temporaries)
+        }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
@@ -1600,6 +1679,11 @@ fn lower_u8_expression_to_value(
                 )?,
                 value: U8Value::Location(temporary),
             })
+        }
+        Expr::If(statement) => lower_u8_if_expression_to_value(statement, context, temporaries),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
+            lower_u8_if_expression_to_value(&if_statement, context, temporaries)
         }
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion)
@@ -1811,6 +1895,11 @@ fn lower_usize_expression_to_value(
                 )?,
                 value: UsizeValue::Location(temporary),
             })
+        }
+        Expr::If(statement) => lower_usize_if_expression_to_value(statement, context, temporaries),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
+            lower_usize_if_expression_to_value(&if_statement, context, temporaries)
         }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             let temporary = temporaries.next_usize()?;
@@ -3359,6 +3448,14 @@ pub(super) fn lower_bool_expression_to_value_with_temporaries(
                 )?,
                 value: BoolValue::Location(temporary),
             })
+        }
+        Expr::If(statement) => {
+            lower_bool_if_expression_to_value(statement, context, diagnostic_code, temporaries)
+        }
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_bool_if_expression_to_value(&if_statement, context, diagnostic_code, temporaries)
         }
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let operand = lower_bool_expression_to_value_with_temporaries(
