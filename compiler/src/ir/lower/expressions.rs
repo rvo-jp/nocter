@@ -12,7 +12,7 @@ use super::functions::{
     lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
     lower_never_expression_with_scope_drops, lower_value_return_with_scope_drops,
     mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
-    propagating_failure_mode,
+    payloadless_switch_as_if_statement, propagating_failure_mode,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -25,7 +25,7 @@ mod temporaries;
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfStmt, IndexExpr, Stmt,
-    TypeConversionExpr, UnaryExpr, UnaryOperator,
+    SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -122,6 +122,12 @@ pub(super) fn lower_i32_expression_to_location(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_i32_if_expression_to_location(&if_statement, destination, context)
         }
+        Expr::Match(statement) => lower_i32_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            i32_destination_reserved_abi_words(destination),
+        ),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
@@ -203,6 +209,12 @@ pub(super) fn lower_u8_expression_to_location(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_u8_if_expression_to_location(&if_statement, destination, context)
         }
+        Expr::Match(statement) => lower_u8_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            u8_destination_reserved_abi_words(destination),
+        ),
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered = lower_u8_index_expression_to_value(index, context, &mut temporaries)?;
@@ -310,6 +322,12 @@ pub(super) fn lower_usize_expression_to_location(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_usize_if_expression_to_location(&if_statement, destination, context)
         }
+        Expr::Match(statement) => lower_usize_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            usize_destination_reserved_abi_words(destination),
+        ),
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
         }
@@ -405,6 +423,12 @@ pub(super) fn lower_str_expression_to_location(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_str_if_expression_to_location(&if_statement, destination, context)
         }
+        Expr::Match(statement) => lower_str_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            str_destination_reserved_abi_words(destination),
+        ),
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
@@ -476,6 +500,12 @@ pub(super) fn lower_slice_expression_to_location(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_slice_if_expression_to_location(&if_statement, destination, context)
         }
+        Expr::Match(statement) => lower_slice_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            slice_destination_reserved_abi_words(destination),
+        ),
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
         }
@@ -543,6 +573,129 @@ fn lower_slice_if_expression_to_location(
     lower_if_expression_to_location(statement, context, |expression| {
         lower_slice_expression_to_location(expression, destination, context)
     })
+}
+
+fn lower_i32_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: I32Location,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        "E8008",
+        |if_statement, switch_context| {
+            lower_i32_if_expression_to_location(if_statement, destination, switch_context)
+        },
+    )
+}
+
+fn lower_u8_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: U8Location,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        "E8008",
+        |if_statement, switch_context| {
+            lower_u8_if_expression_to_location(if_statement, destination, switch_context)
+        },
+    )
+}
+
+fn lower_usize_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        "E8008",
+        |if_statement, switch_context| {
+            lower_usize_if_expression_to_location(if_statement, destination, switch_context)
+        },
+    )
+}
+
+fn lower_bool_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        diagnostic_code,
+        |if_statement, switch_context| {
+            lower_bool_if_expression_to_location(
+                if_statement,
+                destination,
+                switch_context,
+                diagnostic_code,
+            )
+        },
+    )
+}
+
+fn lower_str_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: StrLocation,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        "E8008",
+        |if_statement, switch_context| {
+            lower_str_if_expression_to_location(if_statement, destination, switch_context)
+        },
+    )
+}
+
+fn lower_slice_match_expression_to_location(
+    statement: &SwitchStmt,
+    destination: SliceLocation,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_match_expression_to_location(
+        statement,
+        context,
+        reserved_local_abi_words,
+        "E8008",
+        |if_statement, switch_context| {
+            lower_slice_if_expression_to_location(if_statement, destination, switch_context)
+        },
+    )
+}
+
+fn lower_match_expression_to_location(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    reserved_local_abi_words: usize,
+    diagnostic_code: &'static str,
+    lower_if: impl FnOnce(&IfStmt, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut switch_context = context.with_reserved_local_abi_words(reserved_local_abi_words);
+    let switch =
+        payloadless_switch_as_if_statement(statement, &mut switch_context, diagnostic_code)?;
+    let mut instructions = switch.leading_instructions;
+    instructions.extend(lower_if(&switch.if_statement, &switch_context)?);
+    Ok(instructions)
 }
 
 fn lower_i32_if_expression_to_value(
@@ -616,6 +769,110 @@ fn lower_bool_if_expression_to_value(
             diagnostic_code,
         )?,
         value: BoolValue::Location(temporary),
+    })
+}
+
+fn lower_i32_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_i32()?;
+    Ok(LoweredI32Value {
+        instructions: lower_i32_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: I32Value::Location(temporary),
+    })
+}
+
+fn lower_u8_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_u8()?;
+    Ok(LoweredU8Value {
+        instructions: lower_u8_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: U8Value::Location(temporary),
+    })
+}
+
+fn lower_usize_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_usize()?;
+    Ok(LoweredUsizeValue {
+        instructions: lower_usize_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: UsizeValue::Location(temporary),
+    })
+}
+
+fn lower_bool_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_bool()?;
+    Ok(LoweredBoolValue {
+        instructions: lower_bool_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            diagnostic_code,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: BoolValue::Location(temporary),
+    })
+}
+
+fn lower_str_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_str()?;
+    Ok(LoweredStrValue {
+        instructions: lower_str_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: StrValue::Location(temporary),
+    })
+}
+
+fn lower_slice_match_expression_to_value(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_slice()?;
+    Ok(LoweredSliceValue {
+        instructions: lower_slice_match_expression_to_location(
+            statement,
+            temporary,
+            context,
+            temporaries.reserved_local_abi_words(context)?,
+        )?,
+        value: SliceValue::Location(temporary),
     })
 }
 
@@ -1568,6 +1825,9 @@ fn lower_i32_expression_to_value(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_i32_if_expression_to_value(&if_statement, context, temporaries)
         }
+        Expr::Match(statement) => {
+            lower_i32_match_expression_to_value(statement, context, temporaries)
+        }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
@@ -1684,6 +1944,9 @@ fn lower_u8_expression_to_value(
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_u8_if_expression_to_value(&if_statement, context, temporaries)
+        }
+        Expr::Match(statement) => {
+            lower_u8_match_expression_to_value(statement, context, temporaries)
         }
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion)
@@ -1901,6 +2164,9 @@ fn lower_usize_expression_to_value(
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
             lower_usize_if_expression_to_value(&if_statement, context, temporaries)
         }
+        Expr::Match(statement) => {
+            lower_usize_match_expression_to_value(statement, context, temporaries)
+        }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -2015,6 +2281,9 @@ pub(super) fn lower_str_expression_to_value(
                 value: StrValue::Location(temporary),
             })
         }
+        Expr::Match(statement) => {
+            lower_str_match_expression_to_value(statement, context, temporaries)
+        }
         Expr::Index(index) => {
             lower_str_slice_index_expression_to_value(index, context, temporaries)
         }
@@ -2101,6 +2370,9 @@ pub(super) fn lower_slice_expression_to_value(
                 )?,
                 value: SliceValue::Location(temporary),
             })
+        }
+        Expr::Match(statement) => {
+            lower_slice_match_expression_to_value(statement, context, temporaries)
         }
         Expr::Group(group) => {
             lower_slice_expression_to_value(&group.expression, context, temporaries)
@@ -2648,6 +2920,13 @@ pub(super) fn lower_bool_expression_to_location(
                 diagnostic_code,
             )
         }
+        Expr::Match(statement) => lower_bool_match_expression_to_location(
+            statement,
+            destination,
+            context,
+            diagnostic_code,
+            bool_destination_reserved_abi_words(destination),
+        ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let operand = lower_bool_expression_to_value_with_temporaries(
@@ -3456,6 +3735,9 @@ pub(super) fn lower_bool_expression_to_value_with_temporaries(
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
             lower_bool_if_expression_to_value(&if_statement, context, diagnostic_code, temporaries)
+        }
+        Expr::Match(statement) => {
+            lower_bool_match_expression_to_value(statement, context, diagnostic_code, temporaries)
         }
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let operand = lower_bool_expression_to_value_with_temporaries(

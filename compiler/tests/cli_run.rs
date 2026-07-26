@@ -9046,6 +9046,71 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_match_binding_and_assignment_exit_code() {
+    let project = TempProject::new("cli-run-value-match-binding-and-assignment");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "value_match_binding_and_assignment.nct",
+        r#"use std/string.bytes
+
+copy struct Packet {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+}
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let code = match choice {
+        Choice.yes { 1 }
+        Choice.no { 10 }
+        else { 0 }
+    }
+    let byte: u8 = match choice { Choice.no { 5 } else { 1 } }
+    let size: usize = match choice { Choice.no { 7 } else { 1 } }
+    let text: &str = match choice { Choice.no { "Nocter" } else { "Other" } }
+    let data: &[u8] = match choice { Choice.no { bytes(text) } else { bytes("x") } }
+    let ok: bool = match choice { Choice.no { data.len() == 6 } else { false } }
+    var total = 0
+    total = match choice { Choice.no { code } else { 1 } }
+    var packet = Packet{ count: 0, byte: 0, size: 0, ok: false }
+    packet.count = match choice { Choice.no { total } else { 1 } }
+    packet.byte = match choice { Choice.no { byte } else { 1 } }
+    packet.size = match choice { Choice.no { size } else { 1 } }
+    packet.ok = match choice { Choice.no { ok } else { false } }
+    return if packet.ok { packet.count + 32 } else { 1 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

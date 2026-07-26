@@ -1346,8 +1346,8 @@ fn payloadless_switch_if_chain(
         };
         next_else = Some(Block {
             span: if_statement.span,
-            statements: vec![Stmt::If(if_statement.clone())],
-            result: None,
+            statements: Vec::new(),
+            result: Some(Box::new(Expr::If(Box::new(if_statement.clone())))),
         });
         current = Some(if_statement);
     }

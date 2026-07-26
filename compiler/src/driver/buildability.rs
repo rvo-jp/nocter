@@ -653,6 +653,48 @@ fn collect_value_expression_diagnostics(
                 );
             }
         }
+        Expr::Match(expression) if value_match_expression_is_buildable(expression, resolved) => {
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            for arm in &expression.arms {
+                collect_value_block_diagnostics(
+                    &arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+            if let Some(else_arm) = &expression.else_arm {
+                collect_value_block_diagnostics(
+                    &else_arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
         _ => collect_expression_diagnostics(
             expression,
             sources,
@@ -806,6 +848,21 @@ fn value_if_is_expression_is_buildable(
             .else_block
             .as_ref()
             .is_some_and(value_block_is_expression_only)
+}
+
+fn value_match_expression_is_buildable(
+    expression: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    terminal_match_expression_is_buildable(expression, resolved)
+        && expression
+            .arms
+            .iter()
+            .all(|arm| value_block_is_expression_only(&arm.body))
+        && expression
+            .else_arm
+            .as_ref()
+            .map_or(true, |arm| value_block_is_expression_only(&arm.body))
 }
 
 fn value_block_is_expression_only(block: &Block) -> bool {
