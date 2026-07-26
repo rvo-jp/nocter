@@ -1978,9 +1978,13 @@ fn collect_expression_diagnostics(
             {
                 diagnostics.push(diagnostic);
             }
-            if let Some(diagnostic) =
-                unsupported_borrow_call_argument_diagnostic(sources, expression, resolved)
-            {
+            if let Some(diagnostic) = unsupported_borrow_call_argument_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(diagnostic);
             }
             if let Some(diagnostic) =
@@ -2809,14 +2813,22 @@ fn unsupported_borrow_call_argument_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    let signature = resolved.call_signature_for_call(call)?;
     let argument = call
         .arguments
         .iter()
-        .zip(signature.parameters.iter())
-        .find_map(|(argument, parameter)| {
-            if !type_expr_resolves_to_borrow(&parameter.ty, resolved) {
+        .enumerate()
+        .find_map(|(index, argument)| {
+            let parameter_ty = call_argument_parameter_type(
+                call,
+                index,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )?;
+            if !type_expr_resolves_to_borrow(&parameter_ty, resolved) {
                 return None;
             }
             match unwrap_group_expr(argument) {

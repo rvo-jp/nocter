@@ -1323,6 +1323,62 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_std_vec_rejects_view_mut_index_method_borrow_argument_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-view-mut-index-method-borrow-boundary");
+    let source = project.write_source(
+        "vec_view_mut_index_method_borrow_boundary.nct",
+        r#"use std/vec.Vec
+
+copy struct Checker {
+    seed: i32
+}
+
+impl Checker {
+    method &self.touch(value: &+i32): void {
+        return
+    }
+}
+
+func main(): void! {
+    var values: Vec<i32> = Vec.empty()
+    values.push(1)?
+    let checker = Checker{ seed: 0 }
+    checker.touch(&+values.view_mut()[0])
+    return
+}
+"#,
+    );
+    let executable = project
+        .root()
+        .join("vec_view_mut_index_method_borrow_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("17 |     checker.touch(&+values.view_mut()[0])"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("read-write borrow call arguments from unsupported expressions"),
+        "expected read-write borrow argument boundary, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "method read-write argument should be rejected before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn distributed_std_vec_rejects_aggregate_with_capacity_before_ir_lowering() {
     let project = TempProject::new("distributed-home-vec-aggregate-with-capacity-boundary");
     let source = project.write_source(
