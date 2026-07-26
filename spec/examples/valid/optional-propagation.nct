@@ -1,5 +1,5 @@
 func main(): i32 {
-    return value() ?? 0
+    return value() otherwise { 0 }
 }
 
 func value(): i32? {

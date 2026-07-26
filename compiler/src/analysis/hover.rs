@@ -648,9 +648,6 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
         Stmt::Binding(statement) => {
             push_binding_hover_symbol(text, statement, symbols);
             collect_expression_hover_symbols(text, &statement.initializer, symbols);
-            if let Some(block) = &statement.else_block {
-                collect_block_hover_symbols(text, block, symbols);
-            }
         }
         Stmt::Assignment(statement) => {
             collect_expression_hover_symbols(text, &statement.target, symbols);
@@ -791,9 +788,9 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
                 }
             }
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             collect_expression_hover_symbols(text, &expression.value, symbols);
-            collect_expression_hover_symbols(text, &expression.default, symbols);
+            collect_block_hover_symbols(text, &expression.fallback, symbols);
         }
         Expr::If(expression) => {
             collect_expression_hover_symbols(text, &expression.condition, symbols);

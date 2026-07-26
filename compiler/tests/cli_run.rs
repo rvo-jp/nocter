@@ -9120,14 +9120,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_let_else_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-let-else-success");
+fn run_command_returns_optional_otherwise_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-return-success");
     let source = project.write_source(
-        "optional_let_else_success.nct",
+        "optional_otherwise_return_success.nct",
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        return 7
-    }
+    let value = maybe_answer() otherwise { return 7 }
 
     return value
 }
@@ -9151,14 +9149,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_let_else_none_exit_code() {
-    let project = TempProject::new("cli-run-optional-let-else-none");
+fn run_command_returns_optional_otherwise_return_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-return-none");
     let source = project.write_source(
-        "optional_let_else_none.nct",
+        "optional_otherwise_return_none.nct",
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        return 7
-    }
+    let value = maybe_answer() otherwise { return 7 }
 
     return value
 }
@@ -9187,8 +9183,8 @@ fn run_command_returns_optional_terminal_if_none_branch_exit_code() {
     let source = project.write_source(
         "optional_terminal_if_none_branch.nct",
         r#"func main(): i32 {
-    let success = maybe_answer(true) ?? 0
-    let fallback = maybe_answer(false) ?? 2
+    let success = maybe_answer(true) otherwise { 0 }
+    let fallback = maybe_answer(false) otherwise { 2 }
     return success + fallback
 }
 
@@ -9215,8 +9211,8 @@ func maybe_answer(flag: bool): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_runs_optional_let_else_never_scope_drop_before_trap() {
-    let project = TempProject::new("cli-run-optional-let-else-never-cleanup");
+fn run_command_runs_optional_otherwise_never_scope_drop_before_trap() {
+    let project = TempProject::new("cli-run-optional-otherwise-never-cleanup");
     project.write_nocter_home_file(
         "std/log.nct",
         r#"use std/io.write_text_raw
@@ -9244,7 +9240,7 @@ pub func exit(code: i32): never {
 "#,
     );
     let source = project.write_source(
-        "optional_let_else_never_cleanup.nct",
+        "optional_otherwise_never_cleanup.nct",
         r#"use std/log.write
 use std/process.exit
 
@@ -9261,9 +9257,7 @@ impl File {
 
 func main(): i32 {
     var file = File{ fd: 3 }
-    let value = maybe_answer() else {
-        exit(7)
-    }
+    let value = maybe_answer() otherwise { exit(7) }
 
     return value
 }
@@ -9295,12 +9289,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_default_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-default-success");
+fn run_command_returns_optional_otherwise_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-success");
     let source = project.write_source(
-        "optional_default_success.nct",
+        "optional_otherwise_success.nct",
         r#"func main(): i32 {
-    return maybe_answer() ?? 7
+    return maybe_answer() otherwise { 7 }
 }
 
 func maybe_answer(): i32? {
@@ -9322,12 +9316,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_default_none_exit_code() {
-    let project = TempProject::new("cli-run-optional-default-none");
+fn run_command_returns_optional_otherwise_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-none");
     let source = project.write_source(
-        "optional_default_none.nct",
+        "optional_otherwise_none.nct",
         r#"func main(): i32 {
-    return maybe_answer() ?? 7
+    return maybe_answer() otherwise { 7 }
 }
 
 func maybe_answer(): i32? {
@@ -9349,12 +9343,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_default_binding_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-default-binding-success");
+fn run_command_returns_optional_otherwise_binding_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-binding-success");
     let source = project.write_source(
-        "optional_default_binding_success.nct",
+        "optional_otherwise_binding_success.nct",
         r#"func main(): i32 {
-    let value = maybe_answer() ?? 7
+    let value = maybe_answer() otherwise { 7 }
     return value
 }
 
@@ -9377,12 +9371,12 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_default_binding_none_exit_code() {
-    let project = TempProject::new("cli-run-optional-default-binding-none");
+fn run_command_returns_optional_otherwise_binding_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-binding-none");
     let source = project.write_source(
-        "optional_default_binding_none.nct",
+        "optional_otherwise_binding_none.nct",
         r#"func main(): i32 {
-    let value = maybe_answer() ?? 7
+    let value = maybe_answer() otherwise { 7 }
     return value
 }
 
@@ -9405,15 +9399,15 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_scalar_default_bindings_exit_code() {
-    let project = TempProject::new("cli-run-optional-scalar-default-bindings");
+fn run_command_returns_optional_scalar_otherwise_bindings_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-otherwise-bindings");
     let source = project.write_source(
-        "optional_scalar_default_bindings.nct",
+        "optional_scalar_otherwise_bindings.nct",
         r#"func main(): i32 {
-    let byte: u8 = maybe_byte() ?? 1
-    let size = maybe_size() ?? 2
-    let flag = maybe_flag() ?? false
-    let text = maybe_text() ?? "fallback"
+    let byte: u8 = maybe_byte() otherwise { 1 }
+    let size = maybe_size() otherwise { 2 }
+    let flag = maybe_flag() otherwise { false }
+    let text = maybe_text() otherwise { "fallback" }
 
     if flag && size == 40 {
         return byte as i32
@@ -9453,15 +9447,15 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_scalar_default_binding_fallbacks_exit_code() {
-    let project = TempProject::new("cli-run-optional-scalar-default-binding-fallbacks");
+fn run_command_returns_optional_scalar_otherwise_binding_fallbacks_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-otherwise-binding-fallbacks");
     let source = project.write_source(
-        "optional_scalar_default_binding_fallbacks.nct",
+        "optional_scalar_otherwise_binding_fallbacks.nct",
         r#"func main(): i32 {
-    let byte: u8 = maybe_byte() ?? 42
-    let size = maybe_size() ?? 40
-    let flag = maybe_flag() ?? true
-    let text = maybe_text() ?? "fallback"
+    let byte: u8 = maybe_byte() otherwise { 42 }
+    let size = maybe_size() otherwise { 40 }
+    let flag = maybe_flag() otherwise { true }
+    let text = maybe_text() otherwise { "fallback" }
 
     if flag && size == 40 {
         return byte as i32
@@ -9501,10 +9495,10 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_scalar_default_return_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-scalar-default-return-success");
+fn run_command_returns_optional_scalar_otherwise_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-otherwise-return-success");
     let source = project.write_source(
-        "optional_scalar_default_return_success.nct",
+        "optional_scalar_otherwise_return_success.nct",
         r#"func main(): i32 {
     let byte: u8 = choose_byte()
     let size = choose_size()
@@ -9519,19 +9513,19 @@ fn run_command_returns_optional_scalar_default_return_success_exit_code() {
 }
 
 func choose_byte(): u8 {
-    return maybe_byte() ?? 1
+    return maybe_byte() otherwise { 1 }
 }
 
 func choose_size(): usize {
-    return maybe_size() ?? 2
+    return maybe_size() otherwise { 2 }
 }
 
 func choose_flag(): bool {
-    return maybe_flag() ?? false
+    return maybe_flag() otherwise { false }
 }
 
 func choose_text(): &str {
-    return maybe_text() ?? "fallback"
+    return maybe_text() otherwise { "fallback" }
 }
 
 func maybe_byte(): u8? {
@@ -9565,10 +9559,10 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_scalar_default_return_fallback_exit_code() {
-    let project = TempProject::new("cli-run-optional-scalar-default-return-fallback");
+fn run_command_returns_optional_scalar_otherwise_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-otherwise-return-fallback");
     let source = project.write_source(
-        "optional_scalar_default_return_fallback.nct",
+        "optional_scalar_otherwise_return_fallback.nct",
         r#"func main(): i32 {
     let byte: u8 = choose_byte()
     let size = choose_size()
@@ -9583,19 +9577,19 @@ fn run_command_returns_optional_scalar_default_return_fallback_exit_code() {
 }
 
 func choose_byte(): u8 {
-    return maybe_byte() ?? 42
+    return maybe_byte() otherwise { 42 }
 }
 
 func choose_size(): usize {
-    return maybe_size() ?? 40
+    return maybe_size() otherwise { 40 }
 }
 
 func choose_flag(): bool {
-    return maybe_flag() ?? true
+    return maybe_flag() otherwise { true }
 }
 
 func choose_text(): &str {
-    return maybe_text() ?? "fallback"
+    return maybe_text() otherwise { "fallback" }
 }
 
 func maybe_byte(): u8? {
@@ -9629,8 +9623,8 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_runs_optional_scalar_default_return_scope_drops() {
-    let project = TempProject::new("cli-run-optional-scalar-default-return-scope-drops");
+fn run_command_runs_optional_scalar_otherwise_return_scope_drops() {
+    let project = TempProject::new("cli-run-optional-scalar-otherwise-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
         r#"use std/io.write_text_raw
@@ -9648,7 +9642,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
-        "optional_scalar_default_return_scope_drops.nct",
+        "optional_scalar_otherwise_return_scope_drops.nct",
         r#"use std/log.write
 
 struct File {
@@ -9674,12 +9668,12 @@ func main(): i32 {
 
 func choose_success(): i32 {
     var file = File{ fd: 3 }
-    return maybe_answer_success() ?? 7
+    return maybe_answer_success() otherwise { 7 }
 }
 
 func choose_fallback(): i32 {
     var file = File{ fd: 4 }
-    return maybe_answer_none() ?? 7
+    return maybe_answer_none() otherwise { 7 }
 }
 
 func maybe_answer_success(): i32? {
@@ -9706,10 +9700,10 @@ func maybe_answer_none(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_let_else_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-let-else-success");
+fn run_command_returns_optional_direct_aggregate_otherwise_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-success");
     let source = project.write_source(
-        "optional_direct_aggregate_let_else_success.nct",
+        "optional_direct_aggregate_otherwise_success.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -9718,9 +9712,7 @@ fn run_command_returns_optional_direct_aggregate_let_else_success_exit_code() {
 }
 
 func main(): i32 {
-    let header = maybe_header() else {
-        return 7
-    }
+    let header = maybe_header() otherwise { return 7 }
 
     return header.code
 }
@@ -9744,10 +9736,10 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_let_else_none_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-let-else-none");
+fn run_command_returns_optional_direct_aggregate_otherwise_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-none");
     let source = project.write_source(
-        "optional_direct_aggregate_let_else_none.nct",
+        "optional_direct_aggregate_otherwise_none.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -9756,9 +9748,7 @@ fn run_command_returns_optional_direct_aggregate_let_else_none_exit_code() {
 }
 
 func main(): i32 {
-    let header = maybe_header() else {
-        return 7
-    }
+    let header = maybe_header() otherwise { return 7 }
 
     return header.code
 }
@@ -9782,10 +9772,10 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_let_else_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-let-else-success");
+fn run_command_returns_optional_indirect_aggregate_otherwise_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-success");
     let source = project.write_source(
-        "optional_indirect_aggregate_let_else_success.nct",
+        "optional_indirect_aggregate_otherwise_success.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -9793,9 +9783,7 @@ fn run_command_returns_optional_indirect_aggregate_let_else_success_exit_code() 
 }
 
 func main(): i32 {
-    let value = maybe_triple() else {
-        return 7
-    }
+    let value = maybe_triple() otherwise { return 7 }
 
     if value.second == 42 {
         return 42
@@ -9823,10 +9811,10 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_let_else_none_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-let-else-none");
+fn run_command_returns_optional_indirect_aggregate_otherwise_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-none");
     let source = project.write_source(
-        "optional_indirect_aggregate_let_else_none.nct",
+        "optional_indirect_aggregate_otherwise_none.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -9834,9 +9822,7 @@ fn run_command_returns_optional_indirect_aggregate_let_else_none_exit_code() {
 }
 
 func main(): i32 {
-    let value = maybe_triple() else {
-        return 7
-    }
+    let value = maybe_triple() otherwise { return 7 }
 
     if value.second == 42 {
         return 42
@@ -9864,10 +9850,10 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_default_binding_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-default-binding-success");
+fn run_command_returns_optional_direct_aggregate_otherwise_binding_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-binding-success");
     let source = project.write_source(
-        "optional_direct_aggregate_default_binding_success.nct",
+        "optional_direct_aggregate_otherwise_binding_success.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -9876,7 +9862,7 @@ fn run_command_returns_optional_direct_aggregate_default_binding_success_exit_co
 }
 
 func main(): i32 {
-    let header = maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let header = maybe_header() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
     return header.code
 }
 
@@ -9899,10 +9885,10 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_default_binding_fallback_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-default-binding-fallback");
+fn run_command_returns_optional_direct_aggregate_otherwise_binding_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-binding-fallback");
     let source = project.write_source(
-        "optional_direct_aggregate_default_binding_fallback.nct",
+        "optional_direct_aggregate_otherwise_binding_fallback.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -9911,7 +9897,7 @@ fn run_command_returns_optional_direct_aggregate_default_binding_fallback_exit_c
 }
 
 func main(): i32 {
-    let header = maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let header = maybe_header() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
     return header.code
 }
 
@@ -9934,11 +9920,11 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_default_binding_copy_fallback_exit_code() {
+fn run_command_returns_optional_direct_aggregate_otherwise_binding_copy_fallback_exit_code() {
     let project =
-        TempProject::new("cli-run-optional-direct-aggregate-default-binding-copy-fallback");
+        TempProject::new("cli-run-optional-direct-aggregate-otherwise-binding-copy-fallback");
     let source = project.write_source(
-        "optional_direct_aggregate_default_binding_copy_fallback.nct",
+        "optional_direct_aggregate_otherwise_binding_copy_fallback.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -9948,7 +9934,7 @@ fn run_command_returns_optional_direct_aggregate_default_binding_copy_fallback_e
 
 func main(): i32 {
     let fallback = Header{ tag: 1, ok: false, code: 7, len: 2 }
-    let header = maybe_header() ?? fallback
+    let header = maybe_header() otherwise { fallback }
     return header.code
 }
 
@@ -9971,10 +9957,10 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_default_binding_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-binding-success");
+fn run_command_returns_optional_indirect_aggregate_otherwise_binding_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-binding-success");
     let source = project.write_source(
-        "optional_indirect_aggregate_default_binding_success.nct",
+        "optional_indirect_aggregate_otherwise_binding_success.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -9982,7 +9968,7 @@ fn run_command_returns_optional_indirect_aggregate_default_binding_success_exit_
 }
 
 func main(): i32 {
-    let value = maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+    let value = maybe_triple() otherwise { Triple{ first: 1, second: 7, third: 3 } }
     if value.second == 42 {
         return 42
     } else {
@@ -10009,10 +9995,11 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_default_binding_fallback_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-binding-fallback");
+fn run_command_returns_optional_indirect_aggregate_otherwise_binding_fallback_exit_code() {
+    let project =
+        TempProject::new("cli-run-optional-indirect-aggregate-otherwise-binding-fallback");
     let source = project.write_source(
-        "optional_indirect_aggregate_default_binding_fallback.nct",
+        "optional_indirect_aggregate_otherwise_binding_fallback.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -10020,7 +10007,7 @@ fn run_command_returns_optional_indirect_aggregate_default_binding_fallback_exit
 }
 
 func main(): i32 {
-    let value = maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+    let value = maybe_triple() otherwise { Triple{ first: 1, second: 7, third: 3 } }
     if value.second == 42 {
         return 42
     } else {
@@ -10047,11 +10034,11 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_default_binding_call_fallback_exit_code() {
+fn run_command_returns_optional_indirect_aggregate_otherwise_binding_call_fallback_exit_code() {
     let project =
-        TempProject::new("cli-run-optional-indirect-aggregate-default-binding-call-fallback");
+        TempProject::new("cli-run-optional-indirect-aggregate-otherwise-binding-call-fallback");
     let source = project.write_source(
-        "optional_indirect_aggregate_default_binding_call_fallback.nct",
+        "optional_indirect_aggregate_otherwise_binding_call_fallback.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -10059,7 +10046,7 @@ fn run_command_returns_optional_indirect_aggregate_default_binding_call_fallback
 }
 
 func main(): i32 {
-    let value = maybe_triple() ?? fallback_triple()
+    let value = maybe_triple() otherwise { fallback_triple() }
     if value.second == 42 {
         return 42
     } else {
@@ -10090,10 +10077,10 @@ func fallback_triple(): Triple {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_default_return_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-success");
+fn run_command_returns_optional_direct_aggregate_otherwise_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-return-success");
     let source = project.write_source(
-        "optional_direct_aggregate_default_return_success.nct",
+        "optional_direct_aggregate_otherwise_return_success.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -10107,7 +10094,7 @@ func main(): i32 {
 }
 
 func choose(): Header {
-    return maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return maybe_header() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func maybe_header(): Header? {
@@ -10129,10 +10116,10 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_direct_aggregate_default_return_fallback_exit_code() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-fallback");
+fn run_command_returns_optional_direct_aggregate_otherwise_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-otherwise-return-fallback");
     let source = project.write_source(
-        "optional_direct_aggregate_default_return_fallback.nct",
+        "optional_direct_aggregate_otherwise_return_fallback.nct",
         r#"copy struct Header {
     tag: u8
     ok: bool
@@ -10146,7 +10133,7 @@ func main(): i32 {
 }
 
 func choose(): Header {
-    return maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return maybe_header() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func maybe_header(): Header? {
@@ -10168,8 +10155,9 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_runs_optional_direct_aggregate_default_return_scope_drops() {
-    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-scope-drops");
+fn run_command_runs_optional_direct_aggregate_otherwise_return_scope_drops() {
+    let project =
+        TempProject::new("cli-run-optional-direct-aggregate-otherwise-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
         r#"use std/io.write_text_raw
@@ -10187,7 +10175,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
-        "optional_direct_aggregate_default_return_scope_drops.nct",
+        "optional_direct_aggregate_otherwise_return_scope_drops.nct",
         r#"use std/log.write
 
 struct File {
@@ -10216,12 +10204,12 @@ func main(): i32 {
 
 func choose_success(): Header {
     var file = File{ fd: 3 }
-    return maybe_header_success() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return maybe_header_success() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func choose_fallback(): Header {
     var file = File{ fd: 4 }
-    return maybe_header_none() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return maybe_header_none() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func maybe_header_success(): Header? {
@@ -10248,10 +10236,10 @@ func maybe_header_none(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_default_return_success_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-return-success");
+fn run_command_returns_optional_indirect_aggregate_otherwise_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-return-success");
     let source = project.write_source(
-        "optional_indirect_aggregate_default_return_success.nct",
+        "optional_indirect_aggregate_otherwise_return_success.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -10268,7 +10256,7 @@ func main(): i32 {
 }
 
 func choose(): Triple {
-    return maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+    return maybe_triple() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func maybe_triple(): Triple? {
@@ -10290,10 +10278,10 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_optional_indirect_aggregate_default_return_fallback_exit_code() {
-    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-return-fallback");
+fn run_command_returns_optional_indirect_aggregate_otherwise_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-return-fallback");
     let source = project.write_source(
-        "optional_indirect_aggregate_default_return_fallback.nct",
+        "optional_indirect_aggregate_otherwise_return_fallback.nct",
         r#"copy struct Triple {
     first: usize
     second: usize
@@ -10310,7 +10298,7 @@ func main(): i32 {
 }
 
 func choose(): Triple {
-    return maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+    return maybe_triple() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func maybe_triple(): Triple? {
@@ -10332,9 +10320,9 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_runs_optional_indirect_aggregate_default_return_scope_drops() {
+fn run_command_runs_optional_indirect_aggregate_otherwise_return_scope_drops() {
     let project =
-        TempProject::new("cli-run-optional-indirect-aggregate-default-return-scope-drops");
+        TempProject::new("cli-run-optional-indirect-aggregate-otherwise-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
         r#"use std/io.write_text_raw
@@ -10352,7 +10340,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
-        "optional_indirect_aggregate_default_return_scope_drops.nct",
+        "optional_indirect_aggregate_otherwise_return_scope_drops.nct",
         r#"use std/log.write
 
 struct File {
@@ -10388,12 +10376,12 @@ func code(value: usize): i32 {
 
 func choose_success(): Triple {
     var file = File{ fd: 3 }
-    return maybe_triple_success() ?? Triple{ first: 1, second: 7, third: 3 }
+    return maybe_triple_success() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func choose_fallback(): Triple {
     var file = File{ fd: 4 }
-    return maybe_triple_none() ?? Triple{ first: 1, second: 7, third: 3 }
+    return maybe_triple_none() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func maybe_triple_success(): Triple? {

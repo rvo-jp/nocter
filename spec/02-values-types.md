@@ -525,19 +525,19 @@ Precedence, from highest to lowest:
 10. logical or
     ||
 
-11. optional default
-    ??
+11. optional otherwise
+    expr otherwise { body }
 ```
 
 Rules:
 
 - Assignment is a statement, not an expression, and is not part of the precedence table.
 - The half-open range token `..<` is part of the initial `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
-- `??` is right-associative.
+- `otherwise` is right-associative.
 - `if` and `match` are control expressions, not precedence-table operators.
 - `condition ? then : else` is not Nocter syntax. Use `if condition { then } else { else_value }`.
 - `enum_expr ?{ ... }` is not Nocter syntax. Use `match enum_expr { ... }`.
-- `&&`, `||`, `??`, `if`, and `match` evaluate only the needed operand, branch, or arm.
+- `&&`, `||`, `otherwise`, `if`, and `match` evaluate only the needed operand, branch, or arm.
 
 Example:
 

@@ -1,4 +1,4 @@
-use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
+use super::bindings::continuing_binding_type;
 use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
 use super::copyability::implicit_non_copy_struct_value_source;
 use super::diagnostics::{
@@ -301,27 +301,6 @@ fn check_statement_returns(
                 borrow_provenance,
             );
             let initializer_type = expression_type(&statement.initializer, resolved, environment);
-            if let Some(else_block) = &statement.else_block {
-                check_optional_let_else_statement(
-                    sources,
-                    statement,
-                    &initializer_type,
-                    resolved,
-                    environment,
-                    diagnostics,
-                );
-                let mut else_environment = environment.clone();
-                let mut else_borrow_provenance = borrow_provenance.clone();
-                check_block_return_statements(
-                    sources,
-                    else_block,
-                    context,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    &mut else_borrow_provenance,
-                );
-            }
             let binding_type =
                 continuing_binding_type(statement, initializer_type, resolved, environment);
             let provenance = borrow_return_provenance_for_expression(
@@ -841,7 +820,7 @@ fn check_expression_for_nested_returns(
                 }
             }
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             check_expression_for_nested_returns(
                 sources,
                 &expression.value,
@@ -851,15 +830,27 @@ fn check_expression_for_nested_returns(
                 environment,
                 borrow_provenance,
             );
-            check_expression_for_nested_returns(
+            let present_borrow_provenance = borrow_provenance.clone();
+            let mut fallback_environment = environment.clone();
+            let mut fallback_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
                 sources,
-                &expression.default,
+                &expression.fallback,
                 context,
                 resolved,
                 diagnostics,
-                environment,
-                borrow_provenance,
+                &mut fallback_environment,
+                &mut fallback_borrow_provenance,
             );
+            let mut incoming = vec![present_borrow_provenance];
+            if !block_guarantees_return_or_never(
+                &expression.fallback,
+                resolved,
+                &fallback_environment,
+            ) {
+                incoming.push(fallback_borrow_provenance);
+            }
+            borrow_provenance.join_reachable(&incoming);
         }
         Expr::If(expression) => {
             check_expression_for_nested_returns(

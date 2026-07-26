@@ -39,7 +39,7 @@ Current valid coverage:
 - non-relative standard-library import
 - relative source import
 - fallible `T!`, postfix `?`, postfix `!`, and `catch`
-- optional `T?`, `??`, `let ... else`, and enum `if is`
+- optional `T?`, `otherwise`, and enum `if is`
 - enum construction and `match`
 - range-only `for`
 
@@ -53,6 +53,6 @@ Current invalid coverage:
 - optional propagation outside an optional return layer
 - `catch` on `T?`
 - postfix `!` on a plain value
-- fallthrough in `let ... else`
+- mismatched `otherwise` fallback type
 - non-integer range bounds
 - `match` on a non-enum value

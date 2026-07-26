@@ -895,7 +895,7 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 関数引数も左から右に評価する
 - `method` 呼び出しでは receiver を最初に評価する
 - struct literal の field initializer は、literal に書いた順に評価する
-- `??`、`if`、`match` は必要な側だけ評価する
+- `otherwise`、`if`、`match` は必要な側だけ評価する
 - 一時値は原則として文末で生成の逆順に `drop` する
 - 一時値の所有権が local binding、owned parameter、構築中の aggregate、代入先、return value に移った場合、その一時値自体は caller 側の文末では `drop` しない
 - block、`if` body、`match` arm、loop body は scope を作る
@@ -1324,13 +1324,8 @@ let count = read.len()
 collection 用の操作は標準ライブラリの通常メソッドとして用意します。`len()`、`get()`、`ptr()`、`view()`、`write_view()` は collection / view の基本 API です。v0 の collection iteration は `[T]` から `ViewIter<T>` を作る readonly borrow iteration です。`iter()`、`next()`、`ViewIter<T>` は普通の標準ライブラリ API であり、`for` 構文が名前で特別扱いすることはありません。
 
 ```nct
-var iter = read.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
+for i in 0..<read.len() {
+    let byte = read[i]
     consume(byte)
 }
 ```
@@ -1454,7 +1449,7 @@ let truncated = u8.truncate(big) // u8
 - payload を持たない enum の比較は許可する
 - payload を持つ enum の値全体の比較は初期仕様では採用せず、分岐と値選択には `match` / `if expr is Pattern` を使う
 
-演算子の優先順位は、call / method / index / field を最も高くし、`??` を低くします。`if` と `match` は演算子ではなく control expression です。`&&`、`||`、`??`、`if`、`match` は必要な側だけ評価します。
+演算子の優先順位は、call / method / index / field を最も高くし、`otherwise` を低くします。`if` と `match` は演算子ではなく control expression です。`&&`、`||`、`otherwise`、`if`、`match` は必要な側だけ評価します。
 
 ```nct
 if count > 0 && state == ScanState.inside_word {
@@ -1476,7 +1471,7 @@ func log(msg: str): void
 
 postfix `?` は fallible value または optional value を現在の関数へ伝播する構文です。`T!` に使うと成功値 `T` を取り出し、失敗時は現在の fallible 関数から同じ `error` で失敗します。`T?` に使うと present 値 `T` を取り出し、`none` 時は現在の optional return layer から `none` を返します。例外やスタック巻き戻しではありません。
 
-postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`let ... else`、`??` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
+postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`otherwise` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
 
 fallible failure return、`trap`、`abort` は別の仕組みです。
 
@@ -1532,9 +1527,7 @@ func lookup(name: str): str? {
 }
 
 func require_home(): str? {
-    let home = lookup("HOME") else {
-        return none
-    }
+    let home = lookup("HOME") otherwise { return none }
 
     return home
 }
@@ -1543,76 +1536,34 @@ func require_home(): str? {
 optional と fallible は合成できます。`T?!` は、失敗しうる処理の成功値が optional であることを表します。`process.env("HOME")?` は fallible layer だけを外すため型は `str?` です。さらに optional return layer を持つ関数内では、もう一度 `?` を使って `none` を伝播できます。
 
 ```nct
-let home = process.env("HOME")? else {
-    return none
-}
+let home = process.env("HOME")? otherwise { return none }
 
 use(home)
 ```
 
-optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。`if let` / `if var` は Nocter 構文ではありません。
+optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。
 
-optional を値として使う前に、値がない場合だけ早期離脱したいときは `let ... else` を使います。
+absence を値として補う場合、または absence 側で `return` / `never` を実行したい場合は `otherwise` を使います。
 
 ```nct
-let home = lookup("HOME") else {
-    return none
-}
-
-use(home)
+let home = lookup("HOME") otherwise { "/tmp" }
 ```
 
 ```nct
-let config = find_config(path) else {
+let config = find_config(path) otherwise {
     return Error.new("app.config.missing", path)
 }
-
-load(config)
 ```
 
-`let name = expr else { ... }` は `expr: T?` が present の場合に `name: T` を束縛し、その後の文へ進みます。`none` の場合は `else` block を実行します。`else` block は `return`、`return none`、`break`、`continue`、`never` を返す関数呼び出し、停止しない `loop` などで現在の制御フローを必ず離脱し、通常の末尾到達はできません。つまり `else` block は `never` 型です。
-
-`var name = expr else { ... }` も使えます。present の値を mutable binding として取り出します。`let ... else` / `var ... else` は declaration statement であり、式ではありません。`else` block で代替値を返す用途には使いません。absence を値で補う場合は `??` を使います。
-
-borrowed optional projection も使えます。
+`value otherwise { fallback }` は `value: T?` が present なら `T` を取り出し、`none` なら fallback block を評価します。fallback block の body result は `T` である必要があります。fallback block が `return` や `never` 呼び出しで現在の path を離脱する場合も、`never` は `T` と互換です。fallback block は必要な場合だけ評価されます。
 
 ```nct
-let name = &maybe_name else {
-    return none
-}
-
-inspect(name)
-```
-
-```nct
-var name = &+maybe_name else {
-    return none
-}
-
-name.push("!")
-```
-
-`let name = &place else { ... }` は `place: T?` から `name: &T` を作り、optional 自体は move / copy しません。`var name = &+place else { ... }` は writable な `place: T?` から `name: &+T` を作ります。`let name = &+place else { ... }` と `var name = &place else { ... }` は v0 では採用しません。projection borrow が生きている間、source optional は move、代入、再初期化、明示 `drop` できません。
-
-optional value には default operator `??` を使えます。右結合で、必要な場合だけ右辺を評価します。
-
-```nct
-let port = env_int("PORT") ?? config.default_port ?? 8080
-```
-
-`T?` も `match` では分解しません。optional は postfix `?`、`let ... else` / `var ... else`、`??` で扱います。optional を繰り返し取り出す場合は `loop` と `let ... else { break }` を組み合わせます。
-
-```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
-    consume(byte)
+let port = env_int("PORT") otherwise {
+    config.default_port otherwise { 8080 }
 }
 ```
+
+`T?` も `match` では分解しません。optional は postfix `?` と `otherwise` で扱います。`if let`、`if var`、`while let`、`while var`、`let ... else`、`var ... else`、`??` は Nocter 構文ではありません。
 
 bool 条件の値選択には `if` expression を使います。
 
@@ -1670,16 +1621,11 @@ for i in 0..<bytes.len() {
 
 `start..<end` は `start` 以上 `end` 未満を表します。`start` と `end` は loop 開始前に 1 回だけ評価します。step は常に `+1`、loop 変数は immutable binding です。
 
-`while let name = expr` と `while var name = expr` は Nocter 構文ではありません。optional loop は `loop` と `let ... else { break }` で書きます。
+`while let name = expr` と `while var name = expr` は Nocter 構文ではありません。v0 の collection 走査は half-open range と index を基本にします。iterator API は標準ライブラリで整備しますが、optional を loop 条件として分解する専用構文は採用しません。
 
 ```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
+for i in 0..<bytes.len() {
+    let byte = bytes[i]
     consume(byte)
 }
 ```
@@ -1698,7 +1644,7 @@ loop {
 use std/process.abort
 
 func require_path(path: &str?): &str {
-    let value = path else {
+    let value = path otherwise {
         abort()
     }
 

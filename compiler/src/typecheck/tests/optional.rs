@@ -154,43 +154,16 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn accepts_optional_let_else_extraction() {
+fn accepts_otherwise_early_return_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        return 1
-    }
+    let value = maybe_answer() otherwise { return 1 }
 
     return value
 }
 
 func maybe_answer(): i32? {
     return 42
-}
-"#,
-    );
-
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-}
-
-#[test]
-fn accepts_readonly_optional_let_else_projection() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    var maybe = maybe_answer()
-    let value = &maybe else {
-        return 0
-    }
-
-    return read(value)
-}
-
-func maybe_answer(): i32? {
-    return 42
-}
-
-func read(value: &i32): i32 {
-    return 1
 }
 "#,
     );
@@ -219,82 +192,10 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn accepts_readwrite_optional_let_else_projection() {
+fn diagnoses_otherwise_non_optional_left_operand() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    var maybe = maybe_answer()
-    var value = &+maybe else {
-        return 0
-    }
-
-    write(value)
-    return 0
-}
-
-func maybe_answer(): i32? {
-    return 42
-}
-
-func write(value: &+i32): void {
-}
-"#,
-    );
-
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-}
-
-#[test]
-fn diagnoses_optional_let_else_projection_annotation_mismatch() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    var maybe = maybe_answer()
-    let value: &u8 = &maybe else {
-        return 0
-    }
-    return 0
-}
-
-func maybe_answer(): i32? {
-    return 42
-}
-"#,
-    );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0342");
-    assert!(diagnostics[0].message.contains("&i32"));
-    assert!(diagnostics[0].message.contains("&u8"));
-}
-
-#[test]
-fn diagnoses_optional_let_else_projection_binding_kind_mismatch() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    var maybe = maybe_answer()
-    let value = &+maybe else {
-        return 0
-    }
-    return 0
-}
-
-func maybe_answer(): i32? {
-    return 42
-}
-"#,
-    );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0429");
-    assert!(diagnostics[0].message.contains("readwrite"));
-}
-
-#[test]
-fn diagnoses_optional_let_else_non_optional_initializer() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    let value = 1 else {
-        return 1
-    }
+    let value = 1 otherwise { 2 }
 
     return value
 }
@@ -302,41 +203,35 @@ fn diagnoses_optional_let_else_non_optional_initializer() {
     );
 
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0340");
+    assert_eq!(diagnostics[0].code, "E0396");
 }
 
 #[test]
-fn diagnoses_optional_let_else_fallthrough() {
+fn diagnoses_otherwise_fallback_type_mismatch() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        log_missing()
-    }
+    maybe_answer() otherwise { "missing" }
 
-    return value
+    return 0
 }
 
 func maybe_answer(): i32? {
-    return 42
-}
-
-func log_missing(): void {
-    return
+    return none
 }
 "#,
     );
 
-    assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0341");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0397");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("str"));
 }
 
 #[test]
-fn accepts_optional_let_else_never_terminal() {
+fn accepts_otherwise_never_terminal() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        trap()
-    }
+    let value = maybe_answer() otherwise { trap() }
 
     return value
 }
@@ -353,12 +248,10 @@ primitive trap(): never
 }
 
 #[test]
-fn uses_optional_let_else_unwrapped_return_type() {
+fn uses_otherwise_unwrapped_return_type() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    let value = maybe_title() else {
-        return 1
-    }
+    let value = maybe_title() otherwise { return 1 }
 
     return value
 }
@@ -375,10 +268,10 @@ func maybe_title(): &str? {
 }
 
 #[test]
-fn accepts_optional_default_expression() {
+fn accepts_otherwise_expression() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    return maybe_answer() ?? 7
+    return maybe_answer() otherwise { 7 }
 }
 
 func maybe_answer(): i32? {
@@ -391,10 +284,10 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn accepts_optional_default_contextual_integer_literal() {
+fn accepts_otherwise_contextual_integer_literal() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    return widen(maybe_byte() ?? 0)
+    return widen(maybe_byte() otherwise { 0 })
 }
 
 func maybe_byte(): u8? {
@@ -408,39 +301,4 @@ func widen(value: u8): i32 {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-}
-
-#[test]
-fn diagnoses_optional_default_non_optional_left_operand() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    let value = 1 ?? 2
-    return value
-}
-"#,
-    );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0396");
-    assert!(diagnostics[0].message.contains("i32"));
-}
-
-#[test]
-fn diagnoses_optional_default_fallback_type_mismatch() {
-    let diagnostics = check_text(
-        r#"func main(): i32 {
-    maybe_answer() ?? "missing"
-    return 0
-}
-
-func maybe_answer(): i32? {
-    return none
-}
-"#,
-    );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0397");
-    assert!(diagnostics[0].message.contains("i32"));
-    assert!(diagnostics[0].message.contains("str"));
 }

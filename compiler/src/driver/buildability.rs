@@ -715,20 +715,6 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            if let Some(block) = &statement.else_block {
-                collect_block_diagnostics(
-                    block,
-                    sources,
-                    resolved,
-                    typecheck_facts,
-                    generic_substitutions,
-                    root_source,
-                    names,
-                    nocter_home,
-                    queue,
-                    diagnostics,
-                );
-            }
         }
         Stmt::Assignment(statement) => {
             if !assignment_operator_is_buildable(
@@ -1630,7 +1616,7 @@ fn collect_expression_diagnostics(
             queue,
             diagnostics,
         ),
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             collect_expression_diagnostics(
                 &expression.value,
                 sources,
@@ -1643,8 +1629,8 @@ fn collect_expression_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_expression_diagnostics(
-                &expression.default,
+            collect_block_diagnostics(
+                &expression.fallback,
                 sources,
                 resolved,
                 typecheck_facts,

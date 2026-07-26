@@ -168,7 +168,6 @@ Examples of single lexical tokens:
 
 ```text
 &+
-??
 ..<
 ==
 !=
@@ -188,7 +187,6 @@ Examples of single lexical tokens:
 Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
-- `??` is one token. It is used for optional default expressions.
 - `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
 - `@` is reserved for possible future attribute-like syntax and is invalid in v0 outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.

@@ -3,7 +3,7 @@ use super::bindings::continuing_binding_type;
 use super::calls::{call_return_type, resolved_call_signature};
 use super::diagnostics::error_member_unknown_diagnostic;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
-use super::operations::{binary_expression_type, is_expression_assignable};
+use super::operations::binary_expression_type;
 use super::returns::block_guarantees_return_or_never;
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
@@ -47,22 +47,23 @@ pub(super) fn check_error_member_expression(
     diagnostics.push(error_member_unknown_diagnostic(sources, member));
 }
 
-fn optional_default_type(
+fn otherwise_type(
     value_type: Type,
-    default: &Expr,
-    default_type: Type,
+    fallback: &Block,
+    fallback_type: Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
     let Type::Optional(inner) = value_type else {
-        return default_type;
+        return fallback_type;
     };
 
-    if default_type.is_unknown() || is_expression_assignable(&inner, default, resolved, environment)
+    if fallback_type.is_unknown()
+        || super::operations::block_result_is_assignable(&inner, fallback, resolved, environment)
     {
         *inner
     } else {
-        default_type
+        fallback_type
     }
 }
 
@@ -110,13 +111,13 @@ pub(super) fn expression_type(
         }
         Expr::Group(expression) => expression_type(&expression.expression, resolved, environment),
         Expr::Index(expression) => index_expression_type(expression, resolved, environment),
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             let value_type = expression_type(&expression.value, resolved, environment);
-            let default_type = expression_type(&expression.default, resolved, environment);
-            optional_default_type(
+            let fallback_type = block_result_type(&expression.fallback, resolved, environment);
+            otherwise_type(
                 value_type,
-                &expression.default,
-                default_type,
+                &expression.fallback,
+                fallback_type,
                 resolved,
                 environment,
             )

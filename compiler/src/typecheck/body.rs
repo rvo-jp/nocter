@@ -25,7 +25,7 @@ use super::expressions::{
 use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
-    check_binary_expression, check_optional_default_expression, check_type_conversion_expression,
+    check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
     check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
 };
 use super::places::expression_is_writable_place;
@@ -172,17 +172,6 @@ fn check_statement_expressions(
                 loop_depth,
             );
             let initializer_type = expression_type(&statement.initializer, resolved, environment);
-            if let Some(else_block) = &statement.else_block {
-                let mut else_environment = environment.clone();
-                check_block_expressions(
-                    sources,
-                    else_block,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    loop_depth,
-                );
-            }
             check_binding_annotation(
                 sources,
                 statement,
@@ -812,7 +801,7 @@ fn check_expression_tree(
                 environment,
             );
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             check_expression_tree(
                 sources,
                 &expression.value,
@@ -821,21 +810,16 @@ fn check_expression_tree(
                 environment,
                 loop_depth,
             );
-            check_expression_tree(
+            let mut fallback_environment = environment.clone();
+            check_block_expressions(
                 sources,
-                &expression.default,
+                &expression.fallback,
                 resolved,
                 diagnostics,
-                environment,
+                &mut fallback_environment,
                 loop_depth,
             );
-            check_optional_default_expression(
-                sources,
-                expression,
-                resolved,
-                diagnostics,
-                environment,
-            );
+            check_otherwise_expression(sources, expression, resolved, diagnostics, environment);
         }
         Expr::If(expression) => {
             check_expression_tree(

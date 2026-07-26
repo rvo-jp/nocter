@@ -31,9 +31,7 @@ pub(in crate::typecheck) fn catch_on_non_fallible_diagnostic(
         ),
     );
     diagnostic.primary_span = sources.span_to_json(catch_span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "use `catch` only on `T!`; use `if let`, `let ... else`, or `??` for `T?`".to_string(),
-    );
+    diagnostic.help = Some("use `catch` only on `T!`; use `?` or `otherwise` for `T?`".to_string());
     diagnostic
 }
 
@@ -72,7 +70,7 @@ pub(in crate::typecheck) fn optional_propagation_in_non_optional_context_diagnos
     );
     diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
     add_declared_return_note(sources, &mut diagnostic, context);
-    diagnostic.help = Some("handle `none` with `if let`, `let ... else`, or `??`".to_string());
+    diagnostic.help = Some("handle `none` with `?` or `otherwise`".to_string());
     diagnostic
 }
 

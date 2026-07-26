@@ -237,9 +237,9 @@ fn collect_expression(
                 }
             }
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             collect_expression(&expression.value, root_source, resolved, targets);
-            collect_expression(&expression.default, root_source, resolved, targets);
+            collect_block(&expression.fallback, root_source, resolved, targets);
         }
         Expr::If(expression) => {
             collect_expression(&expression.condition, root_source, resolved, targets);

@@ -111,9 +111,7 @@ Examples:
 ```nct
 let count: u64 = 0
 
-let home = maybe_home else {
-    return none
-}
+let home = maybe_home otherwise { return none }
 
 func read_all(
     allocator: &+Allocator,
@@ -129,7 +127,7 @@ Rules:
 
 - Assignment and compound assignment use spaces around the operator.
 - Binary operators use spaces around the operator.
-- The optional default operator is formatted as `value ?? fallback`.
+- `otherwise` fallback blocks are formatted as `value otherwise { body }`.
 - `if` and `match` expressions use the same formatting as their statement forms.
 - A result-only body may be formatted as `{ expr }` when it is short.
 - Unary operators are attached to their operand.
@@ -142,7 +140,7 @@ Examples:
 
 ```nct
 count += 1
-let home = maybe_home ?? "/tmp"
+let home = maybe_home otherwise { "/tmp" }
 let label = if is_ready { "ready" } else { "waiting" }
 let byte = bytes[i]
 file.write_text("hello")

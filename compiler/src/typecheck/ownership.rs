@@ -476,14 +476,7 @@ fn statement_read_action(
             expression_read_action(expression, source, resolved, environment)
         }),
         Stmt::Binding(statement) => {
-            expression_read_action(&statement.initializer, source, resolved, environment).or_else(
-                || {
-                    statement
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| block_read_action(block, source, resolved, environment))
-                },
-            )
+            expression_read_action(&statement.initializer, source, resolved, environment)
         }
         Stmt::Assignment(statement) => {
             expression_read_action(&statement.target, source, resolved, environment)
@@ -651,10 +644,9 @@ fn expression_move_action(
                 crate::ast::InterpolatedStringPart::Text(_) => None,
             })
         }
-        Expr::OptionalDefault(expression) => {
-            expression_move_action(&expression.value, source, resolved, environment).or_else(|| {
-                expression_move_action(&expression.default, source, resolved, environment)
-            })
+        Expr::Otherwise(expression) => {
+            expression_move_action(&expression.value, source, resolved, environment)
+                .or_else(|| block_move_action(&expression.fallback, source, resolved, environment))
         }
         Expr::If(expression) => {
             expression_move_action(&expression.condition, source, resolved, environment)
@@ -807,10 +799,9 @@ fn expression_read_action(
                 crate::ast::InterpolatedStringPart::Text(_) => None,
             })
         }
-        Expr::OptionalDefault(expression) => {
-            expression_read_action(&expression.value, source, resolved, environment).or_else(|| {
-                expression_read_action(&expression.default, source, resolved, environment)
-            })
+        Expr::Otherwise(expression) => {
+            expression_read_action(&expression.value, source, resolved, environment)
+                .or_else(|| block_read_action(&expression.fallback, source, resolved, environment))
         }
         Expr::If(expression) => {
             expression_read_action(&expression.condition, source, resolved, environment)
@@ -877,14 +868,6 @@ fn collect_direct_borrow_expressions_in_statement(
                 environment,
                 borrows,
             );
-            if let Some(else_block) = &statement.else_block {
-                collect_direct_borrow_expressions_in_block(
-                    else_block,
-                    resolved,
-                    environment,
-                    borrows,
-                );
-            }
         }
         Stmt::Assignment(statement) => {
             collect_direct_borrow_expressions(&statement.target, resolved, environment, borrows);
@@ -1101,9 +1084,14 @@ fn collect_direct_borrow_expressions(
                 }
             }
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             collect_direct_borrow_expressions(&expression.value, resolved, environment, borrows);
-            collect_direct_borrow_expressions(&expression.default, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &expression.fallback,
+                resolved,
+                environment,
+                borrows,
+            );
         }
         Expr::If(expression) => {
             collect_direct_borrow_expressions(
@@ -1207,13 +1195,7 @@ fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
             .expression
             .as_ref()
             .is_some_and(|expression| expression_uses_identifier(expression, name)),
-        Stmt::Binding(statement) => {
-            expression_uses_identifier(&statement.initializer, name)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
-        }
+        Stmt::Binding(statement) => expression_uses_identifier(&statement.initializer, name),
         Stmt::Assignment(statement) => {
             expression_uses_identifier(&statement.target, name)
                 || expression_uses_identifier(&statement.value, name)
@@ -1333,9 +1315,9 @@ fn expression_uses_identifier(expression: &Expr, name: &str) -> bool {
             }
             crate::ast::InterpolatedStringPart::Text(_) => false,
         }),
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             expression_uses_identifier(&expression.value, name)
-                || expression_uses_identifier(&expression.default, name)
+                || block_uses_identifier(&expression.fallback, name)
         }
         Expr::If(expression) => {
             expression_uses_identifier(&expression.condition, name)
@@ -1405,24 +1387,6 @@ fn check_statement_ownership(
             let initializer_type = expression_type(&statement.initializer, resolved, environment);
             let initializer_reaches_end = initializer_type != Type::Never;
             let mut flow = FlowState::fallthrough();
-            if let Some(else_block) = &statement.else_block {
-                let mut else_environment = environment.clone();
-                let mut else_ownership = ownership.clone();
-                let else_flow = check_block_ownership(
-                    sources,
-                    else_block,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    &mut else_ownership,
-                );
-                // The successful binding path continues below. Break/continue from
-                // the else path must still propagate to the surrounding construct.
-                if !initializer_reaches_end {
-                    return else_flow;
-                }
-                flow.extend_nested(else_flow);
-            }
             if !initializer_reaches_end {
                 return FlowState::terminal();
             }
@@ -2041,7 +2005,7 @@ fn check_expression_ownership(
                 }
             }
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             check_expression_ownership(
                 sources,
                 &expression.value,
@@ -2050,14 +2014,22 @@ fn check_expression_ownership(
                 environment,
                 ownership,
             );
-            check_expression_ownership(
+            let present_ownership = ownership.clone();
+            let mut fallback_environment = environment.clone();
+            let mut fallback_ownership = ownership.clone();
+            let fallback_flow = check_block_ownership(
                 sources,
-                &expression.default,
+                &expression.fallback,
                 resolved,
                 diagnostics,
-                environment,
-                ownership,
+                &mut fallback_environment,
+                &mut fallback_ownership,
             );
+            let mut incoming = vec![present_ownership];
+            if fallback_flow.reaches_end {
+                incoming.push(fallback_ownership);
+            }
+            ownership.join_branches(&incoming);
         }
         Expr::If(expression) => {
             check_statement_ownership(

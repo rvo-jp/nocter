@@ -2,7 +2,7 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BorrowExpr, CallExpr, CatchExpr, Expr, ForceExpr, GenericType,
     GroupExpr, IdentifierExpr, IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression,
-    InterpolatedStringPart, InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr,
+    InterpolatedStringPart, InterpolatedStringText, LiteralExpr, MemberExpr, OtherwiseExpr,
     PropagationExpr, StructLiteralExpr, StructLiteralField, TypeConversionExpr, TypeExpr,
     TypeReference, UnaryExpr,
 };
@@ -12,10 +12,10 @@ use crate::source::ByteSpan;
 
 impl Parser<'_> {
     pub(super) fn parse_expression(&mut self) -> ParseResult<Expr> {
-        self.parse_optional_default_expression()
+        self.parse_otherwise_expression()
     }
 
-    fn parse_optional_default_expression(&mut self) -> ParseResult<Expr> {
+    fn parse_otherwise_expression(&mut self) -> ParseResult<Expr> {
         let left = self.parse_logical_or_expression()?;
 
         if self.at_punctuation("?") && self.next_is_punctuation("{") {
@@ -26,12 +26,17 @@ impl Parser<'_> {
         }
 
         if let Some(operator) = self.match_punctuation("??") {
-            let right = self.parse_optional_default_expression()?;
-            return Ok(Expr::OptionalDefault(OptionalDefaultExpr {
-                span: self.span(left.span().start, right.span().end),
-                operator_span: operator.span,
+            self.error_at(operator.span, "`??` was removed; use `otherwise { ... }`");
+            return Err(());
+        }
+
+        if let Some(keyword) = self.match_keyword(Keyword::Otherwise) {
+            let fallback = self.parse_block()?;
+            return Ok(Expr::Otherwise(OtherwiseExpr {
+                span: self.span(left.span().start, fallback.span.end),
+                keyword_span: keyword.span,
                 value: Box::new(left),
-                default: Box::new(right),
+                fallback,
             }));
         }
 

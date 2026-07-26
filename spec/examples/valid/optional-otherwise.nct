@@ -1,7 +1,5 @@
 func main(): i32 {
-    let value = maybe_answer() else {
-        return 0
-    }
+    let value = maybe_answer() otherwise { return 0 }
 
     return value
 }

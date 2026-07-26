@@ -93,9 +93,6 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
         Stmt::Binding(statement) => {
             push_target(text, statement.span, targets);
             collect_expression_targets(text, &statement.initializer, targets);
-            if let Some(block) = &statement.else_block {
-                collect_block_targets(text, block, targets);
-            }
         }
         Stmt::Assignment(statement) => {
             collect_expression_targets(text, &statement.target, targets);
@@ -204,9 +201,9 @@ fn collect_expression_targets(
         Expr::Group(expression) => {
             collect_expression_targets(text, &expression.expression, targets)
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             collect_expression_targets(text, &expression.value, targets);
-            collect_expression_targets(text, &expression.default, targets);
+            collect_block_targets(text, &expression.fallback, targets);
         }
         Expr::If(expression) => {
             collect_expression_targets(text, &expression.condition, targets);

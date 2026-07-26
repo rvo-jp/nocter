@@ -105,7 +105,7 @@ Rules:
 - `expr!` does not return `error` or `none` to the caller.
 - `expr!` has result type `T`.
 - `expr!` is intended for tests, prototypes, and truly unrecoverable assumptions.
-- Normal code should prefer `?`, `catch`, `let ... else`, or `??`.
+- Normal code should prefer `?`, `catch`, or `otherwise`.
 - `expr!` is not stack unwinding.
 
 ## Recoverable Failure and Non-Recoverable Termination
@@ -276,10 +276,7 @@ Using a fallible optional:
 
 ```nct
 let maybe_config = load_config()?
-
-let config = maybe_config else {
-    return none
-}
+let config = maybe_config otherwise { return none }
 
 use(config)
 ```
@@ -292,9 +289,7 @@ When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`,
 
 ```nct
 func require_home(): &str? {
-    let home = lookup("HOME") else {
-        return none
-    }
+    let home = lookup("HOME") otherwise { return none }
 
     return home
 }
@@ -305,24 +300,19 @@ Rules:
 - Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
-- Early-exit extraction uses `let ... else` and `var ... else`.
-- Defaulting uses `??`.
-- `??` does not propagate absence out of the current function; it selects a fallback value or fallback optional expression.
+- Absence defaulting and absence-side early exit use `otherwise`.
+- `otherwise` does not propagate absence by itself; it selects a fallback block when the optional value is `none`.
 
-### Optional Let Else Declarations
+### Optional Otherwise Expressions
 
-Adopted: optional early-exit extraction uses `let ... else` and `var ... else`.
+Adopted: optional fallback uses `otherwise`.
 
 ```nct
-let home = lookup("HOME") else {
-    return none
-}
-
-use(home)
+let home = lookup("HOME") otherwise { "/tmp" }
 ```
 
 ```nct
-let config = find_config(path) else {
+let config = find_config(path) otherwise {
     return Error.new("app.config.missing", path)
 }
 
@@ -331,60 +321,23 @@ load(config)
 
 Rules:
 
-- `let name = expr else { ... }` applies when `expr` has type `T?`.
-- `var name = expr else { ... }` applies when `expr` has type `T?`.
-- If `expr` is present, the contained `T` value is bound to `name` and execution continues after the declaration.
-- If `expr` is `none`, the `else` block runs.
-- The `else` block must have type `never`.
-- The `else` block must leave the current control path with `return`, `return none`, `break`, `continue`, a call returning `never`, a non-breaking infinite `loop`, or an equivalent terminating construct.
-- The `else` block must not fall through.
-- The binding exists after the declaration and is not available inside the `else` block.
-- `let ... else` and `var ... else` are declaration statements, not expressions.
-- `let ... else` and `var ... else` do not use `some` / `none` patterns.
-- `else` cannot provide a fallback value. Use `??` when absence should select a default value.
-- Evaluating `expr` follows normal ownership rules. If `expr` moves a move-only optional binding, that source binding becomes uninitialized on the continuing present path.
-- For move-only `T`, `let ... else` / `var ... else` consumes the optional value and moves the contained value into the binding.
-- For copy `T`, the contained value may be copied according to normal copy rules.
+- `expr otherwise { body }` applies only when `expr` has type `T?`.
+- If `expr` is present, the result is the contained `T`.
+- If `expr` is `none`, the fallback body is evaluated.
+- The fallback body must produce `T`, or it may have type `never`.
+- The fallback body follows the common body rule: statements first, then an optional result expression.
+- The fallback body is evaluated only when needed.
+- `otherwise` is an expression, not a declaration form.
+- `otherwise` does not use `some` / `none` patterns.
+- Evaluating `expr` and the fallback body follows normal ownership rules.
+- `??`, `let ... else`, and `var ... else` are not Nocter syntax.
 
-Borrowed optional projections are allowed in optional let-else declarations:
+Chained fallback is written by nesting `otherwise` in the fallback body:
 
 ```nct
-let name = &maybe_name else {
-    return none
+let port = env_int("PORT") otherwise {
+    config.default_port otherwise { 8080 }
 }
-
-inspect(name) // name: &String
-```
-
-```nct
-var name = &+maybe_name else {
-    return none
-}
-
-name.push("!") // name: &+String
-```
-
-Rules:
-
-- `let name = &place else { ... }` applies when `place` has type `T?`.
-- The continuing binding has type `&T`.
-- The optional value is not moved or copied.
-- If `place` is `none`, no contained borrow is created and the `else` block runs.
-- `var name = &+place else { ... }` applies when `place` has type `T?` and `place` is writable.
-- The continuing binding has type `&+T`.
-- The readwrite projection follows the normal exclusivity rules of `&+T`.
-- `let name = &+place else { ... }` is not part of v0. Use `var name = &+place else { ... }` for a readwrite projection, or `let name = &place else { ... }` for a readonly projection.
-- `var name = &place else { ... }` is not part of v0 because a readonly projection cannot create a mutable binding.
-- While the projected borrow is live, the source optional place cannot be moved, assigned, reinitialized, or explicitly dropped.
-- The projected borrow carries the provenance of the source optional place.
-- Returning or storing the projected borrow is allowed only when the normal borrow-like provenance and lifetime rules allow it.
-
-`let ... else` is for early exit. A local optional branch where both present and absent paths continue is not part of v0. Use `??` when absence should select a value.
-
-When absence should become a value, use `??` instead.
-
-```nct
-let home = lookup_home() ?? "/tmp"
 ```
 
 ### Optional and Fallible Pattern Branching
@@ -401,53 +354,8 @@ Rules:
 
 ### Optional Loops
 
-Adopted: optional loops use ordinary `loop` plus `let ... else`.
-
-```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
-    consume(byte)
-}
-```
-
 Rules:
 
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Use `loop` with `let ... else { break }` when `none` should end iteration.
-- The extracted binding follows the normal `let ... else` rules.
-- Optional borrow values such as `(&T)?` are allowed. For example, `let item = iter.next() else { break }` is valid inside a loop when `next()` returns `(&T)?`.
-
-Adopted: optional values support the optional default operator.
-
-```nct
-let value = maybe_value ?? default_value
-```
-
-Rules:
-
-- `expr ?? default` applies only to optional values.
-- If `expr` has type `T?` and is present, the result is the contained `T`.
-- If `expr` is `none`, `default` is evaluated.
-- The default expression may have type `T` or `T?`.
-- If the default expression has type `T`, the whole expression has type `T`.
-- If the default expression has type `T?`, the whole expression has type `T?`.
-- The operator is right-associative.
-- The default expression is evaluated only when needed.
-- The operator does not apply to fallible `T!` values.
-
-Example:
-
-```nct
-let port = env_int("PORT") ?? config.default_port ?? 8080
-```
-
-This is parsed as:
-
-```nct
-let port = env_int("PORT") ?? (config.default_port ?? 8080)
-```
+- Optional values are not automatically iterable.
+- Collection iteration helpers may return `T?`, but v0 does not introduce a dedicated optional loop syntax.

@@ -4,14 +4,14 @@ use crate::ast::{
 };
 
 #[test]
-fn parses_optional_default_expression() {
+fn parses_otherwise_expression() {
     let output = parse_text(
         r#"use std/prelude
 
 func main(): i32 {
     let user = (env("USER") catch error {
         return 1
-    }) ?? "unknown"
+    }) otherwise { "unknown" }
 
     return 0
 }
@@ -26,12 +26,34 @@ func main(): i32 {
     let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
-    let Expr::OptionalDefault(expression) = &binding.initializer else {
-        panic!("expected optional default expression");
+    let Expr::Otherwise(expression) = &binding.initializer else {
+        panic!("expected otherwise expression");
     };
-    assert_eq!(expression.operator_span.len(), 2);
-    assert!(expression.span.start < expression.operator_span.start);
-    assert!(expression.operator_span.end < expression.span.end);
+    assert_eq!(expression.keyword_span.len(), "otherwise".len());
+    assert!(expression.span.start < expression.keyword_span.start);
+    assert!(expression.keyword_span.end < expression.span.end);
+    assert!(matches!(
+        expression.fallback.result.as_deref(),
+        Some(Expr::StringLiteral(_))
+    ));
+}
+
+#[test]
+fn rejects_removed_optional_question_question_operator() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return maybe() ?? 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("`??` was removed") })
+    );
 }
 
 #[test]
@@ -218,7 +240,7 @@ fn diagnoses_single_line_argument_trailing_comma() {
 fn ast_json_includes_expression_operator_spans() {
     let (sources, output) = parse_text_with_sources(
         r#"func main(): i32 {
-    let value = maybe() ?? 0
+    let value = maybe() otherwise { 0 }
     let handled = answer() catch error {
         return 1
     }
@@ -229,12 +251,12 @@ fn ast_json_includes_expression_operator_spans() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let json = output.ast.unwrap().to_json(&sources);
-    let optional_default = find_json_node(&json, "optional_default_expression")
-        .expect("expected optional default expression");
-    let optional_default_span = optional_default.operator_span.as_ref().unwrap();
+    let otherwise =
+        find_json_node(&json, "otherwise_expression").expect("expected otherwise expression");
+    let otherwise_span = otherwise.operator_span.as_ref().unwrap();
     assert_eq!(
-        optional_default_span.end_byte - optional_default_span.start_byte,
-        2
+        otherwise_span.end_byte - otherwise_span.start_byte,
+        "otherwise".len()
     );
 
     let catch = find_json_node(&json, "fallible_catch_expression")

@@ -1,8 +1,8 @@
 use super::support::parse_text;
-use crate::ast::{AssignmentOperator, BindingKind, Expr, Item, Stmt};
+use crate::ast::{AssignmentOperator, Expr, Item, Stmt};
 
 #[test]
-fn parses_optional_let_else_binding() {
+fn rejects_optional_let_else_binding() {
     let output = parse_text(
         r#"func main(): i32 {
     let home = lookup("HOME") else {
@@ -14,22 +14,16 @@ fn parses_optional_let_else_binding() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function item");
-    };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
-        panic!("expected binding statement");
-    };
-
-    assert_eq!(binding.kind, BindingKind::Let);
-    assert!(binding.else_block.is_some());
-    assert!(matches!(binding.initializer, Expr::Call(_)));
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`let ... else` and `var ... else` were removed")
+    }));
 }
 
 #[test]
-fn parses_optional_var_else_binding() {
+fn rejects_optional_var_else_binding() {
     let output = parse_text(
         r#"func main(): i32 {
     var text = maybe_text else {
@@ -41,17 +35,12 @@ fn parses_optional_var_else_binding() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function item");
-    };
-    let Stmt::Binding(binding) = &function.body.statements[0] else {
-        panic!("expected binding statement");
-    };
-
-    assert_eq!(binding.kind, BindingKind::Var);
-    assert!(binding.else_block.is_some());
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`let ... else` and `var ... else` were removed")
+    }));
 }
 
 #[test]

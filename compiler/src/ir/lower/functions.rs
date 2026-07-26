@@ -1356,7 +1356,7 @@ pub(super) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) = lower_optional_default_scalar_return_with_scope_drops(
+        && let Some(return_instructions) = lower_otherwise_scalar_return_with_scope_drops(
             expression,
             &success_type,
             &return_type,
@@ -1368,7 +1368,7 @@ pub(super) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) = lower_optional_default_aggregate_return_with_scope_drops(
+        && let Some(return_instructions) = lower_otherwise_aggregate_return_with_scope_drops(
             expression,
             &success_type,
             &return_type,
@@ -2405,9 +2405,9 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
         Expr::Group(group) => {
             mark_explicit_moves_in_expression(&group.expression, context);
         }
-        Expr::OptionalDefault(default) => {
-            mark_explicit_moves_in_expression(&default.value, context);
-            mark_explicit_moves_in_expression(&default.default, context);
+        Expr::Otherwise(otherwise) => {
+            mark_explicit_moves_in_expression(&otherwise.value, context);
+            mark_explicit_moves_in_block(&otherwise.fallback, context);
         }
         Expr::If(statement) => {
             mark_explicit_moves_in_expression(&statement.condition, context);
@@ -2578,13 +2578,13 @@ fn expression_contains_explicit_aggregate_move_matching(
             context,
             matches_move,
         ),
-        Expr::OptionalDefault(default) => {
+        Expr::Otherwise(otherwise) => {
             expression_contains_explicit_aggregate_move_matching(
-                &default.value,
+                &otherwise.value,
                 context,
                 matches_move,
-            ) || expression_contains_explicit_aggregate_move_matching(
-                &default.default,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &otherwise.fallback,
                 context,
                 matches_move,
             )
@@ -2666,15 +2666,11 @@ fn statement_contains_explicit_aggregate_move_matching(
         Stmt::Return(statement) => statement.expression.as_ref().is_some_and(|expression| {
             expression_contains_explicit_aggregate_move_matching(expression, context, matches_move)
         }),
-        Stmt::Binding(statement) => {
-            expression_contains_explicit_aggregate_move_matching(
-                &statement.initializer,
-                context,
-                matches_move,
-            ) || statement.else_block.as_ref().is_some_and(|block| {
-                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
-            })
-        }
+        Stmt::Binding(statement) => expression_contains_explicit_aggregate_move_matching(
+            &statement.initializer,
+            context,
+            matches_move,
+        ),
         Stmt::Assignment(statement) => {
             expression_contains_explicit_aggregate_move_matching(
                 &statement.target,
@@ -2872,8 +2868,8 @@ fn lower_aggregate_return_expression_to_location(
                 lower_catch_failure_mode(catch, context, 0)?,
             )
         }
-        Expr::OptionalDefault(default) => lower_aggregate_optional_default_return_to_location(
-            default,
+        Expr::Otherwise(otherwise) => lower_aggregate_otherwise_return_to_location(
+            otherwise,
             return_type,
             destination,
             function_name,
@@ -2920,8 +2916,8 @@ fn lower_aggregate_return_expression_to_location(
     }
 }
 
-fn lower_aggregate_optional_default_return_to_location(
-    default: &crate::ast::OptionalDefaultExpr,
+fn lower_aggregate_otherwise_return_to_location(
+    otherwise: &crate::ast::OtherwiseExpr,
     return_type: &Type,
     destination: AggregateLocation,
     function_name: &str,
@@ -2932,15 +2928,15 @@ fn lower_aggregate_optional_default_return_to_location(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
-    let Expr::Call(call) = unwrap_group(&default.value) else {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
     if !call_return_type_expr_is_top_level_optional(call, context) {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
-    let failure_mode = lower_aggregate_optional_default_return_failure_mode(
-        &default.default,
+    let failure_mode = lower_aggregate_otherwise_return_failure_mode(
+        &otherwise.fallback,
         return_type,
         destination,
         function_name,
@@ -2957,24 +2953,81 @@ fn lower_aggregate_optional_default_return_to_location(
     )
 }
 
-fn lower_aggregate_optional_default_return_failure_mode(
-    fallback: &Expr,
+fn lower_aggregate_otherwise_return_failure_mode(
+    fallback: &Block,
     return_type: &Type,
     destination: AggregateLocation,
     function_name: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let mut instructions = lower_aggregate_return_expression_to_location(
+    let mut fallback_context = context.clone();
+    let (mut instructions, exits) = lower_aggregate_otherwise_fallback_to_location(
         fallback,
         return_type,
         destination,
         function_name,
         resolved,
-        context,
+        &mut fallback_context,
     )?;
-    instructions.push(Instruction::Return);
+    if !exits {
+        instructions.extend(append_scope_end_drops_before_exit(
+            vec![Instruction::Return],
+            &mut fallback_context,
+        )?);
+    }
     Ok(FallibleFailureMode::Handle { instructions })
+}
+
+fn lower_aggregate_otherwise_fallback_to_location(
+    block: &Block,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &mut LoweringContext,
+) -> Result<(Vec<Instruction>, bool), Vec<Diagnostic>> {
+    if let Some(result) = &block.result {
+        let mut instructions = lower_otherwise_return_leading_statements(block, context, "E8007")?;
+        if let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(result, context)?
+        {
+            instructions.extend(terminating_instructions);
+            return Ok((instructions, true));
+        }
+        instructions.extend(lower_aggregate_return_expression_to_location(
+            result,
+            return_type,
+            destination,
+            function_name,
+            resolved,
+            context,
+        )?);
+        return Ok((instructions, false));
+    }
+
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let mut instructions = lower_otherwise_return_statement_prefix(leading, context, "E8007")?;
+    match terminal {
+        Stmt::Return(statement) => {
+            instructions.extend(lower_return_statement_with_scope_drops(
+                statement, context, "E8007",
+            )?);
+            Ok((instructions, true))
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(&statement.expression, context)?
+            else {
+                return Err(unsupported_aggregate_return_diagnostic(function_name));
+            };
+            instructions.extend(terminating_instructions);
+            Ok((instructions, true))
+        }
+        _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
+    }
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {
@@ -3286,32 +3339,32 @@ fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     payload.into_return_instructions()
 }
 
-fn lower_optional_default_scalar_return_with_scope_drops(
+fn lower_otherwise_scalar_return_with_scope_drops(
     expression: &Expr,
     success_type: &Type,
     return_type: &Type,
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    if !optional_default_return_supports_success_type(success_type) {
+    if !otherwise_return_supports_success_type(success_type) {
         return Ok(None);
     }
 
-    let Expr::OptionalDefault(default) = unwrap_group(expression) else {
+    let Expr::Otherwise(otherwise) = unwrap_group(expression) else {
         return Ok(None);
     };
-    let Expr::Call(call) = unwrap_group(&default.value) else {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
         return Ok(None);
     };
     if !call_return_type_expr_is_top_level_optional(call, context) {
         return Ok(None);
     }
 
-    mark_explicit_moves_in_expression(&default.value, context);
+    mark_explicit_moves_in_expression(&otherwise.value, context);
     let failure_mode =
-        lower_optional_default_return_failure_mode(&default.default, context, diagnostic_code)?;
+        lower_otherwise_return_failure_mode(&otherwise.fallback, context, diagnostic_code)?;
     if !context.pending_aggregate_drops().is_empty() {
-        let mut instructions = lower_optional_default_scalar_return_call_to_temporary(
+        let mut instructions = lower_otherwise_scalar_return_call_to_temporary(
             call,
             success_type,
             context,
@@ -3327,7 +3380,7 @@ fn lower_optional_default_scalar_return_with_scope_drops(
     }
 
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let mut instructions = lower_optional_default_scalar_return_call_to_return(
+    let mut instructions = lower_otherwise_scalar_return_call_to_return(
         call,
         success_type,
         context,
@@ -3338,14 +3391,14 @@ fn lower_optional_default_scalar_return_with_scope_drops(
     append_scope_end_drops_before_exit(instructions, context).map(Some)
 }
 
-fn optional_default_return_supports_success_type(success_type: &Type) -> bool {
+fn otherwise_return_supports_success_type(success_type: &Type) -> bool {
     matches!(
         success_type,
         Type::I32 | Type::U8 | Type::Usize | Type::Bool | Type::Str | Type::Slice { .. }
     )
 }
 
-fn lower_optional_default_scalar_return_call_to_return(
+fn lower_otherwise_scalar_return_call_to_return(
     call: &CallExpr,
     success_type: &Type,
     context: &LoweringContext,
@@ -3403,12 +3456,12 @@ fn lower_optional_default_scalar_return_call_to_return(
         | Type::Never
         | Type::Fallible(_) => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower optional default returns for scalar success types",
+            "IR v0 can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
 
-fn lower_optional_default_scalar_return_call_to_temporary(
+fn lower_otherwise_scalar_return_call_to_temporary(
     call: &CallExpr,
     success_type: &Type,
     context: &LoweringContext,
@@ -3495,7 +3548,7 @@ fn lower_optional_default_scalar_return_call_to_temporary(
         | Type::Never
         | Type::Fallible(_) => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower optional default returns for scalar success types",
+            "IR v0 can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -3540,14 +3593,14 @@ fn append_scope_drops_then_restore_scalar_return(
         | Type::Fallible(_) => {
             return Err(vec![Diagnostic::error(
                 "E8007",
-                "IR v0 can only restore optional default returns for scalar success types",
+                "IR v0 can only restore `otherwise` returns for scalar success types",
             )]);
         }
     };
     append_scope_drops_then_restore_return(instructions, restore_return, return_type, context)
 }
 
-fn lower_optional_default_aggregate_return_with_scope_drops(
+fn lower_otherwise_aggregate_return_with_scope_drops(
     expression: &Expr,
     success_type: &Type,
     function_return_type: &Type,
@@ -3563,10 +3616,10 @@ fn lower_optional_default_aggregate_return_with_scope_drops(
         return Ok(None);
     }
 
-    let Expr::OptionalDefault(default) = unwrap_group(expression) else {
+    let Expr::Otherwise(otherwise) = unwrap_group(expression) else {
         return Ok(None);
     };
-    let Expr::Call(call) = unwrap_group(&default.value) else {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
         return Ok(None);
     };
     if !call_return_type_expr_is_top_level_optional(call, context) {
@@ -3585,9 +3638,9 @@ fn lower_optional_default_aggregate_return_with_scope_drops(
     let staged_destination = AggregateLocation::Slot(slot_index);
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
 
-    mark_explicit_moves_in_expression(&default.value, context);
-    let failure_mode = lower_aggregate_optional_default_return_failure_mode_with_scope_drops(
-        &default.default,
+    mark_explicit_moves_in_expression(&otherwise.value, context);
+    let failure_mode = lower_aggregate_otherwise_return_failure_mode_with_scope_drops(
+        &otherwise.fallback,
         success_type,
         function_return_type,
         slot_index,
@@ -3615,8 +3668,8 @@ fn lower_optional_default_aggregate_return_with_scope_drops(
     Ok(Some(instructions))
 }
 
-fn lower_aggregate_optional_default_return_failure_mode_with_scope_drops(
-    fallback: &Expr,
+fn lower_aggregate_otherwise_return_failure_mode_with_scope_drops(
+    fallback: &Block,
     success_type: &Type,
     function_return_type: &Type,
     slot_index: usize,
@@ -3626,25 +3679,27 @@ fn lower_aggregate_optional_default_return_failure_mode_with_scope_drops(
     context: &LoweringContext,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
-    mark_explicit_moves_in_expression(fallback, &mut fallback_context);
+    mark_explicit_moves_in_block(fallback, &mut fallback_context);
     let layout = aggregate_type_layout(success_type)
         .ok_or_else(|| unsupported_aggregate_return_diagnostic(function_name))?;
-    let mut instructions = lower_aggregate_return_expression_to_location(
+    let (mut instructions, exits) = lower_aggregate_otherwise_fallback_to_location(
         fallback,
         success_type,
         AggregateLocation::Slot(slot_index),
         function_name,
         resolved,
-        &fallback_context,
-    )?;
-    append_scope_drops_then_restore_aggregate_return(
-        &mut instructions,
-        slot_index,
-        layout,
-        destination,
-        function_return_type,
         &mut fallback_context,
     )?;
+    if !exits {
+        append_scope_drops_then_restore_aggregate_return(
+            &mut instructions,
+            slot_index,
+            layout,
+            destination,
+            function_return_type,
+            &mut fallback_context,
+        )?;
+    }
     Ok(FallibleFailureMode::Handle { instructions })
 }
 
@@ -3685,22 +3740,111 @@ fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &Loweri
     return_type_expr_is_top_level_optional(&return_type, resolved)
 }
 
-fn lower_optional_default_return_failure_mode(
-    fallback: &Expr,
+fn lower_otherwise_return_failure_mode(
+    fallback: &Block,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
-    let fallback_return = ReturnStmt {
-        span: fallback.span(),
-        expression: Some(fallback.clone()),
-    };
-    let instructions = lower_return_statement_with_scope_drops(
-        &fallback_return,
-        &mut fallback_context,
-        diagnostic_code,
-    )?;
+    let instructions =
+        lower_otherwise_return_block(fallback, &mut fallback_context, diagnostic_code)?;
     Ok(FallibleFailureMode::Handle { instructions })
+}
+
+fn lower_otherwise_return_block(
+    block: &Block,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(result) = &block.result {
+        let mut instructions =
+            lower_otherwise_return_leading_statements(block, context, diagnostic_code)?;
+        if let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(result, context)?
+        {
+            instructions.extend(terminating_instructions);
+            return Ok(instructions);
+        }
+        let fallback_return = ReturnStmt {
+            span: result.span(),
+            expression: Some((**result).clone()),
+        };
+        instructions.extend(lower_return_statement_with_scope_drops(
+            &fallback_return,
+            context,
+            diagnostic_code,
+        )?);
+        return Ok(instructions);
+    }
+
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code));
+    };
+    let mut instructions =
+        lower_otherwise_return_statement_prefix(leading, context, diagnostic_code)?;
+    match terminal {
+        Stmt::Return(statement) => {
+            instructions.extend(lower_return_statement_with_scope_drops(
+                statement,
+                context,
+                diagnostic_code,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(&statement.expression, context)?
+            else {
+                return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code));
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
+        _ => Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code)),
+    }
+}
+
+fn lower_otherwise_return_leading_statements(
+    block: &Block,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_otherwise_return_statement_prefix(&block.statements, context, diagnostic_code)
+}
+
+fn lower_otherwise_return_statement_prefix(
+    statements: &[Stmt],
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    for statement in statements {
+        match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_local_binding(statement, context)?)
+            }
+            Stmt::Assignment(statement) => {
+                instructions.extend(lower_assignment(statement, context)?)
+            }
+            Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
+            Stmt::Expression(statement) => {
+                let Some(effect) = lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code));
+                };
+                instructions.extend(effect);
+            }
+            _ => return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code)),
+        }
+    }
+    Ok(instructions)
+}
+
+fn unsupported_otherwise_fallback_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower `otherwise` fallback blocks with local bindings, assignments, drops, effect-only calls, and a value, `return`, or `never` tail",
+    )]
 }
 
 fn expression_is_none_literal(expression: &Expr) -> bool {

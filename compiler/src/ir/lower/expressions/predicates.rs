@@ -76,9 +76,8 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
                     if expression_contains_call(&part.expression)
             )
         }),
-        Expr::OptionalDefault(optional_default) => {
-            expression_contains_call(&optional_default.value)
-                || expression_contains_call(&optional_default.default)
+        Expr::Otherwise(otherwise) => {
+            expression_contains_call(&otherwise.value) || block_contains_call(&otherwise.fallback)
         }
         Expr::If(statement) => {
             expression_contains_call(&statement.condition)
@@ -214,9 +213,9 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
             .fields
             .iter()
             .any(|field| expression_contains_interpolated_string(&field.value)),
-        Expr::OptionalDefault(optional_default) => {
-            expression_contains_interpolated_string(&optional_default.value)
-                || expression_contains_interpolated_string(&optional_default.default)
+        Expr::Otherwise(otherwise) => {
+            expression_contains_interpolated_string(&otherwise.value)
+                || block_contains_interpolated_string(&otherwise.fallback)
         }
         Expr::If(statement) => {
             expression_contains_interpolated_string(&statement.condition)

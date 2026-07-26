@@ -20723,12 +20723,10 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn lowers_optional_i32_let_else_call_binding() {
+fn lowers_optional_i32_otherwise_return_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        return 1
-    }
+    let value = maybe_answer() otherwise { return 1 }
 
     return value
 }
@@ -20765,12 +20763,10 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn lowers_optional_i32_let_else_never_call_binding() {
+fn lowers_optional_i32_otherwise_never_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {
-    let value = maybe_answer() else {
-        abort()
-    }
+    let value = maybe_answer() otherwise { abort() }
 
     return value
 }
@@ -20814,7 +20810,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_optional_i32_let_else_never_call_binding_with_scope_cleanup() {
+fn lowers_optional_i32_otherwise_never_call_binding_with_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -20828,9 +20824,7 @@ impl File {
 
 func main(): i32 {
     var file = File{ fd: 3 }
-    let value = maybe_answer() else {
-        abort()
-    }
+    let value = maybe_answer() otherwise { abort() }
 
     return value
 }
@@ -20897,10 +20891,10 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_optional_i32_default_return() {
+fn lowers_optional_i32_otherwise_return() {
     let ir = lower_text(
         r#"func main(): i32 {
-    return maybe_answer() ?? 7
+    return maybe_answer() otherwise { 7 }
 }
 
 func maybe_answer(): i32? {
@@ -20931,7 +20925,7 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn lowers_optional_i32_default_return_with_scope_cleanup() {
+fn lowers_optional_i32_otherwise_return_with_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -20949,7 +20943,7 @@ func main(): i32 {
 
 func choose(): i32 {
     var file = File{ fd: 3 }
-    return maybe_answer() ?? 7
+    return maybe_answer() otherwise { 7 }
 }
 
 func maybe_answer(): i32? {
@@ -21011,13 +21005,13 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn lowers_optional_scalar_default_returns() {
+fn lowers_optional_scalar_otherwise_returns() {
     let source = r#"func main(): i32 {
     return 0
 }
 
 func use_byte(): u8 {
-    return maybe_byte() ?? 7
+    return maybe_byte() otherwise { 7 }
 }
 
 func maybe_byte(): u8? {
@@ -21025,7 +21019,7 @@ func maybe_byte(): u8? {
 }
 
 func use_size(): usize {
-    return maybe_size() ?? 7
+    return maybe_size() otherwise { 7 }
 }
 
 func maybe_size(): usize? {
@@ -21033,7 +21027,7 @@ func maybe_size(): usize? {
 }
 
 func use_flag(): bool {
-    return maybe_flag() ?? true
+    return maybe_flag() otherwise { true }
 }
 
 func maybe_flag(): bool? {
@@ -21041,7 +21035,7 @@ func maybe_flag(): bool? {
 }
 
 func use_text(): &str {
-    return maybe_text() ?? "fallback"
+    return maybe_text() otherwise { "fallback" }
 }
 
 func maybe_text(): &str? {
@@ -21049,7 +21043,7 @@ func maybe_text(): &str? {
 }
 
 func use_bytes(bytes: &[u8]): &[u8] {
-    return maybe_bytes(bytes) ?? bytes
+    return maybe_bytes(bytes) otherwise { bytes }
 }
 
 func maybe_bytes(bytes: &[u8]): &[u8]? {
@@ -21190,7 +21184,7 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_default_return() {
+fn lowers_optional_direct_aggregate_otherwise_return() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -21208,7 +21202,7 @@ func main(): i32 {
 }
 
 func choose(): Header {
-    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
@@ -21251,7 +21245,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_indirect_aggregate_default_return() {
+fn lowers_optional_indirect_aggregate_otherwise_return() {
     let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
@@ -21267,7 +21261,7 @@ func main(): i32 {
 }
 
 func choose(): Triple {
-    return make() ?? Triple{ first: 1, second: 7, third: 3 }
+    return make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func make(): Triple? {
@@ -21303,7 +21297,7 @@ func make(): Triple? {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_default_return_with_scope_cleanup() {
+fn lowers_optional_direct_aggregate_otherwise_return_with_scope_cleanup() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -21336,7 +21330,7 @@ func main(): i32 {
 
 func choose(): Header {
     var file = File{ fd: 3 }
-    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
@@ -21429,7 +21423,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_default_fallible_return_with_scope_cleanup() {
+fn lowers_optional_direct_aggregate_otherwise_fallible_return_with_scope_cleanup() {
     let header_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -21462,7 +21456,7 @@ func main(): i32 {
 
 func choose(): Header! {
     var file = File{ fd: 3 }
-    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
@@ -21525,7 +21519,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_indirect_aggregate_default_return_with_scope_cleanup() {
+fn lowers_optional_indirect_aggregate_otherwise_return_with_scope_cleanup() {
     let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
@@ -21556,7 +21550,7 @@ func main(): i32 {
 
 func choose(): Triple {
     var file = File{ fd: 3 }
-    return make() ?? Triple{ first: 1, second: 7, third: 3 }
+    return make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
 }
 
 func make(): Triple? {
@@ -21647,10 +21641,10 @@ func make(): Triple? {
 }
 
 #[test]
-fn lowers_optional_i32_default_call_binding() {
+fn lowers_optional_i32_otherwise_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {
-    let value = maybe_answer() ?? 7
+    let value = maybe_answer() otherwise { 7 }
     return value
 }
 
@@ -21689,13 +21683,13 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn lowers_optional_scalar_default_call_bindings() {
+fn lowers_optional_scalar_otherwise_call_bindings() {
     let source = r#"func main(): i32 {
     return 0
 }
 
 func use_byte(): i32 {
-    let value: u8 = maybe_byte() ?? 7
+    let value: u8 = maybe_byte() otherwise { 7 }
     return value as i32
 }
 
@@ -21704,7 +21698,7 @@ func maybe_byte(): u8? {
 }
 
 func use_size(): usize {
-    let value = maybe_size() ?? 7
+    let value = maybe_size() otherwise { 7 }
     return value
 }
 
@@ -21713,7 +21707,7 @@ func maybe_size(): usize? {
 }
 
 func use_flag(): i32 {
-    let value = maybe_flag() ?? true
+    let value = maybe_flag() otherwise { true }
     if value {
         return 42
     } else {
@@ -21726,7 +21720,7 @@ func maybe_flag(): bool? {
 }
 
 func use_text(): usize {
-    let value = maybe_text() ?? "fallback"
+    let value = maybe_text() otherwise { "fallback" }
     return value.len()
 }
 
@@ -21735,7 +21729,7 @@ func maybe_text(): &str? {
 }
 
 func use_bytes(bytes: &[u8]): usize {
-    let value: &[u8] = maybe_bytes(bytes) ?? bytes
+    let value: &[u8] = maybe_bytes(bytes) otherwise { bytes }
     return value.len()
 }
 
@@ -22296,7 +22290,7 @@ func make(): Header! {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_let_else_call_binding() {
+fn lowers_optional_direct_aggregate_otherwise_return_call_binding() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -22310,9 +22304,7 @@ fn lowers_optional_direct_aggregate_let_else_call_binding() {
 }
 
 func main(): i32 {
-    let header = make() else {
-        return 7
-    }
+    let header = make() otherwise { return 7 }
 
     return header.code
 }
@@ -22343,7 +22335,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_indirect_aggregate_let_else_call_binding() {
+fn lowers_optional_indirect_aggregate_otherwise_return_call_binding() {
     let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),
     }));
@@ -22362,9 +22354,7 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    let packet = make() else {
-        return 7
-    }
+    let packet = make() otherwise { return 7 }
 
     return packet.header.code
 }
@@ -22394,7 +22384,7 @@ func make(): Packet? {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_default_call_binding() {
+fn lowers_optional_direct_aggregate_otherwise_call_binding() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -22408,7 +22398,7 @@ fn lowers_optional_direct_aggregate_default_call_binding() {
 }
 
 func main(): i32 {
-    let header = make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let header = make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
     return header.code
 }
 
@@ -22446,7 +22436,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_indirect_aggregate_default_call_binding() {
+fn lowers_optional_indirect_aggregate_otherwise_call_binding() {
     let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
@@ -22458,7 +22448,7 @@ fn lowers_optional_indirect_aggregate_default_call_binding() {
 }
 
 func main(): i32 {
-    let value = make() ?? Triple{ first: 1, second: 7, third: 3 }
+    let value = make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
     if value.second == 42 {
         return 42
     } else {
@@ -22498,7 +22488,7 @@ func make(): Triple? {
 }
 
 #[test]
-fn lowers_optional_direct_aggregate_default_call_binding_from_copy_local_fallback() {
+fn lowers_optional_direct_aggregate_otherwise_call_binding_from_copy_local_fallback() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
@@ -22513,7 +22503,7 @@ fn lowers_optional_direct_aggregate_default_call_binding_from_copy_local_fallbac
 
 func main(): i32 {
     let fallback = Header{ tag: 1, ok: false, code: 7, len: 2 }
-    let header = make() ?? fallback
+    let header = make() otherwise { fallback }
     return header.code
 }
 
@@ -22548,7 +22538,7 @@ func make(): Header? {
 }
 
 #[test]
-fn lowers_optional_indirect_aggregate_default_call_binding_from_call_fallback() {
+fn lowers_optional_indirect_aggregate_otherwise_call_binding_from_call_fallback() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     };
@@ -22560,7 +22550,7 @@ fn lowers_optional_indirect_aggregate_default_call_binding_from_call_fallback() 
 }
 
 func main(): i32 {
-    let value = make() ?? fallback()
+    let value = make() otherwise { fallback() }
     if value.second == 42 {
         return 42
     } else {

@@ -6,9 +6,9 @@ use super::diagnostics::{
     logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
     move_operand_must_be_binding_diagnostic, move_operand_not_move_only_diagnostic,
     negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
-    optional_default_non_optional_diagnostic, optional_default_type_mismatch_diagnostic,
-    ordered_comparison_operand_type_mismatch_diagnostic, shift_operand_type_mismatch_diagnostic,
-    type_conversion_not_lossless_diagnostic,
+    ordered_comparison_operand_type_mismatch_diagnostic,
+    otherwise_fallback_type_mismatch_diagnostic, otherwise_non_optional_diagnostic,
+    shift_operand_type_mismatch_diagnostic, type_conversion_not_lossless_diagnostic,
 };
 use super::environments::{environment_for_if_is_binding, environment_for_switch_arm};
 use super::expressions::{block_result_environment, block_result_type, expression_type};
@@ -27,7 +27,7 @@ use super::variants::{
     types_are_same_payloadless_enum,
 };
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OtherwiseExpr, TypeConversionExpr,
     UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
@@ -210,9 +210,9 @@ pub(super) fn check_type_conversion_expression(
     }
 }
 
-pub(super) fn check_optional_default_expression(
+pub(super) fn check_otherwise_expression(
     sources: &SourceMap,
-    expression: &OptionalDefaultExpr,
+    expression: &OtherwiseExpr,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
@@ -223,7 +223,7 @@ pub(super) fn check_optional_default_expression(
     }
 
     let Type::Optional(payload_type) = value_type else {
-        diagnostics.push(optional_default_non_optional_diagnostic(
+        diagnostics.push(otherwise_non_optional_diagnostic(
             sources,
             expression,
             &value_type,
@@ -231,17 +231,17 @@ pub(super) fn check_optional_default_expression(
         return;
     };
 
-    let default_type = expression_type(&expression.default, resolved, environment);
-    if default_type.is_unknown_or_unresolved() {
+    let fallback_type = block_result_type(&expression.fallback, resolved, environment);
+    if fallback_type.is_unknown_or_unresolved() {
         return;
     }
 
-    if !is_expression_assignable(&payload_type, &expression.default, resolved, environment) {
-        diagnostics.push(optional_default_type_mismatch_diagnostic(
+    if !block_result_is_assignable(&payload_type, &expression.fallback, resolved, environment) {
+        diagnostics.push(otherwise_fallback_type_mismatch_diagnostic(
             sources,
             expression,
             &payload_type,
-            &default_type,
+            &fallback_type,
         ));
     }
 }
@@ -379,7 +379,7 @@ fn match_expression_is_assignable(
         || expected == &Type::Void
 }
 
-fn block_result_is_assignable(
+pub(super) fn block_result_is_assignable(
     expected: &Type,
     block: &crate::ast::Block,
     resolved: &ResolveOutput,

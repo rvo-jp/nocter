@@ -287,10 +287,9 @@ Required v0 diagnostic families:
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.
 - `if is` enum pattern whose enum or variant does not match the target enum type.
-- Optional `let ... else` / `var ... else` used on a non-optional expression.
-- Optional `let ... else` / `var ... else` whose `else` block can fall through.
-- Readwrite borrowed optional projection from a non-writable place.
-- Mismatched borrowed optional projection form, such as `var name = &place else { ... }` or `let name = &+place else { ... }`.
+- `otherwise` used on a non-optional expression.
+- `otherwise` fallback whose body result is not assignable to the optional payload type.
+- Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
 - Selected entry function with parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.

@@ -746,12 +746,7 @@ impl TypecheckFactCollector<'_> {
     ) {
         let expected_initializer_type = statement.ty.as_ref().map(|ty| {
             self.collect_type_expr_references(ty);
-            let binding_type = type_expr_to_type_in_environment(ty, self.resolved, environment);
-            if statement.else_block.is_some() {
-                Type::Optional(Box::new(binding_type))
-            } else {
-                binding_type
-            }
+            type_expr_to_type_in_environment(ty, self.resolved, environment)
         });
         if let Some(expected) = &expected_initializer_type {
             self.collect_expression_facts_with_expected(
@@ -768,11 +763,6 @@ impl TypecheckFactCollector<'_> {
             );
         }
         let initializer_type = expression_type(&statement.initializer, self.resolved, environment);
-
-        if let Some(else_block) = &statement.else_block {
-            let mut else_environment = environment.clone();
-            self.collect_block_facts(else_block, &mut else_environment, return_type);
-        }
 
         let binding_type =
             continuing_binding_type(statement, initializer_type, self.resolved, environment);
@@ -1189,15 +1179,16 @@ impl TypecheckFactCollector<'_> {
                     }
                 }
             }
-            Expr::OptionalDefault(expression) => {
+            Expr::Otherwise(expression) => {
                 self.collect_expression_facts_in_context(
                     &expression.value,
                     environment,
                     return_type,
                 );
-                self.collect_expression_facts_in_context(
-                    &expression.default,
-                    environment,
+                let mut fallback_environment = environment.clone();
+                self.collect_block_facts(
+                    &expression.fallback,
+                    &mut fallback_environment,
                     return_type,
                 );
             }

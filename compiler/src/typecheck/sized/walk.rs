@@ -47,9 +47,6 @@ fn check_statement(
                 self_type,
                 diagnostics,
             );
-            if let Some(else_block) = &statement.else_block {
-                check_block(sources, else_block, resolved, self_type, diagnostics);
-            }
         }
         Stmt::Assignment(statement) => {
             check_expression(sources, &statement.target, resolved, self_type, diagnostics);
@@ -282,11 +279,11 @@ fn check_expression(
                 diagnostics,
             );
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             check_expression(sources, &expression.value, resolved, self_type, diagnostics);
-            check_expression(
+            check_block(
                 sources,
-                &expression.default,
+                &expression.fallback,
                 resolved,
                 self_type,
                 diagnostics,

@@ -88,10 +88,6 @@ impl Resolver<'_> {
             }
             Stmt::Binding(statement) => {
                 self.resolve_expression(&statement.initializer, scope);
-                if let Some(else_block) = &statement.else_block {
-                    let mut else_scope = scope.clone();
-                    self.resolve_block(else_block, &mut else_scope);
-                }
                 self.define_local_name(
                     statement.name.clone(),
                     statement.name_span,
@@ -248,9 +244,10 @@ impl Resolver<'_> {
                     }
                 }
             }
-            Expr::OptionalDefault(expression) => {
+            Expr::Otherwise(expression) => {
                 self.resolve_expression(&expression.value, scope);
-                self.resolve_expression(&expression.default, scope);
+                let mut fallback_scope = scope.clone();
+                self.resolve_block(&expression.fallback, &mut fallback_scope);
             }
             Expr::If(expression) => {
                 self.resolve_expression(&expression.condition, scope);

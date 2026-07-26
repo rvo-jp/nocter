@@ -122,14 +122,14 @@ impl Parser<'_> {
 
         self.expect_punctuation("=", "`=`")?;
         let initializer = self.parse_expression()?;
-        let else_block = if self.match_keyword(Keyword::Else).is_some() {
-            Some(self.parse_block()?)
-        } else {
-            None
-        };
-        let end = else_block
-            .as_ref()
-            .map_or(initializer.span().end, |block| block.span.end);
+        if let Some(else_token) = self.match_keyword(Keyword::Else) {
+            self.error_at(
+                else_token.span,
+                "`let ... else` and `var ... else` were removed; use `otherwise { ... }` on the initializer",
+            );
+            return Err(());
+        }
+        let end = initializer.span().end;
 
         Ok(Stmt::Binding(BindingStmt {
             span: self.span(start.span.start, end),
@@ -138,7 +138,6 @@ impl Parser<'_> {
             name_span: name.span,
             ty,
             initializer,
-            else_block,
         }))
     }
 
@@ -170,7 +169,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::If, "`if`")?;
         if self.at_keyword(Keyword::Let) || self.at_keyword(Keyword::Var) {
             self.error_current(
-                "`if let` and `if var` were removed; use `let ... else` for optional extraction",
+                "`if let` and `if var` were removed; use enum `is` patterns or `otherwise { ... }`",
             );
             return Err(());
         }
@@ -398,7 +397,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::While, "`while`")?;
         if self.at_keyword(Keyword::Let) || self.at_keyword(Keyword::Var) {
             self.error_current(
-                "`while let` and `while var` were removed; use `loop` with `let ... else { break }` for optional iteration",
+                "`while let` and `while var` were removed; use explicit loop control or optional APIs",
             );
             return Err(());
         }

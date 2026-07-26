@@ -1,7 +1,7 @@
 use super::Formatter;
 use crate::ast::{BinaryOperator, Expr, StructLiteralExpr, StructLiteralField, UnaryOperator};
 
-const PREC_OPTIONAL_DEFAULT: u8 = 1;
+const PREC_OTHERWISE: u8 = 1;
 const PREC_LOGICAL_OR: u8 = 2;
 const PREC_LOGICAL_AND: u8 = 3;
 const PREC_EQUALITY: u8 = 4;
@@ -101,10 +101,10 @@ impl Formatter {
                 self.format_expr(&expression.expression, 0);
                 self.write(")");
             }
-            Expr::OptionalDefault(expression) => {
-                self.format_expr(&expression.value, PREC_OPTIONAL_DEFAULT + 1);
-                self.write(" ?? ");
-                self.format_expr(&expression.default, PREC_OPTIONAL_DEFAULT);
+            Expr::Otherwise(expression) => {
+                self.format_expr(&expression.value, PREC_OTHERWISE + 1);
+                self.write(" otherwise ");
+                self.format_block(&expression.fallback);
             }
             Expr::If(expression) => self.format_if_statement(expression),
             Expr::IfIs(expression) => self.format_if_is_statement(expression),
@@ -137,7 +137,7 @@ impl Formatter {
 fn expression_precedence(expression: &Expr) -> u8 {
     match expression {
         Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) => PREC_CONTROL,
-        Expr::OptionalDefault(_) => PREC_OPTIONAL_DEFAULT,
+        Expr::Otherwise(_) => PREC_OTHERWISE,
         Expr::Binary(expression) => binary_precedence(expression.operator),
         Expr::Borrow(_) | Expr::Unary(_) => PREC_PREFIX,
         Expr::Propagate(_)

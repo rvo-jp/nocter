@@ -323,9 +323,6 @@ fn check_statement(
                 scope,
                 diagnostics,
             );
-            if let Some(else_block) = &statement.else_block {
-                check_block(sources, else_block, resolved, scope, diagnostics);
-            }
         }
         Stmt::Assignment(statement) => {
             check_expression(sources, &statement.target, resolved, scope, diagnostics);
@@ -486,9 +483,9 @@ fn check_expression(
                 diagnostics,
             );
         }
-        Expr::OptionalDefault(expression) => {
+        Expr::Otherwise(expression) => {
             check_expression(sources, &expression.value, resolved, scope, diagnostics);
-            check_expression(sources, &expression.default, resolved, scope, diagnostics);
+            check_block(sources, &expression.fallback, resolved, scope, diagnostics);
         }
         Expr::If(expression) => {
             check_expression(sources, &expression.condition, resolved, scope, diagnostics);

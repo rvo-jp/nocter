@@ -527,9 +527,6 @@ impl Stmt {
                     children.push(ty.to_json(sources));
                 }
                 children.push(statement.initializer.to_json(sources));
-                if let Some(else_block) = &statement.else_block {
-                    children.push(else_block.to_json_with_kind(sources, "else_block"));
-                }
                 JsonAstNode::with_value(
                     match statement.kind {
                         BindingKind::Let => "let_statement",
@@ -891,15 +888,17 @@ impl Expr {
                 json_span(sources, expression.span),
                 vec![expression.expression.to_json(sources)],
             ),
-            Expr::OptionalDefault(expression) => JsonAstNode::new(
-                "optional_default_expression",
+            Expr::Otherwise(expression) => JsonAstNode::new(
+                "otherwise_expression",
                 json_span(sources, expression.span),
                 vec![
                     expression.value.to_json(sources),
-                    expression.default.to_json(sources),
+                    expression
+                        .fallback
+                        .to_json_with_kind(sources, "fallback_block"),
                 ],
             )
-            .with_operator_span(json_span(sources, expression.operator_span)),
+            .with_operator_span(json_span(sources, expression.keyword_span)),
             Expr::If(expression) => {
                 let mut children = vec![
                     expression.condition.to_json(sources),

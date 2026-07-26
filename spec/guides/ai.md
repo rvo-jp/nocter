@@ -36,8 +36,7 @@ Rules for generated code:
 - Use postfix `expr?` to propagate fallible failure or optional absence.
 - Use postfix `expr!` only for unrecoverable assumptions, tests, and prototypes.
 - Use `expr catch error { ... }` for local handling of `T!` failure.
-- Use `let value = optional else { ... }` for optional early-exit extraction.
-- Use `??` for optional default values.
+- Use `expr otherwise { ... }` for optional fallback values and optional-side early exits.
 - Use `match` for enum pattern handling.
 - Do not use `match` to unwrap `T!` or `T?`.
 
@@ -107,13 +106,11 @@ func lookup(name: &str): &str? {
 Use optional values through explicit forms:
 
 ```nct
-let home = lookup("HOME") else {
-    return none
-}
+let home = lookup("HOME") otherwise { return none }
 ```
 
 ```nct
-let user = lookup("USER") ?? "unknown"
+let user = lookup("USER") otherwise { "unknown" }
 ```
 
 Fallible optional success values use `T?!`.
@@ -122,11 +119,11 @@ Fallible optional success values use `T?!`.
 use std/process.env
 
 func user_name(): &str! {
-    return env("USER")? ?? "unknown"
+    return env("USER")? otherwise { "unknown" }
 }
 ```
 
-`env("USER")?` unwraps the fallible layer and leaves `&str?`; `??` chooses a fallback when the optional success is `none`.
+`env("USER")?` unwraps the fallible layer and leaves `&str?`; `otherwise` chooses a fallback when the optional success is `none`.
 
 ## Enums And Match
 

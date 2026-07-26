@@ -358,7 +358,6 @@ pub struct BindingStmt {
     pub name_span: ByteSpan,
     pub ty: Option<TypeExpr>,
     pub initializer: Expr,
-    pub else_block: Option<Block>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -501,7 +500,7 @@ pub enum Expr {
     Member(MemberExpr),
     Index(IndexExpr),
     Group(GroupExpr),
-    OptionalDefault(OptionalDefaultExpr),
+    Otherwise(OtherwiseExpr),
     If(Box<IfStmt>),
     IfIs(Box<IfIsStmt>),
     Match(Box<SwitchStmt>),
@@ -682,11 +681,11 @@ pub struct GroupExpr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptionalDefaultExpr {
+pub struct OtherwiseExpr {
     pub span: ByteSpan,
-    pub operator_span: ByteSpan,
+    pub keyword_span: ByteSpan,
     pub value: Box<Expr>,
-    pub default: Box<Expr>,
+    pub fallback: Block,
 }
 
 impl Item {
@@ -788,7 +787,7 @@ impl Expr {
             Expr::Member(expression) => expression.span,
             Expr::Index(expression) => expression.span,
             Expr::Group(expression) => expression.span,
-            Expr::OptionalDefault(expression) => expression.span,
+            Expr::Otherwise(expression) => expression.span,
             Expr::If(expression) => expression.span,
             Expr::IfIs(expression) => expression.span,
             Expr::Match(expression) => expression.span,

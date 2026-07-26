@@ -332,13 +332,8 @@ impl ViewIter<T> {
 `&[T].iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
 
 ```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
+for i in 0..<bytes.len() {
+    let byte = bytes[i]
     consume(byte)
 }
 ```

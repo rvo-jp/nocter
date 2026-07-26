@@ -167,8 +167,6 @@ Rules:
 - `if enum_expr is Enum.variant { ... }` follows the same statement/expression rules as ordinary `if`.
 - Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
 - `else if ...` is syntax for an `else` body whose result is another `if` expression.
-- `let name = optional_expr else { ... }` is a declaration statement.
-- `var name = optional_expr else { ... }` is a declaration statement.
 - `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` may be used as statements or expressions.
 - A `match` expression without `else` must cover all variants to avoid a `void` missing-branch type.
 - `match` arm body result types must be compatible when the `match` value is used.
@@ -178,7 +176,6 @@ Rules:
 - `return value` explicitly returns a value from a function.
 - `return error_value` explicitly returns a failure from a fallible function.
 - `return none` explicitly returns absence from an optional function, or success absence from a fallible optional function.
-- Optional `let ... else` and `var ... else` declarations must use an `else` block that terminates the current control path.
 
 Examples:
 
@@ -220,7 +217,7 @@ Rules:
 - For evaluated method arguments, evaluation remains left-to-right.
 - Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.
 - Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-assignment).
-- Operators and expressions with conditional evaluation, such as `&&`, `||`, `??`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
+- Operators and expressions with conditional evaluation, such as `&&`, `||`, `otherwise`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
 - Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.
@@ -304,26 +301,11 @@ loop {
 }
 ```
 
-Optional loops use ordinary `loop` plus `let ... else` when each iteration should stop on `none`:
-
-```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
-    consume(byte)
-}
-```
-
 Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Optional iteration is expressed with `loop` and `let ... else { break }`.
-- Optional borrow values such as `(&T)?` are allowed. For example, `let item = iter.next() else { break }` is valid inside a loop when `next()` returns `(&T)?`.
+- Optional values do not have dedicated loop syntax in v0.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
@@ -348,27 +330,13 @@ Deferred:
 - compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
 - reverse iteration and custom step syntax
 
-Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`. Collection iteration is expressed through ordinary standard-library iterator types and explicit optional extraction.
+Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`.
 
 Use range `for` with indexing:
 
 ```nct
 for i in 0..<bytes.len() {
     let byte = bytes[i]
-    consume(byte)
-}
-```
-
-Or use explicit ordinary methods:
-
-```nct
-var iter = bytes.iter()
-
-loop {
-    let byte = iter.next() else {
-        break
-    }
-
     consume(byte)
 }
 ```
@@ -399,9 +367,7 @@ Example:
 use std/process as process
 
 func require_path(path: &str?): &str {
-    let value = path else {
-        process.abort()
-    }
+    let value = path otherwise { process.abort() }
 
     return value
 }
@@ -430,11 +396,11 @@ Example:
 
 ```nct
 func require_path_short(path: &str?): &str {
-    return path ?? process.abort()
+    return path otherwise { process.abort() }
 }
 ```
 
-The `??` expression above has type `&str`. The right side does not produce a fallback `&str`; it terminates the current path.
+The `otherwise` expression above has type `&str`. The fallback body does not produce a fallback `&str`; it terminates the current path.
 
 `never` also satisfies `catch` block termination:
 

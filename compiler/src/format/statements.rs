@@ -99,11 +99,6 @@ impl Formatter {
         }
         self.write(" = ");
         self.format_expression(&statement.initializer);
-
-        if let Some(else_block) = &statement.else_block {
-            self.write(" else ");
-            self.format_block(else_block);
-        }
     }
 
     pub(super) fn format_if_statement(&mut self, statement: &IfStmt) {
@@ -244,7 +239,7 @@ impl Formatter {
 
 fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
     match expression {
-        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) => false,
+        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) | Expr::Otherwise(_) => false,
         Expr::ArrayLiteral(expression) => expression
             .elements
             .iter()
@@ -268,7 +263,6 @@ fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
         | Expr::Call(_)
         | Expr::Member(_)
         | Expr::Index(_)
-        | Expr::Group(_)
-        | Expr::OptionalDefault(_) => true,
+        | Expr::Group(_) => true,
     }
 }
