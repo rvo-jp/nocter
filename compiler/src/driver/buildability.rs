@@ -560,6 +560,243 @@ fn collect_terminal_return_expression_diagnostics(
     }
 }
 
+fn collect_value_expression_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match unwrap_group_expr(expression) {
+        Expr::If(expression) if value_if_expression_is_buildable(expression) => {
+            collect_expression_diagnostics(
+                &expression.condition,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_value_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_value_block_diagnostics(
+                    else_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        Expr::IfIs(expression) if value_if_is_expression_is_buildable(expression, resolved) => {
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_value_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_value_block_diagnostics(
+                    else_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        _ => collect_expression_diagnostics(
+            expression,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        ),
+    }
+}
+
+fn collect_value_block_diagnostics(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(result) = &block.result else {
+        return;
+    };
+    collect_value_expression_diagnostics(
+        result,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn binding_initializer_may_use_value_control_expression(
+    statement: &crate::ast::BindingStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    if typecheck_facts
+        .binding_scalar_view_kind(statement.name_span)
+        .is_some()
+    {
+        return true;
+    }
+
+    let Some(ty) = &statement.ty else {
+        return false;
+    };
+    type_expr_is_buildable_scalar_or_view(ty, resolved)
+}
+
+fn assignment_value_may_use_value_control_expression(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    let Expr::Identifier(identifier) = unwrap_group_expr(&statement.target) else {
+        return false;
+    };
+    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+        return false;
+    };
+    typecheck_facts
+        .binding_scalar_view_kind(symbol.name_span)
+        .is_some()
+}
+
+fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_buildable_scalar_or_view_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_buildable_scalar_or_view_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference)
+            if matches!(reference.name.as_str(), "i32" | "u8" | "usize" | "bool") =>
+        {
+            true
+        }
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            true
+        }
+        TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::View(_)) => true,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result =
+                type_expr_is_buildable_scalar_or_view_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
+}
+
+fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
+    expression.else_block.is_some()
+        && value_block_is_expression_only(&expression.then_block)
+        && expression
+            .else_block
+            .as_ref()
+            .is_some_and(value_block_is_expression_only)
+}
+
+fn value_if_is_expression_is_buildable(
+    expression: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    terminal_if_is_expression_is_buildable(expression, resolved)
+        && value_block_is_expression_only(&expression.then_block)
+        && expression
+            .else_block
+            .as_ref()
+            .is_some_and(value_block_is_expression_only)
+}
+
+fn value_block_is_expression_only(block: &Block) -> bool {
+    block.statements.is_empty() && block.result.is_some()
+}
+
 fn terminal_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
     expression.else_block.is_some()
 }
@@ -703,18 +940,37 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Binding(statement) => {
-            collect_expression_diagnostics(
-                &statement.initializer,
-                sources,
+            if binding_initializer_may_use_value_control_expression(
+                statement,
                 resolved,
                 typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
+            ) {
+                collect_value_expression_diagnostics(
+                    &statement.initializer,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else {
+                collect_expression_diagnostics(
+                    &statement.initializer,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
         }
         Stmt::Assignment(statement) => {
             if !assignment_operator_is_buildable(
@@ -747,18 +1003,37 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_expression_diagnostics(
-                &statement.value,
-                sources,
+            if assignment_value_may_use_value_control_expression(
+                statement,
                 resolved,
                 typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
+            ) {
+                collect_value_expression_diagnostics(
+                    &statement.value,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else {
+                collect_expression_diagnostics(
+                    &statement.value,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
         }
         Stmt::If(statement) => {
             collect_expression_diagnostics(

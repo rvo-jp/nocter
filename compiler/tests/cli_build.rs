@@ -4421,6 +4421,36 @@ func from_match(choice: Choice): i32 {
 }
 
 #[test]
+fn build_command_accepts_value_if_bindings_and_assignments() {
+    let project = TempProject::new("cli-build-value-if-bindings-and-assignments");
+    let source = project.write_source(
+        "value_if_bindings_and_assignments.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let byte: u8 = if true { 5 } else { 1 }
+    let size: usize = if byte == 5 { 7 } else { 1 }
+    let text: &str = if size == 7 { "Nocter" } else { "Other" }
+    let ok: bool = if text == "Nocter" { true } else { false }
+    var code = if ok { 10 } else { 1 }
+    let choice = Choice.no
+    code = if choice is Choice.no { code + 32 } else { 0 }
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(

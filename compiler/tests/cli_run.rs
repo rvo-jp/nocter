@@ -8970,6 +8970,41 @@ func from_match(choice: Choice): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_if_binding_and_assignment_exit_code() {
+    let project = TempProject::new("cli-run-value-if-binding-and-assignment");
+    let source = project.write_source(
+        "value_if_binding_and_assignment.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let byte: u8 = if true { 5 } else { 1 }
+    let size: usize = if byte == 5 { 7 } else { 1 }
+    let text: &str = if size == 7 { "Nocter" } else { "Other" }
+    let ok: bool = if text == "Nocter" { true } else { false }
+    var code = if ok { 10 } else { 1 }
+    let choice = Choice.no
+    code = if choice is Choice.no { code + 32 } else { 0 }
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(
