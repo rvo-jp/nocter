@@ -1,6 +1,7 @@
 use super::bindings::{
-    assignment_targets_direct_slice_index, assignment_targets_readwrite_aggregate_field,
-    lower_assignment, lower_local_binding,
+    LoopControlContext, assignment_targets_direct_slice_index,
+    assignment_targets_readwrite_aggregate_field, lower_assignment, lower_local_binding,
+    lower_local_binding_with_loop_control,
 };
 use super::context::LoweringContext;
 use super::expressions::{
@@ -884,11 +885,16 @@ fn lower_nonterminal_loop_block_statements(
                         statement.initializer.span(),
                     ));
                 }
-                instructions.extend(lower_local_binding(statement, context).map_err(
-                    |diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                    },
-                )?)
+                let loop_control = loop_scope_mark.map(|loop_scope_mark| LoopControlContext {
+                    loop_scope_mark,
+                    continue_instructions,
+                });
+                instructions.extend(
+                    lower_local_binding_with_loop_control(statement, context, loop_control)
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                        })?,
+                )
             }
             Stmt::Assignment(statement) => {
                 let target_allowed =
@@ -1510,6 +1516,7 @@ fn nonterminal_assignment_target_allowed(
     assignment_target_root_name(&statement.target)
         .is_some_and(|target_name| context.local_defined_since(target_name, local_mark))
         || assignment_targets_whole_scalar_or_view_local(statement, context)
+        || compound_assignment_targets_scalar_integer_local(statement, context)
         || assignment_targets_whole_aggregate_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
         || assignment_targets_direct_slice_index(statement, context)
@@ -1543,6 +1550,25 @@ fn assignment_targets_whole_scalar_or_view_local(
     ) || matches!(
         context.slice_location(&identifier.name),
         Some(SliceLocation::Local(_))
+    )
+}
+
+fn compound_assignment_targets_scalar_integer_local(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.operator == AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    matches!(
+        context.i32_location(&identifier.name),
+        Some(I32Location::Local(_))
+    ) || matches!(
+        context.usize_location(&identifier.name),
+        Some(UsizeLocation::Local(_))
     )
 }
 

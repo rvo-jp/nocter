@@ -20763,6 +20763,148 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_otherwise_break_call_binding_inside_loop() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var total = 0
+    loop {
+        let value = maybe_answer(total) otherwise { break }
+        total += value
+    }
+    return total
+}
+
+func maybe_answer(total: i32): i32? {
+    return none
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(true),
+                body_instructions: vec![
+                    Instruction::CallFallibleI32 {
+                        destination: I32Location::Local(1),
+                        target: CallTarget::same_file("maybe_answer"),
+                        arguments: vec![ScalarArgument::I32(i32_local(0))],
+                        failure_mode: FallibleFailureMode::Handle {
+                            instructions: vec![Instruction::Break],
+                        },
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_optional_i32_otherwise_continue_call_binding_inside_range_for() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var total = 0
+    for index in 0..<4 {
+        let value = only_even(index) otherwise { continue }
+        total += value
+    }
+    return total
+}
+
+func only_even(index: i32): i32? {
+    return none
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(1),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(2),
+                value: i32_const(4),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(1),
+                    right: i32_local(2),
+                },
+                body_instructions: vec![
+                    Instruction::CallFallibleI32 {
+                        destination: I32Location::Local(3),
+                        target: CallTarget::same_file("only_even"),
+                        arguments: vec![ScalarArgument::I32(i32_local(1))],
+                        failure_mode: FallibleFailureMode::Handle {
+                            instructions: vec![
+                                Instruction::AddI32 {
+                                    destination: I32Location::Local(1),
+                                    left: i32_local(1),
+                                    right: i32_const(1),
+                                },
+                                Instruction::Continue,
+                            ],
+                        },
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_local(3),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(1),
+                        left: i32_local(1),
+                        right: i32_const(1),
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_optional_i32_otherwise_never_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {

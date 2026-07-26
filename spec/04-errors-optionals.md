@@ -324,7 +324,7 @@ Rules:
 - `expr otherwise { body }` applies only when `expr` has type `T?`.
 - If `expr` is present, the result is the contained `T`.
 - If `expr` is `none`, the fallback body is evaluated.
-- The fallback body must produce `T`, or it may have type `never`.
+- The fallback body must produce `T`, or it may terminate the current control path with `return`, loop-local `break` / `continue`, or `never`.
 - The fallback body follows the common body rule: statements first, then an optional result expression.
 - The fallback body is evaluated only when needed.
 - `otherwise` is an expression, not a declaration form.

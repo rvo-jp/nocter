@@ -1543,7 +1543,7 @@ use(home)
 
 optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。
 
-absence を値として補う場合、または absence 側で `return` / `never` を実行したい場合は `otherwise` を使います。
+absence を値として補う場合、または absence 側で `return` / `break` / `continue` / `never` を実行したい場合は `otherwise` を使います。
 
 ```nct
 let home = lookup("HOME") otherwise { "/tmp" }
@@ -1555,7 +1555,7 @@ let config = find_config(path) otherwise {
 }
 ```
 
-`value otherwise { fallback }` は `value: T?` が present なら `T` を取り出し、`none` なら fallback block を評価します。fallback block の body result は `T` である必要があります。fallback block が `return` や `never` 呼び出しで現在の path を離脱する場合も、`never` は `T` と互換です。fallback block は必要な場合だけ評価されます。
+`value otherwise { fallback }` は `value: T?` が present なら `T` を取り出し、`none` なら fallback block を評価します。fallback block の body result は `T` である必要があります。fallback block が `return`、loop 内の `break` / `continue`、または `never` 呼び出しで現在の path を離脱する場合も、その fallback は `T` と互換です。fallback block は必要な場合だけ評価されます。
 
 ```nct
 let port = env_int("PORT") otherwise {
@@ -1607,6 +1607,15 @@ while i < bytes.len() {
     }
 
     i += 1
+}
+```
+
+optional な反復は `otherwise { break }` で明示できます。
+
+```nct
+loop {
+    let item = iter.next() otherwise { break }
+    consume(item)
 }
 ```
 

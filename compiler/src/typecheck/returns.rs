@@ -843,7 +843,7 @@ fn check_expression_for_nested_returns(
                 &mut fallback_borrow_provenance,
             );
             let mut incoming = vec![present_borrow_provenance];
-            if !block_guarantees_return_or_never(
+            if !block_guarantees_control_exit_or_never(
                 &expression.fallback,
                 resolved,
                 &fallback_environment,
@@ -1565,6 +1565,69 @@ pub(super) fn block_guarantees_return_or_never(
 
     block.statements.last().is_some_and(|statement| {
         statement_guarantees_return_or_never(statement, resolved, environment)
+    })
+}
+
+pub(super) fn block_guarantees_control_exit_or_never(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    if let Some(result) = &block.result {
+        return expression_type(result, resolved, environment) == Type::Never;
+    }
+
+    block.statements.last().is_some_and(|statement| {
+        statement_guarantees_control_exit_or_never(statement, resolved, environment)
+    })
+}
+
+fn statement_guarantees_control_exit_or_never(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match statement {
+        Stmt::Break(_) | Stmt::Continue(_) => true,
+        Stmt::Expression(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::If(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_control_exit_or_never(&statement.then_block, resolved, environment)
+                && block_guarantees_control_exit_or_never(else_block, resolved, environment)
+        }),
+        Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_control_exit_or_never(&statement.then_block, resolved, environment)
+                && block_guarantees_control_exit_or_never(else_block, resolved, environment)
+        }),
+        Stmt::Switch(statement) => {
+            if !switch_arms_guarantee_control_exit_or_never(statement, resolved, environment) {
+                return false;
+            }
+
+            statement.else_arm.as_ref().map_or_else(
+                || switch_statement_covers_all_variants(statement, resolved, environment),
+                |else_arm| {
+                    block_guarantees_control_exit_or_never(&else_arm.body, resolved, environment)
+                },
+            )
+        }
+        Stmt::Loop(statement) => {
+            block_guarantees_return_or_never(&statement.body, resolved, environment)
+        }
+        _ => statement_guarantees_return(statement),
+    }
+}
+
+fn switch_arms_guarantee_control_exit_or_never(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    statement.arms.iter().all(|arm| {
+        let arm_environment =
+            environment_for_switch_arm(arm, &statement.expression, resolved, environment);
+        block_guarantees_control_exit_or_never(&arm.body, resolved, &arm_environment)
     })
 }
 

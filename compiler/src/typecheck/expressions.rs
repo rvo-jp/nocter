@@ -4,7 +4,7 @@ use super::calls::{call_return_type, resolved_call_signature};
 use super::diagnostics::error_member_unknown_diagnostic;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::binary_expression_type;
-use super::returns::block_guarantees_return_or_never;
+use super::returns::block_guarantees_control_exit_or_never;
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
 use super::type_expr::type_expr_to_type_in_environment;
@@ -146,7 +146,7 @@ pub(super) fn block_result_type(
         return expression_type(result, resolved, &result_environment);
     }
 
-    if block_guarantees_return_or_never(block, resolved, &result_environment) {
+    if block_guarantees_control_exit_or_never(block, resolved, &result_environment) {
         Type::Never
     } else {
         Type::Void

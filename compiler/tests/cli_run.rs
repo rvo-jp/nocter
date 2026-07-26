@@ -9399,6 +9399,84 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_otherwise_break_binding_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-break-binding");
+    let source = project.write_source(
+        "optional_otherwise_break_binding.nct",
+        r#"func main(): i32 {
+    var total = 0
+    loop {
+        let value = next(total) otherwise { break }
+        total += value
+    }
+    return total
+}
+
+func next(total: i32): i32? {
+    if total == 0 {
+        return 2
+    }
+    if total == 2 {
+        return 40
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_otherwise_continue_binding_exit_code() {
+    let project = TempProject::new("cli-run-optional-otherwise-continue-binding");
+    let source = project.write_source(
+        "optional_otherwise_continue_binding.nct",
+        r#"func main(): i32 {
+    var index = 0
+    var total = 0
+    while index < 4 {
+        index += 1
+        let value = only_even(index) otherwise { continue }
+        total += value
+    }
+    return total
+}
+
+func only_even(index: i32): i32? {
+    if index == 2 {
+        return 20
+    }
+    if index == 4 {
+        return 22
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_scalar_otherwise_bindings_exit_code() {
     let project = TempProject::new("cli-run-optional-scalar-otherwise-bindings");
     let source = project.write_source(

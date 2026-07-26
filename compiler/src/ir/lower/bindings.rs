@@ -48,19 +48,34 @@ use crate::ir::{
 };
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
+#[derive(Clone, Copy)]
+pub(super) struct LoopControlContext<'a> {
+    pub(super) loop_scope_mark: usize,
+    pub(super) continue_instructions: &'a [Instruction],
+}
+
 pub(super) fn lower_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_local_binding_with_loop_control(statement, context, None)
+}
+
+pub(super) fn lower_local_binding_with_loop_control(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if expression_contains_interpolated_string(&statement.initializer) {
         return Err(unsupported_interpolated_string_diagnostic());
     }
 
-    if let Some(instructions) = lower_otherwise_scalar_binding(statement, context)? {
+    if let Some(instructions) = lower_otherwise_scalar_binding(statement, context, loop_control)? {
         return Ok(instructions);
     }
 
-    if let Some(instructions) = lower_otherwise_aggregate_binding(statement, context)? {
+    if let Some(instructions) = lower_otherwise_aggregate_binding(statement, context, loop_control)?
+    {
         return Ok(instructions);
     }
 
@@ -130,18 +145,23 @@ fn optional_success_scalar_binding_kind(
 fn lower_otherwise_terminal_block(
     block: &Block,
     context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(result) = &block.result {
         let mut instructions = Vec::new();
         for statement in &block.statements {
-            instructions.extend(lower_otherwise_leading_statement(statement, context)?);
+            instructions.extend(lower_otherwise_leading_statement(
+                statement,
+                context,
+                loop_control,
+            )?);
         }
 
         let Some(terminating_instructions) =
             lower_never_expression_with_scope_drops(result, context)?
         else {
             return Err(unsupported_binding_diagnostic(
-                "IR v0 can only lower `otherwise` fallback blocks ending in `return` or a `never` expression",
+                "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
             ));
         };
         instructions.extend(terminating_instructions);
@@ -156,7 +176,11 @@ fn lower_otherwise_terminal_block(
 
     let mut instructions = Vec::new();
     for statement in leading {
-        instructions.extend(lower_otherwise_leading_statement(statement, context)?);
+        instructions.extend(lower_otherwise_leading_statement(
+            statement,
+            context,
+            loop_control,
+        )?);
     }
 
     match terminal {
@@ -171,14 +195,30 @@ fn lower_otherwise_terminal_block(
                 lower_never_expression_with_scope_drops(&statement.expression, context)?
             else {
                 return Err(unsupported_binding_diagnostic(
-                    "IR v0 can only lower `otherwise` fallback blocks ending in `return` or a `never` expression",
+                    "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
                 ));
             };
             instructions.extend(terminating_instructions);
             Ok(instructions)
         }
+        Stmt::Break(_) => {
+            instructions.extend(lower_otherwise_loop_control_statement(
+                Instruction::Break,
+                context,
+                loop_control,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Continue(_) => {
+            instructions.extend(lower_otherwise_loop_control_statement(
+                Instruction::Continue,
+                context,
+                loop_control,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower `otherwise` fallback blocks ending in `return` or a `never` expression",
+            "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
         )),
     }
 }
@@ -186,9 +226,14 @@ fn lower_otherwise_terminal_block(
 fn lower_otherwise_leading_statement(
     statement: &Stmt,
     context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match statement {
-        Stmt::Binding(statement) => lower_local_binding(statement, context),
+        Stmt::Binding(statement) => lower_local_binding_with_loop_control(
+            statement,
+            context,
+            loop_control,
+        ),
         Stmt::Assignment(statement) => lower_assignment(statement, context),
         Stmt::Drop(statement) => lower_drop_statement(statement, context),
         Stmt::Expression(statement) => {
@@ -204,9 +249,30 @@ fn lower_otherwise_leading_statement(
     }
 }
 
+fn lower_otherwise_loop_control_statement(
+    instruction: Instruction,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(loop_control) = loop_control else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower `break` and `continue` inside `otherwise` fallback blocks when the binding is inside a nonterminal loop",
+        ));
+    };
+
+    let mut instructions =
+        lower_scope_end_drops_for_locals_since(context, loop_control.loop_scope_mark)?;
+    if matches!(instruction, Instruction::Continue) {
+        instructions.extend(loop_control.continue_instructions.iter().cloned());
+    }
+    instructions.push(instruction);
+    Ok(instructions)
+}
+
 fn lower_otherwise_recover_or_handle_failure_mode<F>(
     fallback: &Block,
     context: &LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
     mut lower_result: F,
     unsupported_message: &'static str,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>>
@@ -222,6 +288,7 @@ where
             instructions.extend(lower_otherwise_leading_statement(
                 statement,
                 &mut fallback_context,
+                loop_control,
             )?);
         }
 
@@ -243,13 +310,15 @@ where
         return Ok(FallibleFailureMode::Recover { instructions });
     }
 
-    let instructions = lower_otherwise_terminal_block(fallback, &mut fallback_context)?;
+    let instructions =
+        lower_otherwise_terminal_block(fallback, &mut fallback_context, loop_control)?;
     Ok(FallibleFailureMode::Handle { instructions })
 }
 
 fn lower_otherwise_scalar_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Expr::Otherwise(otherwise) = unwrap_group(&statement.initializer) else {
         return Ok(None);
@@ -281,8 +350,15 @@ fn lower_otherwise_scalar_binding(
     else {
         return Ok(None);
     };
-    lower_otherwise_scalar_call_binding(statement, call, &otherwise.fallback, kind, context)
-        .map(Some)
+    lower_otherwise_scalar_call_binding(
+        statement,
+        call,
+        &otherwise.fallback,
+        kind,
+        context,
+        loop_control,
+    )
+    .map(Some)
 }
 
 fn lower_otherwise_scalar_call_binding(
@@ -291,6 +367,7 @@ fn lower_otherwise_scalar_call_binding(
     fallback: &Block,
     kind: ScalarBindingKind,
     context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let expression_context = context.with_reserved_local_abi_words(kind.abi_word_count());
     let mut temporaries = TemporaryAllocator::new(&expression_context)?;
@@ -300,6 +377,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_i32_expression_to_location(expression, destination, context)
                 },
@@ -320,6 +398,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_u8_expression_to_location(expression, destination, context)
                 },
@@ -340,6 +419,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_usize_expression_to_location(expression, destination, context)
                 },
@@ -360,6 +440,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_bool_expression_to_location(expression, destination, context, "E8008")
                 },
@@ -380,6 +461,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_str_expression_to_location(expression, destination, context)
                 },
@@ -400,6 +482,7 @@ fn lower_otherwise_scalar_call_binding(
             let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
                 fallback,
                 &expression_context,
+                loop_control,
                 |expression, context| {
                     lower_slice_expression_to_location(expression, destination, context)
                 },
@@ -421,6 +504,7 @@ fn lower_otherwise_scalar_call_binding(
 fn lower_otherwise_aggregate_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Expr::Otherwise(otherwise) = unwrap_group(&statement.initializer) else {
         return Ok(None);
@@ -462,6 +546,7 @@ fn lower_otherwise_aggregate_binding(
         layout,
         AggregateLocation::Slot(slot_index),
         context,
+        loop_control,
     )?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
@@ -484,10 +569,12 @@ fn lower_otherwise_aggregate_failure_mode(
     layout: ValueLayout,
     destination: AggregateLocation,
     context: &LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
     lower_otherwise_recover_or_handle_failure_mode(
         fallback,
         context,
+        loop_control,
         |expression, context| {
             lower_aggregate_member_value_assignment(destination, 0, layout, expression, context)
         },

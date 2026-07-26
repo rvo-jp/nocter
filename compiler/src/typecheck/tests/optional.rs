@@ -172,6 +172,59 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn accepts_otherwise_break_binding_inside_loop() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var total = 0
+    loop {
+        let value = next(total) otherwise { break }
+        total += value
+    }
+    return total
+}
+
+func next(total: i32): i32? {
+    if total == 0 {
+        return 42
+    }
+    return none
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_otherwise_continue_binding_inside_loop() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var index = 0
+    var total = 0
+    while index < 4 {
+        index += 1
+        let value = only_even(index) otherwise { continue }
+        total += value
+    }
+    return total
+}
+
+func only_even(index: i32): i32? {
+    if index == 2 {
+        return 20
+    }
+    if index == 4 {
+        return 22
+    }
+    return none
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn keeps_plain_optional_borrow_binding_as_borrow_of_optional() {
     let diagnostics = check_text(
         r#"func main(): i32 {

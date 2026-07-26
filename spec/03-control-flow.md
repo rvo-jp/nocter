@@ -301,11 +301,18 @@ loop {
 }
 ```
 
+```nct
+loop {
+    let item = iter.next() otherwise { break }
+    consume(item)
+}
+```
+
 Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Optional values do not have dedicated loop syntax in v0.
+- Optional values do not have dedicated loop syntax in v0; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
