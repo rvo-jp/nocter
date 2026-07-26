@@ -1,10 +1,8 @@
-use super::super::aggregates::{aggregate_type_layout, supported_aggregate_copy_layout};
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
 use super::super::types::{scalar_or_view_type_from_type_expr, view_element_type_from_type_expr};
-use super::aggregate_call_field;
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, TypeConversionExpr,
     UnaryOperator,
@@ -738,6 +736,10 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
             direct_call_return_type(call, context) == Some(&Type::Str)
                 || call_return_slice_element_type(call, context) == Some(Type::U8)
         }
+        Expr::Member(member) => aggregate_member_field_kind(member, context).is_some_and(|kind| {
+            kind == AggregateFieldKind::Str
+                || kind == AggregateFieldKind::Slice(TypecheckSliceElementKind::U8)
+        }),
         Expr::Group(group) => expression_is_lowerable_byte_index_object(&group.expression, context),
         _ => false,
     }
@@ -753,6 +755,11 @@ fn expression_is_lowerable_slice_index_object(
                 == Some(TypecheckSliceElementKind::Usize)
         }
         Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Usize),
+        Expr::Member(member) => expression_is_aggregate_slice_field_element_kind(
+            member,
+            TypecheckSliceElementKind::Usize,
+            context,
+        ),
         Expr::Group(group) => {
             expression_is_lowerable_slice_index_object(&group.expression, context)
         }
@@ -770,6 +777,11 @@ fn expression_is_lowerable_i32_slice_index_object(
                 == Some(TypecheckSliceElementKind::I32)
         }
         Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::I32),
+        Expr::Member(member) => expression_is_aggregate_slice_field_element_kind(
+            member,
+            TypecheckSliceElementKind::I32,
+            context,
+        ),
         Expr::Group(group) => {
             expression_is_lowerable_i32_slice_index_object(&group.expression, context)
         }
@@ -787,6 +799,11 @@ fn expression_is_lowerable_bool_slice_index_object(
                 == Some(TypecheckSliceElementKind::Bool)
         }
         Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Bool),
+        Expr::Member(member) => expression_is_aggregate_slice_field_element_kind(
+            member,
+            TypecheckSliceElementKind::Bool,
+            context,
+        ),
         Expr::Group(group) => {
             expression_is_lowerable_bool_slice_index_object(&group.expression, context)
         }
@@ -804,11 +821,25 @@ fn expression_is_lowerable_str_slice_index_object(
                 == Some(TypecheckSliceElementKind::Str)
         }
         Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Str),
+        Expr::Member(member) => expression_is_aggregate_slice_field_element_kind(
+            member,
+            TypecheckSliceElementKind::Str,
+            context,
+        ),
         Expr::Group(group) => {
             expression_is_lowerable_str_slice_index_object(&group.expression, context)
         }
         _ => false,
     }
+}
+
+fn expression_is_aggregate_slice_field_element_kind(
+    member: &crate::ast::MemberExpr,
+    expected: TypecheckSliceElementKind,
+    context: &LoweringContext,
+) -> bool {
+    aggregate_member_field_kind(member, context)
+        .is_some_and(|kind| kind == AggregateFieldKind::Slice(expected))
 }
 
 fn identifier_slice_element_kind(
@@ -919,92 +950,9 @@ fn aggregate_member_field_kind(
     member: &crate::ast::MemberExpr,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
-    let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
-    fields.push(member.member.as_str());
-    let field_path = fields.join(".");
-    match root {
-        AggregateMemberRoot::Identifier(identifier_name) => context
-            .aggregate_field(identifier_name, &field_path)
-            .map(|field| field.kind),
-        AggregateMemberRoot::Call(call) => aggregate_call_field_kind(call, &field_path, context),
-        AggregateMemberRoot::FallibleCall(call) => {
-            aggregate_fallible_call_field_kind(call, &field_path, context)
-        }
-    }
-}
-
-enum AggregateMemberRoot<'a> {
-    Identifier(&'a str),
-    Call(&'a crate::ast::CallExpr),
-    FallibleCall(&'a crate::ast::CallExpr),
-}
-
-fn aggregate_member_root_and_path<'a>(
-    expression: &'a Expr,
-) -> Option<(AggregateMemberRoot<'a>, Vec<&'a str>)> {
-    match expression {
-        Expr::Identifier(identifier) => Some((
-            AggregateMemberRoot::Identifier(&identifier.name),
-            Vec::new(),
-        )),
-        Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
-        Expr::Propagate(propagation) => {
-            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
-                return None;
-            };
-            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
-        }
-        Expr::Force(force) => {
-            let Expr::Call(call) = unwrap_group(&force.expression) else {
-                return None;
-            };
-            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
-        }
-        Expr::Catch(catch) => {
-            let Expr::Call(call) = unwrap_group(&catch.expression) else {
-                return None;
-            };
-            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
-        }
-        Expr::Member(member) => {
-            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
-            fields.push(member.member.as_str());
-            Some((root, fields))
-        }
-        Expr::Group(group) => aggregate_member_root_and_path(&group.expression),
-        _ => None,
-    }
-}
-
-fn aggregate_call_field_kind(
-    call: &crate::ast::CallExpr,
-    member_name: &str,
-    context: &LoweringContext,
-) -> Option<AggregateFieldKind> {
-    let (target, _) = context.direct_call_target_and_name(call)?;
-    let layout = aggregate_type_layout(context.call_return_type(&target)?)?;
-    if !supported_aggregate_copy_layout(layout) {
-        return None;
-    }
-
-    aggregate_call_field(call, member_name, context).map(|field| field.kind)
-}
-
-fn aggregate_fallible_call_field_kind(
-    call: &crate::ast::CallExpr,
-    member_name: &str,
-    context: &LoweringContext,
-) -> Option<AggregateFieldKind> {
-    let (target, _) = context.direct_call_target_and_name(call)?;
-    let layout = match context.call_return_type(&target)? {
-        Type::Fallible(success_type) => aggregate_type_layout(success_type.as_ref())?,
-        _ => return None,
-    };
-    if !supported_aggregate_copy_layout(layout) {
-        return None;
-    }
-
-    aggregate_call_field(call, member_name, context).map(|field| field.kind)
+    super::aggregate_member_field_kind_from_member(member, context)
+        .ok()
+        .flatten()
 }
 
 fn expression_is_lowerable_i32_value(expression: &Expr, context: &LoweringContext) -> bool {

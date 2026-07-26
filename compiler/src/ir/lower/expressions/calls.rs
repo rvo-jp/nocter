@@ -1496,6 +1496,8 @@ fn aggregate_field_matches_borrow_inner(kind: &AggregateFieldKind, inner: &Type)
         | (AggregateFieldKind::U8, Type::U8)
         | (AggregateFieldKind::Usize, Type::Usize)
         | (AggregateFieldKind::Bool, Type::Bool) => true,
+        (AggregateFieldKind::Str, Type::Str)
+        | (AggregateFieldKind::Slice(_), Type::Slice { .. }) => true,
         (AggregateFieldKind::Aggregate { layout, .. }, Type::Aggregate { layout: expected })
         | (
             AggregateFieldKind::Aggregate { layout, .. },

@@ -9326,6 +9326,81 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_slice_view_aggregate_field_exit_code() {
+    let project = TempProject::new("cli-run-slice-view-aggregate-field");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "slice_view_aggregate_field.nct",
+        r#"use std/string.bytes
+
+copy struct Packet {
+    data: &[u8]
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func make_packet(data: &[u8]): Packet {
+    return Packet{ data: data }
+}
+
+func packet_data(packet: Packet): &[u8] {
+    return packet.data
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    var packet = Packet{ data: if choice is Choice.yes { bytes("Nocter") } else { bytes("x") } }
+    if packet.data.len() != 6 {
+        return 1
+    }
+    if packet.data[0] != 78 {
+        return 2
+    }
+
+    let data: &[u8] = packet.data
+    if data[5] != 114 {
+        return 3
+    }
+
+    packet.data = match choice { Choice.yes { bytes("Done") } else { bytes("bad") } }
+    if packet.data.len() != 4 {
+        return 4
+    }
+
+    let returned = make_packet(bytes("OK"))
+    let returned_data = packet_data(returned)
+    if returned_data[1] == 75 {
+        return 42
+    }
+    return 5
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
     let source = project.write_source(

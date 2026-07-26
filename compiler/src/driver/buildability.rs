@@ -874,14 +874,16 @@ fn struct_literal_field_may_use_value_control_expression(
 }
 
 fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) -> bool {
-    matches!(
-        kind,
+    match kind {
         TypecheckScalarViewKind::I32
-            | TypecheckScalarViewKind::U8
-            | TypecheckScalarViewKind::Usize
-            | TypecheckScalarViewKind::Bool
-            | TypecheckScalarViewKind::Str
-    )
+        | TypecheckScalarViewKind::U8
+        | TypecheckScalarViewKind::Usize
+        | TypecheckScalarViewKind::Bool
+        | TypecheckScalarViewKind::Str => true,
+        TypecheckScalarViewKind::Slice(element) => {
+            typecheck_slice_element_kind_is_buildable(element)
+        }
+    }
 }
 
 fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -2374,6 +2376,16 @@ fn slice_index_target_is_buildable(
             )?;
             slice_index_target_type_expr_is_buildable(&return_type, resolved)
         }
+        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+            TypecheckScalarViewKind::Str => Some(true),
+            TypecheckScalarViewKind::Slice(element) => {
+                Some(typecheck_slice_element_kind_is_buildable(element))
+            }
+            TypecheckScalarViewKind::I32
+            | TypecheckScalarViewKind::U8
+            | TypecheckScalarViewKind::Usize
+            | TypecheckScalarViewKind::Bool => None,
+        },
         Expr::Group(group) => slice_index_target_is_buildable(
             &group.expression,
             resolved,

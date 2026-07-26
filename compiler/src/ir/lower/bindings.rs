@@ -23,7 +23,8 @@ use super::expressions::{
     lower_str_expression_to_value, lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
     lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
-    lower_void_expression_statement, push_store_str_view_to_aggregate_field,
+    lower_void_expression_statement, push_store_slice_view_to_aggregate_field,
+    push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
     lower_drop_statement, lower_never_expression_with_scope_drops,
@@ -1773,6 +1774,9 @@ fn lower_aggregate_field_assignment(
         AggregateFieldKind::Str => {
             lower_str_aggregate_field_assignment(value, destination, offset, context)
         }
+        AggregateFieldKind::Slice(_) => {
+            lower_slice_aggregate_field_assignment(value, destination, offset, context)
+        }
         AggregateFieldKind::Aggregate { layout, .. } => {
             if field_is_copy {
                 lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
@@ -1799,6 +1803,25 @@ fn lower_str_aggregate_field_assignment(
     let mut temporaries = TemporaryAllocator::new(context)?;
     let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
     push_store_str_view_to_aggregate_field(
+        &mut lowered.instructions,
+        destination,
+        offset,
+        lowered.value,
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?;
+    Ok(lowered.instructions)
+}
+
+fn lower_slice_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let mut lowered = lower_slice_expression_to_value(value, context, &mut temporaries)?;
+    push_store_slice_view_to_aggregate_field(
         &mut lowered.instructions,
         destination,
         offset,

@@ -4788,6 +4788,76 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_slice_view_aggregate_fields() {
+    let project = TempProject::new("cli-build-slice-view-aggregate-fields");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "slice_view_aggregate_fields.nct",
+        r#"use std/string.bytes
+
+copy struct Packet {
+    data: &[u8]
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func make_packet(data: &[u8]): Packet {
+    return Packet{ data: data }
+}
+
+func packet_data(packet: Packet): &[u8] {
+    return packet.data
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    var packet = Packet{ data: if choice is Choice.yes { bytes("Nocter") } else { bytes("x") } }
+    if packet.data.len() != 6 {
+        return 1
+    }
+    if packet.data[0] != 78 {
+        return 2
+    }
+
+    let data: &[u8] = packet.data
+    if data[5] != 114 {
+        return 3
+    }
+
+    packet.data = match choice { Choice.yes { bytes("Done") } else { bytes("bad") } }
+    if packet.data.len() != 4 {
+        return 4
+    }
+
+    let returned = make_packet(bytes("OK"))
+    let returned_data = packet_data(returned)
+    if returned_data[1] == 75 {
+        return 0
+    }
+    return 5
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(

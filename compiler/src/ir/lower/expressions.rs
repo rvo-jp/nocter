@@ -509,8 +509,16 @@ pub(super) fn lower_slice_expression_to_location(
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
         }
-        _ => lower_slice_value(expression, context)
-            .map(|value| vec![Instruction::SetSlice { destination, value }]),
+        _ => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let value = lower_slice_expression_to_value(expression, context, &mut temporaries)?;
+            let mut instructions = value.instructions;
+            instructions.push(Instruction::SetSlice {
+                destination,
+                value: value.value,
+            });
+            Ok(instructions)
+        }
     }
 }
 
@@ -787,6 +795,24 @@ fn lower_str_if_expression_to_value(
             &expression_context,
         )?,
         value: StrValue::Location(temporary),
+    })
+}
+
+fn lower_slice_if_expression_to_value(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_slice()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredSliceValue {
+        instructions: lower_slice_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: SliceValue::Location(temporary),
     })
 }
 
@@ -2398,6 +2424,12 @@ pub(super) fn lower_slice_expression_to_value(
         Expr::Match(statement) => {
             lower_slice_match_expression_to_value(statement, context, temporaries)
         }
+        Expr::If(statement) => lower_slice_if_expression_to_value(statement, context, temporaries),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
+            lower_slice_if_expression_to_value(&if_statement, context, temporaries)
+        }
+        Expr::Member(_) => lower_aggregate_slice_field_to_value(expression, context, temporaries),
         Expr::Group(group) => {
             lower_slice_expression_to_value(&group.expression, context, temporaries)
         }
@@ -3374,6 +3406,42 @@ fn lower_aggregate_str_field_to_value(
     })
 }
 
+fn lower_aggregate_slice_field_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
+        .filter(|access| matches!(access.kind, AggregateFieldKind::Slice(_)))
+        .ok_or_else(unsupported_slice_expression_diagnostic)?;
+    let temporary = temporaries.next_slice()?;
+    let SliceLocation::Local(index) = temporary else {
+        unreachable!("temporary slice locations are local pairs");
+    };
+    let len_index = index
+        .checked_add(1)
+        .ok_or_else(unsupported_slice_expression_diagnostic)?;
+    let len_offset = access
+        .offset
+        .checked_add(8)
+        .ok_or_else(unsupported_slice_expression_diagnostic)?;
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(index),
+        source: access.source,
+        offset: access.offset,
+    });
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(len_index),
+        source: access.source,
+        offset: len_offset,
+    });
+    Ok(LoweredSliceValue {
+        instructions,
+        value: SliceValue::Location(temporary),
+    })
+}
+
 pub(super) fn push_store_str_view_to_aggregate_field(
     instructions: &mut Vec<Instruction>,
     destination: AggregateLocation,
@@ -3390,6 +3458,38 @@ pub(super) fn push_store_str_view_to_aggregate_field(
     let len_offset = offset.checked_add(8).ok_or_else(unsupported_diagnostic)?;
 
     instructions.push(Instruction::SetStr {
+        destination: temporary,
+        value,
+    });
+    instructions.push(Instruction::StoreAggregateUsize {
+        destination,
+        offset,
+        value: UsizeValue::Location(UsizeLocation::Local(index)),
+    });
+    instructions.push(Instruction::StoreAggregateUsize {
+        destination,
+        offset: len_offset,
+        value: UsizeValue::Location(UsizeLocation::Local(len_index)),
+    });
+    Ok(())
+}
+
+pub(super) fn push_store_slice_view_to_aggregate_field(
+    instructions: &mut Vec<Instruction>,
+    destination: AggregateLocation,
+    offset: u32,
+    value: SliceValue,
+    temporaries: &mut TemporaryAllocator,
+    unsupported_diagnostic: impl Fn() -> Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    let temporary = temporaries.next_slice()?;
+    let SliceLocation::Local(index) = temporary else {
+        unreachable!("temporary slice locations are local pairs");
+    };
+    let len_index = index.checked_add(1).ok_or_else(&unsupported_diagnostic)?;
+    let len_offset = offset.checked_add(8).ok_or_else(unsupported_diagnostic)?;
+
+    instructions.push(Instruction::SetSlice {
         destination: temporary,
         value,
     });
@@ -3527,6 +3627,76 @@ fn aggregate_member_root_and_path<'a>(
         }
         _ => Ok(None),
     }
+}
+
+fn aggregate_member_field_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<AggregateFieldKind>, Vec<Diagnostic>> {
+    let Expr::Member(member) = unwrap_group(expression) else {
+        return Ok(None);
+    };
+    aggregate_member_field_kind_from_member(member, context)
+}
+
+pub(super) fn aggregate_member_field_kind_from_member(
+    member: &crate::ast::MemberExpr,
+    context: &LoweringContext,
+) -> Result<Option<AggregateFieldKind>, Vec<Diagnostic>> {
+    let Some((root, mut fields)) = aggregate_member_root_and_path(&member.object, context)? else {
+        return Ok(None);
+    };
+    fields.push(member.member.as_str());
+    let field_path = fields.join(".");
+    Ok(match root {
+        AggregateMemberRoot::Identifier(identifier_name) => context
+            .aggregate_field(identifier_name, &field_path)
+            .map(|field| field.kind),
+        AggregateMemberRoot::Call(call) => {
+            aggregate_call_member_field_kind(call, &field_path, context)
+        }
+        AggregateMemberRoot::FallibleCall(call, _) => {
+            aggregate_fallible_call_member_field_kind(call, &field_path, context)
+        }
+    })
+}
+
+fn aggregate_call_member_field_kind(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+) -> Option<AggregateFieldKind> {
+    if macos_syscall_primitive_call(call, context)
+        && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
+    {
+        if !supported_aggregate_copy_layout(layout) {
+            return None;
+        }
+        return aggregate_call_field(call, member_name, context).map(|field| field.kind);
+    }
+
+    let (target, _) = context.direct_call_target_and_name(call)?;
+    let layout = aggregate_type_layout(context.call_return_type(&target)?)?;
+    if !supported_aggregate_copy_layout(layout) {
+        return None;
+    }
+    aggregate_call_field(call, member_name, context).map(|field| field.kind)
+}
+
+fn aggregate_fallible_call_member_field_kind(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+) -> Option<AggregateFieldKind> {
+    let (target, _) = context.direct_call_target_and_name(call)?;
+    let Type::Fallible(success_type) = context.call_return_type(&target)? else {
+        return None;
+    };
+    let layout = aggregate_type_layout(success_type.as_ref())?;
+    if !supported_aggregate_copy_layout(layout) {
+        return None;
+    }
+    aggregate_call_field(call, member_name, context).map(|field| field.kind)
 }
 
 fn lower_aggregate_call_member_field_access(
@@ -4356,6 +4526,14 @@ fn byte_collection_expression_kind(
             }
         }
         Expr::Call(call) => byte_collection_call_kind(call, context),
+        Expr::Member(_) => match aggregate_member_field_kind(expression, context)
+            .ok()
+            .flatten()?
+        {
+            AggregateFieldKind::Str => Some(ByteCollectionKind::Str),
+            AggregateFieldKind::Slice(_) => Some(ByteCollectionKind::Slice),
+            _ => None,
+        },
         Expr::Propagate(propagation) => {
             fallible_byte_collection_expression_kind(&propagation.expression, context)
         }

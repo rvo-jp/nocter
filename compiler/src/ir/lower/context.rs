@@ -1349,6 +1349,7 @@ pub(super) enum AggregateFieldKind {
     Usize,
     Bool,
     Str,
+    Slice(TypecheckSliceElementKind),
     Aggregate {
         layout: ValueLayout,
         fields: Vec<AggregateField>,

@@ -5,11 +5,13 @@ use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_word, lower_macos_syscall_primitive_call_to_location,
-    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
+    lower_usize_expression_to_word, push_store_slice_view_to_aggregate_field,
     push_store_str_view_to_aggregate_field,
 };
 use super::functions::propagating_failure_mode;
 use super::literals::{lower_u16_literal, lower_u32_literal};
+use super::types::view_element_type_from_type_expr;
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{
     CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
@@ -21,6 +23,7 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceId;
+use crate::typecheck::TypecheckSliceElementKind;
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn supported_aggregate_copy_layout(layout: ValueLayout) -> bool {
@@ -426,7 +429,7 @@ fn collect_aggregate_fields(
     resolved: &ResolveOutput,
     aggregate_fields: &mut Vec<AggregateField>,
 ) -> Option<()> {
-    if let Some(kind) = aggregate_field_kind_from_abi_type(ty) {
+    if let Some(kind) = aggregate_field_kind_from_abi_type(ty, source_ty, resolved) {
         let offset = u32::try_from(base_offset).ok()?;
         aggregate_fields.push(AggregateField {
             name: name.to_string(),
@@ -498,7 +501,11 @@ fn collect_aggregate_fields(
     Some(())
 }
 
-fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind> {
+fn aggregate_field_kind_from_abi_type(
+    ty: &AbiType,
+    source_ty: Option<&TypeExpr>,
+    resolved: &ResolveOutput,
+) -> Option<AggregateFieldKind> {
     match ty {
         AbiType::I32 => Some(AggregateFieldKind::I32),
         AbiType::U16 => Some(AggregateFieldKind::U16),
@@ -507,7 +514,24 @@ fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
+        AbiType::SliceView => Some(AggregateFieldKind::Slice(
+            source_ty
+                .and_then(|ty| view_element_type_from_type_expr(ty, resolved))
+                .map(typecheck_slice_element_kind_from_type)
+                .unwrap_or(TypecheckSliceElementKind::Other),
+        )),
         _ => None,
+    }
+}
+
+fn typecheck_slice_element_kind_from_type(ty: Type) -> TypecheckSliceElementKind {
+    match ty {
+        Type::I32 => TypecheckSliceElementKind::I32,
+        Type::U8 => TypecheckSliceElementKind::U8,
+        Type::Usize => TypecheckSliceElementKind::Usize,
+        Type::Bool => TypecheckSliceElementKind::Bool,
+        Type::Str => TypecheckSliceElementKind::Str,
+        _ => TypecheckSliceElementKind::Other,
     }
 }
 
@@ -579,6 +603,15 @@ fn lower_aggregate_field_to_location(
             Ok(lowered.instructions)
         }
         AbiType::StrView => lower_str_view_field_to_location(
+            expression,
+            destination,
+            offset,
+            diagnostic_code,
+            subject,
+            context,
+            temporaries,
+        ),
+        AbiType::SliceView => lower_slice_view_field_to_location(
             expression,
             destination,
             offset,
@@ -799,6 +832,27 @@ fn lower_str_view_field_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut lowered = lower_str_expression_to_value(expression, context, temporaries)?;
     push_store_str_view_to_aggregate_field(
+        &mut lowered.instructions,
+        destination,
+        offset,
+        lowered.value,
+        temporaries,
+        || unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject),
+    )?;
+    Ok(lowered.instructions)
+}
+
+fn lower_slice_view_field_to_location(
+    expression: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut lowered = lower_slice_expression_to_value(expression, context, temporaries)?;
+    push_store_slice_view_to_aggregate_field(
         &mut lowered.instructions,
         destination,
         offset,
@@ -1171,7 +1225,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values (u8, u16, u32, bool, i32, usize/u64, pointer, or &str), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values (u8, u16, u32, bool, i32, usize/u64, pointer, &str, or slice views), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }
