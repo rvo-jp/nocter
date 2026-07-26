@@ -4189,8 +4189,8 @@ fn build_command_reports_reachable_array_literal_before_ir_lowering() {
 }
 
 #[test]
-fn build_command_reports_member_rooted_index_assignment_before_ir_lowering() {
-    let project = TempProject::new("cli-build-member-rooted-index-assignment-boundary");
+fn build_command_lowers_member_rooted_slice_index_assignment() {
+    let project = TempProject::new("cli-build-member-rooted-slice-index-assignment");
     project.write_nocter_home_file(
         "std/ptr.nct",
         r#"pub(nocter) primitive from_addr<T>(address: usize): *T
@@ -4208,7 +4208,7 @@ pub func buffer(): &+[u8] {
 "#,
     );
     let source = project.write_source(
-        "member_rooted_index_assignment_boundary.nct",
+        "member_rooted_slice_index_assignment.nct",
         r#"use std/buffer.buffer
 
 struct Buffer {
@@ -4226,28 +4226,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("index assignment targets outside direct slice values"),
-        "expected index assignment target diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("9 |     holder.bytes[0] = 1"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

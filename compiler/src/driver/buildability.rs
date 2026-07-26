@@ -1156,9 +1156,13 @@ fn collect_statement_diagnostics(
                     "use `i32` or `usize` whole-binding, aggregate-field, or read-write slice element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
-            if let Some(diagnostic) =
-                unsupported_index_assignment_target_diagnostic(sources, statement)
-            {
+            if let Some(diagnostic) = unsupported_index_assignment_target_diagnostic(
+                sources,
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(diagnostic);
             }
             collect_expression_diagnostics(
@@ -1604,21 +1608,23 @@ fn slice_index_compound_assignment_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    object.is_direct_slice_index_assignment_object()
-        && matches!(
-            slice_index_assignment_element_kind(
-                object,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-            ),
-            Some(TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize)
-        )
+    matches!(
+        slice_index_assignment_element_kind(
+            object,
+            resolved,
+            typecheck_facts,
+            generic_substitutions
+        ),
+        Some(TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize)
+    )
 }
 
 fn unsupported_index_assignment_target_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if statement.operator != AssignmentOperator::Assign {
         return None;
@@ -1626,15 +1632,22 @@ fn unsupported_index_assignment_target_diagnostic(
     let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
         return None;
     };
-    if index.object.is_direct_slice_index_assignment_object() {
+    if slice_index_assignment_element_kind(
+        &index.object,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+    .is_some_and(typecheck_slice_element_kind_is_buildable)
+    {
         return None;
     }
 
     Some(unsupported_v0_build_diagnostic(
         sources,
         index.object.span(),
-        "index assignment targets outside direct slice values",
-        "assign through a slice binding or supported slice-returning call result until member and array index assignment lowering is promoted",
+        "index assignment targets outside supported slice values",
+        "assign through a slice binding, supported slice-returning call result, or slice aggregate field until broader index assignment lowering is promoted",
     ))
 }
 
@@ -2434,6 +2447,14 @@ fn slice_index_assignment_element_kind(
             )?;
             slice_index_target_type_expr_element_kind(&return_type, resolved)
         }
+        Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
+            TypecheckScalarViewKind::Slice(element) => Some(element),
+            TypecheckScalarViewKind::I32
+            | TypecheckScalarViewKind::U8
+            | TypecheckScalarViewKind::Usize
+            | TypecheckScalarViewKind::Bool
+            | TypecheckScalarViewKind::Str => None,
+        },
         Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(
             &propagation.expression,
             resolved,
@@ -3463,7 +3484,7 @@ func unused(): bool {
     }
 
     #[test]
-    fn reports_member_rooted_index_assignment_before_ir_lowering() {
+    fn accepts_member_rooted_slice_index_assignment_boundary() {
         let (sources, analysis) = analyze_text(
             r#"struct Buffer {
     pub bytes: &+[u8]
@@ -3483,16 +3504,7 @@ func buffer(): &+[u8] {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert_eq!(diagnostics[0].code, "E0435");
-        assert_eq!(
-            diagnostics[0].message,
-            "Nocter v0 build cannot lower index assignment targets outside direct slice values yet"
-        );
-        assert!(
-            diagnostics[0].primary_span.is_some(),
-            "expected source-backed diagnostic"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

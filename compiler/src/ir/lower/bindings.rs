@@ -8,10 +8,11 @@ use super::aggregates::{
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::lower_error_payload;
 use super::expressions::{
-    TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
-    expression_is_lowerable_bool_binding, lower_aggregate_member_field_access,
-    lower_bool_expression_to_location, lower_bool_expression_to_value,
-    lower_bool_expression_to_value_with_temporaries, lower_call_arguments_to_scalar_arguments,
+    TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
+    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
+    lower_aggregate_member_field_access, lower_bool_expression_to_location,
+    lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
+    lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
@@ -1674,6 +1675,13 @@ fn slice_index_assignment_element_kind(
             .unwrap_or(TypecheckSliceElementKind::Other),
         Expr::Call(call) => call_return_slice_element_kind(call, context)
             .unwrap_or(TypecheckSliceElementKind::Other),
+        Expr::Member(member) => match aggregate_member_field_kind_from_member(member, context)
+            .ok()
+            .flatten()
+        {
+            Some(AggregateFieldKind::Slice(element)) => element,
+            _ => TypecheckSliceElementKind::Other,
+        },
         Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(
             unwrap_group(&propagation.expression),
             context,
