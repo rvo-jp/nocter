@@ -355,6 +355,14 @@ impl EntryEmitter {
             } => {
                 self.emit_copy_pointer_bytes(destination, source, byte_count, frame)?;
             }
+            Instruction::CopyAggregateToPointer {
+                pointer,
+                offset,
+                source,
+                layout,
+            } => {
+                self.emit_copy_aggregate_to_pointer(pointer, offset, *source, *layout, frame)?;
+            }
             Instruction::StoreU8ToPointer {
                 pointer,
                 offset,
@@ -2373,6 +2381,12 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
                 || usize_value_uses_process_arguments(source)
                 || usize_value_uses_process_arguments(byte_count)
         }
+        Instruction::CopyAggregateToPointer {
+            pointer, offset, ..
+        } => {
+            usize_value_uses_process_arguments(pointer)
+                || usize_value_uses_process_arguments(offset)
+        }
         Instruction::StoreU8ToPointer {
             pointer,
             offset,
@@ -4341,6 +4355,42 @@ mod tests {
         assert!(contains_instruction(
             &code.text,
             encoded_str_x_imm(XReg::X3, XReg::X0, 8)
+        ));
+    }
+
+    #[test]
+    fn pointer_aggregate_copy_stores_slot_bytes() {
+        let layout = ValueLayout { size: 4, align: 4 };
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: I32Value::Const(42),
+                },
+                Instruction::CopyAggregateToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(4),
+                    source: AggregateLocation::Slot(0),
+                    layout,
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_imm(WReg::W16, XReg::X9, 0)
         ));
     }
 

@@ -191,6 +191,12 @@ pub(crate) enum Instruction {
         source: UsizeValue,
         byte_count: UsizeValue,
     },
+    CopyAggregateToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        source: AggregateLocation,
+        layout: ValueLayout,
+    },
     StoreU8ToPointer {
         pointer: UsizeValue,
         offset: UsizeValue,

@@ -418,6 +418,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
+        | Instruction::CopyAggregateToPointer { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -551,6 +552,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
+        | Instruction::CopyAggregateToPointer { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -744,6 +746,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CloseFd { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
+        | Instruction::CopyAggregateToPointer { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
@@ -829,6 +832,12 @@ fn record_instruction_aggregate_slot_requests(
             if let AggregateLocation::Slot(slot_index) = destination {
                 record_aggregate_slot_request(*slot_index, *layout, requests)?;
             }
+            if let AggregateLocation::Slot(slot_index) = source {
+                record_aggregate_slot_request(*slot_index, *layout, requests)?;
+            }
+            Ok(())
+        }
+        Instruction::CopyAggregateToPointer { source, layout, .. } => {
             if let AggregateLocation::Slot(slot_index) = source {
                 record_aggregate_slot_request(*slot_index, *layout, requests)?;
             }
@@ -1219,6 +1228,14 @@ fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(destination, requests);
                 record_usize_value_parameter_spill_requests(source, requests);
                 record_usize_value_parameter_spill_requests(byte_count, requests);
+            }
+        }
+        Instruction::CopyAggregateToPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
             }
         }
         Instruction::StoreU8ToPointer {
@@ -1946,6 +1963,12 @@ fn record_instruction_scalar_locals(
             record_usize_value(destination, highest_local_index);
             record_usize_value(source, highest_local_index);
             record_usize_value(byte_count, highest_local_index);
+        }
+        Instruction::CopyAggregateToPointer {
+            pointer, offset, ..
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
         }
         Instruction::StoreU8ToPointer {
             pointer,

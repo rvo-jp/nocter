@@ -1866,6 +1866,46 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_copy_aggregate_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        source: AggregateLocation,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "aggregate pointer copy emission requires a stack frame",
+            )]);
+        };
+        let layout_size = u32::try_from(layout.size)
+            .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        let source = self.aggregate_copy_source(source, layout_size, frame)?;
+        validate_aggregate_copy_source_exact(source, 0, layout_size)?;
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X9)?;
+        self.emit_usize_value_to_x(offset, XReg::X10)?;
+        self.encoder.emit_adds_x(XReg::X9, XReg::X9, XReg::X10);
+
+        let mut chunk_offset = 0_u32;
+        while chunk_offset < layout_size {
+            let remaining = layout_size
+                .checked_sub(chunk_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
+            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            self.emit_aggregate_copy_source_chunk_to_scratch(source, chunk_offset, chunk_bytes)?;
+            self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X9, chunk_offset, chunk_bytes)?;
+            chunk_offset = chunk_offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+
+        self.emit_scalar_reloads(frame)
+    }
+
     pub(super) fn emit_store_u8_to_pointer(
         &mut self,
         pointer: &UsizeValue,

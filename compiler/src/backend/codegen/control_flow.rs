@@ -407,6 +407,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
             | Instruction::CopyPointerBytes { .. }
+            | Instruction::CopyAggregateToPointer { .. }
             | Instruction::StoreU8ToPointer { .. }
             | Instruction::StoreI32ToPointer { .. }
             | Instruction::StoreUsizeToPointer { .. }

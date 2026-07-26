@@ -24163,6 +24163,65 @@ pub func store_text(address: usize, offset: usize, value: &str): void {
 }
 
 #[test]
+fn lowers_store_value_to_ptr_call_for_copy_aggregate() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_store.store_pair
+
+func main(): void {
+    return
+}
+"#,
+        "store_pair",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.store_value_to_ptr
+
+copy struct Pair {
+    value: i32
+}
+
+pub func store_pair(address: usize, offset: usize, value: Pair): void {
+    store_value_to_ptr(from_addr(address), offset, value)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    let pair_layout = ValueLayout { size: 4, align: 4 };
+    assert_eq!(
+        store.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: pair_layout,
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(0),
+                source: AggregateLocation::DirectParameter { start_index: 2 },
+                layout: pair_layout,
+            },
+            Instruction::CopyAggregateToPointer {
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                source: AggregateLocation::Slot(0),
+                layout: pair_layout,
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_pointee_size_call_for_usize_pointer_field() {
     let size = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_size.size

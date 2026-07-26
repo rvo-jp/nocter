@@ -2586,10 +2586,10 @@ fn slice_index_target_type_expr_is_buildable_inner(
             let TypeExpr::View(view) = borrow.inner.as_ref() else {
                 return None;
             };
-            Some(type_expr_is_supported_std_vec_element_storage(
-                &view.element,
-                resolved,
-            ))
+            Some(
+                type_expr_slice_element_kind(&view.element, resolved)
+                    != TypecheckSliceElementKind::Other,
+            )
         }
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
@@ -2700,16 +2700,7 @@ fn std_vec_element_storage_type(
 }
 
 fn type_expr_is_supported_std_vec_element_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_supported_std_vec_element_storage_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn type_expr_is_supported_std_vec_element_storage_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    type_expr_slice_element_kind_inner(ty, resolved, resolving_names)
-        != TypecheckSliceElementKind::Other
+    type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other
 }
 
 fn type_expr_slice_element_kind(
