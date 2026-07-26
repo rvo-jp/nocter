@@ -707,6 +707,52 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_member_rooted_slice_index_compound_assignment_runs() {
+    let project =
+        TempProject::new("distributed-home-member-rooted-slice-index-compound-assignment-run");
+    let source = project.write_source(
+        "member_rooted_slice_index_compound_assignment.nct",
+        r#"use std/vec.Vec
+
+struct Buffer {
+    data: &+[usize]
+}
+
+func main(): i32! {
+    var values: Vec<usize> = Vec.empty()
+    values.push(10)?
+    values.push(20)?
+
+    var buffer = Buffer{ data: values.view_mut() }
+    buffer.data[0] += 5
+    buffer.data[1] *= 2
+
+    if buffer.data[0] != 15 {
+        return 1
+    }
+    if buffer.data[1] != 40 {
+        return 2
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_empty_drop_runs() {
     let project = TempProject::new("distributed-home-vec-empty-drop-run");
     let source = project.write_source(
