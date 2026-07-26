@@ -2142,6 +2142,14 @@ fn collect_expression_diagnostics(
             if let Some(diagnostic) = &unsupported_std_vec_element_call {
                 diagnostics.push(diagnostic.clone());
             }
+            if let Some(diagnostic) = unsupported_payload_enum_constructor_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             if let Some(diagnostic) =
                 unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
             {
@@ -2826,6 +2834,44 @@ fn unsupported_std_vec_element_call_diagnostic(
         call.span,
         "`Vec` element storage outside scalar, `&str`, and copy aggregate elements",
         "use `Vec<i32>`, `Vec<u8>`, `Vec<usize>`, `Vec<bool>`, `Vec<&str>`, or a non-empty `copy struct` element until per-element drop glue is promoted",
+    ))
+}
+
+fn unsupported_payload_enum_constructor_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<Diagnostic> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+    let variant_name_span = typecheck_facts.enum_variant_target(member.member_span)?;
+    let variant = resolved
+        .symbols
+        .symbols()
+        .find_map(|symbol| match &symbol.kind {
+            SymbolKind::Type(type_symbol) if type_symbol.kind == TypeSymbolKind::Enum => {
+                type_symbol
+                    .variants
+                    .iter()
+                    .find(|variant| variant.name_span == variant_name_span)
+            }
+            SymbolKind::Function(_)
+            | SymbolKind::Primitive(_)
+            | SymbolKind::Type(_)
+            | SymbolKind::Imported(_) => None,
+        })?;
+
+    if variant.payload.is_empty() {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        call.span,
+        "payload enum values",
+        "use payloadless enum values, or keep payload enum construction on the `check` path until payload enum storage lowering is promoted",
     ))
 }
 
@@ -3736,8 +3782,33 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("`match` expressions")),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn reports_reachable_payload_enum_construction_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(10)
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("`match` expressions"));
+        assert!(diagnostics[0].message.contains("payload enum values"));
     }
 
     #[test]

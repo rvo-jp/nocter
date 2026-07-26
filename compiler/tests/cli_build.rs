@@ -4943,6 +4943,50 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_payload_enum_construction_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-enum-construction-boundary");
+    let source = project.write_source(
+        "payload_enum_construction_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(10)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("payload enum values"),
+        "expected payload enum diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     let result = Result.ok(10)"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_payload_match_expression_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(
