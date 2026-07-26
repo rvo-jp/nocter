@@ -2,16 +2,17 @@
 //!
 //! Converts resolved AST type expressions into the limited IR type set used by v0 lowering.
 
-use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
+use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr_with_resolver};
 use crate::ast::{
     ArrayType, BorrowType, FallibleType, GenericType, OptionalType, PointerType, TypeExpr, ViewType,
 };
 use crate::ir::Type;
 use crate::resolve::ResolveOutput;
+use crate::source::SourceId;
 use std::collections::HashSet;
 
 pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    return_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+    return_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
 pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
@@ -63,17 +64,38 @@ pub(super) fn return_type_expr_is_top_level_optional(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> bool {
-    return_type_expr_is_top_level_optional_inner(ty, resolved, &mut HashSet::new())
+    return_type_expr_is_top_level_optional_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
-fn return_type_expr_is_top_level_optional_inner(
+pub(super) fn return_type_expr_is_top_level_optional_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    return_type_expr_is_top_level_optional_inner(
+        ty,
+        fallback_resolved,
+        &resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn return_type_expr_is_top_level_optional_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Optional(_) => true,
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
@@ -83,8 +105,12 @@ fn return_type_expr_is_top_level_optional_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return false;
             }
-            let result =
-                return_type_expr_is_top_level_optional_inner(target, resolved, resolving_names);
+            let result = return_type_expr_is_top_level_optional_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -92,40 +118,71 @@ fn return_type_expr_is_top_level_optional_inner(
     }
 }
 
-fn return_type_from_type_expr_inner(
+pub(super) fn return_type_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    return_type_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+fn return_type_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<Type> {
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return scalar_or_view_type_from_type_expr(ty, resolved)
-                    .or_else(|| aggregate_type_from_type_expr(ty, resolved));
+                return scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    .or_else(|| {
+                        aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    });
             };
             let Some(target) = &symbol.alias_target else {
-                return scalar_or_view_type_from_type_expr(ty, resolved)
-                    .or_else(|| aggregate_type_from_type_expr(ty, resolved));
+                return scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    .or_else(|| {
+                        aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)
+                    });
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result = return_type_from_type_expr_inner(target, resolved, resolving_names);
+            let result = return_type_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
-        TypeExpr::Fallible(fallible) => {
-            return_type_from_type_expr_inner(&fallible.success, resolved, resolving_names)
-                .map(|success| Type::Fallible(Box::new(success)))
-        }
-        TypeExpr::Optional(optional) => {
-            return_type_from_type_expr_inner(&optional.inner, resolved, resolving_names)
-                .map(|success| Type::Fallible(Box::new(success)))
-        }
-        _ => scalar_or_view_type_from_type_expr(ty, resolved)
-            .or_else(|| aggregate_type_from_type_expr(ty, resolved)),
+        TypeExpr::Fallible(fallible) => return_type_from_type_expr_inner(
+            &fallible.success,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        )
+        .map(|success| Type::Fallible(Box::new(success))),
+        TypeExpr::Optional(optional) => return_type_from_type_expr_inner(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        )
+        .map(|success| Type::Fallible(Box::new(success))),
+        _ => scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
+            .or_else(|| aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)),
     }
 }
 
@@ -133,24 +190,46 @@ pub(super) fn parameter_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Option<Type> {
-    parameter_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+    parameter_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
-fn parameter_type_from_type_expr_inner(
+pub(super) fn parameter_type_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    parameter_type_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+fn parameter_type_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<Type> {
-    if let TypeExpr::Reference(reference) = ty
-        && let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name)
-        && let Some(target) = &symbol.alias_target
-    {
-        if !resolving_names.insert(symbol.canonical_name.clone()) {
-            return None;
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if let TypeExpr::Reference(reference) = ty {
+        let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+        if let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name)
+            && let Some(target) = &symbol.alias_target
+        {
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = parameter_type_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            return result;
         }
-        let result = parameter_type_from_type_expr_inner(target, resolved, resolving_names);
-        resolving_names.remove(&symbol.canonical_name);
-        return result;
     }
 
     if let TypeExpr::Reference(reference) = ty
@@ -159,29 +238,57 @@ fn parameter_type_from_type_expr_inner(
         return Some(Type::Error);
     }
 
-    if let Some(ty) = scalar_or_view_type_from_type_expr(ty, resolved) {
+    if let Some(ty) = scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver) {
         return Some(ty);
     }
 
     if let TypeExpr::Borrow(borrow) = ty {
-        return borrow_inner_type(&borrow.inner, resolved).map(|inner| Type::Borrow {
-            is_readwrite: borrow.is_readwrite,
-            inner: Box::new(inner),
+        return borrow_inner_type_inner(&borrow.inner, fallback_resolved, resolver).map(|inner| {
+            Type::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: Box::new(inner),
+            }
         });
     }
 
-    aggregate_type_from_type_expr(ty, resolved)
+    aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)
 }
 
 pub(super) fn scalar_or_view_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Option<Type> {
-    if let Some(ty) = view_type_from_type_expr(ty, resolved) {
+    scalar_or_view_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn scalar_or_view_type_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, &resolver)
+}
+
+fn scalar_or_view_type_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if let Some(ty) =
+        view_type_from_type_expr_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+    {
         return Some(ty);
     }
 
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    let value =
+        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+            .ok()?;
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
@@ -195,22 +302,38 @@ pub(super) fn view_element_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Option<Type> {
-    view_element_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+    view_element_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved))
 }
 
-fn view_element_type_from_type_expr_inner(
+pub(super) fn view_element_type_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    view_element_type_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+fn view_element_type_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<Type> {
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(borrow) => {
             let TypeExpr::View(view) = borrow.inner.as_ref() else {
                 return None;
             };
-            scalar_or_view_type_from_type_expr(&view.element, resolved)
+            scalar_or_view_type_from_type_expr_inner(&view.element, fallback_resolved, resolver)
         }
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
@@ -218,7 +341,12 @@ fn view_element_type_from_type_expr_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result = view_element_type_from_type_expr_inner(target, resolved, resolving_names);
+            let result = view_element_type_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -226,11 +354,17 @@ fn view_element_type_from_type_expr_inner(
     }
 }
 
-pub(super) fn aggregate_type_from_type_expr(
+fn aggregate_type_from_type_expr_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Type> {
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let value =
+        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+            .ok()?;
     aggregate_type_from_abi_value(&value)
 }
 
@@ -251,7 +385,31 @@ pub(super) fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
 }
 
 pub(super) fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    borrow_inner_type_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn borrow_inner_type_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    borrow_inner_type_inner(ty, fallback_resolved, &resolver)
+}
+
+fn borrow_inner_type_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let value =
+        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+            .ok()?;
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
@@ -292,18 +450,21 @@ fn borrow_type_from_type_expr_inner<'a>(
     }
 }
 
-fn view_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    view_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn view_type_from_type_expr_inner(
+fn view_type_from_type_expr_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<Type> {
+) -> Option<Type>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(borrow) => {
-            let value = abi_value_from_type_expr(ty, resolved).ok()?;
+            let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| {
+                resolver(source)
+            })
+            .ok()?;
             match &value.ty {
                 AbiType::StrView if !borrow.is_readwrite => Some(Type::Str),
                 AbiType::SliceView => Some(Type::Slice {
@@ -313,6 +474,7 @@ fn view_type_from_type_expr_inner(
             }
         }
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
@@ -320,10 +482,26 @@ fn view_type_from_type_expr_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result = view_type_from_type_expr_inner(target, resolved, resolving_names);
+            let result = view_type_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
         _ => None,
     }
+}
+
+fn resolved_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> &'a ResolveOutput
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    resolver(ty.span().source).unwrap_or(fallback_resolved)
 }
