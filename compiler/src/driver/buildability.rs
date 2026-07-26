@@ -802,6 +802,18 @@ fn call_argument_parameter_type(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
+    if let Expr::Member(member) = call.callee.as_ref()
+        && let Some(ty) = method_call_argument_parameter_type(
+            member,
+            index,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    {
+        return Some(ty);
+    }
+
     let signature = resolved.call_signature_for_call(call)?;
     let parameter = signature.parameters.get(index)?;
     let mut ty = parameter.ty.clone();
@@ -812,7 +824,44 @@ fn call_argument_parameter_type(
         ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
     }
 
+    ty = substitute_type_expr_parameters(&ty, generic_substitutions);
     Some(ty)
+}
+
+fn method_call_argument_parameter_type(
+    member: &crate::ast::MemberExpr,
+    index: usize,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let method_name_span = typecheck_facts.method_call_target(member.member_span)?;
+    let method = resolved.method_signature_by_name_span(method_name_span)?;
+    let parameter = method.signature.parameters.get(index)?;
+    let mut ty = parameter.ty.clone();
+
+    if let Some(specialization) =
+        concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
+    {
+        let self_substitution =
+            HashMap::from([("Self".to_string(), specialization.self_ty.clone())]);
+        ty = substitute_type_expr_parameters(&ty, &self_substitution);
+        ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+        return Some(substitute_type_expr_parameters(&ty, generic_substitutions));
+    }
+
+    if typecheck_facts
+        .generic_method_call_target(member.member_span)
+        .is_some()
+    {
+        return None;
+    }
+
+    if let Some(self_ty) = &method.impl_target_ty {
+        let self_substitution = HashMap::from([("Self".to_string(), self_ty.clone())]);
+        ty = substitute_type_expr_parameters(&ty, &self_substitution);
+    }
+    Some(substitute_type_expr_parameters(&ty, generic_substitutions))
 }
 
 fn struct_literal_field_may_use_value_control_expression(

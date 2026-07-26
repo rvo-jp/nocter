@@ -4597,6 +4597,63 @@ func score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
 }
 
 #[test]
+fn build_command_accepts_value_control_method_call_arguments() {
+    let project = TempProject::new("cli-build-value-control-method-call-arguments");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "value_control_method_call_arguments.nct",
+        r#"use std/string.bytes
+
+copy struct Checker {
+    seed: i32
+}
+
+impl Checker {
+    method &self.score(byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
+        if self.seed == 40 && byte == 5 && size == 7 && ok && text == "Nocter" && data.len() == 3 {
+            42
+        } else {
+            1
+        }
+    }
+}
+
+enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let checker = Checker{ seed: 40 }
+    return checker.score(
+        if choice is Choice.no { 5 } else { 1 },
+        match choice { Choice.no { 7 } else { 1 } },
+        if choice is Choice.no { true } else { false },
+        match choice { Choice.no { "Nocter" } else { "Other" } },
+        match choice { Choice.no { bytes("abc") } else { bytes("x") } }
+    )
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_accepts_value_control_struct_literal_scalar_fields() {
     let project = TempProject::new("cli-build-value-control-struct-literal-scalar-fields");
     let source = project.write_source(
