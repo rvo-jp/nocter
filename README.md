@@ -8,6 +8,12 @@ directory, add it to `PATH`, and start writing Nocter. To uninstall, delete that
 directory and remove the `PATH` entry. Nocter should be easy to try and easy to
 leave.
 
+Nocter's design starts from a practical frustration with existing toolchains and
+languages: trying a compiler should not install a stack of unrelated tools,
+using an API should not require reading private implementation details, and
+writing source should not require remembering several spellings for one idea.
+Nocter is built around simplicity, encapsulation, and foolproof design.
+
 Nocter is still pre-v0. The first implementation target is `arm64-darwin`.
 
 ## Why Nocter
@@ -17,6 +23,8 @@ Nocter is still pre-v0. The first implementation target is `arm64-darwin`.
 - **Easy uninstall**: remove `.nocter/` and delete the shell `PATH` line.
 - **Self-contained native output**: normal builds do not require LLVM, `clang`,
   `as`, `ld`, Xcode Command Line Tools, or an external runtime library.
+- **Private by default**: public API is explicit, and ordinary use should be
+  possible from the public contract alone.
 - **Clear source model**: one `.nct` file is one module, imports use `use`, and
   declarations are private unless marked `pub`.
 - **Explicit resource handling**: ownership, borrowing, `drop`, `T!` failures,
@@ -148,6 +156,8 @@ code is emitted. For the exact implementation boundary, see
 
 - [Language Specification](spec/README.md): Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
+- [Design Principles](spec/00-design-principles.md): the simplicity,
+  encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Compiler Development](compiler/README.md): Rust bootstrap compiler
   architecture, backend work, implementation status, tests, and maintenance
   notes.

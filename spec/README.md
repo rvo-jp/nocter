@@ -9,10 +9,12 @@ without turning this file into a monolith.
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users.
-Nocter also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.
+Nocter values simplicity, encapsulation, and foolproof design.
+It also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.
 
 ## Chapters
 
+- [Design Principles](00-design-principles.md)
 - [Overview](00-overview.md)
 - [Nocter v0 Contract](00-v0-contract.md)
 - [Modules and Use Declarations](01-modules-use.md)

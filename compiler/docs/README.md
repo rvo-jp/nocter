@@ -25,9 +25,12 @@ Normative user-facing language rules live in [../../spec](../../spec/README.md).
 ## Ownership Rules
 
 - Put source language rules in `spec/`.
+- Use [Design Principles](../../spec/00-design-principles.md) when a compiler
+  implementation choice exposes new source behavior.
 - Put compiler architecture, implementation status, internal ABI work, and
   handoff notes in `compiler/`.
-- Keep root `README.md` as a short public entrance.
+- Keep root `README.md` as the short Nocter language introduction,
+  getting-started flow, and documentation map.
 - Do not copy whole feature specifications into this directory. Link to the
   relevant spec chapter and describe only implementation status or compiler
   design.

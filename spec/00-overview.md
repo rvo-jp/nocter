@@ -20,6 +20,8 @@ The specification entry point is [README.md](README.md).
 ## Core Principles
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
+Its durable design pillars are simplicity, encapsulation, and foolproof design;
+the full rationale is defined in [Design Principles](00-design-principles.md).
 
 The language avoids giving intrinsic language semantics to most ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is the root-file top-level function named `main`; v0 fixes this name to remove command-line ambiguity.
 

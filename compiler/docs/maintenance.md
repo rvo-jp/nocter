@@ -71,8 +71,10 @@ Prefer compiler-phase tests for compiler semantics and LSP tests for protocol be
 
 Keep one source of truth for each kind of information:
 
-- root `README.md`: short public entrance and documentation map
-- `../../spec/`: normative language and standard-library rules
+- root `README.md`: short Nocter language introduction, getting-started flow,
+  and documentation map
+- `../../spec/`: normative language rules, standard-library rules, and public
+  design principles
 - `README.md`: compiler directory entrance
 - `docs/README.md`: compiler documentation map
 - `docs/architecture.md`: compiler phase ownership and pipeline design

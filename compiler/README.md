@@ -2,10 +2,10 @@
 
 This directory contains the Rust bootstrap compiler for Nocter.
 
-User-facing project context belongs in the repository root
-[README.md](../README.md). The language specification belongs in
-[../spec](../spec/README.md). This directory documents compiler implementation
-work only.
+The user-facing language introduction and getting-started flow belong in the
+repository root [README.md](../README.md). The language specification belongs
+in [../spec](../spec/README.md). This directory documents compiler
+implementation work only.
 
 ## Quick Start
 
