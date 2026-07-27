@@ -56,6 +56,18 @@ pub(crate) fn decode_byte_literal(text: &str) -> Result<u8, &'static str> {
     }
 }
 
+pub(crate) fn decode_integer_literal_value(text: &str) -> Option<u128> {
+    let (base, digits) = if let Some(rest) = text.strip_prefix("0x") {
+        (16, rest)
+    } else if let Some(rest) = text.strip_prefix("0b") {
+        (2, rest)
+    } else {
+        (10, text)
+    };
+    let digits = digits.replace('_', "");
+    u128::from_str_radix(&digits, base).ok()
+}
+
 pub(crate) fn validate_string_literal_source(text: &str) -> Result<(), StringLiteralError> {
     let parts = string_literal_parts(text)?;
     if parts

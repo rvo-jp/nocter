@@ -1,5 +1,6 @@
 use super::model::Type;
 use crate::ast::{Expr, LiteralExpr, UnaryExpr, UnaryOperator};
+use crate::literals::decode_integer_literal_value;
 
 pub(super) fn is_integer_type(ty: &Type) -> bool {
     matches!(ty, Type::I32)
@@ -137,13 +138,5 @@ pub(super) fn signed_integer_type_min_abs(name: &str) -> Option<u128> {
 }
 
 pub(super) fn integer_literal_value(text: &str) -> Option<u128> {
-    let (base, digits) = if let Some(rest) = text.strip_prefix("0x") {
-        (16, rest)
-    } else if let Some(rest) = text.strip_prefix("0b") {
-        (2, rest)
-    } else {
-        (10, text)
-    };
-    let digits = digits.replace('_', "");
-    u128::from_str_radix(&digits, base).ok()
+    decode_integer_literal_value(text)
 }

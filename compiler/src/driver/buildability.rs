@@ -11,6 +11,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
+use crate::literals::decode_integer_literal_value;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
@@ -3407,6 +3408,14 @@ fn collect_expression_diagnostics(
             if let Some(diagnostic) = &unsupported_std_vec_element_call {
                 diagnostics.push(diagnostic.clone());
             }
+            if let Some(diagnostic) = unsupported_null_from_addr_call_diagnostic(
+                sources,
+                expression,
+                resolved,
+                nocter_home,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             if let Some(diagnostic) =
                 unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
             {
@@ -4471,6 +4480,42 @@ fn unsupported_check_only_std_call_diagnostic(
     }
 }
 
+fn unsupported_null_from_addr_call_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    nocter_home: Option<&Path>,
+) -> Option<Diagnostic> {
+    let symbol = resolved.symbol_for_call(call)?;
+    if !matches!(symbol.kind, SymbolKind::Primitive(_)) {
+        return None;
+    }
+    if !source_is_std_ptr(sources, symbol.declaration_span.source, nocter_home) {
+        return None;
+    }
+    if declaration_name(sources, symbol.declaration_span)? != "from_addr" {
+        return None;
+    }
+    let argument = call.arguments.first()?;
+    if !expression_is_zero_integer_literal(argument) {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        argument.span(),
+        "null raw pointer construction",
+        "`*T` is non-null in v0; use `none` for `*T?` absence or pass a non-zero trusted address",
+    ))
+}
+
+fn expression_is_zero_integer_literal(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value) == Some(0),
+        _ => false,
+    }
+}
+
 fn declaration_name(sources: &SourceMap, span: ByteSpan) -> Option<&str> {
     sources.get(span.source)?.text().get(span.start..span.end)
 }
@@ -4481,6 +4526,10 @@ fn source_is_std_process(
     nocter_home: Option<&Path>,
 ) -> bool {
     source_is_std_module(sources, source, nocter_home, Path::new("std/process.nct"))
+}
+
+fn source_is_std_ptr(sources: &SourceMap, source: SourceId, nocter_home: Option<&Path>) -> bool {
+    source_is_std_module(sources, source, nocter_home, Path::new("std/ptr.nct"))
 }
 
 fn source_is_std_vec(sources: &SourceMap, source: SourceId, nocter_home: Option<&Path>) -> bool {
