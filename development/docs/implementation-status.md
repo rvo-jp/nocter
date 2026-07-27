@@ -91,18 +91,15 @@ that will not be dereferenced.
 ## Verification
 
 The full v0 closure suite is listed in [v0-closure.md](v0-closure.md). For a
-broad compiler change, run the relevant subset of:
+broad compiler change from the repository root, prefer:
 
 ```sh
-cargo fmt --manifest-path development/compiler/Cargo.toml --check
-cargo test --manifest-path development/compiler/Cargo.toml --lib
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
-cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_fmt
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
-cargo test --manifest-path development/compiler/Cargo.toml --test example_corpus
+./development/compiler/scripts/verify.sh
 ```
+
+Use narrower `cargo fmt --manifest-path development/compiler/Cargo.toml --check`
+and `cargo test --manifest-path development/compiler/Cargo.toml --lib` runs only
+when the change is clearly local.
 
 Documentation-only changes usually need only formatting verification unless
 they alter examples, CLI contracts, or generated outputs.

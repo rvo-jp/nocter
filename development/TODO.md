@@ -8,9 +8,9 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `86332aa Keep compiler clean under current clippy`
+  - `43e62e2 Move development assets under development root`
   - `87f8ee7 Drop legacy root Nocter home entrypoint`
-  - `9248e2e Move release image generation to dist`
-  - `71f214b Update compiler handoff after value control work`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
@@ -108,12 +108,7 @@ Use the narrowest sufficient command set for the change. For broad shared
 compiler work, prefer:
 
 ```sh
-cargo fmt --manifest-path development/compiler/Cargo.toml --check
-cargo test --manifest-path development/compiler/Cargo.toml --lib
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
-cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
+./development/compiler/scripts/verify.sh
 ```
 
 For documentation-only changes,

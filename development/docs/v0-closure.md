@@ -68,14 +68,16 @@ classified as `ship`, `reject`, or `defer`, and tests lock that decision.
 The final closure check is:
 
 ```sh
-cargo fmt --manifest-path development/compiler/Cargo.toml --check
-cargo test --manifest-path development/compiler/Cargo.toml --lib
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
-cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_fmt
-cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
-cargo test --manifest-path development/compiler/Cargo.toml --test example_corpus
+./development/compiler/scripts/verify.sh
+```
+
+That script runs the closure commands from `development/compiler/`:
+
+```sh
+cargo check
+cargo test
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
 ```
 
 ## Closure Matrix
