@@ -669,8 +669,8 @@ Rules:
 - Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
 - `match` without `else` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
 - `match ... else` is treated as a terminating statement when every explicit arm and the `else` arm terminate.
-- In the v0 backend, payloadless enum `match` statements lower through the enum tag ABI.
-- In the v0 backend, payloadless enum `match` expressions are typechecked. Build/run lowering is promoted incrementally.
+- In the v0 backend, payloadless enum `match` statements and supported
+  payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` wildcard patterns are not part of the initial design.
