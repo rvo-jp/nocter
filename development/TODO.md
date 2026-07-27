@@ -8,6 +8,8 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `214e2f8 Fix source-aware generic Vec storage checks`
+  - `3420be0 Document the full compiler verification gate`
   - `86332aa Keep compiler clean under current clippy`
   - `43e62e2 Move development assets under development root`
   - `87f8ee7 Drop legacy root Nocter home entrypoint`
@@ -82,6 +84,10 @@ Recommended order:
 - IR lowering now applies function call specializations before deriving call
   return `TypeExpr` values, so drop glue for aggregate results targets concrete
   drop functions such as `Vec<Pair>.drop` instead of `Vec<T>.drop`.
+- Buildability now rejects explicit drops of outer aggregate locals inside
+  non-terminal `if`/`match`/loop branches before IR lowering, while still
+  allowing branch/body-local explicit drops and outer drops on paths that
+  immediately exit the function.
 - Generic impl method specialization now carries the receiver-derived impl
   substitutions into nested generic calls in the method body.
 

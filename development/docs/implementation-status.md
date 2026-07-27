@@ -27,7 +27,9 @@ runtime subset should fail through buildability diagnostics before IR or backend
 emission. Reachable callable signatures, local bindings, and field member value
 uses that mention storage-only scalar types such as `u16` or `u32` are rejected
 at this boundary instead of surfacing as IR lowering errors. Reachable array
-literals and bare string interpolation are also rejected at the same boundary.
+literals, bare string interpolation, and explicit outer aggregate drops inside
+non-terminal control-flow branches/bodies are also rejected at the same
+boundary.
 
 ## Implemented Capability
 
@@ -41,7 +43,7 @@ literals and bare string interpolation are also rejected at the same boundary.
 | Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. Scalar/view and supported aggregate paths build and run. Nested fallible/optional return shapes remain limited. |
 | Struct aggregates | Struct literals, fields, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, numeric field compound assignment, replacement drops, and cleanup paths are implemented for the current subset. |
 | Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
-| Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies. Lowering inserts drop glue for the documented aggregate/control-flow subset. |
+| Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies. Lowering inserts drop glue for the documented aggregate/control-flow subset. Buildability rejects explicit drops of outer aggregate locals inside non-terminal control-flow branches/bodies unless that path immediately exits the function. |
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |

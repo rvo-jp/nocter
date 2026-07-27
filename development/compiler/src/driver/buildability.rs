@@ -2602,6 +2602,31 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::If(statement) => {
+            if !if_statement_exits_function_for_buildability(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                collect_nonterminal_control_block_drop_diagnostics(
+                    &statement.then_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    diagnostics,
+                );
+                if let Some(block) = &statement.else_block {
+                    collect_nonterminal_control_block_drop_diagnostics(
+                        block,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        diagnostics,
+                    );
+                }
+            }
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -2666,6 +2691,31 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            if !if_is_statement_exits_function_for_buildability(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                collect_nonterminal_control_block_drop_diagnostics(
+                    &statement.then_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    diagnostics,
+                );
+                if let Some(block) = &statement.else_block {
+                    collect_nonterminal_control_block_drop_diagnostics(
+                        block,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        diagnostics,
+                    );
+                }
+            }
             collect_block_diagnostics(
                 &statement.then_block,
                 sources,
@@ -2717,6 +2767,33 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            if !switch_statement_exits_function_for_buildability(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                for arm in &statement.arms {
+                    collect_nonterminal_control_block_drop_diagnostics(
+                        &arm.body,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        diagnostics,
+                    );
+                }
+                if let Some(arm) = &statement.else_arm {
+                    collect_nonterminal_control_block_drop_diagnostics(
+                        &arm.body,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        diagnostics,
+                    );
+                }
+            }
             for arm in &statement.arms {
                 collect_block_diagnostics(
                     &arm.body,
@@ -2783,6 +2860,14 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            collect_nonterminal_control_block_drop_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
             collect_block_diagnostics(
                 &statement.body,
                 sources,
@@ -2811,6 +2896,14 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            collect_nonterminal_control_block_drop_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
             collect_block_diagnostics(
                 &statement.body,
                 sources,
@@ -2826,6 +2919,14 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::Loop(statement) => {
+            collect_nonterminal_control_block_drop_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
             collect_block_diagnostics(
                 &statement.body,
                 sources,
@@ -2865,6 +2966,317 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
+    }
+}
+
+fn collect_nonterminal_control_block_drop_diagnostics(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut local_bindings = HashSet::new();
+    for (index, statement) in block.statements.iter().enumerate() {
+        match statement {
+            Stmt::Binding(statement) => {
+                local_bindings.insert(statement.name.clone());
+            }
+            Stmt::Drop(statement)
+                if !local_bindings.contains(&statement.name)
+                    && !statement_suffix_exits_function_for_buildability(
+                        &block.statements,
+                        index,
+                        block.result.as_deref(),
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                    ) =>
+            {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.span,
+                    "explicit outer aggregate drops inside non-terminal control flow",
+                    "drop values created inside the branch/body, or drop outer values only on paths that immediately exit the function until broader control-flow drop lowering is promoted",
+                ));
+            }
+            _ => {}
+        }
+    }
+}
+
+fn statement_suffix_exits_function_for_buildability(
+    statements: &[Stmt],
+    index: usize,
+    result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    statement_sequence_or_result_exits_function_for_buildability(
+        statements.get(index + 1..).unwrap_or(&[]),
+        result,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn statement_sequence_or_result_exits_function_for_buildability(
+    statements: &[Stmt],
+    result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    for statement in statements {
+        if statement_may_exit_current_loop_for_buildability(statement) {
+            return false;
+        }
+        if statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ) {
+            return true;
+        }
+    }
+    result.is_some_and(|expression| {
+        expression_exits_function_for_buildability(
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    })
+}
+
+fn statement_exits_function_for_buildability(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
+        Stmt::Return(_) => true,
+        Stmt::Expression(statement) => expression_exits_function_for_buildability(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::If(statement) => if_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::IfIs(statement) => if_is_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::Switch(statement) => switch_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => false,
+    }
+}
+
+fn if_statement_exits_function_for_buildability(
+    statement: &crate::ast::IfStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(else_block) = &statement.else_block else {
+        return false;
+    };
+    block_exits_function_for_buildability(
+        &statement.then_block,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) && block_exits_function_for_buildability(
+        else_block,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn if_is_statement_exits_function_for_buildability(
+    statement: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(else_block) = &statement.else_block else {
+        return false;
+    };
+    block_exits_function_for_buildability(
+        &statement.then_block,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) && block_exits_function_for_buildability(
+        else_block,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn switch_statement_exits_function_for_buildability(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(else_arm) = &statement.else_arm else {
+        return false;
+    };
+    statement.arms.iter().all(|arm| {
+        block_exits_function_for_buildability(
+            &arm.body,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    }) && block_exits_function_for_buildability(
+        &else_arm.body,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn block_exits_function_for_buildability(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    statement_sequence_or_result_exits_function_for_buildability(
+        &block.statements,
+        block.result.as_deref(),
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn expression_exits_function_for_buildability(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Call(call) => matches!(
+            call_return_shape(call, resolved, typecheck_facts, generic_substitutions),
+            Some(ReturnShape::Never)
+        ),
+        Expr::If(statement) => if_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::IfIs(statement) => if_is_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Match(statement) => switch_statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => false,
+    }
+}
+
+fn statement_may_exit_current_loop_for_buildability(statement: &Stmt) -> bool {
+    match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
+        Stmt::Break(_) | Stmt::Continue(_) => true,
+        Stmt::If(statement) => {
+            block_may_exit_current_loop_for_buildability(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop_for_buildability)
+        }
+        Stmt::IfIs(statement) => {
+            block_may_exit_current_loop_for_buildability(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop_for_buildability)
+        }
+        Stmt::Switch(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
+        }
+        Stmt::While(_) | Stmt::Loop(_) => false,
+        _ => false,
+    }
+}
+
+fn block_may_exit_current_loop_for_buildability(block: &Block) -> bool {
+    block
+        .statements
+        .iter()
+        .any(statement_may_exit_current_loop_for_buildability)
+        || block
+            .result
+            .as_deref()
+            .is_some_and(expression_may_exit_current_loop_for_buildability)
+}
+
+fn expression_may_exit_current_loop_for_buildability(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::If(statement) => {
+            block_may_exit_current_loop_for_buildability(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop_for_buildability)
+        }
+        Expr::IfIs(statement) => {
+            block_may_exit_current_loop_for_buildability(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop_for_buildability)
+        }
+        Expr::Match(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
+        }
+        _ => false,
     }
 }
 

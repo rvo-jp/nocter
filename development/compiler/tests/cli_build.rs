@@ -1066,6 +1066,59 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_rejects_nonterminal_if_branch_outer_explicit_drop() {
+    let project = TempProject::new("cli-build-nonterminal-if-branch-outer-explicit-drop");
+    let source = project.write_source(
+        "nonterminal_if_branch_outer_explicit_drop.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if true {
+        drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("14 |         drop file"),
+        "stderr missing drop span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
 fn build_command_lowers_nonterminal_if_distinct_branch_aggregate_layouts() {
     let project = TempProject::new("cli-build-nonterminal-if-distinct-branch-layouts");
     let source = project.write_source(
@@ -1301,6 +1354,93 @@ func main(): i32 {
     while false {
         var file = File{ fd: 1 }
         drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_nonterminal_while_body_outer_explicit_drop() {
+    let project = TempProject::new("cli-build-nonterminal-while-body-outer-explicit-drop");
+    let source = project.write_source(
+        "nonterminal_while_body_outer_explicit_drop.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while false {
+        drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("14 |         drop file"),
+        "stderr missing drop span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
+fn build_command_lowers_nonterminal_while_body_outer_explicit_drop_before_return() {
+    let project =
+        TempProject::new("cli-build-nonterminal-while-body-outer-explicit-drop-before-return");
+    let source = project.write_source(
+        "nonterminal_while_body_outer_explicit_drop_before_return.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while false {
+        drop file
+        return 1
     }
     return 0
 }
@@ -5062,6 +5202,69 @@ func choose(): Choice {
 
     assert_success(&output);
     assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_nonterminal_match_arm_outer_explicit_drop() {
+    let project = TempProject::new("cli-build-nonterminal-match-arm-outer-explicit-drop");
+    let source = project.write_source(
+        "nonterminal_match_arm_outer_explicit_drop.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            drop file
+        }
+        else {
+        }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit outer aggregate drops inside non-terminal control flow"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("21 |             drop file"),
+        "stderr missing drop span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
 }
 
 #[test]
