@@ -70,6 +70,9 @@ a module by writing a path-like expression:
 
 ```nct
 std/io.print("hello")
+./path/to/file.something()
+../shared/file.something()
+/absolute/path/file.something()
 // invalid: import the module namespace first, then call io.print("hello")
 ```
 

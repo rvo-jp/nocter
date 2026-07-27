@@ -258,6 +258,20 @@ impl Parser<'_> {
         })
     }
 
+    pub(super) fn current_touches_next_punctuation(&self, punctuation: &str) -> bool {
+        self.token_at_offset(1).is_some_and(|next| {
+            matches!(next.kind, TokenKind::Punctuation(actual) if actual == punctuation)
+                && self.current().span.end == next.span.start
+        })
+    }
+
+    pub(super) fn punctuation_at_offset(&self, offset: usize, punctuation: &str) -> bool {
+        matches!(
+            self.token_kind_at_offset(offset),
+            Some(TokenKind::Punctuation(actual)) if actual == punctuation
+        )
+    }
+
     pub(super) fn next_is_punctuation(&self, punctuation: &str) -> bool {
         matches!(
             self.token_kind_at_offset(1),

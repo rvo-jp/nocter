@@ -646,7 +646,7 @@ fn parses_arithmetic_expression_precedence() {
 }
 
 #[test]
-fn diagnoses_std_path_like_expressions_as_use_only() {
+fn diagnoses_path_like_module_expressions_as_use_only() {
     for source in [
         r#"func main(): i32 {
     return std/io.print("hello")
@@ -655,6 +655,18 @@ fn diagnoses_std_path_like_expressions_as_use_only() {
         r#"func main(): i32 {
     let value = 1 * std/io.value
     return 0
+}
+"#,
+        r#"func main(): i32 {
+    return ./path/to/file.something()
+}
+"#,
+        r#"func main(): i32 {
+    return ../shared/file.something()
+}
+"#,
+        r#"func main(): i32 {
+    return /absolute/path/file.something()
 }
 "#,
     ] {

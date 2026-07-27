@@ -471,11 +471,36 @@ impl Parser<'_> {
                 self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
                 Err(())
             }
+            TokenKind::Punctuation(".") if self.at_relative_module_path_expression() => {
+                self.error_at(
+                    self.current().span,
+                    "module paths are only valid in `use` declarations; import the module before using it",
+                );
+                Err(())
+            }
+            TokenKind::Punctuation("/") if self.at_absolute_module_path_expression() => {
+                self.error_at(
+                    self.current().span,
+                    "module paths are only valid in `use` declarations; import the module before using it",
+                );
+                Err(())
+            }
             _ => {
                 self.error_current("expected expression");
                 Err(())
             }
         }
+    }
+
+    fn at_relative_module_path_expression(&self) -> bool {
+        self.at_punctuation(".")
+            && (self.current_touches_next_punctuation("/")
+                || (self.current_touches_next_punctuation(".")
+                    && self.punctuation_at_offset(2, "/")))
+    }
+
+    fn at_absolute_module_path_expression(&self) -> bool {
+        self.at_punctuation("/") && self.current_touches_next_identifier()
     }
 
     fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
