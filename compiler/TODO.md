@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known commits:
-  - `1e8b29a Preserve aggregate slice field elements`
-  - `c9610f5 Preserve aggregate slice element types`
-  - `ddf2a33 Support copy aggregate slice indexing`
+  - `cd47e74 Reject dotted import paths in parser`
+  - `dccb8b1 Reject wildcard imports and textual include`
+  - `44a76cb Reject embedding declarations in v0 parser`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
