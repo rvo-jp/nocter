@@ -17,7 +17,10 @@ mod symbols;
 
 use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
-use completion::{LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_STRUCT};
+use completion::{
+    LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_MODULE,
+    LSP_COMPLETION_ITEM_KIND_STRUCT,
+};
 use completion::{
     completion_items_for_document, completion_items_for_file_analysis, keyword_completion_items,
 };
@@ -1452,6 +1455,56 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn returns_documented_hover_for_namespace_imported_function_member_reference() {
+        let project = TempProject::new("lsp-hover-namespace-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
+        let config_text =
+            "/// Returns the configured answer.\npub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri,
+                    open_document(file_uri(&config), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(7),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 20
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nfunc answer(): i32\n```\n\nReturns the configured answer.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(18));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(24));
+    }
+
+    #[test]
     fn returns_documented_hover_for_imported_type_reference() {
         let project = TempProject::new("lsp-hover-imported-type");
         let home = project.write_nocter_home();
@@ -1679,6 +1732,52 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn returns_definition_for_namespace_imported_function_member_reference() {
+        let project = TempProject::new("lsp-definition-namespace-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(config_uri.clone(), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 20
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["uri"], json!(config_uri));
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    }
+
+    #[test]
     fn returns_references_for_imported_function_reference() {
         let project = TempProject::new("lsp-references-import");
         let home = project.write_nocter_home();
@@ -1740,6 +1839,63 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         assert_eq!(references[1]["uri"], json!(app_uri));
         assert_eq!(references[1]["range"]["start"]["line"], json!(3));
         assert_eq!(references[1]["range"]["start"]["character"], json!(11));
+        assert_eq!(references[2]["uri"], json!(config_uri));
+        assert_eq!(references[2]["range"]["start"]["line"], json!(0));
+        assert_eq!(references[2]["range"]["start"]["character"], json!(9));
+    }
+
+    #[test]
+    fn returns_references_for_namespace_imported_function_member_reference() {
+        let project = TempProject::new("lsp-references-namespace-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text =
+            "use ./config\n\nfunc main(): i32 {\n    return config.answer() + config.answer()\n}\n";
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(config_uri.clone(), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.references_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 20
+                },
+                "context": {
+                    "includeDeclaration": true
+                }
+            })),
+        );
+        let references = response["result"].as_array().expect("expected references");
+
+        assert_eq!(references.len(), 3);
+        assert_eq!(references[0]["uri"], json!(app_uri));
+        assert_eq!(references[0]["range"]["start"]["line"], json!(3));
+        assert_eq!(references[0]["range"]["start"]["character"], json!(18));
+        assert_eq!(references[1]["uri"], json!(app_uri));
+        assert_eq!(references[1]["range"]["start"]["line"], json!(3));
+        assert_eq!(references[1]["range"]["start"]["character"], json!(36));
         assert_eq!(references[2]["uri"], json!(config_uri));
         assert_eq!(references[2]["range"]["start"]["line"], json!(0));
         assert_eq!(references[2]["range"]["start"]["character"], json!(9));
@@ -2037,6 +2193,56 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
             completion_item_with_label(items, "answer").and_then(|item| item["kind"].as_u64()),
             Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
         );
+    }
+
+    #[test]
+    fn returns_completion_items_for_namespace_import_without_member_leakage() {
+        let project = TempProject::new("lsp-completion-namespace-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text = "use ./config\n\nfunc main(): i32 {\n    return config.answer()\n}\n";
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri,
+                    open_document(file_uri(&config), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.completion_response(
+            json!(12),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 4
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+
+        assert_eq!(
+            completion_item_with_label(items, "config").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_MODULE as u64)
+        );
+        assert!(completion_item_with_label(items, "answer").is_none());
     }
 
     #[test]
