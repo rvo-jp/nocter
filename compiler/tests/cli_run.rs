@@ -970,7 +970,13 @@ fn run_command_returns_scalar_compound_assignment_exit_code() {
     count /= 2
     var size: usize = 47
     size %= 5
-    if count == 21 && size == 2 {
+    var byte: u8 = 6
+    byte += 3
+    byte *= 2
+    byte -= 6
+    byte /= 3
+    byte %= 4
+    if count == 21 && size == 2 && byte == 0 {
         return 23
     } else {
         return 1
@@ -1003,16 +1009,22 @@ fn run_command_returns_field_compound_assignment_exit_code() {
         r#"struct Counter {
     count: i32
     size: usize
+    byte: u8
 }
 
 func main(): i32 {
-    var counter = Counter{ count: 40, size: 47 }
+    var counter = Counter{ count: 40, size: 47, byte: 6 }
     counter.count += one()
     counter.count *= 2
     counter.count -= 40
     counter.count /= 2
     counter.size %= 5
-    if counter.count == 21 && counter.size == 2 {
+    counter.byte += 3
+    counter.byte *= 2
+    counter.byte -= 6
+    counter.byte /= 3
+    counter.byte %= 4
+    if counter.count == 21 && counter.size == 2 && counter.byte == 0 {
         return 42
     } else {
         return 1

@@ -16573,6 +16573,51 @@ func fill(bytes: &+[u8]): void {
 }
 
 #[test]
+fn lowers_readwrite_u8_slice_index_compound_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(values: &+[u8]): void {
+    values[1] += 2
+    return
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    },
+                },
+                Instruction::AddU8 {
+                    destination: U8Location::Local(0),
+                    left: u8_local(0),
+                    right: u8_const(2),
+                },
+                Instruction::StoreU8ToSliceIndex {
+                    destination: SliceLocation::Parameter(0),
+                    index: usize_const(1),
+                    value: u8_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_readwrite_u8_call_result_slice_index_assignment() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -18420,6 +18465,62 @@ func calculate(left: u8, right: u8): u8 {
 }
 
 #[test]
+fn lowers_u8_compound_assignment_with_call_rhs() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var total: u8 = 40
+    total += answer()
+    return total as i32
+}
+
+func answer(): u8 {
+    return 2
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Local(0),
+                        value: u8_const(40),
+                    },
+                    call_u8(U8Location::Local(1), "answer", vec![]),
+                    Instruction::AddU8 {
+                        destination: U8Location::Local(0),
+                        left: u8_local(0),
+                        right: u8_local(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: u8_const(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_u8_local_binding_and_normal_call() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -19889,6 +19990,45 @@ func main(): usize {
             Instruction::Return,
         ]
     );
+}
+
+#[test]
+fn lowers_u8_aggregate_field_compound_assignment_with_call_rhs() {
+    let ir = lower_text(
+        r#"struct Counter {
+    pad: u8
+    value: u8
+}
+
+func main(): i32 {
+    var counter = Counter{ pad: 0, value: 40 }
+    counter.value += answer()
+    return counter.value as i32
+}
+
+func answer(): u8 {
+    return 2
+}
+"#,
+    );
+
+    let instructions = &ir.functions[0].instructions;
+    assert!(instructions.contains(&call_u8(U8Location::Local(0), "answer", vec![])));
+    assert!(instructions.contains(&Instruction::LoadAggregateU8 {
+        destination: U8Location::Local(1),
+        source: AggregateLocation::Slot(0),
+        offset: 1,
+    }));
+    assert!(instructions.contains(&Instruction::AddU8 {
+        destination: U8Location::Local(1),
+        left: u8_local(1),
+        right: u8_local(0),
+    }));
+    assert!(instructions.contains(&Instruction::StoreAggregateU8 {
+        destination: AggregateLocation::Slot(0),
+        offset: 1,
+        value: u8_local(1),
+    }));
 }
 
 #[test]

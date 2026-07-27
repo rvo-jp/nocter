@@ -1665,7 +1665,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32` or `usize` whole-binding, aggregate-field, or read-write slice element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, or read-write slice element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             if let Some(diagnostic) = unsupported_index_assignment_target_diagnostic(
@@ -2126,7 +2126,7 @@ fn assignment_operator_is_buildable(
             };
             matches!(
                 typecheck_facts.binding_type_label(symbol.name_span),
-                Some("i32" | "usize")
+                Some("i32" | "usize" | "u8")
             )
         }
         Expr::Member(member) => {
@@ -2155,7 +2155,11 @@ fn slice_index_compound_assignment_is_buildable(
             typecheck_facts,
             generic_substitutions
         ),
-        Some(TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize)
+        Some(
+            TypecheckSliceElementKind::I32
+                | TypecheckSliceElementKind::U8
+                | TypecheckSliceElementKind::Usize,
+        )
     )
 }
 
@@ -2286,7 +2290,11 @@ fn aggregate_field_compound_assignment_is_buildable(
 ) -> bool {
     matches!(
         typecheck_facts.field_scalar_view_kind(member_span),
-        Some(TypecheckScalarViewKind::I32 | TypecheckScalarViewKind::Usize)
+        Some(
+            TypecheckScalarViewKind::I32
+                | TypecheckScalarViewKind::U8
+                | TypecheckScalarViewKind::Usize,
+        )
     )
 }
 

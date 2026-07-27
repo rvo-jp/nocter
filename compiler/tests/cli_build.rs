@@ -1228,10 +1228,10 @@ func usize_buffer(): &+[usize] {
 }
 
 #[test]
-fn build_command_rejects_u8_slice_index_compound_assignment_before_ir_lowering() {
-    let project = TempProject::new("cli-build-u8-slice-index-compound-boundary");
+fn build_command_lowers_u8_slice_index_compound_assignment() {
+    let project = TempProject::new("cli-build-u8-slice-index-compound-assignment");
     let source = project.write_source(
-        "u8_slice_index_compound_boundary.nct",
+        "u8_slice_index_compound_assignment.nct",
         r#"func main(): i32 {
     let bytes = buffer()
     bytes[0] += 1
@@ -1247,28 +1247,8 @@ func buffer(): &+[u8] {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("compound assignment statements"),
-        "expected compound assignment diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("3 |     bytes[0] += 1"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

@@ -72,11 +72,11 @@ fine-grained liveness optimization.
 The backend currently supports the documented subset of:
 
 - entry wrappers for `i32`, `usize`, `void`, `i32!`, `usize!`, and `void!`
-- scalar and view locals, parameters, returns, calls, arithmetic, comparisons,
-  bool operations, and runtime traps
+- scalar and view locals, parameters, returns, calls, arithmetic, numeric
+  compound assignments, comparisons, bool operations, and runtime traps
 - static string literals and `&str` ABI passing
-- slice length, selected indexing, bounds-checked stores, and scalar/view slice
-  element compound assignments
+- slice length, selected indexing, bounds-checked stores, and numeric
+  scalar/view slice element compound assignments
 - same-file and loaded imported calls in the current scalar/view/aggregate
   subset
 - concrete generic specializations whose lowered bodies stay inside the runtime

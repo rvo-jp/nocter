@@ -50,7 +50,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
     I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
-    SliceValue, StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
+    SliceValue, StrLocation, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -1414,6 +1414,19 @@ fn lower_compound_identifier_assignment(
         return Ok(instructions);
     }
 
+    if let Some(destination) = context.u8_location(&identifier.name) {
+        let U8Location::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let (mut instructions, right) = lower_u8_expression_to_word(&statement.value, context)?;
+        instructions.push(u8_compound_assignment_instruction(
+            statement.operator,
+            destination,
+            right,
+        )?);
+        return Ok(instructions);
+    }
+
     Err(unsupported_assignment_diagnostic())
 }
 
@@ -1479,6 +1492,31 @@ fn lower_compound_aggregate_field_assignment(
                 destination: field.source,
                 offset: field.offset,
                 value: UsizeValue::Location(current),
+            });
+            Ok(instructions)
+        }
+        AggregateFieldKind::U8 => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let (mut instructions, right) = lower_u8_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            let current = temporaries.next_u8()?;
+            instructions.push(Instruction::LoadAggregateU8 {
+                destination: current,
+                source: field.source,
+                offset: field.offset,
+            });
+            instructions.push(u8_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateU8 {
+                destination: field.source,
+                offset: field.offset,
+                value: U8Value::Location(current),
             });
             Ok(instructions)
         }
@@ -1559,8 +1597,34 @@ fn lower_compound_slice_index_assignment(
             });
             Ok(instructions)
         }
-        TypecheckSliceElementKind::U8
-        | TypecheckSliceElementKind::Bool
+        TypecheckSliceElementKind::U8 => {
+            let (value_instructions, right) = lower_u8_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_u8()?;
+            instructions.push(Instruction::SetU8 {
+                destination: current,
+                value: U8Value::SliceIndex {
+                    source: destination,
+                    index: index.clone(),
+                },
+            });
+            instructions.push(u8_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreU8ToSliceIndex {
+                destination,
+                index,
+                value: U8Value::Location(current),
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Bool
         | TypecheckSliceElementKind::Str
         | TypecheckSliceElementKind::Other => Err(unsupported_assignment_diagnostic()),
     }
@@ -1638,6 +1702,42 @@ fn usize_compound_assignment_instruction(
     }
 }
 
+fn u8_compound_assignment_instruction(
+    operator: AssignmentOperator,
+    destination: U8Location,
+    right: U8Value,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let left = U8Value::Location(destination);
+    match operator {
+        AssignmentOperator::AddAssign => Ok(Instruction::AddU8 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::SubtractAssign => Ok(Instruction::SubtractU8 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::MultiplyAssign => Ok(Instruction::MultiplyU8 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::DivideAssign => Ok(Instruction::DivideU8 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::RemainderAssign => Ok(Instruction::RemainderU8 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::Assign => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
 pub(super) fn assignment_targets_readwrite_aggregate_field(
     statement: &AssignmentStmt,
     context: &LoweringContext,
@@ -1664,7 +1764,7 @@ pub(super) fn assignment_targets_readwrite_aggregate_field(
         | AssignmentOperator::RemainderAssign => {
             matches!(
                 field.kind,
-                AggregateFieldKind::I32 | AggregateFieldKind::Usize
+                AggregateFieldKind::I32 | AggregateFieldKind::U8 | AggregateFieldKind::Usize
             )
         }
     }
@@ -1689,7 +1789,9 @@ pub(super) fn assignment_targets_direct_slice_index(
         | AssignmentOperator::DivideAssign
         | AssignmentOperator::RemainderAssign => matches!(
             slice_index_assignment_element_kind(&index.object, context),
-            TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize
+            TypecheckSliceElementKind::I32
+                | TypecheckSliceElementKind::U8
+                | TypecheckSliceElementKind::Usize
         ),
     }
 }
