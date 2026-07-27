@@ -487,6 +487,13 @@ impl Parser<'_> {
             }
 
             let visibility = self.parse_visibility()?;
+            if self.at_ellipsis() {
+                self.error_at(
+                    self.ellipsis_span(),
+                    "embedding declarations are not part of v0",
+                );
+                return Err(());
+            }
             let name = self.expect_identifier("expected struct field name")?;
             self.expect_punctuation(":", "`:`")?;
             let ty = self.parse_type()?;

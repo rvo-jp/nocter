@@ -796,6 +796,37 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_embedding_declarations_as_deferred() {
+    for source in [
+        r#"struct Profile {
+    ...User
+}
+"#,
+        r#"struct Profile {
+    pub ...User
+}
+"#,
+    ] {
+        let output = parse_text(source);
+
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}: {:?}",
+            output.diagnostics
+        );
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("embedding declarations are not part of v0"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
 fn parses_target_directive_on_primitive_declaration() {
     let (sources, output) = parse_text_with_sources(
         r#"#target("arm64-darwin")
