@@ -203,13 +203,6 @@ fn resolve_module_candidate(module_path: PathBuf) -> Result<PathBuf, ImportResol
     let index = module_path.join("index.nct");
     let candidates = vec![file.clone(), index.clone()];
     let file = canonicalize_candidate(file)?;
-    let directory = canonicalize_directory_candidate(module_path)?;
-    if let (Some(file), Some(directory)) = (&file, directory) {
-        return Err(ImportResolutionError::Ambiguous {
-            file: file.clone(),
-            directory,
-        });
-    }
     let index = canonicalize_candidate(index)?;
 
     match (file, index) {
@@ -225,20 +218,6 @@ fn resolve_module_candidate(module_path: PathBuf) -> Result<PathBuf, ImportResol
         (None, None) => Err(ImportResolutionError::Missing {
             candidates,
             error: "file was not found in any import root".to_string(),
-        }),
-    }
-}
-
-fn canonicalize_directory_candidate(
-    path: PathBuf,
-) -> Result<Option<PathBuf>, ImportResolutionError> {
-    match path.canonicalize() {
-        Ok(path) if path.is_dir() => Ok(Some(path)),
-        Ok(_) => Ok(None),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ImportResolutionError::Missing {
-            candidates: vec![path],
-            error: error.to_string(),
         }),
     }
 }

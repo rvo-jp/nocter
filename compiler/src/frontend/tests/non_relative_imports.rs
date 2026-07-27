@@ -260,8 +260,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_reports_ambiguous_file_and_directory_module_without_index() {
-    let root = make_temp_project("ambiguous-directory-import");
+fn check_prefers_file_module_when_directory_has_no_index() {
+    let root = make_temp_project("file-module-with-empty-directory");
     let home = make_nocter_home(&root);
     fs::create_dir_all(root.join("lib/math")).unwrap();
     fs::write(
@@ -288,12 +288,7 @@ func main(): i32 {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0410");
-    assert!(
-        diagnostics[0].message.contains("module directory"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
