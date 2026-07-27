@@ -646,6 +646,62 @@ fn parses_arithmetic_expression_precedence() {
 }
 
 #[test]
+fn diagnoses_std_path_like_expressions_as_use_only() {
+    for source in [
+        r#"func main(): i32 {
+    return std/io.print("hello")
+}
+"#,
+        r#"func main(): i32 {
+    let value = 1 * std/io.value
+    return 0
+}
+"#,
+    ] {
+        let output = parse_text(source);
+
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}: {:?}",
+            output.diagnostics
+        );
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("module paths are only valid in `use` declarations"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn parses_spaced_division_from_std_identifier() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    let value = std / io.print("hello")
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(binary) = &statement.initializer else {
+        panic!("expected division expression");
+    };
+    assert_eq!(binary.operator, BinaryOperator::Divide);
+}
+
+#[test]
 fn parses_type_conversion_expression_precedence() {
     let output = parse_text(
         r#"func main(): i32 {

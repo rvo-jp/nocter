@@ -81,6 +81,7 @@ partial language support:
 - textual include such as `include std/prelude`
 - dotted module paths such as `use std.io.print`
 - explicit `.nct` extensions in import paths such as `use ./config.nct.Config`
+- path-like module expressions such as `std/io.print("hello")`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
 - `literal Type [...]`

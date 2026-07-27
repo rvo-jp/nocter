@@ -65,6 +65,17 @@ var err = console.stderr()
 let file: StdFile = StdFile.open(path)?
 ```
 
+Module path syntax is valid only inside `use` declarations. Code must not call
+a module by writing a path-like expression:
+
+```nct
+std/io.print("hello")
+// invalid: import the module namespace first, then call io.print("hello")
+```
+
+This rule does not change division. `std / value` is still an expression when
+`std` and `value` are ordinary values.
+
 `use std/prelude` is not a source-level import form. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
 
 ```nct
@@ -100,9 +111,10 @@ use std/prelude
 use std/prelude.Error
 use ./config.nct.Config
 include std/prelude
+std/io.print("hello")
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and path-like module expressions are not part of the initial language.
 
 ## Re-exports
 
