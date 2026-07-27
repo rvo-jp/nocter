@@ -2,8 +2,9 @@ use super::documents::OpenDocument;
 use crate::analysis::FileAnalysis;
 use crate::analysis::completion::{
     CompletionItemInfo, CompletionItemKind,
-    completion_items_for_file_analysis as analysis_completion_items_for_file,
-    completion_items_for_text, keyword_completion_items as analysis_keyword_completion_items,
+    completion_items_for_file_analysis_at_offset as analysis_completion_items_for_file_at_offset,
+    completion_items_for_text_at_offset,
+    keyword_completion_items as analysis_keyword_completion_items,
 };
 use serde_json::{Value, json};
 
@@ -15,12 +16,18 @@ const LSP_COMPLETION_ITEM_KIND_ENUM: u8 = 13;
 const LSP_COMPLETION_ITEM_KIND_KEYWORD: u8 = 14;
 pub(super) const LSP_COMPLETION_ITEM_KIND_STRUCT: u8 = 22;
 
-pub(super) fn completion_items_for_file_analysis(file: &FileAnalysis) -> Vec<Value> {
-    completion_values(analysis_completion_items_for_file(file))
+pub(super) fn completion_items_for_file_analysis_at_offset(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Vec<Value> {
+    completion_values(analysis_completion_items_for_file_at_offset(file, offset))
 }
 
-pub(super) fn completion_items_for_document(document: &OpenDocument) -> Option<Vec<Value>> {
-    completion_items_for_text(&document.text).map(completion_values)
+pub(super) fn completion_items_for_document_at_offset(
+    document: &OpenDocument,
+    offset: usize,
+) -> Option<Vec<Value>> {
+    completion_items_for_text_at_offset(&document.text, offset).map(completion_values)
 }
 
 pub(super) fn keyword_completion_items() -> Vec<Value> {

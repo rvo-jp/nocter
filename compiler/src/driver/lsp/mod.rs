@@ -22,7 +22,8 @@ use completion::{
     LSP_COMPLETION_ITEM_KIND_STRUCT,
 };
 use completion::{
-    completion_items_for_document, completion_items_for_file_analysis, keyword_completion_items,
+    completion_items_for_document_at_offset, completion_items_for_file_analysis_at_offset,
+    keyword_completion_items,
 };
 use definition::{definition_for_document, definition_for_file_analysis};
 use diagnostics::publish_diagnostics;
@@ -34,11 +35,10 @@ use documents::{
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 #[cfg(test)]
-use protocol::LspPosition;
-#[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
 use protocol::{
-    lsp_position_to_byte_offset, position_from_params, read_message, response, write_message,
+    LspPosition, lsp_position_to_byte_offset, position_from_params, read_message, response,
+    write_message,
 };
 use references::{references_for_document, references_for_file_analysis};
 #[cfg(test)]
@@ -337,11 +337,18 @@ impl LspServer {
     fn completion_response(&self, id: Value, params: Option<&Value>) -> Value {
         let items = document_uri_from_params(params)
             .and_then(|uri| {
-                self.workspace_completion_for_uri(&uri).or_else(|| {
-                    self.documents
-                        .get(&uri)
-                        .and_then(completion_items_for_document)
-                })
+                let position = position_from_params(params)?;
+                self.workspace_completion_for_uri(&uri, &position)
+                    .or_else(|| {
+                        self.documents.get(&uri).and_then(|document| {
+                            let offset = lsp_position_to_byte_offset(
+                                &document.text,
+                                position.line,
+                                position.character,
+                            );
+                            completion_items_for_document_at_offset(document, offset)
+                        })
+                    })
             })
             .unwrap_or_else(keyword_completion_items);
         response(
@@ -403,9 +410,18 @@ impl LspServer {
         })
     }
 
-    fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
-        self.with_workspace_file_for_uri(uri, |_document, _workspace, file| {
-            Some(completion_items_for_file_analysis(file))
+    fn workspace_completion_for_uri(
+        &self,
+        uri: &str,
+        position: &LspPosition,
+    ) -> Option<Vec<Value>> {
+        self.with_workspace_file_for_uri(uri, |document, _workspace, file| {
+            let root_offset =
+                lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            Some(completion_items_for_file_analysis_at_offset(
+                file,
+                root_offset,
+            ))
         })
     }
 
@@ -2332,6 +2348,81 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
             Some(LSP_COMPLETION_ITEM_KIND_MODULE as u64)
         );
         assert!(completion_item_with_label(items, "answer").is_none());
+    }
+
+    #[test]
+    fn returns_completion_items_for_block_imports_only_inside_scope() {
+        let project = TempProject::new("lsp-completion-block-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text = r#"func main(): i32 {
+    use ./config.answer
+
+    return answer()
+}
+
+func other(): i32 {
+    return 0
+}
+"#;
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri,
+                    open_document(file_uri(&config), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let inside_response = server.completion_response(
+            json!(12),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 4
+                }
+            })),
+        );
+        let inside_items = inside_response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+        assert_eq!(
+            completion_item_with_label(inside_items, "answer")
+                .and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        );
+
+        let outside_response = server.completion_response(
+            json!(13),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 7,
+                    "character": 4
+                }
+            })),
+        );
+        let outside_items = outside_response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+        assert!(completion_item_with_label(outside_items, "answer").is_none());
     }
 
     #[test]
