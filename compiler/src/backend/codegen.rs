@@ -461,6 +461,55 @@ impl EntryEmitter {
             } => {
                 self.emit_store_str_to_slice_index(*destination, index, value, frame)?;
             }
+            Instruction::AddU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_add_u8(*destination, left, right)?;
+            }
+            Instruction::SubtractU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_subtract_u8(*destination, left, right)?;
+            }
+            Instruction::MultiplyU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_multiply_u8(*destination, left, right)?;
+            }
+            Instruction::DivideU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_divide_u8(*destination, left, right)?;
+            }
+            Instruction::RemainderU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_remainder_u8(*destination, left, right)?;
+            }
+            Instruction::ShiftLeftU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_left_u8(*destination, left, right)?;
+            }
+            Instruction::ShiftRightU8 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_right_u8(*destination, left, right)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -2476,6 +2525,15 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
         }
         Instruction::StoreStrToSliceIndex { index, value, .. } => {
             usize_value_uses_process_arguments(index) || str_value_uses_process_arguments(value)
+        }
+        Instruction::AddU8 { left, right, .. }
+        | Instruction::SubtractU8 { left, right, .. }
+        | Instruction::MultiplyU8 { left, right, .. }
+        | Instruction::DivideU8 { left, right, .. }
+        | Instruction::RemainderU8 { left, right, .. }
+        | Instruction::ShiftLeftU8 { left, right, .. }
+        | Instruction::ShiftRightU8 { left, right, .. } => {
+            u8_value_uses_process_arguments(left) || u8_value_uses_process_arguments(right)
         }
         Instruction::AddI32 { left, right, .. }
         | Instruction::SubtractI32 { left, right, .. }
@@ -6631,6 +6689,164 @@ mod tests {
     }
 
     #[test]
+    fn generates_u8_addition_with_range_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::AddU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(40),
+                    right: u8_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x0b])); // add w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_u8_subtraction_with_range_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SubtractU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(40),
+                    right: u8_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x4b])); // sub w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_u8_multiplication_with_range_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::MultiplyU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(21),
+                    right: u8_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x7e, 0x00, 0x1b])); // mul w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_u8_division_with_zero_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::DivideU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(84),
+                    right: u8_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0x6b])); // cmp w0, wzr
+        assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x0a, 0xc0, 0x1a])); // udiv w0, w16, w0
+    }
+
+    #[test]
+    fn generates_u8_remainder_with_zero_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::RemainderU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(85),
+                    right: u8_const(43),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0x6b])); // cmp w0, wzr
+        assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x11, 0x0a, 0xc0, 0x1a])); // udiv w17, w16, w0
+    }
+
+    #[test]
+    fn generates_u8_shift_left_with_count_and_range_traps() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::ShiftLeftU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(5),
+                    right: u8_const(3),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x22, 0xc0, 0x1a])); // lslv w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_u8_shift_right_with_count_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::ShiftRightU8 {
+                    destination: U8Location::Return,
+                    left: u8_const(8),
+                    right: u8_const(1),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x26, 0xc0, 0x1a])); // lsrv w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
     fn generates_usize_addition_with_overflow_trap() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
@@ -7370,6 +7586,10 @@ mod tests {
 
     fn i32_local(index: usize) -> I32Value {
         I32Value::Location(I32Location::Local(index))
+    }
+
+    fn u8_const(value: u8) -> U8Value {
+        U8Value::Const(value)
     }
 
     fn readonly_u8_slice_type() -> Type {

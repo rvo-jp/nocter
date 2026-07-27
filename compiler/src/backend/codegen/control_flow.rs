@@ -444,6 +444,13 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
             | Instruction::SetSliceRawParts { .. }
+            | Instruction::AddU8 { .. }
+            | Instruction::SubtractU8 { .. }
+            | Instruction::MultiplyU8 { .. }
+            | Instruction::DivideU8 { .. }
+            | Instruction::RemainderU8 { .. }
+            | Instruction::ShiftLeftU8 { .. }
+            | Instruction::ShiftRightU8 { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }

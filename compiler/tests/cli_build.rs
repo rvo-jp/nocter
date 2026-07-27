@@ -846,6 +846,79 @@ func right_count(): usize {
 }
 
 #[test]
+fn build_command_lowers_u8_arithmetic_and_shifts() {
+    let project = TempProject::new("cli-build-u8-arithmetic-shifts");
+    let source = project.write_source(
+        "u8_arithmetic_shifts.nct",
+        r#"func main(): i32 {
+    let a: u8 = b'\x06'
+    let b: u8 = b'\x03'
+    let sum: u8 = a + b
+    let difference: u8 = a - b
+    let product: u8 = b * 4
+    let quotient: u8 = a / b
+    let remainder: u8 = a % 4
+    let shifted_left: u8 = b << 1
+    let shifted_right: u8 = a >> 1
+
+    if sum == 9 && difference == 3 && product == 12 && quotient == 2 && remainder == 2 && shifted_left == 6 && shifted_right == 3 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_mixed_shift_count_before_ir_lowering() {
+    let project = TempProject::new("cli-build-mixed-shift-count-diagnostic");
+    let source = project.write_source(
+        "mixed_shift_count_diagnostic.nct",
+        r#"func main(): i32 {
+    let value: i32 = 1
+    let count: u8 = 1
+    return value << count
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert!(
+        !output.status.success(),
+        "expected build to fail, got stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        stderr
+    );
+    assert!(
+        stderr.contains("error[E0353]"),
+        "expected shift diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     return value << count"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "typecheck should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_imported_usize_call_condition() {
     let project = TempProject::new("cli-build-imported-usize-condition");
     project.write_nocter_home_file(

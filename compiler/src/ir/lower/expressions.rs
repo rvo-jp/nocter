@@ -66,8 +66,8 @@ use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
     expressions_are_lowerable_bool_comparison_operands, expressions_are_lowerable_bool_values,
     expressions_are_lowerable_usize_values, i32_comparison_needs_temporaries,
-    is_i32_binary_operator, is_usize_binary_operator, str_comparison_is_lowerable,
-    u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
+    is_i32_binary_operator, is_u8_binary_operator, is_usize_binary_operator,
+    str_comparison_is_lowerable, u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
@@ -215,6 +215,9 @@ pub(super) fn lower_u8_expression_to_location(
             context,
             u8_destination_reserved_abi_words(destination),
         ),
+        Expr::Binary(binary) if is_u8_binary_operator(binary.operator) => {
+            lower_u8_binary_expression_to_location(binary, destination, context)
+        }
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered = lower_u8_index_expression_to_value(index, context, &mut temporaries)?;
@@ -1993,6 +1996,18 @@ fn lower_u8_expression_to_value(
         Expr::Match(statement) => {
             lower_u8_match_expression_to_value(statement, context, temporaries)
         }
+        Expr::Binary(binary) if is_u8_binary_operator(binary.operator) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_u8_binary_expression_to_location_with_temporaries(
+                    binary,
+                    temporary,
+                    context,
+                    temporaries,
+                )?,
+                value: U8Value::Location(temporary),
+            })
+        }
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::U8) =>
@@ -2023,6 +2038,39 @@ fn lower_u8_expression_to_value(
             value: lower_u8_value(expression, context)?,
         }),
     }
+}
+
+fn lower_u8_binary_expression_to_location(
+    binary: &BinaryExpr,
+    destination: U8Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_u8_binary_expression_to_location_with_temporaries(
+        binary,
+        destination,
+        context,
+        &mut temporaries,
+    )
+}
+
+fn lower_u8_binary_expression_to_location_with_temporaries(
+    binary: &BinaryExpr,
+    destination: U8Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let left = lower_u8_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_u8_expression_to_value(&binary.right, context, temporaries)?;
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    instructions.push(u8_binary_instruction(
+        binary.operator,
+        destination,
+        left.value,
+        right.value,
+    )?);
+    Ok(instructions)
 }
 
 pub(super) fn lower_u8_expression_to_word(
@@ -2530,6 +2578,52 @@ fn usize_binary_instruction(
             right,
         }),
         _ => Err(unsupported_usize_expression_diagnostic()),
+    }
+}
+
+fn u8_binary_instruction(
+    operator: BinaryOperator,
+    destination: U8Location,
+    left: U8Value,
+    right: U8Value,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    match operator {
+        BinaryOperator::Add => Ok(Instruction::AddU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Subtract => Ok(Instruction::SubtractU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Multiply => Ok(Instruction::MultiplyU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Divide => Ok(Instruction::DivideU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Remainder => Ok(Instruction::RemainderU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftLeft => Ok(Instruction::ShiftLeftU8 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftRight => Ok(Instruction::ShiftRightU8 {
+            destination,
+            left,
+            right,
+        }),
+        _ => Err(unsupported_u8_expression_diagnostic()),
     }
 }
 

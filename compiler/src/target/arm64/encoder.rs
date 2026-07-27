@@ -73,6 +73,10 @@ impl Encoder {
         self.emit_word(SDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_udiv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(UDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_udiv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
         self.emit_word(UDIV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
@@ -87,6 +91,10 @@ impl Encoder {
 
     pub(crate) fn emit_lsrv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
         self.emit_word(LSRV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_lsrv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(LSRV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
     pub(crate) fn emit_lsl_x_imm(&mut self, rd: XReg, rn: XReg, shift: u32) {
@@ -640,9 +648,11 @@ const SMADDL_X_BASE: u32 = 0x9b20_0000;
 const UMULH_X_BASE: u32 = 0x9bc0_7c00;
 const SXTW_X_BASE: u32 = 0x9340_7c00;
 const SDIV_W_BASE: u32 = 0x1ac0_0c00;
+const UDIV_W_BASE: u32 = 0x1ac0_0800;
 const UDIV_X_BASE: u32 = 0x9ac0_0800;
 const LSLV_W_BASE: u32 = 0x1ac0_2000;
 const LSLV_X_BASE: u32 = 0x9ac0_2000;
+const LSRV_W_BASE: u32 = 0x1ac0_2400;
 const LSRV_X_BASE: u32 = 0x9ac0_2400;
 const UBFM_X_BASE: u32 = 0xd340_0000;
 const ASRV_W_BASE: u32 = 0x1ac0_2800;
@@ -943,6 +953,15 @@ mod tests {
     }
 
     #[test]
+    fn encodes_udiv_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_udiv_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x08, 0xc1, 0x1a]);
+    }
+
+    #[test]
     fn encodes_lslv_w0_w16_w0() {
         let mut encoder = Encoder::new();
 
@@ -967,6 +986,15 @@ mod tests {
         encoder.emit_lsrv_x(XReg::X0, XReg::X16, XReg::X0);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x26, 0xc0, 0x9a]);
+    }
+
+    #[test]
+    fn encodes_lsrv_w0_w16_w0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lsrv_w(WReg::W0, WReg::W16, WReg::W0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x26, 0xc0, 0x1a]);
     }
 
     #[test]

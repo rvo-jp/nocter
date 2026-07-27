@@ -2287,6 +2287,43 @@ func right_count(): usize {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_u8_arithmetic_and_shift_exit_code() {
+    let project = TempProject::new("cli-run-u8-arithmetic-shift");
+    let source = project.write_source(
+        "u8_arithmetic_shift.nct",
+        r#"func main(): i32 {
+    let a: u8 = b'\x06'
+    let b: u8 = b'\x03'
+    let sum: u8 = a + b
+    let difference: u8 = a - b
+    let product: u8 = b * 4
+    let quotient: u8 = a / b
+    let remainder: u8 = a % 4
+    let shifted_left: u8 = b << 1
+    let shifted_right: u8 = a >> 1
+
+    if sum == 9 && difference == 3 && product == 12 && quotient == 2 && remainder == 2 && shifted_left == 6 && shifted_right == 3 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_i32_division_by_zero() {
     let project = TempProject::new("cli-run-i32-div-zero");
     let source = project.write_source(

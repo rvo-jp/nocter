@@ -200,7 +200,7 @@ fn accepts_shift_expression_return() {
     return 0
 }
 
-func shift_left(value: u64, count: u8): u64 {
+func shift_left(value: u64, count: u64): u64 {
     return value << count
 }
 
@@ -382,6 +382,24 @@ fn diagnoses_shift_operand_type_mismatch() {
     assert_eq!(diagnostics[0].code, "E0353");
     assert!(diagnostics[0].message.contains("i32"));
     assert!(diagnostics[0].message.contains("bool"));
+}
+
+#[test]
+fn diagnoses_shift_count_type_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value: i32 = 1
+    let count: u8 = 1
+    let invalid = value << count
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0353");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("u8"));
 }
 
 #[test]

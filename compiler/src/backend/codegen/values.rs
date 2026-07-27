@@ -1337,6 +1337,155 @@ impl EntryEmitter {
         self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
     }
 
+    pub(super) fn emit_add_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_add_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_u8_range_check(WReg::W16, "u8 addition in-range target")?;
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.encoder.emit_add_w(destination, WReg::W16, destination);
+        self.emit_u8_range_check(destination, "u8 addition in-range target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_subtract_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_sub_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_u8_range_check(WReg::W16, "u8 subtraction in-range target")?;
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.encoder.emit_sub_w(destination, WReg::W16, destination);
+        self.emit_u8_range_check(destination, "u8 subtraction in-range target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_multiply_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_mul_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_u8_range_check(WReg::W16, "u8 multiplication in-range target")?;
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.encoder.emit_mul_w(destination, WReg::W16, destination);
+        self.emit_u8_range_check(destination, "u8 multiplication in-range target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_divide_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.emit_u8_division_safety_checks(WReg::W17)?;
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_udiv_w(WReg::W16, WReg::W16, WReg::W17);
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.emit_u8_division_safety_checks(destination)?;
+        self.encoder
+            .emit_udiv_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    pub(super) fn emit_remainder_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.emit_u8_division_safety_checks(WReg::W17)?;
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_udiv_w(WReg::W8, WReg::W16, WReg::W17);
+            self.encoder
+                .emit_msub_w(WReg::W16, WReg::W8, WReg::W17, WReg::W16);
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.emit_u8_division_safety_checks(destination)?;
+        self.encoder.emit_udiv_w(WReg::W17, WReg::W16, destination);
+        self.encoder
+            .emit_msub_w(destination, WReg::W17, destination, WReg::W16);
+        Ok(())
+    }
+
+    pub(super) fn emit_shift_left_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.emit_u8_shift_count_safety_checks(WReg::W17)?;
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_lslv_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_u8_range_check(WReg::W16, "u8 shift-left in-range target")?;
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.emit_u8_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_lslv_w(destination, WReg::W16, destination);
+        self.emit_u8_range_check(destination, "u8 shift-left in-range target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_shift_right_u8(
+        &mut self,
+        destination: U8Location,
+        left: &U8Value,
+        right: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(destination) = self.u8_register_destination(destination)? else {
+            self.emit_u8_value_to_w(right, WReg::W17)?;
+            self.emit_u8_shift_count_safety_checks(WReg::W17)?;
+            self.emit_u8_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_lsrv_w(WReg::W16, WReg::W16, WReg::W17);
+            return self.emit_w_to_u8_location(WReg::W16, destination);
+        };
+        self.emit_u8_value_to_w(left, WReg::W16)?;
+        self.emit_u8_value_to_w(right, destination)?;
+        self.emit_u8_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_lsrv_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
     pub(super) fn emit_add_i32(
         &mut self,
         destination: I32Location,
@@ -1660,6 +1809,43 @@ impl EntryEmitter {
         self.emit_usize_shift_count_safety_checks(destination)?;
         self.encoder
             .emit_lsrv_x(destination, XReg::X16, destination);
+        Ok(())
+    }
+
+    fn emit_u8_range_check(
+        &mut self,
+        value: WReg,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, i32::from(u8::MAX));
+        self.encoder.emit_cmp_w(value, WReg::W17);
+        let in_range = self.emit_cond_branch_placeholder(BranchCondition::Ls);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(in_range, target_description)?;
+        Ok(())
+    }
+
+    fn emit_u8_division_safety_checks(&mut self, divisor: WReg) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_w_zero(divisor);
+        let divisor_nonzero = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(divisor_nonzero, "division non-zero target")?;
+
+        Ok(())
+    }
+
+    fn emit_u8_shift_count_safety_checks(&mut self, count: WReg) -> Result<(), Vec<Diagnostic>> {
+        let scratch = if count == WReg::W17 {
+            WReg::W16
+        } else {
+            WReg::W17
+        };
+        emit_mov_i32_to_w(&mut self.encoder, scratch, 8);
+        self.encoder.emit_cmp_w(count, scratch);
+        let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Cc);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(count_in_range, "u8 shift count in-range target")?;
+
         Ok(())
     }
 

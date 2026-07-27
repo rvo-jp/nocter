@@ -18352,6 +18352,74 @@ func echo(byte: u8): u8 {
 }
 
 #[test]
+fn lowers_u8_arithmetic_and_shifts() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func calculate(left: u8, right: u8): u8 {
+    let sum: u8 = left + right
+    let difference: u8 = sum - 1
+    let product: u8 = difference * 2
+    let quotient: u8 = product / right
+    let remainder: u8 = quotient % 5
+    let shifted_left: u8 = remainder << 1
+    return shifted_left >> 1
+}
+"#,
+        "calculate",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "calculate".to_string(),
+            target: crate::ir::CallTarget::same_file("calculate".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::AddU8 {
+                    destination: U8Location::Local(0),
+                    left: u8_param(0),
+                    right: u8_param(1),
+                },
+                Instruction::SubtractU8 {
+                    destination: U8Location::Local(1),
+                    left: u8_local(0),
+                    right: u8_const(1),
+                },
+                Instruction::MultiplyU8 {
+                    destination: U8Location::Local(2),
+                    left: u8_local(1),
+                    right: u8_const(2),
+                },
+                Instruction::DivideU8 {
+                    destination: U8Location::Local(3),
+                    left: u8_local(2),
+                    right: u8_param(1),
+                },
+                Instruction::RemainderU8 {
+                    destination: U8Location::Local(4),
+                    left: u8_local(3),
+                    right: u8_const(5),
+                },
+                Instruction::ShiftLeftU8 {
+                    destination: U8Location::Local(5),
+                    left: u8_local(4),
+                    right: u8_const(1),
+                },
+                Instruction::ShiftRightU8 {
+                    destination: U8Location::Return,
+                    left: u8_local(5),
+                    right: u8_const(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_local_binding_and_normal_call() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {

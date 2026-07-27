@@ -259,6 +259,41 @@ pub(crate) enum Instruction {
         index: UsizeValue,
         value: StrValue,
     },
+    AddU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    SubtractU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    MultiplyU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    DivideU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    RemainderU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    ShiftLeftU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
+    ShiftRightU8 {
+        destination: U8Location,
+        left: U8Value,
+        right: U8Value,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,

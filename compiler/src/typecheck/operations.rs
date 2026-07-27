@@ -72,7 +72,13 @@ pub(super) fn check_binary_expression(
             }
         }
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
-            if !shift_operands_match(&left_type, &right_type) {
+            if !shift_operands_match(
+                &left_type,
+                &right_type,
+                &expression.right,
+                resolved,
+                environment,
+            ) {
                 diagnostics.push(shift_operand_type_mismatch_diagnostic(
                     sources,
                     expression,
@@ -523,8 +529,17 @@ fn ordered_comparison_operands_match(
         && integer_operands_match(left_type, left, right_type, right, resolved, environment)
 }
 
-fn shift_operands_match(left_type: &Type, right_type: &Type) -> bool {
-    is_integer_type(left_type) && is_integer_type(right_type)
+fn shift_operands_match(
+    left_type: &Type,
+    right_type: &Type,
+    right: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    is_integer_type(left_type)
+        && ((is_integer_type(right_type) && same_known_type(left_type, right_type))
+            || (is_integer_literal_expr(right)
+                && is_expression_assignable(left_type, right, resolved, environment)))
 }
 
 fn is_lossless_integer_conversion(

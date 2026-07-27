@@ -419,7 +419,7 @@ Adopted: numeric operations do not perform implicit integer conversion.
 Rules:
 
 - Integer binary arithmetic uses operands of the same integer type.
-- Shift operators use an integer value on the left side and an integer shift count on the right side.
+- Shift operators use operands of the same integer type. Integer literals on the right side may be contextually typed by the left operand type when the value fits.
 - Shift expressions return the left operand type.
 - Integer literals may take an expected integer type when the value fits.
 - Non-literal integer values are not implicitly converted.

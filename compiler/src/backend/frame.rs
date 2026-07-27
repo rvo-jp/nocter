@@ -477,6 +477,13 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
+        | Instruction::AddU8 { .. }
+        | Instruction::SubtractU8 { .. }
+        | Instruction::MultiplyU8 { .. }
+        | Instruction::DivideU8 { .. }
+        | Instruction::RemainderU8 { .. }
+        | Instruction::ShiftLeftU8 { .. }
+        | Instruction::ShiftRightU8 { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -606,6 +613,13 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
+        | Instruction::AddU8 { .. }
+        | Instruction::SubtractU8 { .. }
+        | Instruction::MultiplyU8 { .. }
+        | Instruction::DivideU8 { .. }
+        | Instruction::RemainderU8 { .. }
+        | Instruction::ShiftLeftU8 { .. }
+        | Instruction::ShiftRightU8 { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -784,6 +798,13 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::SetSliceRawParts { .. }
+        | Instruction::AddU8 { .. }
+        | Instruction::SubtractU8 { .. }
+        | Instruction::MultiplyU8 { .. }
+        | Instruction::DivideU8 { .. }
+        | Instruction::RemainderU8 { .. }
+        | Instruction::ShiftLeftU8 { .. }
+        | Instruction::ShiftRightU8 { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -936,6 +957,13 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
         | Instruction::SetSlice { .. }
+        | Instruction::AddU8 { .. }
+        | Instruction::SubtractU8 { .. }
+        | Instruction::MultiplyU8 { .. }
+        | Instruction::DivideU8 { .. }
+        | Instruction::RemainderU8 { .. }
+        | Instruction::ShiftLeftU8 { .. }
+        | Instruction::ShiftRightU8 { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -1585,6 +1613,18 @@ fn record_instruction_parameter_spill_requests(
                 record_slice_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::AddU8 { left, right, .. }
+        | Instruction::SubtractU8 { left, right, .. }
+        | Instruction::MultiplyU8 { left, right, .. }
+        | Instruction::DivideU8 { left, right, .. }
+        | Instruction::RemainderU8 { left, right, .. }
+        | Instruction::ShiftLeftU8 { left, right, .. }
+        | Instruction::ShiftRightU8 { left, right, .. } => {
+            if include_value_parameters {
+                record_u8_value_parameter_spill_requests(left, requests);
+                record_u8_value_parameter_spill_requests(right, requests);
+            }
+        }
         Instruction::AddI32 { left, right, .. }
         | Instruction::SubtractI32 { left, right, .. }
         | Instruction::MultiplyI32 { left, right, .. }
@@ -2185,6 +2225,45 @@ fn record_instruction_scalar_locals(
         Instruction::SetSlice { destination, value } => {
             record_slice_location(*destination, highest_local_index);
             record_slice_value(value, highest_local_index);
+        }
+        Instruction::AddU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::SubtractU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::MultiplyU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::DivideU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::RemainderU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::ShiftLeftU8 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::ShiftRightU8 {
+            destination,
+            left,
+            right,
+        } => {
+            record_u8_location(*destination, highest_local_index);
+            record_u8_value(left, highest_local_index);
+            record_u8_value(right, highest_local_index);
         }
         Instruction::AddI32 {
             destination,

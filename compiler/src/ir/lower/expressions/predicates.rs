@@ -452,6 +452,10 @@ pub(super) fn is_usize_binary_operator(operator: BinaryOperator) -> bool {
     is_integer_binary_operator(operator)
 }
 
+pub(super) fn is_u8_binary_operator(operator: BinaryOperator) -> bool {
+    is_integer_binary_operator(operator)
+}
+
 fn is_integer_binary_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
@@ -616,6 +620,10 @@ fn expression_is_lowerable_bool_binary(binary: &BinaryExpr, context: &LoweringCo
 
 fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::Binary(binary) if is_u8_binary_operator(binary.operator) => {
+            expression_is_lowerable_u8_expression(&binary.left, context)
+                && expression_is_lowerable_u8_expression(&binary.right, context)
+        }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => {
             expression_is_lowerable_byte_index_object(&index.object, context)
