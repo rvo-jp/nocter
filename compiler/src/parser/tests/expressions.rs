@@ -203,6 +203,24 @@ fn diagnoses_named_arguments_as_deferred() {
 }
 
 #[test]
+fn diagnoses_spread_arguments_as_deferred() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return push_all(...values)
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("`...` spread is not part of v0")
+    );
+}
+
+#[test]
 fn accepts_multiline_argument_trailing_comma() {
     let output = parse_text(
         r#"func main(): i32 {
@@ -295,6 +313,28 @@ fn parses_array_literal_expression() {
         panic!("expected array literal");
     };
     assert_eq!(array.elements.len(), 4);
+}
+
+#[test]
+fn diagnoses_array_spread_as_deferred() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    let numbers = [
+        ...other,
+        4,
+    ]
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("`...` spread is not part of v0")
+    );
 }
 
 #[test]
@@ -400,6 +440,32 @@ func main(): i32 {
     assert_eq!(literal.fields.len(), 2);
     assert_eq!(literal.fields[0].name, "x");
     assert_eq!(literal.fields[1].name, "label");
+}
+
+#[test]
+fn diagnoses_struct_literal_spread_as_deferred() {
+    let output = parse_text(
+        r#"struct Profile {
+    visits: i32
+}
+
+func main(): i32 {
+    let profile = Profile{
+        ...User.new(name),
+        visits: 0,
+    }
+    return profile.visits
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("`...` spread is not part of v0")
+    );
 }
 
 #[test]

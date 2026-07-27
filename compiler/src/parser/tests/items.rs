@@ -308,6 +308,23 @@ fn diagnoses_variadic_parameters_as_deferred() {
 }
 
 #[test]
+fn diagnoses_prefix_variadic_parameters_as_deferred() {
+    let output = parse_text(
+        r#"func print_all(...values: [String]): void {
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("variadic parameters are not part of v0")
+    );
+}
+
+#[test]
 fn accepts_multiline_parameter_trailing_comma() {
     let output = parse_text(
         r#"func add(

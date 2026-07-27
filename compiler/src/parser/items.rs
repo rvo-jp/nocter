@@ -811,6 +811,13 @@ impl Parser<'_> {
                 self.error_at(token.span, "`var` parameters are not part of v0");
                 return Err(());
             }
+            if self.at_ellipsis() {
+                self.error_at(
+                    self.ellipsis_span(),
+                    "variadic parameters are not part of v0",
+                );
+                return Err(());
+            }
             let name = self.expect_identifier("expected parameter name")?;
             self.expect_punctuation(":", "`:`")?;
             let ty = self.parse_type()?;
@@ -818,8 +825,11 @@ impl Parser<'_> {
                 self.error_current("default parameters are not part of v0");
                 return Err(());
             }
-            if self.at_punctuation(".") && self.next_is_punctuation(".") {
-                self.error_current("variadic parameters are not part of v0");
+            if self.at_ellipsis() {
+                self.error_at(
+                    self.ellipsis_span(),
+                    "variadic parameters are not part of v0",
+                );
                 return Err(());
             }
             let end = ty.span().end;

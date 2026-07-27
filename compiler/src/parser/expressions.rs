@@ -287,6 +287,10 @@ impl Parser<'_> {
                 return Err(());
             }
 
+            if self.at_ellipsis() {
+                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                return Err(());
+            }
             if self.current().kind == TokenKind::Identifier && self.next_is_punctuation(":") {
                 self.error_current("named arguments are not part of v0");
                 return Err(());
@@ -342,6 +346,10 @@ impl Parser<'_> {
                 return Err(());
             }
 
+            if self.at_ellipsis() {
+                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                return Err(());
+            }
             let name = self.expect_identifier("expected struct literal field name")?;
             self.expect_punctuation(":", "`:`")?;
             let value = self.parse_expression()?;
@@ -432,6 +440,10 @@ impl Parser<'_> {
                     span: self.span(start.span.start, end.span.end),
                     expression: Box::new(expression),
                 }))
+            }
+            TokenKind::Punctuation(".") if self.at_ellipsis() => {
+                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                Err(())
             }
             _ => {
                 self.error_current("expected expression");
@@ -546,6 +558,10 @@ impl Parser<'_> {
                 return Err(());
             }
 
+            if self.at_ellipsis() {
+                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                return Err(());
+            }
             elements.push(self.parse_expression()?);
             self.skip_newlines();
             if self.match_punctuation(",").is_none() {

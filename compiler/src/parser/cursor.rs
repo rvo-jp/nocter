@@ -230,6 +230,24 @@ impl Parser<'_> {
         matches!(self.current().kind, TokenKind::Punctuation(actual) if actual == punctuation)
     }
 
+    pub(super) fn at_ellipsis(&self) -> bool {
+        self.at_punctuation(".")
+            && self.next_is_punctuation(".")
+            && matches!(
+                self.token_kind_at_offset(2),
+                Some(TokenKind::Punctuation("."))
+            )
+    }
+
+    pub(super) fn ellipsis_span(&self) -> ByteSpan {
+        let start = self.current().span.start;
+        let end = self
+            .token_at_offset(2)
+            .map(|token| token.span.end)
+            .unwrap_or_else(|| self.current().span.end);
+        self.span(start, end)
+    }
+
     pub(super) fn next_is_identifier(&self) -> bool {
         matches!(self.token_kind_at_offset(1), Some(TokenKind::Identifier))
     }
@@ -306,6 +324,10 @@ impl Parser<'_> {
             index += 1;
         }
 
+        if self.tokens_start_ellipsis_at(index) {
+            return true;
+        }
+
         if !matches!(
             self.tokens.get(index).map(|token| token.kind),
             Some(TokenKind::Identifier)
@@ -375,18 +397,36 @@ impl Parser<'_> {
             .to_string()
     }
 
-    fn token_kind_at_offset(&self, offset: usize) -> Option<TokenKind> {
+    fn token_at_offset(&self, offset: usize) -> Option<&Token> {
         if self.pending_token.is_some() {
             if offset == 0 {
-                return self.pending_token.as_ref().map(|token| token.kind);
+                return self.pending_token.as_ref();
             }
-            return self
-                .tokens
-                .get(self.index + offset - 1)
-                .map(|token| token.kind);
+            return self.tokens.get(self.index + offset - 1);
         }
 
-        self.tokens.get(self.index + offset).map(|token| token.kind)
+        self.tokens.get(self.index + offset)
+    }
+
+    fn token_kind_at_index(&self, index: usize) -> Option<TokenKind> {
+        self.tokens.get(index).map(|token| token.kind)
+    }
+
+    fn token_kind_at_offset(&self, offset: usize) -> Option<TokenKind> {
+        self.token_at_offset(offset).map(|token| token.kind)
+    }
+
+    fn tokens_start_ellipsis_at(&self, index: usize) -> bool {
+        matches!(
+            self.token_kind_at_index(index),
+            Some(TokenKind::Punctuation("."))
+        ) && matches!(
+            self.token_kind_at_index(index + 1),
+            Some(TokenKind::Punctuation("."))
+        ) && matches!(
+            self.token_kind_at_index(index + 2),
+            Some(TokenKind::Punctuation("."))
+        )
     }
 
     pub(super) fn error_current(&mut self, message: impl Into<String>) {
