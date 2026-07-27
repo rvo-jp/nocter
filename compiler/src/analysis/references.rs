@@ -1,11 +1,13 @@
 //! Find-references queries derived from compile-unit analysis.
 
+use super::scoped_imports::scoped_import_name_spans;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::AstFile;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReferenceTarget {
@@ -279,6 +281,7 @@ fn collect_reference_spans_for_parts(
             );
         }
         ReferenceTarget::Declaration(declaration_span) => {
+            let scoped_import_spans = scoped_import_name_spans(ast);
             if include_declaration {
                 spans.extend(declaration_name_spans(resolved, declaration_span));
             }
@@ -289,7 +292,11 @@ fn collect_reference_spans_for_parts(
                         (symbol.declaration_span == declaration_span).then_some(span)
                     }),
             );
-            spans.extend(imported_name_spans(resolved, declaration_span));
+            spans.extend(imported_name_spans(
+                resolved,
+                declaration_span,
+                &scoped_import_spans,
+            ));
             spans.extend(facts.function_call_target_spans().filter_map(|span| {
                 (facts.function_call_target(span) == Some(declaration_span)).then_some(span)
             }));
@@ -332,12 +339,13 @@ fn declaration_name_spans(
     })
 }
 
-fn imported_name_spans(
-    resolved: &ResolveOutput,
+fn imported_name_spans<'a>(
+    resolved: &'a ResolveOutput,
     declaration_span: ByteSpan,
-) -> impl Iterator<Item = ByteSpan> + '_ {
+    scoped_import_spans: &'a HashSet<ByteSpan>,
+) -> impl Iterator<Item = ByteSpan> + 'a {
     resolved.symbols.symbols().filter_map(move |symbol| {
-        (!symbol.is_hidden
+        ((!symbol.is_hidden || scoped_import_spans.contains(&symbol.name_span))
             && symbol.declaration_span == declaration_span
             && symbol.name_span.source != declaration_span.source)
             .then_some(symbol.name_span)

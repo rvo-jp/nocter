@@ -706,6 +706,53 @@ mod tests {
     }
 
     #[test]
+    fn classifies_block_imported_function_name_for_semantic_tokens() {
+        let project = TempProject::new("lsp-semantic-block-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text = "func main(): i32 {\n    use ./config.answer\n\n    return answer()\n}\n";
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let documents = HashMap::from([
+            (
+                app_uri.clone(),
+                open_document(app_uri.clone(), Some(1), app_text.to_string()),
+            ),
+            (
+                config_uri,
+                open_document(file_uri(&config), Some(1), config_text.to_string()),
+            ),
+        ]);
+        let workspace =
+            workspace_analysis_for_uri(&app_uri, &documents).expect("expected workspace analysis");
+        let file = workspace.root_file().expect("expected analyzed file");
+        let identifiers =
+            classified_identifiers_for_file_analysis(documents.get(&app_uri).unwrap(), file);
+
+        let import_name = classified_identifier_starting_at(
+            &identifiers,
+            app_text.find("./config.answer").unwrap() + "./config.".len(),
+        )
+        .expect("expected semantic token for block import name");
+        assert_eq!(import_name.kind, SemanticTokenKind::Function);
+        assert!(
+            import_name.modifiers & SEMANTIC_DECLARATION_MODIFIER != 0,
+            "expected block import name to be classified as a declaration"
+        );
+
+        let call_name = classified_identifier_starting_at(
+            &identifiers,
+            app_text.rfind("answer()").expect("expected answer call"),
+        )
+        .expect("expected semantic token for imported function call");
+        assert_eq!(call_name.kind, SemanticTokenKind::Function);
+        assert_eq!(call_name.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+    }
+
+    #[test]
     fn marks_readonly_bindings_for_semantic_tokens() {
         let project = TempProject::new("lsp-semantic-readonly-bindings");
         let home = project.write_nocter_home();
@@ -1903,6 +1950,66 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         assert_eq!(references[2]["uri"], json!(config_uri));
         assert_eq!(references[2]["range"]["start"]["line"], json!(0));
         assert_eq!(references[2]["range"]["start"]["character"], json!(9));
+    }
+
+    #[test]
+    fn returns_references_for_block_imported_function_reference() {
+        let project = TempProject::new("lsp-references-block-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app_text =
+            "func main(): i32 {\n    use ./config.answer\n\n    return answer() + answer()\n}\n";
+        let config_text = "pub func answer(): i32 {\n    return 42\n}\n";
+        let app = project.write_source("app.nct", app_text);
+        let config = project.write_source("config.nct", config_text);
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(app_uri.clone(), Some(1), app_text.to_string()),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(config_uri.clone(), Some(1), config_text.to_string()),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.references_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                },
+                "context": {
+                    "includeDeclaration": true
+                }
+            })),
+        );
+        let references = response["result"].as_array().expect("expected references");
+
+        assert_eq!(references.len(), 4);
+        assert_eq!(references[0]["uri"], json!(app_uri));
+        assert_eq!(references[0]["range"]["start"]["line"], json!(1));
+        assert_eq!(references[0]["range"]["start"]["character"], json!(17));
+        assert_eq!(references[1]["uri"], json!(app_uri));
+        assert_eq!(references[1]["range"]["start"]["line"], json!(3));
+        assert_eq!(references[1]["range"]["start"]["character"], json!(11));
+        assert_eq!(references[2]["uri"], json!(app_uri));
+        assert_eq!(references[2]["range"]["start"]["line"], json!(3));
+        assert_eq!(references[2]["range"]["start"]["character"], json!(22));
+        assert_eq!(references[3]["uri"], json!(config_uri));
+        assert_eq!(references[3]["range"]["start"]["line"], json!(0));
+        assert_eq!(references[3]["range"]["start"]["character"], json!(9));
     }
 
     #[test]

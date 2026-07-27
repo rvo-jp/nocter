@@ -1,6 +1,7 @@
 //! Semantic identifier classification shared by editor tooling.
 
 use super::FileAnalysis;
+use super::scoped_imports::scoped_import_name_spans;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use crate::ast::BindingKind;
 use crate::resolve::{
@@ -8,6 +9,7 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use std::collections::HashSet;
 
 pub(crate) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
 pub(crate) const SEMANTIC_READONLY_MODIFIER: u32 = 1 << 1;
@@ -60,6 +62,7 @@ fn classified_identifiers_for_analysis(
         source: ast.span.source,
         resolved,
         facts,
+        scoped_import_spans: scoped_import_name_spans(ast),
         identifiers: Vec::new(),
     };
     collector.collect();
@@ -70,6 +73,7 @@ struct SemanticIdentifierCollector<'a> {
     source: SourceId,
     resolved: &'a ResolveOutput,
     facts: &'a TypecheckFacts,
+    scoped_import_spans: HashSet<ByteSpan>,
     identifiers: Vec<ClassifiedIdentifier>,
 }
 
@@ -94,7 +98,7 @@ impl SemanticIdentifierCollector<'_> {
 
     fn collect_symbol_declarations(&mut self) {
         for symbol in self.resolved.symbols.symbols() {
-            if symbol.is_hidden {
+            if symbol.is_hidden && !self.scoped_import_spans.contains(&symbol.name_span) {
                 continue;
             }
             match &symbol.kind {

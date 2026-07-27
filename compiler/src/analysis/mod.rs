@@ -5,6 +5,7 @@ pub(crate) mod completion;
 pub(crate) mod definition;
 pub(crate) mod hover;
 pub(crate) mod references;
+mod scoped_imports;
 pub(crate) mod semantic;
 mod single_file;
 pub(crate) mod symbols;

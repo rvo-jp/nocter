@@ -45,7 +45,7 @@ emission.
 | Slices and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
 | Standard library | `.nocter/std` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
-| LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts, including block-scope `use` visibility. |
+| LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. |
 
 ## Runtime-Shipped Standard Library
 
