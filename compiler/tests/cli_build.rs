@@ -3717,6 +3717,147 @@ func helper(limit: u64): i32 {
 }
 
 #[test]
+fn build_command_reports_unsupported_scalar_local_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-scalar-local-boundary");
+    let source = project.write_source(
+        "unsupported_scalar_local_boundary.nct",
+        r#"func main(): i32 {
+    let explicit: u16 = 1
+    let inferred = 1 as u16
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("local bindings with unsupported value types"),
+        "expected local binding diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("2 |     let explicit: u16 = 1"),
+        "expected explicit binding source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("3 |     let inferred = 1 as u16"),
+        "expected inferred binding source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_scalar_function_signature_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-scalar-signature-boundary");
+    let source = project.write_source(
+        "unsupported_scalar_signature_boundary.nct",
+        r#"func main(): i32 {
+    take(1)
+    return value() as i32
+}
+
+func take(amount: u16): void {
+}
+
+func value(): u16 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        "expected parameter diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        "expected return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 | func take(amount: u16): void {"),
+        "expected parameter source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 | func value(): u16 {"),
+        "expected return source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_scalar_field_member_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-scalar-field-member-boundary");
+    let source = project.write_source(
+        "unsupported_scalar_field_member_boundary.nct",
+        r#"struct Header {
+    code: u16
+}
+
+func main(): i32 {
+    let header = Header{ code: 42 }
+    return header.code as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("field member values outside supported scalar/view or aggregate types"),
+        "expected field member diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     return header.code as i32"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_payload_match_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-match-boundary");
     let source = project.write_source(

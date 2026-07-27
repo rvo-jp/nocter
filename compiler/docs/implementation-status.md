@@ -24,7 +24,9 @@ and run that executable.
 
 The buildable subset remains narrower than the checked subset. Code outside the
 runtime subset should fail through buildability diagnostics before IR or backend
-emission.
+emission. Reachable callable signatures, local bindings, and field member value
+uses that mention storage-only scalar types such as `u16` or `u32` are rejected
+at this boundary instead of surfacing as IR lowering errors.
 
 ## Implemented Capability
 
@@ -33,7 +35,7 @@ emission.
 | Entry and CLI root | `build`, `run`, and `check` use `main.nct` when no file is provided. The root-file `func main` is the executable entry. `fmt` still requires an explicit file. `--entry` is removed. |
 | Modules and `use` | File-start bare, selected, grouped, aliased, relative, absolute, source-root, Nocter-home, and `pub use` forms are implemented. Block-start non-`pub` `use` is implemented as lexical, compile-time-only scope. Legacy `import` / `from` forms are removed syntax. |
 | Target and distribution | The active Nocter home comes from `NOCTER_HOME`, otherwise the compiler executable's parent. Target-dependent std declarations use `#target("arm64-darwin")` inside stable std files. |
-| Scalars and strings | `i32`, `usize`, `u8`, `bool`, `void`, `never`, `&str`, string literals, byte literals, checked `i32`/`usize`/`u8` arithmetic and shifts, numeric whole-binding compound assignment, comparisons, bool operators, and runtime trap checks are implemented in the buildable subset. |
+| Scalars and strings | `i32`, `usize`, `u8`, `bool`, `void`, `never`, `&str`, string literals, byte literals, checked `i32`/`usize`/`u8` arithmetic and shifts, numeric whole-binding compound assignment, comparisons, bool operators, and runtime trap checks are implemented in the buildable subset. Narrower/wider integer ABI types such as `u16` and `u32` are currently storage-only inside supported aggregates, not standalone runtime scalar values. |
 | Blocks and control expressions | Blocks can produce a value from the final expression. `if` and `match` can be value expressions in the supported subset. Loops remain statement-oriented in v0. |
 | Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. Scalar/view and supported aggregate paths build and run. Nested fallible/optional return shapes remain limited. |
 | Struct aggregates | Struct literals, fields, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, numeric field compound assignment, replacement drops, and cleanup paths are implemented for the current subset. |

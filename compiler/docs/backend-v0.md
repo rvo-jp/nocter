@@ -35,6 +35,9 @@ Nocter ABI v0 is register-first:
 - scalar `i32`, `u8`, and `bool` occupy one ABI word but use 32-bit or narrower
   value operations as appropriate
 - `usize` and raw pointers occupy one ABI word
+- ABI layout recognizes additional integer widths for aggregate storage, but
+  standalone runtime scalar values are currently limited to the documented
+  buildable scalar subset
 - `&str`, `&[T]`, and `&+[T]` occupy two ABI words: pointer then length
 - direct aggregates are aggregate values of 16 bytes or less
 - indirect aggregates are aggregate values larger than 16 bytes

@@ -3,9 +3,9 @@ use crate::analysis::{
     CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
+    FunctionDecl, ImplMember, Item, MemberExpr, MethodDecl, Parameter, Stmt, TypeExpr,
+    substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -130,6 +130,7 @@ impl<'a> CallableIndex<'a> {
                                         IndexedCallable::new_method(
                                             method,
                                             body,
+                                            &impl_.target_ty,
                                             HashMap::new(),
                                             file,
                                         ),
@@ -155,6 +156,7 @@ impl<'a> CallableIndex<'a> {
                                             IndexedCallable::new_method(
                                                 method,
                                                 body,
+                                                &impl_.target_ty,
                                                 specialization.substitutions.clone(),
                                                 file,
                                             ),
@@ -172,7 +174,12 @@ impl<'a> CallableIndex<'a> {
                                     names.insert(drop_name_span(drop_.span), name.clone());
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_drop(drop_, HashMap::new(), file),
+                                        IndexedCallable::new_drop(
+                                            drop_,
+                                            &impl_.target_ty,
+                                            HashMap::new(),
+                                            file,
+                                        ),
                                     );
                                 }
                                 ImplMember::Drop(drop_) => {
@@ -191,6 +198,7 @@ impl<'a> CallableIndex<'a> {
                                             target,
                                             IndexedCallable::new_drop(
                                                 drop_,
+                                                &impl_.target_ty,
                                                 specialization.substitutions.clone(),
                                                 file,
                                             ),
@@ -231,6 +239,11 @@ struct BuildabilityIssue {
 impl<'a> IndexedCallable<'a> {
     fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         let mut issues = Vec::new();
+        issues.extend(callable_function_signature_issues(
+            function,
+            &HashMap::new(),
+            &file.resolved,
+        ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
@@ -249,6 +262,11 @@ impl<'a> IndexedCallable<'a> {
         file: &'a FileAnalysis,
     ) -> Self {
         let mut issues = Vec::new();
+        issues.extend(callable_function_signature_issues(
+            function,
+            &substitutions,
+            &file.resolved,
+        ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
@@ -264,10 +282,17 @@ impl<'a> IndexedCallable<'a> {
     fn new_method(
         method: &'a MethodDecl,
         body: &'a Block,
+        self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
     ) -> Self {
+        let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
         let mut issues = Vec::new();
+        issues.extend(callable_method_signature_issues(
+            method,
+            &contextual_substitutions,
+            &file.resolved,
+        ));
         issues.extend(nested_fallible_return_type_issue(
             &method.return_type,
             &file.resolved,
@@ -276,7 +301,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: method.span,
             body,
-            substitutions,
+            substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
             issues,
@@ -285,18 +310,99 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_drop(
         drop_: &'a DropDecl,
+        self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
     ) -> Self {
+        let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
+        let mut issues = Vec::new();
+        issues.extend(callable_parameter_issues(
+            std::slice::from_ref(&drop_.binding),
+            &contextual_substitutions,
+            &file.resolved,
+        ));
+
         Self {
             span: drop_.span,
             body: &drop_.body,
-            substitutions,
+            substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: Vec::new(),
+            issues,
         }
     }
+}
+
+fn callable_function_signature_issues(
+    function: &FunctionDecl,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolved: &ResolveOutput,
+) -> Vec<BuildabilityIssue> {
+    let mut issues =
+        callable_parameter_issues(&function.parameters.parameters, substitutions, resolved);
+    let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
+    if !callable_return_type_is_buildable(&return_type, resolved) {
+        issues.push(BuildabilityIssue {
+            span: function.return_type.span(),
+            construct: "function return types outside the v0 runtime ABI subset",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, an aggregate with a non-empty ABI layout, or a fallible form of one of those types",
+        });
+    }
+    issues
+}
+
+fn callable_method_signature_issues(
+    method: &MethodDecl,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolved: &ResolveOutput,
+) -> Vec<BuildabilityIssue> {
+    let mut issues = callable_parameter_issues(
+        std::slice::from_ref(&method.receiver),
+        substitutions,
+        resolved,
+    );
+    issues.extend(callable_parameter_issues(
+        &method.parameters.parameters,
+        substitutions,
+        resolved,
+    ));
+    let return_type = substitute_type_expr_parameters(&method.return_type, substitutions);
+    if !callable_return_type_is_buildable(&return_type, resolved) {
+        issues.push(BuildabilityIssue {
+            span: method.return_type.span(),
+            construct: "method return types outside the v0 runtime ABI subset",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, an aggregate with a non-empty ABI layout, or a fallible form of one of those types",
+        });
+    }
+    issues
+}
+
+fn callable_parameter_issues(
+    parameters: &[Parameter],
+    substitutions: &HashMap<String, TypeExpr>,
+    resolved: &ResolveOutput,
+) -> Vec<BuildabilityIssue> {
+    parameters
+        .iter()
+        .filter_map(|parameter| {
+            let ty = substitute_type_expr_parameters(&parameter.ty, substitutions);
+            (!callable_parameter_type_is_buildable(&ty, resolved)).then_some(BuildabilityIssue {
+                span: parameter.span,
+                construct: "function or method parameters outside the v0 runtime ABI subset",
+                help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or aggregate value parameters with non-empty ABI layouts",
+            })
+        })
+        .collect()
+}
+
+fn method_contextual_substitutions(
+    self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> HashMap<String, TypeExpr> {
+    let concrete_self_ty = substitute_type_expr_parameters(self_ty, substitutions);
+    let mut contextual = substitutions.clone();
+    contextual.insert("Self".to_string(), concrete_self_ty);
+    contextual
 }
 
 fn collect_callable_diagnostics(
@@ -1280,6 +1386,123 @@ fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) ->
     }
 }
 
+fn unsupported_local_binding_type_diagnostic(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<Diagnostic> {
+    if local_binding_type_is_buildable(statement, resolved, typecheck_facts, generic_substitutions)
+    {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        statement.name_span,
+        "local bindings with unsupported value types",
+        "bind `i32`, `u8`, `usize`, `bool`, `&str`, slice views, payloadless enums, errors, or aggregate values until broader scalar local lowering is promoted",
+    ))
+}
+
+fn local_binding_type_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if let Some(ty) = &statement.ty {
+        let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+        return local_binding_type_expr_is_buildable(&ty, resolved)
+            || !type_expr_is_known_unsupported_scalar_value(&ty, resolved);
+    }
+
+    if typecheck_facts
+        .binding_scalar_view_kind(statement.name_span)
+        .is_some()
+    {
+        return true;
+    }
+
+    typecheck_facts
+        .binding_type_label(statement.name_span)
+        .map_or(true, |label| {
+            inferred_binding_type_label_is_buildable(label, resolved)
+        })
+}
+
+fn inferred_binding_type_label_is_buildable(label: &str, resolved: &ResolveOutput) -> bool {
+    if unsupported_scalar_type_label(label) {
+        return false;
+    }
+
+    let Some(symbol) = resolved.type_symbol_by_reference_name(label) else {
+        return true;
+    };
+    let Some(target) = &symbol.alias_target else {
+        return true;
+    };
+    !type_expr_is_known_unsupported_scalar_value(target, resolved)
+}
+
+fn unsupported_scalar_type_label(label: &str) -> bool {
+    matches!(
+        label,
+        "i8" | "i16" | "i64" | "isize" | "u16" | "u32" | "u64"
+    )
+}
+
+fn local_binding_type_expr_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_buildable_scalar_or_view(ty, resolved)
+        || type_expr_is_error_parameter(ty, resolved)
+        || type_expr_is_supported_aggregate_value(ty, resolved)
+}
+
+fn type_expr_is_known_unsupported_scalar_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_known_unsupported_scalar_value_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_known_unsupported_scalar_value_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) if unsupported_scalar_type_label(&reference.name) => true,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = type_expr_is_known_unsupported_scalar_value_inner(
+                target,
+                resolved,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => abi_value_from_type_expr(ty, resolved).is_ok_and(|value| {
+            matches!(
+                value.ty,
+                AbiType::I8
+                    | AbiType::I16
+                    | AbiType::I64
+                    | AbiType::Isize
+                    | AbiType::U16
+                    | AbiType::U32
+                    | AbiType::U64
+            )
+        }),
+    }
+}
+
 fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
     type_expr_is_buildable_scalar_or_view_inner(ty, resolved, &mut HashSet::new())
 }
@@ -1304,10 +1527,10 @@ fn type_expr_is_buildable_scalar_or_view_inner(
         TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::View(_)) => true,
         TypeExpr::Reference(reference) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return false;
+                return type_expr_has_buildable_scalar_abi(ty, resolved);
             };
             let Some(target) = &symbol.alias_target else {
-                return false;
+                return type_expr_has_buildable_scalar_abi(ty, resolved);
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return false;
@@ -1317,8 +1540,142 @@ fn type_expr_is_buildable_scalar_or_view_inner(
             resolving_names.remove(&symbol.canonical_name);
             result
         }
+        _ => type_expr_has_buildable_scalar_abi(ty, resolved),
+    }
+}
+
+fn type_expr_has_buildable_scalar_abi(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    abi_value_from_type_expr(ty, resolved).is_ok_and(|value| {
+        matches!(
+            value.ty,
+            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool
+        )
+    })
+}
+
+fn callable_parameter_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    callable_parameter_type_is_buildable_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn callable_parameter_type_is_buildable_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return callable_non_alias_parameter_type_is_buildable(ty, resolved);
+            };
+            let Some(target) = &symbol.alias_target else {
+                return callable_non_alias_parameter_type_is_buildable(ty, resolved);
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result =
+                callable_parameter_type_is_buildable_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => callable_non_alias_parameter_type_is_buildable(ty, resolved),
+    }
+}
+
+fn callable_non_alias_parameter_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_buildable_scalar_or_view(ty, resolved)
+        || type_expr_is_error_parameter(ty, resolved)
+        || type_expr_is_supported_borrow_parameter(ty, resolved)
+        || type_expr_is_supported_aggregate_value(ty, resolved)
+}
+
+fn callable_return_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    callable_return_type_is_buildable_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn callable_return_type_is_buildable_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) if matches!(reference.name.as_str(), "void" | "never") => {
+            true
+        }
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return callable_non_alias_return_type_is_buildable(ty, resolved);
+            };
+            let Some(target) = &symbol.alias_target else {
+                return callable_non_alias_return_type_is_buildable(ty, resolved);
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = callable_return_type_is_buildable_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Fallible(fallible) => {
+            callable_return_type_is_buildable_inner(&fallible.success, resolved, resolving_names)
+        }
+        TypeExpr::Optional(optional) => {
+            callable_return_type_is_buildable_inner(&optional.inner, resolved, resolving_names)
+        }
+        _ => callable_non_alias_return_type_is_buildable(ty, resolved),
+    }
+}
+
+fn callable_non_alias_return_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_buildable_scalar_or_view(ty, resolved)
+        || type_expr_is_error_parameter(ty, resolved)
+        || type_expr_is_supported_aggregate_value(ty, resolved)
+}
+
+fn type_expr_is_error_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_error_parameter_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_error_parameter_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "error" => true,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = type_expr_is_error_parameter_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
         _ => false,
     }
+}
+
+fn type_expr_is_supported_borrow_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    let TypeExpr::Borrow(borrow) = ty else {
+        return false;
+    };
+    abi_value_from_type_expr(&borrow.inner, resolved).is_ok_and(|value| {
+        matches!(
+            value.ty,
+            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Struct(_)
+        )
+    })
+}
+
+fn type_expr_is_supported_aggregate_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    abi_value_from_type_expr(ty, resolved)
+        .is_ok_and(|value| matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0)
 }
 
 fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
@@ -1615,6 +1972,15 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Binding(statement) => {
+            if let Some(diagnostic) = unsupported_local_binding_type_diagnostic(
+                sources,
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             if binding_initializer_may_use_value_control_expression(
                 statement,
                 resolved,
@@ -2736,6 +3102,15 @@ fn collect_expression_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
+            if let Some(diagnostic) = unsupported_field_member_value_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.object,
                 sources,
@@ -2964,6 +3339,118 @@ fn collect_expression_diagnostics(
             }
         }
     }
+}
+
+fn unsupported_field_member_value_diagnostic(
+    sources: &SourceMap,
+    expression: &MemberExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<Diagnostic> {
+    if typecheck_facts
+        .field_scalar_view_kind(expression.member_span)
+        .is_some()
+    {
+        return None;
+    }
+
+    let field_ty = field_type_expr_for_member(expression, resolved, typecheck_facts)?;
+    let field_ty = substitute_type_expr_parameters(field_ty, generic_substitutions);
+    match member_field_value_type_is_buildable(&field_ty, resolved)? {
+        true => None,
+        false => Some(unsupported_v0_build_diagnostic(
+            sources,
+            expression.member_span,
+            "field member values outside supported scalar/view or aggregate types",
+            "keep `u16`, `u32`, and other storage-only fields encapsulated in aggregates, or expose an `i32`, `usize`, or `u8` value until broader scalar field lowering is promoted",
+        )),
+    }
+}
+
+fn field_type_expr_for_member<'a>(
+    expression: &MemberExpr,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<&'a TypeExpr> {
+    let target_span = typecheck_facts.field_target(expression.member_span)?;
+    resolved.symbols.symbols().find_map(|symbol| {
+        let SymbolKind::Type(type_symbol) = &symbol.kind else {
+            return None;
+        };
+        type_symbol
+            .fields
+            .iter()
+            .find(|field| field.name_span == target_span)
+            .map(|field| &field.ty)
+    })
+}
+
+fn member_field_value_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
+    if type_expr_is_buildable_scalar_or_view(ty, resolved)
+        || type_expr_is_supported_aggregate_value(ty, resolved)
+    {
+        return Some(true);
+    }
+    if type_expr_contains_unresolved_type_parameter(ty, resolved) {
+        return None;
+    }
+    Some(false)
+}
+
+fn type_expr_contains_unresolved_type_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            !known_builtin_type_name(&reference.name)
+                && resolved
+                    .type_symbol_by_reference_name(&reference.name)
+                    .is_none()
+        }
+        TypeExpr::Generic(generic) => generic
+            .arguments
+            .iter()
+            .any(|argument| type_expr_contains_unresolved_type_parameter(argument, resolved)),
+        TypeExpr::Pointer(pointer) => {
+            type_expr_contains_unresolved_type_parameter(&pointer.inner, resolved)
+        }
+        TypeExpr::Borrow(borrow) => {
+            type_expr_contains_unresolved_type_parameter(&borrow.inner, resolved)
+        }
+        TypeExpr::View(view) => {
+            type_expr_contains_unresolved_type_parameter(&view.element, resolved)
+        }
+        TypeExpr::Array(array) => {
+            type_expr_contains_unresolved_type_parameter(&array.element, resolved)
+        }
+        TypeExpr::Optional(optional) => {
+            type_expr_contains_unresolved_type_parameter(&optional.inner, resolved)
+        }
+        TypeExpr::Fallible(fallible) => {
+            type_expr_contains_unresolved_type_parameter(&fallible.success, resolved)
+                || type_expr_contains_unresolved_type_parameter(&fallible.error, resolved)
+        }
+    }
+}
+
+fn known_builtin_type_name(name: &str) -> bool {
+    matches!(
+        name,
+        "void"
+            | "never"
+            | "bool"
+            | "str"
+            | "error"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "usize"
+    )
 }
 
 fn unsupported_slice_index_diagnostic(
