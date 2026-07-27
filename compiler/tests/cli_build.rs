@@ -4606,6 +4606,50 @@ fn build_command_reports_reachable_array_literal_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_value_branch_array_literal_before_ir_lowering() {
+    let project = TempProject::new("cli-build-value-branch-array-literal-boundary");
+    let source = project.write_source(
+        "value_branch_array_literal_boundary.nct",
+        r#"func main(): i32 {
+    let answer = if true {
+        let values: [i32; 1] = [1]
+        0
+    } else {
+        1
+    }
+    return answer
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("array literals"),
+        "expected array literal diagnostic from value branch, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("3 |         let values: [i32; 1] = [1]"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(
@@ -5116,6 +5160,31 @@ func main(): i32 {
     let choice = Choice.no
     code = if choice is Choice.no { code + 32 } else { 0 }
     return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_accepts_value_if_branch_leading_bindings() {
+    let project = TempProject::new("cli-build-value-if-branch-leading-bindings");
+    let source = project.write_source(
+        "value_if_branch_leading_bindings.nct",
+        r#"func main(): i32 {
+    let answer = if true {
+        let base = 40
+        base + 2
+    } else {
+        let fallback = 1
+        fallback
+    }
+    return answer
 }
 "#,
     );

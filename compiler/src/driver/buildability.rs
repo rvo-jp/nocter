@@ -978,6 +978,20 @@ fn collect_value_block_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    for statement in &block.statements {
+        collect_statement_diagnostics(
+            statement,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
     let Some(result) = &block.result else {
         return;
     };
@@ -2099,11 +2113,11 @@ where
 
 fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
     expression.else_block.is_some()
-        && value_block_is_expression_only(&expression.then_block)
+        && value_block_is_buildable(&expression.then_block)
         && expression
             .else_block
             .as_ref()
-            .is_some_and(value_block_is_expression_only)
+            .is_some_and(value_block_is_buildable)
 }
 
 fn value_if_is_expression_is_buildable(
@@ -2111,11 +2125,11 @@ fn value_if_is_expression_is_buildable(
     resolved: &ResolveOutput,
 ) -> bool {
     terminal_if_is_expression_is_buildable(expression, resolved)
-        && value_block_is_expression_only(&expression.then_block)
+        && value_block_is_buildable(&expression.then_block)
         && expression
             .else_block
             .as_ref()
-            .is_some_and(value_block_is_expression_only)
+            .is_some_and(value_block_is_buildable)
 }
 
 fn value_match_expression_is_buildable(
@@ -2126,15 +2140,30 @@ fn value_match_expression_is_buildable(
         && expression
             .arms
             .iter()
-            .all(|arm| value_block_is_expression_only(&arm.body))
+            .all(|arm| value_block_is_buildable(&arm.body))
         && expression
             .else_arm
             .as_ref()
-            .map_or(true, |arm| value_block_is_expression_only(&arm.body))
+            .is_none_or(|arm| value_block_is_buildable(&arm.body))
 }
 
-fn value_block_is_expression_only(block: &Block) -> bool {
-    block.statements.is_empty() && block.result.is_some()
+fn value_block_is_buildable(block: &Block) -> bool {
+    block.result.is_some()
+        && block
+            .statements
+            .iter()
+            .all(value_block_leading_statement_is_buildable)
+}
+
+fn value_block_leading_statement_is_buildable(statement: &Stmt) -> bool {
+    matches!(
+        statement,
+        Stmt::Import(_)
+            | Stmt::FromImport(_)
+            | Stmt::Binding(_)
+            | Stmt::Assignment(_)
+            | Stmt::Expression(_)
+    )
 }
 
 fn void_effect_if_expression_is_buildable(

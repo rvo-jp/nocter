@@ -9179,6 +9179,71 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_control_branch_leading_statements_exit_code() {
+    let project = TempProject::new("cli-run-value-control-branch-leading-statements");
+    let source = project.write_source(
+        "value_control_branch_leading_statements.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let from_if = if true {
+        var base = 40
+        base = base + 2
+        base
+    } else {
+        var fallback = 0
+        fallback = fallback + 1
+        fallback
+    }
+    let choice = Choice.no
+    let from_if_is = if choice is Choice.no {
+        var value = from_if
+        value = value + 0
+        value
+    } else {
+        var fallback = 0
+        fallback = fallback + 1
+        fallback
+    }
+    let from_match = match choice {
+        Choice.yes {
+            var value = 0
+            value = value + 1
+            value
+        }
+        Choice.no {
+            var value = from_if_is
+            value = value + 0
+            value
+        }
+        else {
+            var value = 0
+            value = value + 0
+            value
+        }
+    }
+    return from_match
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_value_if_aggregate_scalar_field_assignment_exit_code() {
     let project = TempProject::new("cli-run-value-if-aggregate-scalar-field-assignment");
     let source = project.write_source(

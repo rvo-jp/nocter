@@ -9,10 +9,12 @@ use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
-    lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
-    lower_never_expression_with_scope_drops, lower_value_return_with_scope_drops,
-    mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
-    payloadless_switch_as_if_statement, propagating_failure_mode,
+    expression_contains_explicit_aggregate_move_outside, lower_aggregate_return_expression,
+    lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
+    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    propagating_failure_mode,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -550,8 +552,8 @@ fn lower_i32_if_expression_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_i32_expression_to_location(expression, destination, context)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_i32_expression_to_location(expression, destination, branch_context)
     })
 }
 
@@ -560,8 +562,8 @@ fn lower_u8_if_expression_to_location(
     destination: U8Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_u8_expression_to_location(expression, destination, context)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_u8_expression_to_location(expression, destination, branch_context)
     })
 }
 
@@ -570,8 +572,8 @@ fn lower_usize_if_expression_to_location(
     destination: UsizeLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_usize_expression_to_location(expression, destination, context)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_usize_expression_to_location(expression, destination, branch_context)
     })
 }
 
@@ -581,8 +583,8 @@ fn lower_bool_if_expression_to_location(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_bool_expression_to_location(expression, destination, context, diagnostic_code)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_bool_expression_to_location(expression, destination, branch_context, diagnostic_code)
     })
 }
 
@@ -591,8 +593,8 @@ fn lower_str_if_expression_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_str_expression_to_location(expression, destination, context)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_str_expression_to_location(expression, destination, branch_context)
     })
 }
 
@@ -601,8 +603,8 @@ fn lower_slice_if_expression_to_location(
     destination: SliceLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression| {
-        lower_slice_expression_to_location(expression, destination, context)
+    lower_if_expression_to_location(statement, context, |expression, branch_context| {
+        lower_slice_expression_to_location(expression, destination, branch_context)
     })
 }
 
@@ -946,15 +948,9 @@ fn lower_slice_match_expression_to_value(
 fn lower_if_expression_to_location(
     statement: &IfStmt,
     context: &LoweringContext,
-    lower_result: impl Fn(&Expr) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+    lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
-        return Err(unsupported_value_control_expression_diagnostic());
-    };
-    let Some(then_result) = result_only_block_expression(&statement.then_block) else {
-        return Err(unsupported_value_control_expression_diagnostic());
-    };
-    let Some(else_result) = result_only_block_expression(else_block) else {
         return Err(unsupported_value_control_expression_diagnostic());
     };
     if expression_contains_explicit_aggregate_move(&statement.condition, context) {
@@ -965,23 +961,120 @@ fn lower_if_expression_to_location(
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
         condition: condition.value,
-        then_instructions: lower_result(then_result)?,
-        else_instructions: lower_result(else_result)?,
+        then_instructions: lower_value_control_block_to_location(
+            &statement.then_block,
+            context,
+            &lower_result,
+        )?,
+        else_instructions: lower_value_control_block_to_location(
+            else_block,
+            context,
+            &lower_result,
+        )?,
     });
     Ok(instructions)
 }
 
-fn result_only_block_expression(block: &Block) -> Option<&Expr> {
-    if !block.statements.is_empty() {
-        return None;
+fn lower_value_control_block_to_location(
+    block: &Block,
+    context: &LoweringContext,
+    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(result) = block.result.as_deref() else {
+        return Err(unsupported_value_control_expression_diagnostic());
+    };
+    let mut branch_context = context.clone();
+    let local_mark = branch_context.local_mark();
+    let (mut instructions, ends_execution) =
+        lower_value_control_leading_statements(&block.statements, &mut branch_context, local_mark)?;
+    if ends_execution {
+        return Ok(instructions);
     }
-    block.result.as_deref()
+    if expression_contains_explicit_aggregate_move_outside(result, &branch_context, local_mark) {
+        return Err(unsupported_value_control_expression_diagnostic());
+    }
+    instructions.extend(lower_result(result, &branch_context)?);
+    mark_explicit_moves_in_expression(result, &mut branch_context);
+    instructions.extend(lower_scope_end_drops_for_locals_since(
+        &mut branch_context,
+        local_mark,
+    )?);
+    Ok(instructions)
+}
+
+fn lower_value_control_leading_statements(
+    statements: &[Stmt],
+    context: &mut LoweringContext,
+    local_mark: usize,
+) -> Result<(Vec<Instruction>, bool), Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+
+    for statement in statements {
+        match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
+            Stmt::Binding(statement) => {
+                if expression_contains_explicit_aggregate_move_outside(
+                    &statement.initializer,
+                    context,
+                    local_mark,
+                ) {
+                    return Err(unsupported_value_control_expression_diagnostic());
+                }
+                instructions.extend(lower_local_binding(statement, context)?);
+            }
+            Stmt::Assignment(statement) => {
+                if expression_contains_explicit_aggregate_move_outside(
+                    &statement.value,
+                    context,
+                    local_mark,
+                ) {
+                    return Err(unsupported_value_control_expression_diagnostic());
+                }
+                instructions.extend(lower_assignment(statement, context)?);
+            }
+            Stmt::Expression(statement) => {
+                if expression_contains_explicit_aggregate_move_outside(
+                    &statement.expression,
+                    context,
+                    local_mark,
+                ) {
+                    return Err(unsupported_value_control_expression_diagnostic());
+                }
+                if let Some(terminating_instructions) =
+                    lower_never_expression_with_scope_drops(&statement.expression, context)?
+                {
+                    instructions.extend(terminating_instructions);
+                    mark_explicit_moves_in_expression(&statement.expression, context);
+                    return Ok((instructions, true));
+                }
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_value_control_expression_diagnostic());
+                };
+                instructions.extend(void_instructions);
+            }
+            Stmt::Drop(_)
+            | Stmt::Return(_)
+            | Stmt::If(_)
+            | Stmt::IfIs(_)
+            | Stmt::Switch(_)
+            | Stmt::ForRange(_)
+            | Stmt::While(_)
+            | Stmt::Loop(_)
+            | Stmt::Break(_)
+            | Stmt::Continue(_) => return Err(unsupported_value_control_expression_diagnostic()),
+        }
+        mark_lowered_statement_aggregate_uses(statement, context);
+    }
+
+    Ok((instructions, false))
 }
 
 fn unsupported_value_control_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 can only lower `if` value expressions with `else` when both branches are expression-only blocks",
+        "IR v0 can only lower value control expressions with `else`, a final expression in every branch, and supported leading statements",
     )]
 }
 
