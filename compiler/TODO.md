@@ -7,10 +7,10 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 ## Current Repository State
 
 - Branch: `develop`
-- Latest known commits:
+- Latest known compiler-progress commits:
+  - `d34168c Lower byte literal comparisons`
   - `07369d5 Implement byte literals through compiler`
   - `a1956ef Clarify compile unit use rules`
-  - `af7baf9 Align editor facts for scoped imports`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
