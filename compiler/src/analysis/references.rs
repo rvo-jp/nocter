@@ -65,6 +65,7 @@ fn selected_reference_target_for_parts(
     let mut candidates = Vec::new();
 
     push_member_reference_candidates(facts, offset, &mut candidates);
+    push_function_call_reference_candidates(facts, offset, &mut candidates);
     push_type_reference_candidates(facts, offset, &mut candidates);
     push_resolved_reference_candidates(resolved, offset, &mut candidates);
     push_declaration_candidates(ast.span.source, resolved, offset, &mut candidates);
@@ -108,6 +109,19 @@ fn push_member_reference_candidates(
                 target: ReferenceTarget::Member(target),
             });
         }
+    }
+}
+
+fn push_function_call_reference_candidates(
+    facts: &TypecheckFacts,
+    offset: usize,
+    candidates: &mut Vec<ReferenceCandidate>,
+) {
+    if let Some((span, target)) = facts.function_call_target_at_offset(offset) {
+        candidates.push(ReferenceCandidate {
+            span,
+            target: ReferenceTarget::Declaration(target),
+        });
     }
 }
 
@@ -276,6 +290,9 @@ fn collect_reference_spans_for_parts(
                     }),
             );
             spans.extend(imported_name_spans(resolved, declaration_span));
+            spans.extend(facts.function_call_target_spans().filter_map(|span| {
+                (facts.function_call_target(span) == Some(declaration_span)).then_some(span)
+            }));
             spans.extend(facts.type_references().filter_map(|reference| {
                 (reference.symbol_declaration_span == Some(declaration_span))
                     .then_some(reference.span)
@@ -308,7 +325,8 @@ fn declaration_name_spans(
     declaration_span: ByteSpan,
 ) -> impl Iterator<Item = ByteSpan> + '_ {
     resolved.symbols.symbols().filter_map(move |symbol| {
-        (symbol.declaration_span == declaration_span
+        (!symbol.is_hidden
+            && symbol.declaration_span == declaration_span
             && symbol.name_span.source == declaration_span.source)
             .then_some(symbol.name_span)
     })
@@ -319,7 +337,8 @@ fn imported_name_spans(
     declaration_span: ByteSpan,
 ) -> impl Iterator<Item = ByteSpan> + '_ {
     resolved.symbols.symbols().filter_map(move |symbol| {
-        (symbol.declaration_span == declaration_span
+        (!symbol.is_hidden
+            && symbol.declaration_span == declaration_span
             && symbol.name_span.source != declaration_span.source)
             .then_some(symbol.name_span)
     })
@@ -354,11 +373,9 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
-    use crate::lexer::lex;
-    use crate::parser::parse;
-    use crate::source::SourceMap;
-    use std::collections::HashMap;
+    use crate::analysis::test_support::{
+        analyze_namespace_import_text, analyze_text, span_fragments_from_sources,
+    };
 
     #[test]
     fn reference_query_finds_local_binding_references() {
@@ -384,6 +401,22 @@ mod tests {
         let fragments = span_fragments(text, &spans);
 
         assert_eq!(fragments, vec!["answer", "answer", "answer"]);
+    }
+
+    #[test]
+    fn reference_query_finds_namespace_imported_function_member_calls() {
+        let root_text =
+            "use lib/math\n\nfunc main(): i32 {\n    return math.answer() + math.answer()\n}\n";
+        let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = root_text.find("answer()").expect("expected namespace call");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+        let fragments = span_fragments_from_sources(&sources, &spans);
+
+        assert_eq!(fragments, vec!["answer", "answer", "answer"]);
+        assert_eq!(spans.len(), 3);
     }
 
     #[test]
@@ -416,24 +449,6 @@ mod tests {
             vec!["fd", "fd", "fd", "fd"]
         );
         assert_eq!(span_fragments(text, &method_spans), vec!["read", "read"]);
-    }
-
-    fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("test.nct", None, text.to_string());
-        let lex_output = lex(&sources, source);
-        assert!(
-            lex_output.diagnostics.is_empty(),
-            "unexpected lex diagnostics: {:?}",
-            lex_output.diagnostics
-        );
-        let ast = parse(&sources, source, &lex_output.tokens)
-            .ast
-            .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
-        let analysis = analyze_module_compile_unit(&sources, &unit);
-
-        (sources, analysis)
     }
 
     fn span_fragments<'a>(text: &'a str, spans: &[ByteSpan]) -> Vec<&'a str> {

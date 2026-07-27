@@ -8,6 +8,8 @@ pub(crate) mod references;
 pub(crate) mod semantic;
 mod single_file;
 pub(crate) mod symbols;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;

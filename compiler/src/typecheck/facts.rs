@@ -24,11 +24,11 @@ use super::type_expr::{
 };
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
-    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, EnumDecl, EnumVariant, Expr,
-    FallibleType, GenericParamList, GenericType, ImplDecl, ImplMember, InterpolatedStringPart,
-    Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType, Stmt, StructDecl,
-    StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl,
-    TypeExpr, TypeReference, ViewType, substitute_type_expr_parameters,
+    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, EnumDecl,
+    EnumVariant, Expr, FallibleType, GenericParamList, GenericType, ImplDecl, ImplMember,
+    InterpolatedStringPart, Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType,
+    Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding,
+    TypeAliasDecl, TypeExpr, TypeReference, ViewType, substitute_type_expr_parameters,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
@@ -50,6 +50,7 @@ pub(crate) struct TypecheckFacts {
     field_targets: HashMap<ByteSpan, ByteSpan>,
     field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     field_readonly: HashMap<ByteSpan, bool>,
+    function_call_targets: HashMap<ByteSpan, ByteSpan>,
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
@@ -149,8 +150,16 @@ impl TypecheckFacts {
         self.associated_function_targets.keys().copied()
     }
 
+    pub(crate) fn function_call_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
+        self.function_call_targets.keys().copied()
+    }
+
     pub(crate) fn enum_variant_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
         self.enum_variant_targets.keys().copied()
+    }
+
+    pub(crate) fn function_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+        self.function_call_targets.get(&member_span).copied()
     }
 
     pub(crate) fn method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
@@ -241,6 +250,17 @@ impl TypecheckFacts {
         offset: usize,
     ) -> Option<(ByteSpan, ByteSpan)> {
         self.associated_function_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, target)| (*span, *target))
+    }
+
+    pub(crate) fn function_call_target_at_offset(
+        &self,
+        offset: usize,
+    ) -> Option<(ByteSpan, ByteSpan)> {
+        self.function_call_targets
             .iter()
             .filter(|(span, _)| span_contains(**span, offset))
             .min_by_key(|(span, _)| (span.len(), span.start))
@@ -1104,6 +1124,13 @@ impl TypecheckFactCollector<'_> {
                     if let Some(symbol) = self.resolved.symbol_for_call(expression) {
                         match &symbol.kind {
                             SymbolKind::Function(signature) => {
+                                self.record_function_call_reference(
+                                    expression,
+                                    symbol.declaration_span,
+                                    &symbol.name,
+                                    "func",
+                                    signature,
+                                );
                                 self.record_generic_function_call_specialization(
                                     expression,
                                     symbol.declaration_span,
@@ -1115,6 +1142,13 @@ impl TypecheckFactCollector<'_> {
                                 );
                             }
                             SymbolKind::Primitive(signature) => {
+                                self.record_function_call_reference(
+                                    expression,
+                                    symbol.declaration_span,
+                                    &symbol.name,
+                                    "primitive",
+                                    signature,
+                                );
                                 self.record_generic_function_call_specialization(
                                     expression,
                                     symbol.declaration_span,
@@ -1564,6 +1598,27 @@ impl TypecheckFactCollector<'_> {
         self.facts.enum_variant_hover_labels.insert(
             span,
             enum_variant_signature_hover_label(owner, variant, self.resolved),
+        );
+    }
+
+    fn record_function_call_reference(
+        &mut self,
+        call: &CallExpr,
+        declaration_span: ByteSpan,
+        name: &str,
+        kind: &str,
+        signature: &FunctionSignature,
+    ) {
+        let Some(name_span) = call_callee_name_span(call) else {
+            return;
+        };
+
+        self.facts
+            .function_call_targets
+            .insert(name_span, declaration_span);
+        self.facts.call_hover_labels.insert(
+            name_span,
+            function_signature_hover_label(kind, name, signature, self.resolved, None),
         );
     }
 
@@ -2085,6 +2140,14 @@ fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {
     span.start <= offset && offset < span.end
+}
+
+fn call_callee_name_span(call: &CallExpr) -> Option<ByteSpan> {
+    match call.callee.without_groups() {
+        Expr::Identifier(identifier) => Some(identifier.span),
+        Expr::Member(member) => Some(member.member_span),
+        _ => None,
+    }
 }
 
 fn function_declaration_hover_label(

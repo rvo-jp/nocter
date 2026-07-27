@@ -324,6 +324,7 @@ impl SymbolTable {
             name: name.clone(),
             name_span,
             declaration_span,
+            is_hidden: false,
             kind,
         });
         self.by_name.insert(name, id);
@@ -343,6 +344,7 @@ impl SymbolTable {
             name,
             name_span,
             declaration_span,
+            is_hidden: true,
             kind,
         });
         id
@@ -361,6 +363,7 @@ pub struct Symbol {
     pub name: String,
     pub name_span: ByteSpan,
     pub declaration_span: ByteSpan,
+    pub is_hidden: bool,
     pub kind: SymbolKind,
 }
 

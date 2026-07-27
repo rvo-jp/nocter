@@ -53,7 +53,11 @@ fn completion_items_for_resolved_symbols(resolved: &ResolveOutput) -> Vec<Comple
         .map(|keyword| (*keyword).to_string())
         .collect::<HashSet<_>>();
 
-    let mut symbols = resolved.symbols.symbols().collect::<Vec<_>>();
+    let mut symbols = resolved
+        .symbols
+        .symbols()
+        .filter(|symbol| !symbol.is_hidden)
+        .collect::<Vec<_>>();
     symbols.sort_by(|left, right| left.name.cmp(&right.name));
 
     for symbol in symbols {
@@ -100,11 +104,7 @@ fn symbol_detail(symbol: &Symbol) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
-    use crate::lexer::lex;
-    use crate::parser::parse;
-    use crate::source::SourceMap;
-    use std::collections::HashMap;
+    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
 
     #[test]
     fn completion_candidates_include_keywords_and_symbols() {
@@ -133,21 +133,20 @@ mod tests {
         assert_eq!(source.text(), text);
     }
 
-    fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("test.nct", None, text.to_string());
-        let lex_output = lex(&sources, source);
-        assert!(
-            lex_output.diagnostics.is_empty(),
-            "unexpected lex diagnostics: {:?}",
-            lex_output.diagnostics
-        );
-        let ast = parse(&sources, source, &lex_output.tokens)
-            .ast
-            .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
-        let analysis = analyze_module_compile_unit(&sources, &unit);
+    #[test]
+    fn completion_candidates_hide_namespace_import_members() {
+        let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
+        let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
+        let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
 
-        (sources, analysis)
+        let items = completion_items_for_file_analysis(file);
+
+        assert!(items.iter().any(|item| {
+            item.label == "math"
+                && item.kind == CompletionItemKind::Module
+                && item.detail.as_deref() == Some("imported from lib/math")
+        }));
+        assert!(!items.iter().any(|item| item.label == "answer"));
     }
 }

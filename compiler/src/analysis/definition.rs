@@ -17,6 +17,7 @@ pub(crate) fn definition_span_for_file_analysis(
     offset: usize,
 ) -> Option<ByteSpan> {
     module_path_definition_span(analysis, file, offset)
+        .or_else(|| function_call_definition_span_for_file_analysis(file, offset))
         .or_else(|| method_call_definition_span_for_file_analysis(file, offset))
         .or_else(|| associated_function_definition_span_for_file_analysis(file, offset))
         .or_else(|| field_definition_span_for_file_analysis(file, offset))
@@ -36,6 +37,10 @@ pub(crate) fn definition_span_for_ast(
 ) -> Option<ByteSpan> {
     let facts = collect_typecheck_facts(ast, resolved);
     if let Some((_, target)) = facts.field_target_at_offset(offset) {
+        return Some(target);
+    }
+
+    if let Some((_, target)) = facts.function_call_target_at_offset(offset) {
         return Some(target);
     }
 
@@ -118,6 +123,15 @@ fn method_call_definition_span_for_file_analysis(
         .and_then(|span| file.typecheck_facts.method_call_target(span))
 }
 
+fn function_call_definition_span_for_file_analysis(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<ByteSpan> {
+    file.typecheck_facts
+        .function_call_target_at_offset(offset)
+        .map(|(_, target)| target)
+}
+
 fn field_definition_span_for_file_analysis(file: &FileAnalysis, offset: usize) -> Option<ByteSpan> {
     file.typecheck_facts
         .field_target_at_offset(offset)
@@ -149,10 +163,7 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
-    use crate::lexer::lex;
-    use crate::parser::parse;
-    use std::collections::HashMap;
+    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
 
     #[test]
     fn definition_query_resolves_local_references() {
@@ -215,6 +226,28 @@ mod tests {
     }
 
     #[test]
+    fn definition_query_resolves_namespace_imported_function_member_call() {
+        let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
+        let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = root_text.find("answer()").expect("expected namespace call");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected definition span");
+        let target_text = sources
+            .get(span.source)
+            .expect("expected target source")
+            .text();
+
+        assert_eq!(&target_text[span.start..span.end], "answer");
+        assert_eq!(
+            span.start,
+            module_text.find("answer():").expect("expected function")
+        );
+    }
+
+    #[test]
     fn definition_query_resolves_enum_variant_references() {
         let text = "enum Event {\n    ready\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let ready = Event.ready\n    let count = Event.count(1)\n    return 0\n}\n";
         let (sources, analysis) = analyze_text(text);
@@ -238,23 +271,5 @@ mod tests {
             text.find("count(value")
                 .expect("expected count declaration")
         );
-    }
-
-    fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("test.nct", None, text.to_string());
-        let lex_output = lex(&sources, source);
-        assert!(
-            lex_output.diagnostics.is_empty(),
-            "unexpected lex diagnostics: {:?}",
-            lex_output.diagnostics
-        );
-        let ast = parse(&sources, source, &lex_output.tokens)
-            .ast
-            .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
-        let analysis = analyze_module_compile_unit(&sources, &unit);
-
-        (sources, analysis)
     }
 }

@@ -145,7 +145,8 @@ pub(crate) fn hover_for_ast(
             span,
             label: label.to_string(),
             documentation: facts
-                .method_call_target(span)
+                .function_call_target(span)
+                .or_else(|| facts.method_call_target(span))
                 .or_else(|| facts.associated_function_target(span))
                 .and_then(|target| documentation_for_target_span(&documentation, &symbols, target)),
         });
@@ -255,11 +256,11 @@ fn call_hover_for_file_analysis(
     Some(HoverInfo {
         span,
         label: label.to_string(),
-        documentation: method_call_documentation(sources, analysis, file, span),
+        documentation: call_documentation(sources, analysis, file, span),
     })
 }
 
-fn method_call_documentation(
+fn call_documentation(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
@@ -267,7 +268,8 @@ fn method_call_documentation(
 ) -> Option<String> {
     let target_span = file
         .typecheck_facts
-        .method_call_target(call_span)
+        .function_call_target(call_span)
+        .or_else(|| file.typecheck_facts.method_call_target(call_span))
         .or_else(|| file.typecheck_facts.associated_function_target(call_span))?;
     target_documentation(sources, analysis, target_span)
 }
@@ -1145,10 +1147,7 @@ fn declaration_line_start(text: &str, node_start: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
-    use crate::lexer::lex;
-    use crate::parser::parse;
-    use std::collections::HashMap;
+    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
 
     #[test]
     fn workspace_hover_uses_typecheck_facts_and_documentation() {
@@ -1175,6 +1174,21 @@ mod tests {
             .expect("expected hover info");
 
         assert_eq!(hover.label, "func answer(value: i32): i32");
+    }
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_for_namespace_imported_function_member_call() {
+        let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
+        let module_text = "/// Computes an answer.\npub func answer(): i32 {\n    return 7\n}\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = root_text.find("answer()").expect("expected namespace call");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "func answer(): i32");
+        assert_eq!(hover.documentation.as_deref(), Some("Computes an answer."));
     }
 
     #[test]
@@ -1283,23 +1297,5 @@ mod tests {
 
         assert_eq!(hover.label, "struct Header");
         assert_eq!(hover.documentation.as_deref(), Some("Request header."));
-    }
-
-    fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("test.nct", None, text.to_string());
-        let lex_output = lex(&sources, source);
-        assert!(
-            lex_output.diagnostics.is_empty(),
-            "unexpected lex diagnostics: {:?}",
-            lex_output.diagnostics
-        );
-        let ast = parse(&sources, source, &lex_output.tokens)
-            .ast
-            .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
-        let analysis = analyze_module_compile_unit(&sources, &unit);
-
-        (sources, analysis)
     }
 }

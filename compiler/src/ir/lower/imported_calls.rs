@@ -320,6 +320,7 @@ mod tests {
             name: "print".to_string(),
             name_span: ByteSpan::new(root_source, 0, 5),
             declaration_span: ByteSpan::new(root_source, 0, 20),
+            is_hidden: false,
             kind: SymbolKind::Imported(ImportedSymbol {
                 path: "std/io".to_string(),
                 source: None,

@@ -94,6 +94,9 @@ impl SemanticIdentifierCollector<'_> {
 
     fn collect_symbol_declarations(&mut self) {
         for symbol in self.resolved.symbols.symbols() {
+            if symbol.is_hidden {
+                continue;
+            }
             match &symbol.kind {
                 SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
                     self.push(symbol.name_span, SemanticTokenKind::Function, true, 0);
@@ -171,16 +174,21 @@ impl SemanticIdentifierCollector<'_> {
     }
 
     fn collect_member_references(&mut self) {
+        let function_spans = self.facts.function_call_target_spans().collect::<Vec<_>>();
+        for span in function_spans {
+            self.push(span, SemanticTokenKind::Function, false, 0);
+        }
+
         let method_spans = self.facts.method_call_spans().collect::<Vec<_>>();
         for span in method_spans {
             self.push(span, SemanticTokenKind::Method, false, 0);
         }
 
-        let function_spans = self
+        let associated_function_spans = self
             .facts
             .associated_function_target_spans()
             .collect::<Vec<_>>();
-        for span in function_spans {
+        for span in associated_function_spans {
             self.push(span, SemanticTokenKind::Function, false, 0);
         }
 
@@ -306,11 +314,7 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
-    use crate::lexer::lex;
-    use crate::parser::parse;
-    use crate::source::SourceMap;
-    use std::collections::HashMap;
+    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
 
     #[test]
     fn single_file_analysis_classifies_builtin_types() {
@@ -357,6 +361,25 @@ mod tests {
             }),
             "expected associated function call name to be a function"
         );
+    }
+
+    #[test]
+    fn analysis_classifies_namespace_imported_function_member_calls() {
+        let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
+        let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let answer = identifier_starting_at(
+            &identifiers,
+            root_text.find("answer()").expect("expected namespace call"),
+        )
+        .expect("expected namespace member call token");
+
+        assert_eq!(answer.kind, SemanticTokenKind::Function);
+        assert_eq!(answer.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
     }
 
     #[test]
@@ -429,23 +452,5 @@ mod tests {
         identifiers
             .iter()
             .find(|identifier| identifier.start_byte == start_byte)
-    }
-
-    fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("test.nct", None, text.to_string());
-        let lex_output = lex(&sources, source);
-        assert!(
-            lex_output.diagnostics.is_empty(),
-            "unexpected lex diagnostics: {:?}",
-            lex_output.diagnostics
-        );
-        let ast = parse(&sources, source, &lex_output.tokens)
-            .ast
-            .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
-        let analysis = analyze_module_compile_unit(&sources, &unit);
-
-        (sources, analysis)
     }
 }
