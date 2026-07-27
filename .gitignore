@@ -1,6 +1,5 @@
 /target/
 /compiler/target/
-/.nocter/nocter
-/.nocter/.DS_Store
-/.nocter/**/.DS_Store
+/.nocter/
 /.nocter-*/
+/dist/

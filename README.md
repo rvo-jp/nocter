@@ -116,6 +116,14 @@ The current repository is pre-v0, so source builds are still the main way to
 try the compiler before an official release archive exists. Compiler developer
 setup lives in [compiler/](compiler/README.md).
 
+For repository-local release testing, the canonical standard-library source is
+tracked in `std/` and release metadata lives in `packaging/`. Generate a local
+installation image under `dist/.nocter/` with:
+
+```sh
+./compiler/scripts/package-local-release.sh
+```
+
 ## First Program
 
 Create `main.nct`:

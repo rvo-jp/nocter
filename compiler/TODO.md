@@ -8,10 +8,11 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `71f214b Update compiler handoff after value control work`
   - `a8ae3cb Lower leading statements in value control branches`
-  - `c70a569 Reject null from_addr during buildability`
-  - `886218c Tighten use diagnostics and buildability coverage`
-- The current standard-library distribution lives under `../.nocter/std`.
+  - `a816ae7 Align match expression spec with v0 backend`
+- The canonical standard-library source lives under `../std`; local release
+  packaging generates `../dist/.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
   `docs/implementation-status.md`.
@@ -52,6 +53,12 @@ Recommended order:
 
 ## Recent Notes
 
+- Release packaging layout now separates tracked inputs from generated output:
+  `../std` is the canonical standard-library source, `../packaging` contains
+  release metadata inputs, and
+  `../compiler/scripts/package-local-release.sh` generates `../dist/.nocter`.
+  Distributed-home tests synthesize a temporary Nocter home from those tracked
+  inputs instead of reading root `.nocter`.
 - Value-producing `if`, payloadless enum `if is`, and payloadless enum `match`
   branch blocks now lower supported leading bindings, assignments, and
   buildable expression statements before their final value. Buildability

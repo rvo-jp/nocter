@@ -82,7 +82,8 @@ Keep one source of truth for each kind of information:
   capability
 - `docs/v0-closure.md`: fixed v0 implementation completion gates
 - `docs/backend-v0.md`: backend and ABI implementation notes
-- `docs/std-runtime-status.md`: implementation status of `.nocter/std`
+- `docs/std-runtime-status.md`: implementation status of tracked `std/` as
+  packaged into a Nocter home
 - `docs/roadmap.md`: recommended implementation order
 - `../TODO.md`: short-lived handoff state
 

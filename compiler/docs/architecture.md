@@ -154,7 +154,7 @@ Use the narrowest test layer that proves the behavior:
 - IR lowering tests for instruction shape and ABI handoff
 - backend unit tests for instruction encoding, frame layout, and emission
 - CLI integration tests for user-visible build/run/check behavior
-- distributed-home tests for `.nocter/std` visibility and public API behavior
+- distributed-home tests for packaged `std/` visibility and public API behavior
 - LSP tests for protocol behavior backed by compiler facts
 
 Broad language promotions should include at least one CLI or distributed-home

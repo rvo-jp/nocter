@@ -425,7 +425,7 @@ Rules:
 - Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.
 - The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
-- The repository development output directory `.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
+- The repository local release image `dist/.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
 
 ## Name Resolution
 

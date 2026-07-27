@@ -46,7 +46,7 @@ literals and bare string interpolation are also rejected at the same boundary.
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
 | Slices and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
-| Standard library | `.nocter/std` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`. See [Std Runtime Status](std-runtime-status.md). |
+| Standard library | Tracked `std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
 | LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. |
 

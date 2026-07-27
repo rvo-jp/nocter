@@ -3,6 +3,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
@@ -3764,7 +3765,40 @@ fn collect_nocter_sources(root: &Path, files: &mut Vec<PathBuf>) {
 }
 
 fn distributed_home() -> PathBuf {
-    repo_root().join(".nocter")
+    static HOME: OnceLock<PathBuf> = OnceLock::new();
+    HOME.get_or_init(write_test_distributed_home).clone()
+}
+
+fn write_test_distributed_home() -> PathBuf {
+    let root = std::env::temp_dir().join(unique_name("distributed-home-image"));
+    let home = root.join(".nocter");
+
+    fs::create_dir_all(&home).unwrap();
+    fs::copy(repo_root().join("packaging/VERSION"), home.join("VERSION")).unwrap();
+    fs::copy(
+        repo_root().join("packaging/MANIFEST.json"),
+        home.join("MANIFEST.json"),
+    )
+    .unwrap();
+    let compiler = home.join("nocter");
+    fs::copy(NOCTER, &compiler).unwrap();
+    fs::set_permissions(&compiler, fs::metadata(NOCTER).unwrap().permissions()).unwrap();
+    copy_tree(&repo_root().join("std"), &home.join("std"));
+
+    home
+}
+
+fn copy_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let path = entry.unwrap().path();
+        let target = destination.join(path.file_name().unwrap());
+        if path.is_dir() {
+            copy_tree(&path, &target);
+        } else {
+            fs::copy(&path, &target).unwrap();
+        }
+    }
 }
 
 fn repo_root() -> PathBuf {
