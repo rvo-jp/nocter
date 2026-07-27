@@ -1,28 +1,28 @@
 # Std Runtime Status
 
-This document records the implementation status of the tracked `std/` tree that
-is packaged as `std/` inside a Nocter home. The public standard-library
-specification lives in
+This document records the implementation status of the tracked
+`development/std/` tree that is packaged as `std/` inside a Nocter home. The
+public standard-library specification lives in
 [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md).
 
 Do not add a public std API here first. Add or change the public contract in the
-spec, then update `std/`, tests, and this implementation status.
+spec, then update `development/std/`, tests, and this implementation status.
 
 ## Distribution Files
 
 The v0 distribution currently uses stable module files:
 
 ```text
-std/error.nct
-std/fmt.nct
-std/io.nct
-std/mem.nct
-std/os.nct
-std/prelude.nct
-std/process.nct
-std/ptr.nct
-std/string.nct
-std/vec.nct
+development/std/error.nct
+development/std/fmt.nct
+development/std/io.nct
+development/std/mem.nct
+development/std/os.nct
+development/std/prelude.nct
+development/std/process.nct
+development/std/ptr.nct
+development/std/string.nct
+development/std/vec.nct
 ```
 
 Target-dependent declarations stay in these files behind `#target("...")`.
@@ -73,7 +73,7 @@ The distribution must not require target-specific source file names such as
 New std APIs must be added in this order:
 
 1. Update `../../spec/11-stdlib-primitives-os.md` with the public contract.
-2. Add or update `std/` declarations and implementations.
+2. Add or update `development/std/` declarations and implementations.
 3. Add distributed-home tests for visibility, privacy, and status.
 4. Add frontend/backend/runtime support only for APIs classified as
    `runtime ship`.

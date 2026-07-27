@@ -75,15 +75,15 @@ Keep one source of truth for each kind of information:
   and documentation map
 - `../../spec/`: normative language rules, standard-library rules, and public
   design principles
-- `README.md`: compiler directory entrance
+- `README.md`: development root entrance
 - `docs/README.md`: compiler documentation map
 - `docs/architecture.md`: compiler phase ownership and pipeline design
 - `docs/implementation-status.md`: current user-visible implementation
   capability
 - `docs/v0-closure.md`: fixed v0 implementation completion gates
 - `docs/backend-v0.md`: backend and ABI implementation notes
-- `docs/std-runtime-status.md`: implementation status of tracked `std/` as
-  packaged into a Nocter home
+- `docs/std-runtime-status.md`: implementation status of tracked
+  `development/std/` as packaged into a Nocter home
 - `docs/roadmap.md`: recommended implementation order
 - `../TODO.md`: short-lived handoff state
 

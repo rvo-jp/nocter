@@ -46,7 +46,7 @@ literals and bare string interpolation are also rejected at the same boundary.
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
 | Slices and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
-| Standard library | Tracked `std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
+| Standard library | Tracked `development/std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
 | LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. |
 
@@ -94,14 +94,14 @@ The full v0 closure suite is listed in [v0-closure.md](v0-closure.md). For a
 broad compiler change, run the relevant subset of:
 
 ```sh
-cargo fmt --manifest-path compiler/Cargo.toml --check
-cargo test --manifest-path compiler/Cargo.toml --lib
-cargo test --manifest-path compiler/Cargo.toml --test cli_build
-cargo test --manifest-path compiler/Cargo.toml --test cli_run
-cargo test --manifest-path compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path compiler/Cargo.toml --test cli_fmt
-cargo test --manifest-path compiler/Cargo.toml --test cli_lsp
-cargo test --manifest-path compiler/Cargo.toml --test example_corpus
+cargo fmt --manifest-path development/compiler/Cargo.toml --check
+cargo test --manifest-path development/compiler/Cargo.toml --lib
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
+cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_fmt
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
+cargo test --manifest-path development/compiler/Cargo.toml --test example_corpus
 ```
 
 Documentation-only changes usually need only formatting verification unless

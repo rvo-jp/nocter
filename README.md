@@ -113,15 +113,16 @@ export PATH="$HOME/.nocter:$PATH"
 ```
 
 The current repository is pre-v0, so source builds are still the main way to
-try the compiler before an official release archive exists. Compiler developer
-setup lives in [compiler/](compiler/README.md).
+try the compiler before an official release archive exists. Development setup
+lives in [development/](development/README.md).
 
 For repository-local release testing, the canonical standard-library source is
-tracked in `std/` and release metadata lives in `packaging/`. Generate a local
-installation image under `dist/.nocter/` with:
+tracked in `development/std/` and release metadata lives in
+`development/packaging/`. Generate a local installation image under
+`dist/.nocter/` with:
 
 ```sh
-./compiler/scripts/package-local-release.sh
+./development/compiler/scripts/package-local-release.sh
 ```
 
 ## First Program
@@ -173,7 +174,7 @@ The current compiler can parse, check, build, and run a meaningful v0 subset on
 The buildable subset is still narrower than the checkable language. Unsupported
 runtime forms should be rejected with source-backed diagnostics before machine
 code is emitted. For the exact implementation boundary, see
-[compiler/docs/implementation-status.md](compiler/docs/implementation-status.md).
+[development/docs/implementation-status.md](development/docs/implementation-status.md).
 
 ## Learn More
 
@@ -185,6 +186,6 @@ code is emitted. For the exact implementation boundary, see
   the separation between explicit contracts and composition-based reuse.
 - [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
   boundary.
-- [Compiler Development](compiler/README.md): Rust bootstrap compiler
-  architecture, backend work, implementation status, tests, and maintenance
-  notes.
+- [Development](development/README.md): Rust bootstrap compiler, tracked
+  standard library, release packaging inputs, implementation status, tests, and
+  maintenance notes.

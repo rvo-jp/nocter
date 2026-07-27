@@ -17,8 +17,8 @@ Nocter v0 completion is scoped to:
 - whole-program builds through the native backend
 - the initial `arm64-darwin` target
 - the Nocter ABI v0 described in [ABI and Layout](../../spec/09-abi-layout.md)
-- a tracked `std/` tree packaged into `.nocter/std` whose target-dependent
-  declarations use `#target(...)` inside stable module files
+- a tracked `development/std/` tree packaged into `.nocter/std` whose
+  target-dependent declarations use `#target(...)` inside stable module files
 - CLI commands: `check`, `build`, `run`, `fmt`, `tokens`, `ast`, `doctor`, and
   `lsp`
 - basic LSP behavior that presents compiler-owned facts
@@ -60,21 +60,22 @@ classified as `ship`, `reject`, or `defer`, and tests lock that decision.
    document, and ABI tests in the same commit.
 5. Public std API changes must update
    `../../spec/11-stdlib-primitives-os.md`, `std-runtime-status.md`,
-   distributed-home tests, and `std/` declarations in the same commit.
+   distributed-home tests, and `development/std/` declarations in the same
+   commit.
 6. LSP features must consume compiler analysis facts rather than duplicating
    language semantics.
 
 The final closure check is:
 
 ```sh
-cargo fmt --manifest-path compiler/Cargo.toml --check
-cargo test --manifest-path compiler/Cargo.toml --lib
-cargo test --manifest-path compiler/Cargo.toml --test cli_build
-cargo test --manifest-path compiler/Cargo.toml --test cli_run
-cargo test --manifest-path compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path compiler/Cargo.toml --test cli_fmt
-cargo test --manifest-path compiler/Cargo.toml --test cli_lsp
-cargo test --manifest-path compiler/Cargo.toml --test example_corpus
+cargo fmt --manifest-path development/compiler/Cargo.toml --check
+cargo test --manifest-path development/compiler/Cargo.toml --lib
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
+cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_fmt
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
+cargo test --manifest-path development/compiler/Cargo.toml --test example_corpus
 ```
 
 ## Closure Matrix
@@ -99,10 +100,10 @@ cargo test --manifest-path compiler/Cargo.toml --test example_corpus
 | Interfaces | frontend ship | `interface` declarations, required `pub` members, and explicit structural `impl Interface for Type` conformance are checked. Interface values, dispatch, bounds, inheritance, default methods, embedding, and code reuse are deferred. |
 | Generics | runtime ship narrow | Type arity, direct inference, source-aware concrete function/method/associated-function/drop specializations, concrete generic aggregate signatures, and supported generic bodies build and run. Unspecialized calls, generic bounds, and interface-bound dispatch reject or defer. |
 | Arrays, pointers, and general views | runtime ship narrow | Type syntax and borrow/view facts are checked. Runtime supports the current scalar, `&str`, and copy-aggregate slice element paths, public `std/ptr.addr`/`from_ref`/`from_ref_mut` pointer address conversions, and trusted `pub(nocter)` raw-storage pointer primitives. Array literals, pointer dereference, broad storage, and general iteration reject or defer. |
-| Standard library | runtime ship narrow | Tracked `std/` packages into `.nocter/std` and exposes only APIs classified by `spec/11` and `std-runtime-status.md`; shipped APIs work or fail recoverably; check-only APIs do not fake success; target-dependent declarations use `#target(...)`. |
+| Standard library | runtime ship narrow | Tracked `development/std/` packages into `.nocter/std` and exposes only APIs classified by `spec/11` and `std-runtime-status.md`; shipped APIs work or fail recoverably; check-only APIs do not fake success; target-dependent declarations use `#target(...)`. |
 | CLI diagnostics | ship | `check`, `build`, `run`, and `fmt` render source-backed text diagnostics and JSON diagnostics where supported. Internal compiler errors are not acceptable for source covered by this matrix. |
 | LSP | ship basic | LSP initializes, syncs documents, publishes diagnostics, semantic tokens, hover, definition, references, document symbols, and basic completions from compiler facts. Rename, code actions, formatting requests, workspace-wide indexing, and advanced completions are deferred. |
-| Documentation | ship | `README.md`, `spec/`, `compiler/README.md`, and `compiler/docs/` have distinct responsibilities and agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
+| Documentation | ship | Root `README.md`, `spec/`, `development/README.md`, and `development/docs/` have distinct responsibilities and agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
 
 ## Autonomous Work Order
 
@@ -115,7 +116,7 @@ this order:
    with source-backed diagnostics.
 3. Aggregate ABI and ownership: broaden field-level state, enum payload facts,
    direct/indirect ABI edges, cleanup, and drop glue.
-4. Standard-library runtime: keep `std/`, `spec/11`, and
+4. Standard-library runtime: keep `development/std/`, `spec/11`, and
    `std-runtime-status.md` aligned while promoting only stable APIs.
 5. Runtime promotion decisions: promote broader optionals, control flow, arrays,
    methods, generics, or collection behavior only by updating this matrix and

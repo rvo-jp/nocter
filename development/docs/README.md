@@ -1,7 +1,8 @@
-# Compiler Documentation Index
+# Development Documentation Index
 
-This directory is for compiler engineers and AI coding agents working on the
-Rust bootstrap compiler. It must not become a second language specification.
+This directory is for engineers and AI coding agents working on Nocter
+development: the Rust bootstrap compiler, standard library implementation, and
+release packaging. It must not become a second language specification.
 Normative user-facing language rules live in [../../spec](../../spec/README.md).
 
 ## Documents
@@ -28,8 +29,10 @@ Normative user-facing language rules live in [../../spec](../../spec/README.md).
 - Put source language rules in `spec/`.
 - Use [Design Principles](../../spec/00-design-principles.md) when a compiler
   implementation choice exposes new source behavior.
-- Put compiler architecture, implementation status, internal ABI work, and
-  handoff notes in `compiler/`.
+- Put Rust compiler implementation in `development/compiler/`.
+- Put compiler architecture, implementation status, and internal ABI work in
+  `development/docs/`.
+- Put short-lived handoff notes in `development/TODO.md`.
 - Keep root `README.md` as the short Nocter language introduction,
   getting-started flow, and documentation map.
 - Do not copy whole feature specifications into this directory. Link to the

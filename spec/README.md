@@ -49,4 +49,4 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - Keep `guides/ai.md` compact and example-oriented; do not let it replace normative specification chapters.
 - When a design is still provisional, mark it explicitly in that chapter instead of hiding uncertainty in broad wording.
 - Keep compiler implementation status, backend work plans, and handoff notes in
-  `../compiler/`.
+  `../development/`.

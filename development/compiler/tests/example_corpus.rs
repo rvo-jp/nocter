@@ -325,7 +325,8 @@ fn contains_documentation(value: &Value, expected: &str) -> bool {
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .expect("compiler crate should live below repository root")
+        .and_then(Path::parent)
+        .expect("compiler crate should live below development root")
         .to_path_buf()
 }
 

@@ -1,21 +1,22 @@
-# Nocter Compiler Handoff
+# Nocter Development Handoff
 
 This file is the short-lived handoff note for the next compiler session.
-Durable design belongs in `docs/`; user-facing language rules belong in
-`../spec/`.
+Durable design belongs in `development/docs/`; user-facing language rules belong
+in `spec/`.
 
 ## Current Repository State
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `87f8ee7 Drop legacy root Nocter home entrypoint`
+  - `9248e2e Move release image generation to dist`
   - `71f214b Update compiler handoff after value control work`
-  - `a8ae3cb Lower leading statements in value control branches`
-  - `a816ae7 Align match expression spec with v0 backend`
-- The canonical standard-library source lives under `../std`; local release
-  packaging generates `../dist/.nocter/std`.
-- The active v0 completion definition is `docs/v0-closure.md`.
+- The repository root is user-facing. `development/` is the development root.
+- The canonical standard-library source lives under `development/std`; local
+  release packaging generates `dist/.nocter/std`.
+- The active v0 completion definition is `development/docs/v0-closure.md`.
 - Current implementation capability is summarized in
-  `docs/implementation-status.md`.
+  `development/docs/implementation-status.md`.
 
 ## Current Priority
 
@@ -23,9 +24,9 @@ Keep improving Nocter toward a usable v0 standard-library-driven compiler.
 
 Recommended order:
 
-1. Keep `spec/`, `compiler/docs/v0-closure.md`, and
-   `compiler/docs/implementation-status.md` consistent whenever source syntax,
-   standard-library API, ABI behavior, or runtime support changes.
+1. Keep `spec/`, `development/docs/v0-closure.md`, and
+   `development/docs/implementation-status.md` consistent whenever source
+   syntax, standard-library API, ABI behavior, or runtime support changes.
 2. Close buildability gaps before broadening syntax: accepted source that cannot
    run must fail before IR or backend emission with a source-backed diagnostic.
 3. Continue backend and ABI work around aggregates, ownership cleanup, direct
@@ -54,11 +55,11 @@ Recommended order:
 ## Recent Notes
 
 - Release packaging layout now separates tracked inputs from generated output:
-  `../std` is the canonical standard-library source, `../packaging` contains
-  release metadata inputs, and
-  `../compiler/scripts/package-local-release.sh` generates `../dist/.nocter`.
-  Distributed-home tests synthesize a temporary Nocter home from those tracked
-  inputs.
+  `development/std` is the canonical standard-library source,
+  `development/packaging` contains release metadata inputs, and
+  `development/compiler/scripts/package-local-release.sh` generates
+  `dist/.nocter`. Distributed-home tests synthesize a temporary Nocter home from
+  those tracked inputs.
 - Value-producing `if`, payloadless enum `if is`, and payloadless enum `match`
   branch blocks now lower supported leading bindings, assignments, and
   buildable expression statements before their final value. Buildability
@@ -91,10 +92,12 @@ git log --oneline -5
 
 Read:
 
-- `compiler/README.md`
-- `compiler/docs/README.md`
-- `compiler/docs/implementation-status.md`
-- `compiler/docs/v0-closure.md`
+- `README.md`
+- `spec/README.md`
+- `development/README.md`
+- `development/docs/README.md`
+- `development/docs/implementation-status.md`
+- `development/docs/v0-closure.md`
 - the relevant `spec/` chapter for the behavior being changed
 
 Do not revert unrelated user changes.
@@ -105,14 +108,14 @@ Use the narrowest sufficient command set for the change. For broad shared
 compiler work, prefer:
 
 ```sh
-cargo fmt --manifest-path compiler/Cargo.toml --check
-cargo test --manifest-path compiler/Cargo.toml --lib
-cargo test --manifest-path compiler/Cargo.toml --test cli_build
-cargo test --manifest-path compiler/Cargo.toml --test cli_run
-cargo test --manifest-path compiler/Cargo.toml --test distributed_home
-cargo test --manifest-path compiler/Cargo.toml --test cli_lsp
+cargo fmt --manifest-path development/compiler/Cargo.toml --check
+cargo test --manifest-path development/compiler/Cargo.toml --lib
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_build
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_run
+cargo test --manifest-path development/compiler/Cargo.toml --test distributed_home
+cargo test --manifest-path development/compiler/Cargo.toml --test cli_lsp
 ```
 
-For documentation-only changes, `cargo fmt --manifest-path compiler/Cargo.toml
---check` is usually enough unless examples, CLI contracts, or generated outputs
-were changed.
+For documentation-only changes,
+`cargo fmt --manifest-path development/compiler/Cargo.toml --check` is usually
+enough unless examples, CLI contracts, or generated outputs were changed.

@@ -248,13 +248,14 @@ export PATH="$HOME/.nocter:$PATH"
 `NOCTER_HOME` may point to the active Nocter home if the user does not want to
 rely on the location of the `nocter` executable.
 
-The repository keeps the canonical standard-library source in `std/` and
-release metadata templates in `packaging/`. The local release packaging script
-generates the distributable Nocter home image at `dist/.nocter/`.
+The repository keeps the canonical standard-library source in
+`development/std/` and release metadata templates in `development/packaging/`.
+The local release packaging script generates the distributable Nocter home image
+at `dist/.nocter/`.
 
 Rules:
 
-- `std/` is edited as source.
-- `packaging/VERSION` and `packaging/MANIFEST.json` are edited as release
-  metadata inputs.
+- `development/std/` is edited as source.
+- `development/packaging/VERSION` and `development/packaging/MANIFEST.json` are
+  edited as release metadata inputs.
 - `dist/.nocter/` is generated output and is not committed to git.

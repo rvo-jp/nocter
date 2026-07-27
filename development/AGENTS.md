@@ -1,12 +1,14 @@
-# Nocter Compiler Agent Rules
+# Nocter Development Agent Rules
 
-These rules apply to work under `compiler/`.
+These rules apply to work under `development/`.
 They are written for long-running development across multiple AI sessions.
 
 ## Session Start
 
 Before making compiler changes, read:
 
+- `../README.md`
+- `../spec/README.md`
 - `README.md`
 - `TODO.md`
 - `docs/README.md`
@@ -24,7 +26,8 @@ Do not stage, revert, or rewrite unrelated local changes.
 Prefer long-term maintainability over short diffs.
 Do not keep adding logic to a busy file when a clearer module boundary exists.
 
-Use responsibility and abstraction layer as the split criteria:
+Inside `compiler/src/`, use responsibility and abstraction layer as the split
+criteria:
 
 - `ast/` owns syntax tree data.
 - `resolve/` owns imports, scopes, symbols, and name lookup.
@@ -36,7 +39,8 @@ Use responsibility and abstraction layer as the split criteria:
 - `driver/` owns CLI and protocol entry points.
 - `driver/lsp/` owns editor protocol behavior, but must reuse compiler analysis instead of reimplementing language semantics.
 
-When a new concept does not fit one of the existing responsibilities, create or propose a focused module before adding broad logic to an existing file.
+When a new concept does not fit one of the existing responsibilities, create or
+propose a focused module before adding broad logic to an existing file.
 
 ## Refactoring Policy
 
@@ -50,8 +54,8 @@ Use these triggers to refactor before feature work continues:
 - tests need excessive setup because production code has no narrow API
 - a module name no longer describes most of its contents
 
-Keep behavior changes and pure structure changes in separate commits when practical.
-If they must be combined, document why in the final response.
+Keep behavior changes and pure structure changes in separate commits when
+practical. If they must be combined, document why in the final response.
 
 ## Documentation Updates
 
@@ -67,13 +71,17 @@ At the end of a session, update the smallest relevant document set:
 
 Do not append chronological logs to long-lived design documents.
 Record facts that help the next session make better decisions.
+Do not add compatibility paths for removed repository locations unless the user
+explicitly asks for that compatibility.
 
 ## Verification
 
 For Rust compiler changes, run the narrowest sufficient checks.
-Prefer `./compiler/scripts/verify.sh` before commits that touch shared compiler behavior.
+Prefer `./development/compiler/scripts/verify.sh` from the repository root
+before commits that touch shared compiler behavior.
 
-When verification cannot be run, record the reason in the final response and in `TODO.md` if it affects the next session.
+When verification cannot be run, record the reason in the final response and in
+`TODO.md` if it affects the next session.
 
 Always report:
 
@@ -84,6 +92,8 @@ Always report:
 
 ## Commit Checkpoints
 
-When a coherent chunk of work is complete, verified, and no user-owned unrelated changes are mixed into the staged set, create a git commit before continuing to the next chunk.
-Do this especially after changes that update multiple compiler phases, add a new module, or change user-visible behavior.
+When a coherent chunk of work is complete, verified, and no user-owned unrelated
+changes are mixed into the staged set, create a git commit before continuing to
+the next chunk. Do this especially after changes that update multiple compiler
+phases, add a new module, or change user-visible behavior.
 Keep the commit scoped to the completed chunk; leave unrelated local changes unstaged.

@@ -3,10 +3,11 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 compiler_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
-repo_dir=$(CDPATH= cd -- "$compiler_dir/.." && pwd)
+development_dir=$(CDPATH= cd -- "$compiler_dir/.." && pwd)
+repo_dir=$(CDPATH= cd -- "$development_dir/.." && pwd)
 
-packaging_dir="$repo_dir/packaging"
-std_source="$repo_dir/std"
+packaging_dir="$development_dir/packaging"
+std_source="$development_dir/std"
 home_dir="$repo_dir/dist/.nocter"
 
 cd "$compiler_dir"

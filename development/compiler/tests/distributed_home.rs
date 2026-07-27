@@ -3774,16 +3774,20 @@ fn write_test_distributed_home() -> PathBuf {
     let home = root.join(".nocter");
 
     fs::create_dir_all(&home).unwrap();
-    fs::copy(repo_root().join("packaging/VERSION"), home.join("VERSION")).unwrap();
     fs::copy(
-        repo_root().join("packaging/MANIFEST.json"),
+        development_root().join("packaging/VERSION"),
+        home.join("VERSION"),
+    )
+    .unwrap();
+    fs::copy(
+        development_root().join("packaging/MANIFEST.json"),
         home.join("MANIFEST.json"),
     )
     .unwrap();
     let compiler = home.join("nocter");
     fs::copy(NOCTER, &compiler).unwrap();
     fs::set_permissions(&compiler, fs::metadata(NOCTER).unwrap().permissions()).unwrap();
-    copy_tree(&repo_root().join("std"), &home.join("std"));
+    copy_tree(&development_root().join("std"), &home.join("std"));
 
     home
 }
@@ -3801,10 +3805,10 @@ fn copy_tree(source: &Path, destination: &Path) {
     }
 }
 
-fn repo_root() -> PathBuf {
+fn development_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .expect("compiler crate should live below repository root")
+        .expect("compiler crate should live below development root")
         .to_path_buf()
 }
 

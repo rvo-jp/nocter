@@ -25,9 +25,9 @@ end to end:
    emission with diagnostics written in source-language terms.
 3. **Aggregate ABI and ownership**: continue direct/indirect aggregate edges,
    field-level state, enum payload facts, aggregate cleanup, and drop glue.
-4. **Std runtime**: keep `std/` aligned with `spec/11`; promote `env`,
-   richer `Vec`, file, path, or allocator APIs only when their runtime contract
-   is stable.
+4. **Std runtime**: keep `development/std/` aligned with `spec/11`; promote
+   `env`, richer `Vec`, file, path, or allocator APIs only when their runtime
+   contract is stable.
 5. **Control-flow and collection promotion**: broaden loops, match payloads,
    arrays, view iteration, and generic methods only with closure-matrix and test
    updates.
