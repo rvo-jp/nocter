@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `886218c Tighten use diagnostics and buildability coverage`
   - `63e2ae5 Lower public borrow-to-pointer conversions`
   - `c4f9bb7 Reject unsupported scalar values before IR`
-  - `248ee34 Promote u8 compound assignments`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
@@ -52,6 +52,12 @@ Recommended order:
 
 ## Recent Notes
 
+- User-facing parser diagnostics now consistently point to `use` declarations
+  instead of describing old import terminology. Block-scope import shadowing
+  against parameters and locals is covered by resolver tests.
+- CLI coverage now pins bare string interpolation as a source-backed E0435
+  buildability rejection before IR lowering, and `fmt` now has coverage for
+  block-scope grouped `use` declarations.
 - Buildability signature checks now resolve substituted `TypeExpr` values by
   source file. This matters for std generic helpers specialized with user
   project aggregate types, such as `Vec<Pair>.push`.
