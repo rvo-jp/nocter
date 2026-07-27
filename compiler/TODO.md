@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `a8ae3cb Lower leading statements in value control branches`
   - `c70a569 Reject null from_addr during buildability`
   - `886218c Tighten use diagnostics and buildability coverage`
-  - `63e2ae5 Lower public borrow-to-pointer conversions`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
@@ -52,6 +52,11 @@ Recommended order:
 
 ## Recent Notes
 
+- Value-producing `if`, payloadless enum `if is`, and payloadless enum `match`
+  branch blocks now lower supported leading bindings, assignments, and
+  buildable expression statements before their final value. Buildability
+  collects those leading statements and still rejects unsupported branch work
+  before IR lowering.
 - User-facing parser diagnostics now consistently point to `use` declarations
   instead of describing old import terminology. Block-scope import shadowing
   against parameters and locals is covered by resolver tests.
