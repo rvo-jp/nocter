@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known commits:
-  - `b9624de Reject relative module paths in expressions`
-  - `48b19ea Reject std module paths in expressions`
-  - `cd47e74 Reject dotted import paths in parser`
+  - `07369d5 Implement byte literals through compiler`
+  - `a1956ef Clarify compile unit use rules`
+  - `af7baf9 Align editor facts for scoped imports`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
