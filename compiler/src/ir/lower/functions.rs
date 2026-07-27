@@ -892,6 +892,19 @@ fn lower_callable_body(
         return Ok(instructions);
     }
 
+    if success_type == &Type::Void
+        && statements
+            .last()
+            .is_some_and(statement_allows_implicit_void_return)
+    {
+        let mut instructions = lower_leading_bindings(statements, context, sources)?;
+        instructions.extend(append_scope_end_drops_before_exit(
+            vec![success_return_instruction(return_type)],
+            context,
+        )?);
+        return Ok(instructions);
+    }
+
     let Some((last, leading)) = statements.split_last() else {
         return Err(attach_primary_span_if_absent(
             unsupported_function_body_diagnostic(function_name),
@@ -3321,6 +3334,18 @@ fn unwrap_group(expression: &Expr) -> &Expr {
         Expr::Group(group) => unwrap_group(&group.expression),
         _ => expression,
     }
+}
+
+fn statement_allows_implicit_void_return(statement: &Stmt) -> bool {
+    matches!(
+        statement,
+        Stmt::Binding(_)
+            | Stmt::Assignment(_)
+            | Stmt::Drop(_)
+            | Stmt::ForRange(_)
+            | Stmt::While(_)
+            | Stmt::Loop(_)
+    )
 }
 
 fn lower_aggregate_local_return_to_location(

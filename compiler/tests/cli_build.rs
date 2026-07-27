@@ -622,6 +622,39 @@ func run(flag: bool): void {
 }
 
 #[test]
+fn build_command_lowers_void_implicit_return_after_statements() {
+    let project = TempProject::new("cli-build-void-implicit-return-after-statements");
+    let source = project.write_source(
+        "void_implicit_return_after_statements.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): void {
+    let file = File{ fd: 1 }
+    run()
+}
+
+func run(): void {
+    let value = 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_usize_arithmetic_and_shifts() {
     let project = TempProject::new("cli-build-usize-arithmetic-shifts");
     let source = project.write_source(

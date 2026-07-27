@@ -25168,6 +25168,79 @@ fn lowers_void_entry_with_empty_body() {
 }
 
 #[test]
+fn lowers_void_entry_with_binding_before_implicit_return() {
+    let ir = lower_text(
+        r#"func main(): void {
+    let value = 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(1),
+                },
+                Instruction::Return,
+            ],
+        }])
+    );
+}
+
+#[test]
+fn lowers_void_entry_scope_end_drop_before_implicit_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): void {
+    let file = File{ fd: 1 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("File.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_void_entry_with_void_call_statement() {
     let ir = lower_text(
         r#"func main(): void {
@@ -25258,6 +25331,36 @@ func effect(): void {
             target: crate::ir::CallTarget::same_file("run".to_string()),
             return_type: Type::Void,
             instructions: vec![call_void("effect", vec![]), Instruction::Return],
+        }
+    );
+}
+
+#[test]
+fn lowers_void_function_with_binding_before_implicit_return() {
+    let ir = lower_text(
+        r#"func main(): void {
+    run()
+}
+
+func run(): void {
+    let value = 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[1],
+        Function {
+            name: "run".to_string(),
+            target: crate::ir::CallTarget::same_file("run".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(1),
+                },
+                Instruction::Return,
+            ],
         }
     );
 }
@@ -27225,6 +27328,7 @@ func done(): bool {
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): void {
+    return
     let value = 1
 }
 "#,
