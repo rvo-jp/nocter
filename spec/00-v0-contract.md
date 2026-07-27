@@ -34,6 +34,9 @@ The following features are not part of v0:
 
 - `trait` declarations
 - embedding declarations such as `...Type` and `pub ...Type`
+- literal definitions such as `literal Vec<T> [...items: [T]]: Self`
+- typed literal construction such as `Vec [1, 2, 3]`
+- generalized `...` spread, rest capture, and variadic capture forms
 - generic bounds such as `T: Interface`
 - interface-bound method lookup
 - dynamic dispatch and interface objects such as `dyn Printable`
@@ -75,6 +78,8 @@ partial language support:
 - `trait Name { ... }`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
+- `literal Type [...]`
+- `func name(...values: [T]): Type`
 - `impl Interface for Type { method ... }`
 - generic bounds such as `<T: Interface>`
 - `func` declarations inside `impl`

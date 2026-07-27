@@ -30,6 +30,8 @@ Nocter v0 completion does not include:
 - package management, separate compilation, incremental compilation, debug info,
   optimization, self-hosting, or a runtime GC
 - trait declarations, embedding declarations, or code reuse through interfaces
+- user-defined literal declarations, typed literal construction, generalized
+  `...` spread, rest capture, or variadic capture
 - editor-only language semantics that differ from compiler semantics
 
 ## Status Terms

@@ -322,6 +322,11 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
+User-defined typed literal construction, such as `Vec [1, 2, 3]` or
+`Path "README.md"`, is a post-v0 future design. It is specified separately in
+[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+and does not change the meaning of built-in literals in v0.
+
 Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.
 
 `str` is unsized UTF-8 string data. `[T]` is unsized contiguous array data. These unsized data forms cannot be used by value as parameters, return values, fields, local annotations, optional payloads, fallible success payloads, or generic arguments unless they are behind an indirection. Use `&str` for a string slice, `&[T]` for a readonly array slice, `&+[T]` for a readwrite array slice, `String` for owned variable-length text, and `Vec<T>` for owned variable-length arrays.

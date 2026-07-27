@@ -12,12 +12,17 @@ inherent member and interface method contexts.
 
 Nocter v0 does not include traits.
 Embedding is an adopted future composition feature, but it is not part of the
-v0 implementation contract.
+v0 implementation contract. Generalized `...` spread, rest capture, variadic
+capture, and typed literal construction are specified as a separate future
+direction in
+[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md).
 
 Not part of v0:
 
 - `trait` declarations
 - embedding declarations such as `...Type` and `pub ...Type`
+- typed literal construction such as `Vec [1, 2, 3]`
+- generalized `...` spread, rest capture, and variadic capture forms
 - generic bounds such as `T: Interface`
 - interface-bound method lookup
 - interface objects such as `dyn Printable`
@@ -361,9 +366,11 @@ struct Profile {
 }
 ```
 
-The leading `...` form is recognized only in struct bodies and struct literals.
-It does not change the existing variadic parameter suffix form such as
-`parts: &str...`.
+In the embedding subset, leading `...` is recognized only in struct bodies and
+struct literals. Broader future uses of `...` are defined separately in
+[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+so embedding does not become a hidden import, macro, or general delegation
+mechanism.
 
 Meaning:
 

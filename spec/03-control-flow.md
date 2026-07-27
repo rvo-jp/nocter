@@ -86,10 +86,6 @@ func open(path: &str = "input.txt"): File! {
     ...
 }
 
-func print_all(parts: &str...): void {
-    ...
-}
-
 func open(path: &str): File! {
     ...
 }
@@ -100,6 +96,7 @@ func open(path: &str, mode: OpenMode): File! {
 ```
 
 Use a configuration struct when an API has many boolean or optional choices.
+Variadic capture is a future `...values` design, not v0 syntax.
 
 ```nct
 pub struct OpenOptions {

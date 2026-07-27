@@ -165,6 +165,10 @@ Rules:
 - The inferred length is part of the array type.
 
 Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
+Future typed collection literals such as `Vec [1, 2, 3]` are specified
+separately in
+[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+and are not part of v0. Bare `[1, 2, 3]` remains a fixed-size array literal.
 
 ```nct
 var bytes = Buffer<u8>.with_capacity(allocator, 4096)?

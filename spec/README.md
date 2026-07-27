@@ -33,6 +33,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Tooling and Editor Integration](14-tooling-editor-integration.md)
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
+- [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
 
 ## Supporting Material
 

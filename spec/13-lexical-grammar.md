@@ -147,6 +147,8 @@ Keyword rules:
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0 and are emitted as identifier tokens.
+- `literal` is not reserved in v0. It is emitted as an identifier token. Future
+  literal-definition syntax may reserve it when that feature is promoted.
 
 Newline rules:
 
@@ -337,3 +339,4 @@ The following lexical features are intentionally not part of v0:
 - raw string literals
 - Unicode escape syntax
 - attribute syntax
+- user-defined literal-definition syntax

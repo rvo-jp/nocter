@@ -46,6 +46,8 @@ end to end:
   `#target(...)`.
 - Keep `interface` contract-only in v0. Do not introduce interface dispatch,
   bounds, or code reuse as a convenience for implementation.
+- Keep literal definitions and generalized `...` spread/capture out of v0.
+  Treat them as post-v0 language design, not as std or LSP shortcuts.
 - Keep bare string interpolation rejected by buildability until an explicit
   allocator source is designed.
 - Keep LSP semantic tokens, hovers, definitions, references, symbols, and
