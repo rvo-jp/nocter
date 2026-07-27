@@ -25241,6 +25241,46 @@ func main(): void {
 }
 
 #[test]
+fn lowers_void_entry_trailing_if_before_implicit_return() {
+    let ir = lower_text(
+        r#"func main(): void {
+    if true {
+        effect()
+    }
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::Void,
+                instructions: vec![
+                    Instruction::If {
+                        condition: BoolValue::Const(true),
+                        then_instructions: vec![call_void("effect", vec![])],
+                        else_instructions: vec![],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_void_entry_with_void_call_statement() {
     let ir = lower_text(
         r#"func main(): void {
@@ -25358,6 +25398,42 @@ func run(): void {
                 Instruction::SetI32 {
                     destination: I32Location::Local(0),
                     value: i32_const(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_void_function_trailing_if_before_implicit_return() {
+    let ir = lower_text(
+        r#"func main(): void {
+    run(true)
+}
+
+func run(flag: bool): void {
+    if flag {
+        effect()
+    }
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[1],
+        Function {
+            name: "run".to_string(),
+            target: crate::ir::CallTarget::same_file("run".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![call_void("effect", vec![])],
+                    else_instructions: vec![],
                 },
                 Instruction::Return,
             ],

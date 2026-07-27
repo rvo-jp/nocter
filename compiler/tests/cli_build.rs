@@ -655,6 +655,78 @@ func run(): void {
 }
 
 #[test]
+fn build_command_lowers_trailing_void_if_before_implicit_return() {
+    let project = TempProject::new("cli-build-trailing-void-if-implicit-return");
+    let source = project.write_source(
+        "trailing_void_if_implicit_return.nct",
+        r#"func main(): void {
+    run(true)
+}
+
+func run(flag: bool): void {
+    if flag {
+        effect()
+    }
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_trailing_void_if_is_and_match_before_implicit_return() {
+    let project = TempProject::new("cli-build-trailing-void-if-is-match-implicit-return");
+    let source = project.write_source(
+        "trailing_void_if_is_match_implicit_return.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): void {
+    run_if_is(Choice.yes)
+    run_match(Choice.no)
+}
+
+func run_if_is(choice: Choice): void {
+    if choice is Choice.yes {
+        effect()
+    }
+}
+
+func run_match(choice: Choice): void {
+    match choice {
+        Choice.yes {
+            effect()
+        }
+
+        Choice.no {
+            effect()
+        }
+    }
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_usize_arithmetic_and_shifts() {
     let project = TempProject::new("cli-build-usize-arithmetic-shifts");
     let source = project.write_source(

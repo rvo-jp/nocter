@@ -392,29 +392,15 @@ fn lower_entry_control_body_result(
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match unwrap_group(expression) {
-        Expr::If(statement) => lower_terminal_entry_if_statement_for_success_type(
-            statement,
-            context,
-            return_type,
-            sources,
-        ),
+        Expr::If(statement) => lower_entry_if_body_result(statement, return_type, context, sources),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8002")?;
-            lower_terminal_entry_if_statement_for_success_type(
-                &if_statement,
-                context,
-                return_type,
-                sources,
-            )
+            lower_entry_if_body_result(&if_statement, return_type, context, sources)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_if_statement(statement, context, "E8002")?;
-            let Some(mut branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
-                &switch.if_statement,
-                context,
-                return_type,
-                sources,
-            )?
+            let Some(mut branch_instructions) =
+                lower_entry_if_body_result(&switch.if_statement, return_type, context, sources)?
             else {
                 return Ok(None);
             };
@@ -424,6 +410,48 @@ fn lower_entry_control_body_result(
         }
         _ => Ok(None),
     }
+}
+
+fn lower_entry_if_body_result(
+    statement: &IfStmt,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match lower_terminal_entry_if_statement_for_success_type(
+        statement,
+        context,
+        return_type,
+        sources,
+    ) {
+        Ok(instructions) => Ok(instructions),
+        Err(_) if return_type.success_type() == &Type::Void => Ok(Some(
+            lower_void_nonterminal_entry_if_body_result(statement, return_type, context, sources)?,
+        )),
+        Err(diagnostics) => Err(diagnostics),
+    }
+}
+
+fn lower_void_nonterminal_entry_if_body_result(
+    statement: &IfStmt,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = lower_nonterminal_if_statement(
+        statement,
+        context,
+        None,
+        &[],
+        "E8002",
+        "entry functions",
+        sources,
+    )?;
+    instructions.extend(append_scope_end_drops_before_exit(
+        vec![success_return_instruction(return_type)],
+        context,
+    )?);
+    Ok(instructions)
 }
 
 fn lower_terminal_entry_if_statement_for_success_type(

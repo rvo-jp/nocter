@@ -1138,48 +1138,26 @@ fn lower_callable_control_body_result(
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match unwrap_group(expression) {
-        Expr::If(statement) => lower_terminal_if_statement_for_success_type(
-            statement,
-            context,
-            function_name,
-            return_type,
-            "E8007",
-            "functions",
-            context
-                .resolved_calls()
-                .map(|(_, resolved)| resolved)
-                .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
-            sources,
-        ),
+        Expr::If(statement) => {
+            lower_callable_if_body_result(statement, function_name, return_type, context, sources)
+        }
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")?;
-            lower_terminal_if_statement_for_success_type(
+            lower_callable_if_body_result(
                 &if_statement,
-                context,
                 function_name,
                 return_type,
-                "E8007",
-                "functions",
-                context
-                    .resolved_calls()
-                    .map(|(_, resolved)| resolved)
-                    .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+                context,
                 sources,
             )
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_if_statement(statement, context, "E8007")?;
-            let Some(mut branch_instructions) = lower_terminal_if_statement_for_success_type(
+            let Some(mut branch_instructions) = lower_callable_if_body_result(
                 &switch.if_statement,
-                context,
                 function_name,
                 return_type,
-                "E8007",
-                "functions",
-                context
-                    .resolved_calls()
-                    .map(|(_, resolved)| resolved)
-                    .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+                context,
                 sources,
             )?
             else {
@@ -1279,6 +1257,62 @@ fn lower_terminal_control_return_expression(
         }
         _ => Ok(None),
     }
+}
+
+fn lower_callable_if_body_result(
+    statement: &IfStmt,
+    function_name: &str,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let resolved = context
+        .resolved_calls()
+        .map(|(_, resolved)| resolved)
+        .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?;
+    match lower_terminal_if_statement_for_success_type(
+        statement,
+        context,
+        function_name,
+        return_type,
+        "E8007",
+        "functions",
+        resolved,
+        sources,
+    ) {
+        Ok(instructions) => Ok(instructions),
+        Err(_) if return_type.success_type() == &Type::Void => {
+            Ok(Some(lower_void_nonterminal_callable_if_body_result(
+                statement,
+                return_type,
+                context,
+                sources,
+            )?))
+        }
+        Err(diagnostics) => Err(diagnostics),
+    }
+}
+
+fn lower_void_nonterminal_callable_if_body_result(
+    statement: &IfStmt,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = lower_nonterminal_if_statement(
+        statement,
+        context,
+        None,
+        &[],
+        "E8007",
+        "functions",
+        sources,
+    )?;
+    instructions.extend(append_scope_end_drops_before_exit(
+        vec![success_return_instruction(return_type)],
+        context,
+    )?);
+    Ok(instructions)
 }
 
 fn lower_terminal_if_statement_for_success_type(

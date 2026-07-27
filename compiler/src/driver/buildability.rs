@@ -452,6 +452,69 @@ fn collect_terminal_return_expression_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match unwrap_group_expr(expression) {
+        Expr::If(expression)
+            if void_effect_if_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_if_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Expr::IfIs(expression)
+            if void_effect_if_is_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_if_is_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Expr::Match(expression)
+            if void_effect_match_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_match_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Expr::If(expression) if terminal_if_expression_is_buildable(expression) => {
             collect_expression_diagnostics(
                 &expression.condition,
@@ -768,6 +831,308 @@ fn collect_value_block_diagnostics(
     );
 }
 
+fn collect_void_effect_expression_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match unwrap_group_expr(expression) {
+        Expr::If(expression)
+            if void_effect_if_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_if_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Expr::IfIs(expression)
+            if void_effect_if_is_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_if_is_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Expr::Match(expression)
+            if void_effect_match_expression_is_buildable(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
+            collect_void_effect_match_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        _ => {
+            if let Some(diagnostic) = unsupported_expression_statement_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                diagnostics.push(diagnostic);
+            }
+            collect_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn collect_void_effect_if_expression_diagnostics(
+    expression: &crate::ast::IfStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_expression_diagnostics(
+        &expression.condition,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_void_effect_block_diagnostics(
+        &expression.then_block,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    if let Some(else_block) = &expression.else_block {
+        collect_void_effect_block_diagnostics(
+            else_block,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
+fn collect_void_effect_if_is_expression_diagnostics(
+    expression: &crate::ast::IfIsStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_expression_diagnostics(
+        &expression.expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_void_effect_block_diagnostics(
+        &expression.then_block,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    if let Some(else_block) = &expression.else_block {
+        collect_void_effect_block_diagnostics(
+            else_block,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
+fn collect_void_effect_match_expression_diagnostics(
+    expression: &crate::ast::SwitchStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_expression_diagnostics(
+        &expression.expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    for arm in &expression.arms {
+        collect_void_effect_block_diagnostics(
+            &arm.body,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+    if let Some(else_arm) = &expression.else_arm {
+        collect_void_effect_block_diagnostics(
+            &else_arm.body,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
+fn collect_void_effect_block_diagnostics(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for statement in &block.statements {
+        collect_statement_diagnostics(
+            statement,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+    if let Some(result) = &block.result {
+        collect_void_effect_expression_diagnostics(
+            result,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
 fn binding_initializer_may_use_value_control_expression(
     statement: &crate::ast::BindingStmt,
     resolved: &ResolveOutput,
@@ -994,6 +1359,116 @@ fn value_match_expression_is_buildable(
 
 fn value_block_is_expression_only(block: &Block) -> bool {
     block.statements.is_empty() && block.result.is_some()
+}
+
+fn void_effect_if_expression_is_buildable(
+    expression: &crate::ast::IfStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    void_effect_block_is_buildable(
+        &expression.then_block,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) && expression.else_block.as_ref().map_or(true, |block| {
+        void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
+    })
+}
+
+fn void_effect_if_is_expression_is_buildable(
+    expression: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if_is_statement_is_buildable(expression, resolved)
+        && void_effect_block_is_buildable(
+            &expression.then_block,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+        && expression.else_block.as_ref().map_or(true, |block| {
+            void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
+        })
+}
+
+fn void_effect_match_expression_is_buildable(
+    expression: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    switch_statement_is_buildable(expression, resolved)
+        && expression.arms.iter().all(|arm| {
+            void_effect_block_is_buildable(
+                &arm.body,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        })
+        && expression.else_arm.as_ref().map_or(true, |arm| {
+            void_effect_block_is_buildable(
+                &arm.body,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        })
+}
+
+fn void_effect_block_is_buildable(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match block.result.as_deref() {
+        Some(result) => void_effect_expression_is_buildable(
+            result,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        None => true,
+    }
+}
+
+fn void_effect_expression_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::If(expression) => void_effect_if_expression_is_buildable(
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::IfIs(expression) => void_effect_if_is_expression_is_buildable(
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Match(expression) => void_effect_match_expression_is_buildable(
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => expression_statement_is_supported(
+            expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+    }
 }
 
 fn terminal_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
