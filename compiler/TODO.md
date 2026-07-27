@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `248ee34 Promote u8 compound assignments`
   - `ed61b60 Implement checked u8 arithmetic lowering`
   - `162aa98 Reject generic entry functions in frontend`
-  - `d34168c Lower byte literal comparisons`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
