@@ -83,6 +83,27 @@ func main(): i32 {
 }
 
 #[test]
+fn rejects_invalid_module_path_segments() {
+    for source in [
+        "use std/IO\n",
+        "use std/Self\n",
+        "use std/_\n",
+        "use ./Path/config\n",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(output.diagnostics.len(), 1, "{source}");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("module path segments must be snake_case identifiers"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
 fn parses_import_aliases() {
     let output = parse_text(
         r#"use std/io as io

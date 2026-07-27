@@ -1,3 +1,4 @@
+use super::support::ParsedIdentifier;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AstFile, BorrowType, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
@@ -870,13 +871,14 @@ impl Parser<'_> {
             return Err(());
         }
 
-        let first = self.expect_identifier("expected module path segment")?;
+        let first = self.expect_module_path_segment("expected module path segment")?;
         let mut end = first.span.end;
         segments.push(first.value);
         segment_spans.push(first.span);
 
         while self.match_punctuation("/").is_some() {
-            let segment = self.expect_identifier("expected module path segment after `/`")?;
+            let segment =
+                self.expect_module_path_segment("expected module path segment after `/`")?;
             end = segment.span.end;
             segments.push(segment.value);
             segment_spans.push(segment.span);
@@ -896,6 +898,36 @@ impl Parser<'_> {
             segment_spans,
         })
     }
+}
+
+const MODULE_PATH_SEGMENT_DIAGNOSTIC: &str = "module path segments must be snake_case identifiers";
+
+impl Parser<'_> {
+    fn expect_module_path_segment(&mut self, message: &str) -> ParseResult<ParsedIdentifier> {
+        let segment = self.expect_identifier(message)?;
+        if is_valid_module_path_segment(&segment.value) {
+            return Ok(segment);
+        }
+
+        self.error_at(segment.span, MODULE_PATH_SEGMENT_DIAGNOSTIC);
+        Err(())
+    }
+}
+
+fn is_valid_module_path_segment(segment: &str) -> bool {
+    if segment == "_" {
+        return false;
+    }
+
+    let mut chars = segment.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !matches!(first, 'a'..='z' | '_') {
+        return false;
+    }
+
+    chars.all(|char| matches!(char, 'a'..='z' | '0'..='9' | '_'))
 }
 
 fn default_namespace_alias(path: &ModulePath) -> ImportAlias {
