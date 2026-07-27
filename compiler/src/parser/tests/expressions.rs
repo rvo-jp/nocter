@@ -646,17 +646,8 @@ fn parses_arithmetic_expression_precedence() {
 }
 
 #[test]
-fn diagnoses_path_like_module_expressions_as_use_only() {
+fn diagnoses_relative_and_absolute_module_path_expressions_as_use_only() {
     for source in [
-        r#"func main(): i32 {
-    return std/io.print("hello")
-}
-"#,
-        r#"func main(): i32 {
-    let value = 1 * std/io.value
-    return 0
-}
-"#,
         r#"func main(): i32 {
     return ./path/to/file.something()
 }
@@ -690,10 +681,10 @@ fn diagnoses_path_like_module_expressions_as_use_only() {
 }
 
 #[test]
-fn parses_spaced_division_from_std_identifier() {
+fn parses_std_slash_expression_as_division() {
     let output = parse_text(
         r#"func main(): i32 {
-    let value = std / io.print("hello")
+    let value = std/io.print("hello")
     return 0
 }
 "#,

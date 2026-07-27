@@ -149,12 +149,10 @@ impl Parser<'_> {
         let mut expression = self.parse_prefix_expression()?;
 
         loop {
-            self.reject_std_module_path_expression(&expression)?;
             let Some(operator) = self.match_multiplicative_operator() else {
                 break;
             };
             let right = self.parse_prefix_expression()?;
-            self.reject_std_module_path_expression(&right)?;
             expression = Expr::Binary(BinaryExpr {
                 span: self.span(expression.span().start, right.span().end),
                 left: Box::new(expression),
@@ -165,27 +163,6 @@ impl Parser<'_> {
         }
 
         Ok(expression)
-    }
-
-    fn reject_std_module_path_expression(&mut self, expression: &Expr) -> ParseResult<()> {
-        if self.at_std_module_path_expression(expression) {
-            self.error_at(
-                self.current().span,
-                "module paths are only valid in `use` declarations; import `std/...` before using it",
-            );
-            return Err(());
-        }
-
-        Ok(())
-    }
-
-    fn at_std_module_path_expression(&self, expression: &Expr) -> bool {
-        matches!(
-            expression,
-            Expr::Identifier(identifier) if identifier.name == "std"
-                && identifier.span.end == self.current().span.start
-        ) && self.at_punctuation("/")
-            && self.current_touches_next_identifier()
     }
 
     fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {

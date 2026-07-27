@@ -102,19 +102,21 @@ var err = console.stderr()
 let file: StdFile = StdFile.open(path)?
 ```
 
-Module path syntax is valid only inside `use` declarations. Code must not call
-a module by writing a path-like expression:
+Relative and absolute module path prefixes are valid only inside `use`
+declarations. Code must not call a module by writing a relative or absolute
+path-like expression:
 
 ```nct
-std/io.print("hello")
 ./path/to/file.something()
 ../shared/file.something()
 /absolute/path/file.something()
-// invalid: import the module namespace first, then call io.print("hello")
+// invalid: import the module namespace first, then call file.something()
 ```
 
-This rule does not change division. `std / value` is still an expression when
-`std` and `value` are ordinary values.
+This rule does not give special expression meaning to non-relative module paths.
+Outside `use`, text such as `std/io.print("hello")` is parsed as ordinary
+expression tokens, the same as `std / io.print("hello")`. If `std` and `io` are
+not ordinary visible values, normal name resolution fails.
 
 `use std/prelude` is not a source-level import form. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
 
@@ -164,10 +166,10 @@ use std/prelude
 use std/prelude.Error
 use ./config.nct.Config
 include std/prelude
-std/io.print("hello")
+./path/to/file.something()
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and path-like module expressions are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, textual include, and relative or absolute path-like module expressions are not part of the initial language.
 
 ## Re-exports
 

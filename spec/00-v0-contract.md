@@ -89,8 +89,8 @@ partial language support:
 - textual include such as `include std/prelude`
 - dotted module paths such as `use std.io.print`
 - explicit `.nct` extensions in import paths such as `use ./config.nct.Config`
-- path-like module expressions such as `std/io.print("hello")` and
-  `./path/to/file.something()`
+- relative or absolute path-like module expressions such as
+  `./path/to/file.something()` and `/absolute/path/file.something()`
 - top-level `use` after a non-`use` declaration
 - block-scope `use` after a non-`use` statement or result expression
 - block-scope `pub use`
