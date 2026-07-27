@@ -88,12 +88,6 @@ impl AstFile {
 impl Item {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
-            Item::Use(item) => JsonAstNode::with_value(
-                "use_item",
-                item.path.value.clone(),
-                json_span(sources, item.span),
-                vec![item.path.to_json(sources)],
-            ),
             Item::Import(item) => JsonAstNode::with_value(
                 "use_namespace_item",
                 item.path.value.clone(),

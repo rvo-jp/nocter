@@ -11,7 +11,7 @@ pub(crate) mod symbols;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ImportSourceMap, ResolveOutput, resolve_compile_unit};
+use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_compile_unit};
 use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, check, check_module, collect_typecheck_facts};
 use std::cmp::Ordering;
@@ -22,6 +22,7 @@ pub(crate) struct CompileUnit {
     root_ast: AstFile,
     files: Vec<AstFile>,
     import_sources: ImportSourceMap,
+    prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
 }
 
@@ -30,12 +31,14 @@ impl CompileUnit {
         root_ast: AstFile,
         files: Vec<AstFile>,
         import_sources: ImportSourceMap,
+        prelude_sources: PreludeSourceMap,
         nocter_home: Option<PathBuf>,
     ) -> Self {
         Self {
             root_ast,
             files,
             import_sources,
+            prelude_sources,
             nocter_home,
         }
     }
@@ -126,7 +129,13 @@ fn analyze_compile_unit_with_root_policy(
         .iter()
         .map(|file| {
             let is_root = file.span.source == root_source;
-            let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
+            let resolved = resolve_compile_unit(
+                sources,
+                file,
+                &unit.files,
+                &unit.import_sources,
+                &unit.prelude_sources,
+            );
             let mut diagnostics = resolved.diagnostics.clone();
             if is_root && root_policy == RootPolicy::ExecutableEntry {
                 diagnostics.extend(check(sources, file, &resolved));

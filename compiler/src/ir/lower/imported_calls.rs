@@ -309,7 +309,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resolve::{ImportedSymbol, SymbolId};
+    use crate::resolve::{ImportedSymbol, ImportedSymbolKind, SymbolId};
     use crate::source::{ByteSpan, SourceMap};
 
     #[test]
@@ -322,6 +322,9 @@ mod tests {
             declaration_span: ByteSpan::new(root_source, 0, 20),
             kind: SymbolKind::Imported(ImportedSymbol {
                 path: "std/io".to_string(),
+                source: None,
+                access: None,
+                kind: ImportedSymbolKind::UnloadedName,
             }),
         };
 

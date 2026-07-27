@@ -4,9 +4,7 @@ use crate::ast::{Item, TypeExpr};
 #[test]
 fn parses_function_with_fallible_return_type() {
     let output = parse_text(
-        r#"use std/prelude
-
-use std/io.print
+        r#"use std/io.print
 
 func main(): i32 {
     run() catch error {

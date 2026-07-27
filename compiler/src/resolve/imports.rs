@@ -7,34 +7,32 @@ use super::signatures::{
     function_signature, interface_type_symbol, primitive_signature, struct_type_symbol,
 };
 use super::{
-    FunctionSignature, ImportAccess, ImportedSymbol, ParameterSignature, Resolver, SymbolKind,
-    TypeSymbol,
+    FunctionSignature, ImportAccess, ImportedSymbol, ImportedSymbolKind, ParameterSignature,
+    Resolver, SymbolId, SymbolKind, TypeSymbol,
 };
-use crate::ast::{
-    AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, UseItem, Visibility,
-};
+use crate::ast::{AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, Visibility};
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashSet;
 
 impl Resolver<'_> {
-    pub(super) fn collect_use_symbols(&mut self, item: &UseItem) {
-        let Some((imported_ast, import_source)) = self
-            .module_index
-            .import_ast_for_span(item.path.span, self.import_sources)
-        else {
+    pub(super) fn collect_synthetic_prelude_symbols(&mut self, ast: &AstFile) {
+        let Some(prelude_source) = self.prelude_sources.get(&ast.span.source) else {
+            return;
+        };
+        let Some(prelude_ast) = self.module_index.ast_for_source(prelude_source.source) else {
             return;
         };
 
-        self.collect_public_exports(imported_ast, import_source.access, &item.path.value);
+        self.collect_public_exports(prelude_ast, prelude_source.access, "std/prelude");
     }
 
     pub(super) fn collect_import_namespace_symbol(&mut self, item: &ImportItem) {
-        if self
+        let import_source = self
             .module_index
             .import_ast_for_span(item.path.span, self.import_sources)
-            .is_none()
-            && is_relative_module_path(&item.path.value)
-        {
+            .map(|(_, source)| source);
+
+        if import_source.is_none() && is_relative_module_path(&item.path.value) {
             self.output.diagnostics.push(unloaded_import_diagnostic(
                 self.sources,
                 &item.path.value,
@@ -49,8 +47,73 @@ impl Resolver<'_> {
             item.path.span,
             SymbolKind::Imported(ImportedSymbol {
                 path: item.path.value.clone(),
+                source: import_source.map(|source| source.source),
+                access: import_source.map(|source| source.access),
+                kind: ImportedSymbolKind::Namespace,
             }),
         );
+    }
+
+    pub(super) fn resolve_namespace_member_symbol(
+        &mut self,
+        namespace: &ImportedSymbol,
+        member_name: &str,
+        member_span: ByteSpan,
+    ) -> Option<SymbolId> {
+        if namespace.kind != ImportedSymbolKind::Namespace {
+            return None;
+        }
+
+        let Some(source) = namespace.source else {
+            return None;
+        };
+        let access = namespace.access.unwrap_or(ImportAccess::Public);
+        let Some(imported_ast) = self.module_index.ast_for_source(source) else {
+            return None;
+        };
+
+        match self.find_importable_symbol(imported_ast, member_name) {
+            Some(imported) if imported.is_visible_to(access) => {
+                let imported = filter_importable_symbol_for_access(imported, access);
+                let dependency_type_names = imported.local_type_names.clone();
+                let dependency_imported_type_names = imported.imported_type_names.clone();
+                let imported = qualify_imported_symbol(imported, &namespace.path, member_name);
+                let id = self.output.symbols.define_hidden(
+                    member_name.to_string(),
+                    member_span,
+                    imported.declaration_span,
+                    imported.kind,
+                );
+                self.collect_hidden_imported_type_symbols(
+                    imported_ast,
+                    &namespace.path,
+                    access,
+                    &dependency_type_names,
+                );
+                self.collect_hidden_imported_type_dependencies(&dependency_imported_type_names);
+                Some(id)
+            }
+            Some(imported) => {
+                self.output.diagnostics.push(restricted_import_diagnostic(
+                    self.sources,
+                    member_name,
+                    &namespace.path,
+                    imported.visibility,
+                    member_span,
+                    imported.declaration_span,
+                ));
+                None
+            }
+            None => {
+                self.output.diagnostics.push(missing_import_diagnostic(
+                    self.sources,
+                    member_name,
+                    &namespace.path,
+                    member_span,
+                ));
+                None
+            }
+        }
     }
 
     pub(super) fn collect_imported_symbols(&mut self, item: &FromImportItem) {
@@ -73,6 +136,9 @@ impl Resolver<'_> {
                 item.span,
                 SymbolKind::Imported(ImportedSymbol {
                     path: item.path.value.clone(),
+                    source: None,
+                    access: None,
+                    kind: ImportedSymbolKind::UnloadedName,
                 }),
             );
         }
@@ -247,11 +313,7 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Function(_)
-                | Item::Use(_)
-                | Item::Import(_)
-                | Item::FromImport(_)
-                | Item::Impl(_) => {}
+                Item::Function(_) | Item::Import(_) | Item::FromImport(_) | Item::Impl(_) => {}
             }
         }
     }
@@ -896,8 +958,7 @@ fn type_decl_names(ast: &AstFile) -> Vec<String> {
             Item::Struct(struct_) => Some(struct_.name.clone()),
             Item::Enum(enum_) => Some(enum_.name.clone()),
             Item::Interface(interface) => Some(interface.name.clone()),
-            Item::Use(_)
-            | Item::Import(_)
+            Item::Import(_)
             | Item::FromImport(_)
             | Item::Function(_)
             | Item::Primitive(_)

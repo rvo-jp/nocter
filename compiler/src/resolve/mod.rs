@@ -14,9 +14,10 @@ mod tests;
 
 pub use symbols::{
     AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, LocalSymbol, LocalSymbolId,
-    LocalSymbolKind, MethodSignature, ParameterSignature, ResolveOutput, StructFieldSignature,
-    Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
+    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, LocalSymbol,
+    LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap,
+    ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol,
+    TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;
@@ -30,6 +31,7 @@ pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
         ast,
         std::slice::from_ref(ast),
         &ImportSourceMap::new(),
+        &PreludeSourceMap::new(),
     )
 }
 
@@ -38,12 +40,14 @@ pub fn resolve_compile_unit(
     root: &AstFile,
     files: &[AstFile],
     import_sources: &ImportSourceMap,
+    prelude_sources: &PreludeSourceMap,
 ) -> ResolveOutput {
     let module_index = ModuleIndex::new(files);
     let mut resolver = Resolver {
         sources,
         module_index,
         import_sources,
+        prelude_sources,
         output: ResolveOutput::new(),
     };
 
@@ -56,5 +60,6 @@ struct Resolver<'a> {
     sources: &'a SourceMap,
     module_index: ModuleIndex<'a>,
     import_sources: &'a ImportSourceMap,
+    prelude_sources: &'a PreludeSourceMap,
     output: ResolveOutput,
 }

@@ -6,7 +6,7 @@ use super::diagnostics::{
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    Parameter, Stmt,
+    MemberExpr, Parameter, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -21,8 +21,7 @@ impl Resolver<'_> {
                     self.resolve_block(&function.body, &mut scope);
                 }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
-                Item::Use(_)
-                | Item::Import(_)
+                Item::Import(_)
                 | Item::FromImport(_)
                 | Item::Primitive(_)
                 | Item::TypeAlias(_)
@@ -216,6 +215,10 @@ impl Resolver<'_> {
                     && let Some(symbol_id) = self.resolve_top_level_name(callee, scope)
                 {
                     self.output.call_targets.insert(expression.span, symbol_id);
+                } else if let Expr::Member(member) = expression.callee.as_ref()
+                    && let Some(symbol_id) = self.resolve_namespace_member_call(member, scope)
+                {
+                    self.output.call_targets.insert(expression.span, symbol_id);
                 }
                 for argument in &expression.arguments {
                     self.resolve_expression(argument, scope);
@@ -351,6 +354,29 @@ impl Resolver<'_> {
             .symbols
             .symbol_by_name(&identifier.name)
             .map(|symbol| symbol.id)
+    }
+
+    fn resolve_namespace_member_call(
+        &mut self,
+        member: &MemberExpr,
+        scope: &Scope,
+    ) -> Option<SymbolId> {
+        let Expr::Identifier(namespace) = member.object.as_ref() else {
+            return None;
+        };
+        let symbol_id = self.resolve_top_level_name(namespace, scope)?;
+        let namespace = match self
+            .output
+            .symbols
+            .get(symbol_id)
+            .map(|symbol| &symbol.kind)
+        {
+            Some(SymbolKind::Imported(namespace)) => namespace.clone(),
+            Some(SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_))
+            | None => return None,
+        };
+
+        self.resolve_namespace_member_symbol(&namespace, &member.member, member.member_span)
     }
 
     fn unqualified_enum_variant(&self, variant_name: &str) -> Option<(String, ByteSpan)> {

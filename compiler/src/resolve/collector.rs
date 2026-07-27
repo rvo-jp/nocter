@@ -23,9 +23,10 @@ use std::collections::HashMap;
 
 impl Resolver<'_> {
     pub(super) fn collect_top_level_symbols(&mut self, ast: &AstFile) {
+        self.collect_synthetic_prelude_symbols(ast);
+
         for item in &ast.items {
             match item {
-                Item::Use(item) => self.collect_use_symbols(item),
                 Item::Import(item) => self.collect_import_namespace_symbol(item),
                 Item::FromImport(item) => self.collect_imported_symbols(item),
                 Item::Function(function) => {

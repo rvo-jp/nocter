@@ -329,6 +329,24 @@ impl SymbolTable {
         self.by_name.insert(name, id);
         Ok(id)
     }
+
+    pub(super) fn define_hidden(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+    ) -> SymbolId {
+        let id = SymbolId(self.symbols.len() as u32);
+        self.symbols.push(Symbol {
+            id,
+            name,
+            name_span,
+            declaration_span,
+            kind,
+        });
+        id
+    }
 }
 
 impl Default for SymbolTable {
@@ -438,6 +456,15 @@ pub struct ParameterSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportedSymbol {
     pub path: String,
+    pub source: Option<SourceId>,
+    pub access: Option<ImportAccess>,
+    pub kind: ImportedSymbolKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImportedSymbolKind {
+    Namespace,
+    UnloadedName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -453,3 +480,4 @@ pub enum ImportAccess {
 }
 
 pub type ImportSourceMap = HashMap<ByteSpan, ImportSource>;
+pub type PreludeSourceMap = HashMap<SourceId, ImportSource>;

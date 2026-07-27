@@ -3,7 +3,7 @@ use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
     GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
     MethodDecl, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TypeAliasDecl,
-    UseItem, Visibility,
+    Visibility,
 };
 
 impl Formatter {
@@ -19,7 +19,6 @@ impl Formatter {
 
     fn format_item(&mut self, item: &Item) {
         match item {
-            Item::Use(item) => self.format_use_item(item),
             Item::Import(item) => self.format_import_item(item),
             Item::FromImport(item) => self.format_from_import_item(item),
             Item::Function(item) => self.format_function_decl(item),
@@ -32,16 +31,13 @@ impl Formatter {
         }
     }
 
-    fn format_use_item(&mut self, item: &UseItem) {
-        self.write("use ");
-        self.write(&item.path.value);
-    }
-
     fn format_import_item(&mut self, item: &ImportItem) {
         self.write("use ");
         self.write(&item.path.value);
-        self.write(" as ");
-        self.write(&item.alias.name);
+        if !item.alias_is_default {
+            self.write(" as ");
+            self.write(&item.alias.name);
+        }
     }
 
     fn format_from_import_item(&mut self, item: &FromImportItem) {

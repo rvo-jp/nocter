@@ -36,8 +36,39 @@ func main(): i32 {
 }
 
 #[test]
-fn check_bare_use_loads_non_relative_public_exports() {
+fn check_bare_use_loads_non_relative_namespace_exports() {
     let root = make_temp_project("bare-std-use");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/math
+
+func main(): i32 {
+    return math.answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/math.nct"),
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_bare_use_does_not_import_non_relative_exports_directly() {
+    let root = make_temp_project("bare-std-use-no-direct-export");
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
@@ -63,7 +94,9 @@ func main(): i32 {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0416");
+    assert!(diagnostics[0].message.contains("`answer`"));
 }
 
 #[test]
@@ -464,7 +497,7 @@ func main(): i32! {
 }
 
 #[test]
-fn check_bare_use_preserves_imported_signature_type_dependencies() {
+fn check_namespace_use_preserves_imported_signature_type_dependencies() {
     let root = make_temp_project("std-bare-use-return-imported-type");
     let home = make_nocter_home(&root);
     fs::write(
@@ -472,7 +505,7 @@ fn check_bare_use_preserves_imported_signature_type_dependencies() {
         r#"use std/process
 
 func main(): i32! {
-    let values = args()?
+    let values = process.args()?
     let count: usize = values.len()
     return 0
 }
@@ -842,8 +875,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_loads_non_relative_use_imports() {
-    let root = make_temp_project("std-use");
+fn check_rejects_source_level_prelude_imports() {
+    let root = make_temp_project("std-prelude-source-use");
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
@@ -855,7 +888,6 @@ func main(): i32 {
 "#,
     )
     .unwrap();
-    fs::write(home.join("std/prelude.nct"), "module prelude\n").unwrap();
 
     let mut sources = SourceMap::new();
     let source = sources.load_file(root.join("app.nct")).unwrap();
@@ -864,6 +896,11 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0200");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`std/prelude` is compiler-managed")
+    );
 }
 
 fn absolute_import_root() -> PathBuf {

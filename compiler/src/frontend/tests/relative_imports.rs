@@ -34,7 +34,7 @@ func main(): i32 {
 }
 
 #[test]
-fn check_bare_use_loads_relative_public_exports() {
+fn check_bare_use_loads_relative_namespace_exports() {
     let root = make_temp_project("bare-relative-use");
     let home = make_nocter_home(&root);
     fs::write(
@@ -42,13 +42,45 @@ fn check_bare_use_loads_relative_public_exports() {
         r#"use ./config
 
 func main(): i32 {
-    return answer()
+    return config.answer()
 }
 "#,
     )
     .unwrap();
     fs::write(
         root.join("config.nct"),
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_directory_index_namespace_uses_directory_name() {
+    let root = make_temp_project("relative-directory-namespace-use");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use ./path/to/dir
+
+func main(): i32 {
+    return dir.answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("path/to/dir")).unwrap();
+    fs::write(
+        root.join("path/to/dir/index.nct"),
         r#"pub func answer(): i32 {
     return 1
 }

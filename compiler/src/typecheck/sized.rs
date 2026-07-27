@@ -75,7 +75,7 @@ pub(super) fn check_sized_value_types(
             Item::Impl(impl_) => {
                 check_impl(sources, impl_, resolved, diagnostics);
             }
-            Item::Use(_) | Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
+            Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
     }
 }

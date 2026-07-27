@@ -65,8 +65,7 @@ pub(super) fn check_body_expressions(
             Item::Impl(impl_) => {
                 check_impl_member_expressions(sources, impl_, resolved, diagnostics);
             }
-            Item::Use(_)
-            | Item::Import(_)
+            Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)

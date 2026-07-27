@@ -432,7 +432,7 @@ struct TypecheckFactCollector<'a> {
 impl TypecheckFactCollector<'_> {
     fn collect_item_signature_type_references(&mut self, item: &Item) {
         match item {
-            Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+            Item::Import(_) | Item::FromImport(_) => {}
             Item::Function(function) => {
                 self.facts.declaration_hover_labels.insert(
                     function.name_span,
@@ -549,8 +549,7 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
-            Item::Use(_)
-            | Item::Import(_)
+            Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)

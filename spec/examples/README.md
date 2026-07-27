@@ -22,7 +22,7 @@ Rules:
 - `valid/` examples should be formatter-ready Nocter code.
 - `invalid/` examples should focus on one intended mistake per file.
 - Invalid examples should explain the intended mistake in comments.
-- Examples represent user project modules and normally omit redundant `use std/prelude`.
+- Examples represent user project modules and must not write source-level `use std/prelude`; the standard prelude is compiler-managed.
 - Compiler integration tests check that `valid/` examples pass `nocter check` and `invalid/` examples fail it.
 - The same examples are checked through `nocter check --format json` to keep the diagnostics envelope stable for future editor and LSP tooling.
 - Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.

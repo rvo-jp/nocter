@@ -21,7 +21,7 @@ pub(super) fn collect_ast_documentation(
 
 fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<DocumentationTarget>) {
     match item {
-        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+        Item::Import(_) | Item::FromImport(_) => {}
         Item::Function(function) => {
             push_target(text, function.span, targets);
             collect_block_targets(text, &function.body, targets);

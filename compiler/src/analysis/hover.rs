@@ -211,7 +211,6 @@ pub(crate) fn definition_span_for_ast(
 pub(crate) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
     ast.items.iter().find_map(|item| {
         let path = match item {
-            Item::Use(item) => &item.path,
             Item::Import(item) => &item.path,
             Item::FromImport(item) => &item.path,
             Item::Function(_)
@@ -444,7 +443,7 @@ fn binding_hover_label_kind(label: &str) -> Option<&'static str> {
 
 fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSymbol>) {
     match item {
-        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+        Item::Import(_) | Item::FromImport(_) => {}
         Item::Function(function) => {
             push_function_hover_symbol(text, function, symbols);
             collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
@@ -1298,7 +1297,7 @@ mod tests {
         let ast = parse(&sources, source, &lex_output.tokens)
             .ast
             .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
         let analysis = analyze_module_compile_unit(&sources, &unit);
 
         (sources, analysis)

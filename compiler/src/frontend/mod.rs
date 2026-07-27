@@ -11,7 +11,7 @@ mod tests;
 use crate::analysis::CompileUnit;
 use crate::ast::{AstFile, Item};
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ImportSource, ImportSourceMap};
+use crate::resolve::{ImportSource, ImportSourceMap, PreludeSourceMap};
 use crate::source::{SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
@@ -27,7 +27,7 @@ use imports::{
     resolve_import_path,
 };
 use parsing::parse_source_for_check;
-use prelude::{should_synthesize_prelude, synthesize_prelude_use};
+use prelude::{should_load_prelude, standard_prelude_path};
 
 #[derive(Debug, Clone)]
 pub(crate) struct FrontendOptions {
@@ -55,6 +55,7 @@ pub(crate) fn load_compile_unit(
     let mut queued_sources = HashSet::from([root]);
     let mut loaded_sources_by_path = std::collections::HashMap::new();
     let mut import_sources = ImportSourceMap::new();
+    let mut prelude_sources = PreludeSourceMap::new();
     let mut resolved_nocter_home = None;
     let source_root = active_source_root(sources, root, options);
     let mut diagnostics = Vec::new();
@@ -76,10 +77,6 @@ pub(crate) fn load_compile_unit(
 
         filter_target_items(&mut ast, &options.target);
 
-        if should_synthesize_prelude(sources, source, &ast, options, &mut resolved_nocter_home) {
-            synthesize_prelude_use(source, &mut ast);
-        }
-
         diagnostics.extend(validate_primitive_declarations(
             sources,
             source,
@@ -87,6 +84,61 @@ pub(crate) fn load_compile_unit(
             options,
             &mut resolved_nocter_home,
         ));
+
+        if should_load_prelude(sources, source, options, &mut resolved_nocter_home) {
+            let path = standard_prelude_path(source);
+            match resolve_import_path(
+                sources,
+                source,
+                &path,
+                options,
+                source_root.as_deref(),
+                &mut resolved_nocter_home,
+            ) {
+                Ok(canonical) => {
+                    let imported = match loaded_sources_by_path.get(&canonical).copied() {
+                        Some(source) => Some(source),
+                        None => match sources.load_file(&canonical) {
+                            Ok(source) => {
+                                loaded_sources_by_path.insert(canonical, source);
+                                Some(source)
+                            }
+                            Err(error) => {
+                                diagnostics.push(import_source_diagnostic(
+                                    sources,
+                                    path.span,
+                                    &path.value,
+                                    error,
+                                ));
+                                None
+                            }
+                        },
+                    };
+
+                    if let Some(imported) = imported {
+                        prelude_sources.insert(
+                            source,
+                            ImportSource {
+                                source: imported,
+                                access: import_access_for_source(
+                                    sources,
+                                    source,
+                                    options,
+                                    &resolved_nocter_home,
+                                ),
+                            },
+                        );
+
+                        if queued_sources.insert(imported) {
+                            queue.push_back(imported);
+                        }
+                    }
+                }
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
 
         if source == root {
             root_ast = Some(ast.clone());
@@ -167,6 +219,7 @@ pub(crate) fn load_compile_unit(
         root_ast,
         files,
         import_sources,
+        prelude_sources,
         nocter_home,
     ))
 }

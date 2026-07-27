@@ -37,6 +37,10 @@ impl<'a> ModuleIndex<'a> {
             .copied()
             .map(|ast| (ast, import_source))
     }
+
+    pub(super) fn ast_for_source(&self, source: SourceId) -> Option<&'a AstFile> {
+        self.by_source.get(&source).copied()
+    }
 }
 
 pub(super) fn is_relative_module_path(path: &str) -> bool {

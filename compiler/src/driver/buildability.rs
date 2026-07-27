@@ -4870,7 +4870,7 @@ func unused(): i32 {
             parsed.diagnostics
         );
         let ast = parsed.ast.expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
         let analysis = analyze_executable_compile_unit(&sources, &unit);
         let diagnostics = analysis.diagnostics();
         assert!(

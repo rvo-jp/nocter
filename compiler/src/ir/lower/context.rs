@@ -444,13 +444,32 @@ impl<'a> LoweringContext<'a> {
                 if let Some((target, target_name)) = self.method_call_target_and_name(call) {
                     return Some((target, target_name));
                 }
-                let (_owner, function) = resolution.resolved.associated_function_for_call(call)?;
+                if let Some((_owner, function)) =
+                    resolution.resolved.associated_function_for_call(call)
+                {
+                    let target = call_target_for_source(
+                        function.name_span.source,
+                        resolution.root_source,
+                        function.target_name.clone(),
+                    );
+                    return Some((target, function.target_name.clone()));
+                }
+                let symbol = resolution.resolved.symbol_for_call(call)?;
+                if !matches!(
+                    symbol.kind,
+                    SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_)
+                ) {
+                    return None;
+                }
                 let target = call_target_for_source(
-                    function.name_span.source,
+                    symbol.declaration_span.source,
                     resolution.root_source,
-                    function.target_name.clone(),
+                    self.function_names
+                        .name_for_declaration(symbol.declaration_span)
+                        .unwrap_or(&symbol.name)
+                        .clone(),
                 );
-                Some((target, function.target_name.clone()))
+                Some((target, symbol.name.clone()))
             }
             _ => None,
         }

@@ -6,9 +6,7 @@ use crate::ast::{
 #[test]
 fn parses_otherwise_expression() {
     let output = parse_text(
-        r#"use std/prelude
-
-func main(): i32 {
+        r#"func main(): i32 {
     let user = (env("USER") catch error {
         return 1
     }) otherwise { "unknown" }
@@ -20,7 +18,7 @@ func main(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[1] else {
+    let Item::Function(function) = &ast.items[0] else {
         panic!("expected function item");
     };
     let Stmt::Binding(binding) = &function.body.statements[0] else {

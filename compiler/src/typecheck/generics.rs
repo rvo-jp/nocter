@@ -102,7 +102,7 @@ pub(super) fn check_generic_type_arities(
                     }
                 }
             }
-            Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+            Item::Import(_) | Item::FromImport(_) => {}
         }
     }
 }

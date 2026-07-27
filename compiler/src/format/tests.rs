@@ -18,15 +18,12 @@ fn assert_formats_stably(input: &str, expected: &str) {
 #[test]
 fn formats_top_level_items_and_blocks() {
     assert_formats_stably(
-        r#"use std/prelude
-pub   func   main(  ):i32{
+        r#"pub   func   main(  ):i32{
 let x:i32=1+2*3
 if x>3{return x}else{return 0}
 }
 "#,
         concat!(
-            "use std/prelude\n",
-            "\n",
             "pub func main(): i32 {\n",
             "    let x: i32 = 1 + 2 * 3\n",
             "    if x > 3 {\n",

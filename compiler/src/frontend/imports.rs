@@ -14,7 +14,6 @@ pub(super) fn import_paths(ast: &AstFile) -> Vec<&ModulePath> {
     ast.items
         .iter()
         .filter_map(|item| match item {
-            Item::Use(item) => Some(&item.path),
             Item::Import(item) => Some(&item.path),
             Item::FromImport(item) => Some(&item.path),
             _ => None,

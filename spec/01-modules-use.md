@@ -38,12 +38,12 @@ use ./config
 use ../shared/path.Path
 pub use std/string.String
 
-use std/io as io
+use std/io as console
 ```
 
 Meaning:
 
-- `use path` imports all public exported names from the module into the current file.
+- `use path` imports the module namespace under its default name.
 - `use path.Name` imports one exported name into the current file.
 - `use path.Name as Alias` imports one exported name under an alias.
 - `use path.{Name}` is accepted as the braced single-name spelling.
@@ -51,22 +51,25 @@ Meaning:
 - Each imported item in a braced `use` list may independently use `as Alias`.
 - `pub use path.Name` or `pub use path.{Name}` imports and re-exports one public name.
 - `use path as alias` imports the module namespace under an alias.
+- The default namespace name is the final non-relative segment of the module path. `use std/io` introduces `io`; `use ./path/to/dir` introduces `dir`, even when the path resolves to `./path/to/dir/index.nct`.
 
 Examples:
 
 ```nct
-use std/io as io
+use std/io
+use std/io as console
 use std/io.File as StdFile
 
 var out = io.stdout()
-let file = StdFile.open(path)?
+var err = console.stderr()
+let file: StdFile = StdFile.open(path)?
 ```
 
-`use std/prelude` is not normally written in user source. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
+`use std/prelude` is not a source-level import form. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
 
 ```nct
 use std/prelude
-// accepted but redundant in a user project module
+// invalid: the prelude is compiler-managed
 ```
 
 Name collisions are compile errors.
@@ -93,11 +96,13 @@ pub use std/io.*
 import std/io.File
 pub use std/io as io
 pub use std/io
+use std/prelude
+use std/prelude.Error
 use ./config.nct.Config
 include std/prelude
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
 
 ## Re-exports
 
@@ -129,32 +134,25 @@ Rules:
 
 ## Synthetic Standard Prelude
 
-Adopted: user project modules behave as if the compiler inserted a synthetic `use std/prelude` at the beginning of the file.
+Adopted: user project modules receive a compiler-managed synthetic standard prelude loaded from `std/prelude.nct` in the active Nocter home.
 
-```nct
-use std/prelude
-```
-
-The compiler does not rewrite source text. The synthetic prelude exists in the module/import model only. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
+The compiler does not rewrite source text and does not model the prelude as a source-level `use std/prelude` item. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
 
 The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for ordinary standard-library names. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
 
 Initial rules:
 
-- Every user project module has a synthetic file-local `use std/prelude`.
+- Every user project module receives a synthetic file-local prelude import from `std/prelude.nct`.
 - The synthetic prelude is applied independently to each user project module.
 - The synthetic prelude does not propagate from one file to another; each user project file gets its own synthetic prelude.
 - The synthetic prelude is not applied to files inside the active Nocter home.
 - The synthetic prelude is not applied to common standard-library files under `std/`.
 - The synthetic prelude is not applied to `std/prelude.nct` itself.
-- An explicit source-level `use std/prelude` is accepted in a user project module but is redundant.
-- An explicit source-level `use std/prelude` does not introduce names twice and does not collide with the synthetic prelude.
-- If a file is ineligible for the synthetic prelude, an explicit `use std/prelude` follows the normal `use` rules.
-- `use std/prelude` is allowed only at top level.
-- In v0, bare `use path` is accepted for any module path and imports all public exported names from that module.
-- `use std/prelude as prelude` is invalid.
+- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid in v0.
+- The prelude imports all public exported names from `std/prelude.nct` into the current file.
+- Source-level `use path` does not import every public exported name from `path`; it imports only the module namespace.
 - `include std/prelude` is invalid.
-- Names introduced by the synthetic or explicit prelude participate in the same collision checks as explicit imports.
+- Names introduced by the synthetic prelude participate in the same collision checks as explicit imports.
 - If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.
 - Diagnostics should identify collisions with the synthetic prelude as prelude collisions, not as hidden compiler built-ins.
 - Project-wide prelude configuration is not part of the initial design.
@@ -236,12 +234,12 @@ pub func Config.default(): Config {
 
 `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-The compile unit is the root file plus every `.nct` file reached by following explicit `use` declarations and eligible synthetic `use std/prelude` declarations recursively.
+The compile unit is the root file plus every `.nct` file reached by following explicit `use` declarations and eligible synthetic prelude loads recursively.
 
 Rules:
 
 - Import, re-export, and explicit `use` declarations are allowed only at top level.
-- Synthetic `use std/prelude` is compiler-internal and behaves as if it appears before source-level imports for eligible user project modules.
+- The synthetic prelude load is compiler-internal and behaves as if its names are introduced before source-level imports for eligible user project modules.
 - Top-level executable statements are not allowed.
 - A root executable must define top-level `main` in the root file.
 - Entry lookup does not select imported functions.
@@ -367,7 +365,7 @@ Lookup order:
 2. Outer lexical block bindings.
 3. Function parameters.
 4. Same-file top-level declarations.
-5. Explicitly imported names and names introduced by the synthetic or explicit prelude.
+5. Explicitly imported names and names introduced by the synthetic prelude.
 6. Built-in types and reserved syntax forms.
 
 Initial rules:
@@ -378,8 +376,9 @@ Initial rules:
 - A local binding must not reuse a visible local, parameter, top-level, imported, or built-in type name.
 - Two imports, a re-export, or a prelude name introducing the same local name are errors.
 - A same-file top-level declaration and an imported name must not have the same local name.
-- `use path as alias` introduces only the alias name.
-- Names inside an imported namespace alias are accessed with member syntax, such as `io.stdout()`.
+- `use path` introduces only the default namespace name.
+- `use path as alias` introduces only the explicit namespace alias name.
+- Names inside an imported namespace are accessed with member syntax, such as `io.stdout()`.
 - There is no wildcard import.
 - There is no implicit import of every name from `std`.
 - The synthetic prelude is limited to `std/prelude`; it is not a general implicit import facility.

@@ -3,7 +3,7 @@ use crate::ast::{
     AstFile, BorrowType, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
     FunctionOwner, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, InterfaceDecl,
     Item, MethodDecl, ModulePath, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField,
-    TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, UseItem, Visibility,
+    TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::literals::decode_string_literal_bytes;
@@ -207,13 +207,17 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::Use, "`use`")?;
         let path = self.parse_module_path()?;
 
+        if path.value == "std/prelude" {
+            self.error_at(
+                path.span,
+                "`std/prelude` is compiler-managed and cannot be imported in source",
+            );
+            return Err(());
+        }
+
         if self.match_keyword(Keyword::As).is_some() {
             if visibility != Visibility::Private {
                 self.error_current("namespace aliases cannot be re-exported in v0");
-                return Err(());
-            }
-            if path.value == "std/prelude" {
-                self.error_current("`use std/prelude as name` is not valid in v0");
                 return Err(());
             }
             let alias = self.expect_identifier("expected import alias after `as`")?;
@@ -224,6 +228,7 @@ impl Parser<'_> {
                     span: alias.span,
                     name: alias.value,
                 },
+                alias_is_default: false,
             }));
         }
 
@@ -268,10 +273,13 @@ impl Parser<'_> {
             return Err(());
         }
         let end = path.span.end;
+        let alias = default_namespace_alias(&path);
 
-        Ok(Item::Use(UseItem {
+        Ok(Item::Import(ImportItem {
             span: self.span(start.span.start, end),
             path,
+            alias,
+            alias_is_default: true,
         }))
     }
 
@@ -829,6 +837,7 @@ impl Parser<'_> {
     pub(super) fn parse_module_path(&mut self) -> ParseResult<ModulePath> {
         let mut value = String::new();
         let mut segments = Vec::new();
+        let mut segment_spans = Vec::new();
         let mut start = self.current().span.start;
 
         if let Some(slash) = self.match_punctuation("/") {
@@ -838,18 +847,22 @@ impl Parser<'_> {
 
         while self.at_punctuation(".") {
             let dot = self.bump();
-            start = dot.span.start;
+            if value.is_empty() {
+                start = dot.span.start;
+            }
 
             if self.match_punctuation("/").is_some() {
                 value.push_str("./");
                 segments.push(".".to_string());
+                segment_spans.push(dot.span);
                 break;
             }
 
-            if self.match_punctuation(".").is_some() {
+            if let Some(second_dot) = self.match_punctuation(".") {
                 self.expect_punctuation("/", "`/`")?;
                 value.push_str("../");
                 segments.push("..".to_string());
+                segment_spans.push(self.span(dot.span.start, second_dot.span.end));
                 continue;
             }
 
@@ -860,11 +873,13 @@ impl Parser<'_> {
         let first = self.expect_identifier("expected module path segment")?;
         let mut end = first.span.end;
         segments.push(first.value);
+        segment_spans.push(first.span);
 
         while self.match_punctuation("/").is_some() {
             let segment = self.expect_identifier("expected module path segment after `/`")?;
             end = segment.span.end;
             segments.push(segment.value);
+            segment_spans.push(segment.span);
         }
 
         let path_segments = segments
@@ -878,7 +893,24 @@ impl Parser<'_> {
             span: self.span(start, end),
             value,
             segments,
+            segment_spans,
         })
+    }
+}
+
+fn default_namespace_alias(path: &ModulePath) -> ImportAlias {
+    for (segment, span) in path.segments.iter().zip(path.segment_spans.iter()).rev() {
+        if segment != "." && segment != ".." {
+            return ImportAlias {
+                span: *span,
+                name: segment.clone(),
+            };
+        }
+    }
+
+    ImportAlias {
+        span: path.span,
+        name: path.value.clone(),
     }
 }
 

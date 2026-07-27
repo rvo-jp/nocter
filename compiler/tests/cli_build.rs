@@ -4027,15 +4027,15 @@ func main(): i32! {
 }
 
 #[test]
-fn build_command_reports_std_process_env_bare_use_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-env-bare-use-check-only-boundary");
+fn build_command_reports_std_process_env_namespace_use_check_only_before_ir_lowering() {
+    let project = TempProject::new("cli-build-process-env-namespace-use-check-only-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
-        "process_env_bare_use_check_only_boundary.nct",
+        "process_env_namespace_use_check_only_boundary.nct",
         r#"use std/process
 
 func main(): i32! {
-    let value = env("HOME")?
+    let value = process.env("HOME")?
     return 0
 }
 "#,
@@ -4055,7 +4055,7 @@ func main(): i32! {
         "expected env check-only diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("4 |     let value = env(\"HOME\")?"),
+        stderr.contains("4 |     let value = process.env(\"HOME\")?"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

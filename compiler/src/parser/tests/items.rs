@@ -4,9 +4,7 @@ use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
 #[test]
 fn parses_hello_entry_function() {
     let output = parse_text(
-        r#"use std/prelude
-
-use std/io.print
+        r#"use std/io.print
 
 func main(): i32 {
     print("Hello") catch error {
@@ -20,39 +18,68 @@ func main(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    assert_eq!(ast.items.len(), 3);
-    assert!(matches!(ast.items[0], Item::Use(_)));
-    assert!(matches!(ast.items[1], Item::FromImport(_)));
-    assert!(matches!(ast.items[2], Item::Function(_)));
+    assert_eq!(ast.items.len(), 2);
+    assert!(matches!(ast.items[0], Item::FromImport(_)));
+    assert!(matches!(ast.items[1], Item::Function(_)));
 }
 
 #[test]
-fn parses_bare_use_for_any_module_path() {
-    let output = parse_text(
-        r#"use std/io
+fn parses_bare_use_as_default_namespace_import_for_any_module_path() {
+    let source = r#"use std/io
 use ./config
 use /shared/config
+use ./path/to/dir
+use ../shared/path
+use ../../shared/path
 
 func main(): i32 {
     return 0
 }
-"#,
-    );
+"#;
+    let output = parse_text(source);
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Use(std_use) = &ast.items[0] else {
-        panic!("expected bare std use");
+    let Item::Import(std_use) = &ast.items[0] else {
+        panic!("expected std namespace import");
     };
-    let Item::Use(relative_use) = &ast.items[1] else {
-        panic!("expected bare relative use");
+    let Item::Import(relative_use) = &ast.items[1] else {
+        panic!("expected relative namespace import");
     };
-    let Item::Use(absolute_use) = &ast.items[2] else {
-        panic!("expected bare absolute use");
+    let Item::Import(absolute_use) = &ast.items[2] else {
+        panic!("expected absolute namespace import");
+    };
+    let Item::Import(nested_relative_use) = &ast.items[3] else {
+        panic!("expected nested relative namespace import");
+    };
+    let Item::Import(parent_relative_use) = &ast.items[4] else {
+        panic!("expected parent relative namespace import");
+    };
+    let Item::Import(nested_parent_relative_use) = &ast.items[5] else {
+        panic!("expected nested parent relative namespace import");
     };
     assert_eq!(std_use.path.value, "std/io");
+    assert_eq!(std_use.alias.name, "io");
+    assert!(std_use.alias_is_default);
     assert_eq!(relative_use.path.value, "./config");
+    assert_eq!(relative_use.alias.name, "config");
+    assert!(relative_use.alias_is_default);
     assert_eq!(absolute_use.path.value, "/shared/config");
+    assert_eq!(absolute_use.alias.name, "config");
+    assert!(absolute_use.alias_is_default);
+    assert_eq!(nested_relative_use.path.value, "./path/to/dir");
+    assert_eq!(nested_relative_use.alias.name, "dir");
+    assert!(nested_relative_use.alias_is_default);
+    assert_eq!(parent_relative_use.path.value, "../shared/path");
+    assert_eq!(parent_relative_use.alias.name, "path");
+    assert!(parent_relative_use.alias_is_default);
+    assert_eq!(nested_parent_relative_use.path.value, "../../shared/path");
+    assert_eq!(nested_parent_relative_use.alias.name, "path");
+    assert!(nested_parent_relative_use.alias_is_default);
+    assert_eq!(
+        nested_parent_relative_use.path.span.start,
+        source.find("../../shared/path").unwrap()
+    );
 }
 
 #[test]
@@ -86,6 +113,7 @@ func main(): i32 {
 
     assert_eq!(import.path.value, "std/io");
     assert_eq!(import.alias.name, "io");
+    assert!(!import.alias_is_default);
     assert_eq!(from_import.names[0].name, "File");
     assert_eq!(from_import.names[0].local_name(), "StdFile");
     assert_eq!(stdout_import.names[0].name, "stdout");
@@ -108,6 +136,27 @@ fn diagnoses_removed_import_syntax() {
             .message
             .contains("`import` syntax has been removed")
     );
+}
+
+#[test]
+fn rejects_source_level_prelude_import_forms() {
+    for source in [
+        "use std/prelude\n",
+        "use std/prelude.Error\n",
+        "use std/prelude.{Error, String}\n",
+        "use std/prelude as prelude\n",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(output.diagnostics.len(), 1, "{source}");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("`std/prelude` is compiler-managed"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
 }
 
 #[test]

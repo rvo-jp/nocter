@@ -1337,8 +1337,8 @@ func answer(): i32! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_std_print_hello_world() {
-        let root = make_temp_project("build-run-std-print");
+    fn build_file_output_runs_std_print_hello_world_through_namespace_import() {
+        let root = make_temp_project("build-run-std-print-namespace");
         let nocter_home = make_nocter_home(&root);
         fs::write(
             nocter_home.join("std/io.nct"),
@@ -1356,11 +1356,11 @@ pub func print(text: &str): void! {
         let source = root.join("hello.nct");
         fs::write(
             &source,
-            r#"use std/io.print
+            r#"use std/io
 
 func main(): void! {
     let marker = 1
-    print("Hello, world!\n")?
+    io.print("Hello, world!\n")?
 }
 "#,
         )

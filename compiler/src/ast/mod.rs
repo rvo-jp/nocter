@@ -17,7 +17,6 @@ pub struct AstFile {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
-    Use(UseItem),
     Import(ImportItem),
     FromImport(FromImportItem),
     Function(FunctionDecl),
@@ -37,16 +36,11 @@ pub enum Visibility {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UseItem {
-    pub span: ByteSpan,
-    pub path: ModulePath,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportItem {
     pub span: ByteSpan,
     pub path: ModulePath,
     pub alias: ImportAlias,
+    pub alias_is_default: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +56,7 @@ pub struct ModulePath {
     pub span: ByteSpan,
     pub value: String,
     pub segments: Vec<String>,
+    pub segment_spans: Vec<ByteSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -691,7 +686,6 @@ pub struct OtherwiseExpr {
 impl Item {
     pub fn span(&self) -> ByteSpan {
         match self {
-            Item::Use(item) => item.span,
             Item::Import(item) => item.span,
             Item::FromImport(item) => item.span,
             Item::Function(item) => item.span,

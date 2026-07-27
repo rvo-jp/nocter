@@ -40,7 +40,7 @@ pub(crate) fn document_symbols_for_ast(text: &str, ast: &AstFile) -> Vec<Documen
 
 fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
     match item {
-        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => None,
+        Item::Import(_) | Item::FromImport(_) => None,
         Item::Function(function) => Some(document_symbol(
             function.name.clone(),
             DocumentSymbolKind::Function,
