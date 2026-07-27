@@ -1343,7 +1343,7 @@ fn syscall_result_store_offset_diagnostic() -> Vec<Diagnostic> {
 }
 
 impl EntryEmitter {
-    fn emit_borrow_source_address_to_x(
+    pub(super) fn emit_borrow_source_address_to_x(
         &mut self,
         source: BorrowSource,
         register: XReg,
@@ -1398,6 +1398,10 @@ impl EntryEmitter {
                 })?
             }
             BorrowSource::AggregateParameter(index) => {
+                self.emit_parameter_word_to_x(index, register)?;
+                return Ok(());
+            }
+            BorrowSource::BorrowParameter(index) => {
                 self.emit_parameter_word_to_x(index, register)?;
                 return Ok(());
             }

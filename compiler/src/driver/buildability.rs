@@ -1,10 +1,11 @@
-use crate::abi::{AbiType, abi_value_from_type_expr};
+use crate::abi::{AbiType, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver};
 use crate::analysis::{
-    CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
+    CompileUnitAnalysis, FileAnalysis,
+    call_specializations::{collect_call_specializations, impl_substitutions_for_self_ty},
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplMember, Item, MemberExpr, MethodDecl, Parameter, Stmt, TypeExpr,
+    FunctionDecl, ImplDecl, ImplMember, Item, MemberExpr, MethodDecl, Parameter, Stmt, TypeExpr,
     substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
@@ -60,11 +61,18 @@ struct CallableIndex<'a> {
     names: HashMap<ByteSpan, String>,
 }
 
+type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
+
 impl<'a> CallableIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
         let mut names = HashMap::new();
         let call_specializations = collect_call_specializations(analysis);
+        let resolved_sources = analysis
+            .files
+            .iter()
+            .map(|file| (file.ast.span.source, &file.resolved))
+            .collect::<ResolvedSources<'_>>();
 
         for file in &analysis.files {
             for item in &file.ast.items {
@@ -76,7 +84,10 @@ impl<'a> CallableIndex<'a> {
                             function.name.clone(),
                         );
                         names.insert(function.name_span, function.name.clone());
-                        definitions.insert(target, IndexedCallable::new_function(function, file));
+                        definitions.insert(
+                            target,
+                            IndexedCallable::new_function(function, file, &resolved_sources),
+                        );
                     }
                     Item::Function(function) => {
                         for specialization in call_specializations
@@ -101,6 +112,7 @@ impl<'a> CallableIndex<'a> {
                                     function,
                                     specialization.substitutions.clone(),
                                     file,
+                                    &resolved_sources,
                                 ),
                             );
                         }
@@ -133,6 +145,7 @@ impl<'a> CallableIndex<'a> {
                                             &impl_.target_ty,
                                             HashMap::new(),
                                             file,
+                                            &resolved_sources,
                                         ),
                                     );
                                 }
@@ -146,6 +159,11 @@ impl<'a> CallableIndex<'a> {
                                         .into_iter()
                                         .flatten()
                                     {
+                                        let substitutions =
+                                            method_specialization_context_substitutions(
+                                                impl_,
+                                                specialization,
+                                            );
                                         let target = call_target_for_source(
                                             file.ast.span.source,
                                             root_source,
@@ -157,8 +175,9 @@ impl<'a> CallableIndex<'a> {
                                                 method,
                                                 body,
                                                 &impl_.target_ty,
-                                                specialization.substitutions.clone(),
+                                                substitutions,
                                                 file,
+                                                &resolved_sources,
                                             ),
                                         );
                                     }
@@ -179,6 +198,7 @@ impl<'a> CallableIndex<'a> {
                                             &impl_.target_ty,
                                             HashMap::new(),
                                             file,
+                                            &resolved_sources,
                                         ),
                                     );
                                 }
@@ -201,6 +221,7 @@ impl<'a> CallableIndex<'a> {
                                                 &impl_.target_ty,
                                                 specialization.substitutions.clone(),
                                                 file,
+                                                &resolved_sources,
                                             ),
                                         );
                                     }
@@ -237,12 +258,17 @@ struct BuildabilityIssue {
 }
 
 impl<'a> IndexedCallable<'a> {
-    fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+    fn new_function(
+        function: &'a FunctionDecl,
+        file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
+    ) -> Self {
         let mut issues = Vec::new();
         issues.extend(callable_function_signature_issues(
             function,
             &HashMap::new(),
             &file.resolved,
+            resolved_sources,
         ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
@@ -260,12 +286,14 @@ impl<'a> IndexedCallable<'a> {
         function: &'a FunctionDecl,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
     ) -> Self {
         let mut issues = Vec::new();
         issues.extend(callable_function_signature_issues(
             function,
             &substitutions,
             &file.resolved,
+            resolved_sources,
         ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
@@ -285,6 +313,7 @@ impl<'a> IndexedCallable<'a> {
         self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
     ) -> Self {
         let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
         let mut issues = Vec::new();
@@ -292,6 +321,7 @@ impl<'a> IndexedCallable<'a> {
             method,
             &contextual_substitutions,
             &file.resolved,
+            resolved_sources,
         ));
         issues.extend(nested_fallible_return_type_issue(
             &method.return_type,
@@ -313,6 +343,7 @@ impl<'a> IndexedCallable<'a> {
         self_ty: &TypeExpr,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
     ) -> Self {
         let contextual_substitutions = method_contextual_substitutions(self_ty, &substitutions);
         let mut issues = Vec::new();
@@ -320,6 +351,7 @@ impl<'a> IndexedCallable<'a> {
             std::slice::from_ref(&drop_.binding),
             &contextual_substitutions,
             &file.resolved,
+            resolved_sources,
         ));
 
         Self {
@@ -337,11 +369,17 @@ fn callable_function_signature_issues(
     function: &FunctionDecl,
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Vec<BuildabilityIssue> {
-    let mut issues =
-        callable_parameter_issues(&function.parameters.parameters, substitutions, resolved);
+    let mut issues = callable_parameter_issues(
+        &function.parameters.parameters,
+        substitutions,
+        resolved,
+        resolved_sources,
+    );
     let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
-    if !callable_return_type_is_buildable(&return_type, resolved) {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver) {
         issues.push(BuildabilityIssue {
             span: function.return_type.span(),
             construct: "function return types outside the v0 runtime ABI subset",
@@ -355,19 +393,23 @@ fn callable_method_signature_issues(
     method: &MethodDecl,
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Vec<BuildabilityIssue> {
     let mut issues = callable_parameter_issues(
         std::slice::from_ref(&method.receiver),
         substitutions,
         resolved,
+        resolved_sources,
     );
     issues.extend(callable_parameter_issues(
         &method.parameters.parameters,
         substitutions,
         resolved,
+        resolved_sources,
     ));
     let return_type = substitute_type_expr_parameters(&method.return_type, substitutions);
-    if !callable_return_type_is_buildable(&return_type, resolved) {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver) {
         issues.push(BuildabilityIssue {
             span: method.return_type.span(),
             construct: "method return types outside the v0 runtime ABI subset",
@@ -381,12 +423,17 @@ fn callable_parameter_issues(
     parameters: &[Parameter],
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Vec<BuildabilityIssue> {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
     parameters
         .iter()
         .filter_map(|parameter| {
             let ty = substitute_type_expr_parameters(&parameter.ty, substitutions);
-            (!callable_parameter_type_is_buildable(&ty, resolved)).then_some(BuildabilityIssue {
+            if callable_parameter_type_is_buildable_with_resolver(&ty, resolved, &source_resolver) {
+                return None;
+            }
+            Some(BuildabilityIssue {
                 span: parameter.span,
                 construct: "function or method parameters outside the v0 runtime ABI subset",
                 help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or aggregate value parameters with non-empty ABI layouts",
@@ -403,6 +450,16 @@ fn method_contextual_substitutions(
     let mut contextual = substitutions.clone();
     contextual.insert("Self".to_string(), concrete_self_ty);
     contextual
+}
+
+fn method_specialization_context_substitutions(
+    impl_: &ImplDecl,
+    specialization: &MethodCallSpecialization,
+) -> HashMap<String, TypeExpr> {
+    let mut substitutions =
+        impl_substitutions_for_self_ty(impl_, &specialization.self_ty).unwrap_or_default();
+    substitutions.extend(specialization.substitutions.clone());
+    substitutions
 }
 
 fn collect_callable_diagnostics(
@@ -1503,15 +1560,46 @@ fn type_expr_is_known_unsupported_scalar_value_inner(
     }
 }
 
-fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_buildable_scalar_or_view_inner(ty, resolved, &mut HashSet::new())
+fn resolved_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> &'a ResolveOutput
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    resolver(ty.span().source).unwrap_or(fallback_resolved)
 }
 
-fn type_expr_is_buildable_scalar_or_view_inner(
+fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_buildable_scalar_or_view_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn type_expr_is_buildable_scalar_or_view_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_buildable_scalar_or_view_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn type_expr_is_buildable_scalar_or_view_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference)
             if matches!(reference.name.as_str(), "i32" | "u8" | "usize" | "bool") =>
@@ -1520,130 +1608,107 @@ fn type_expr_is_buildable_scalar_or_view_inner(
         }
         TypeExpr::Borrow(borrow)
             if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+                && type_expr_resolves_to_str_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                ) =>
         {
             true
         }
-        TypeExpr::Borrow(borrow) if matches!(borrow.inner.as_ref(), TypeExpr::View(_)) => true,
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return type_expr_has_buildable_scalar_abi(ty, resolved);
-            };
-            let Some(target) = &symbol.alias_target else {
-                return type_expr_has_buildable_scalar_abi(ty, resolved);
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let result =
-                type_expr_is_buildable_scalar_or_view_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => type_expr_has_buildable_scalar_abi(ty, resolved),
-    }
-}
-
-fn type_expr_has_buildable_scalar_abi(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    abi_value_from_type_expr(ty, resolved).is_ok_and(|value| {
-        matches!(
-            value.ty,
-            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool
-        )
-    })
-}
-
-fn callable_parameter_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    callable_parameter_type_is_buildable_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn callable_parameter_type_is_buildable_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return callable_non_alias_parameter_type_is_buildable(ty, resolved);
-            };
-            let Some(target) = &symbol.alias_target else {
-                return callable_non_alias_parameter_type_is_buildable(ty, resolved);
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let result =
-                callable_parameter_type_is_buildable_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => callable_non_alias_parameter_type_is_buildable(ty, resolved),
-    }
-}
-
-fn callable_non_alias_parameter_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_buildable_scalar_or_view(ty, resolved)
-        || type_expr_is_error_parameter(ty, resolved)
-        || type_expr_is_supported_borrow_parameter(ty, resolved)
-        || type_expr_is_supported_aggregate_value(ty, resolved)
-}
-
-fn callable_return_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    callable_return_type_is_buildable_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn callable_return_type_is_buildable_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::Reference(reference) if matches!(reference.name.as_str(), "void" | "never") => {
+        TypeExpr::Borrow(borrow)
+            if type_expr_resolves_to_view_with_resolver(
+                &borrow.inner,
+                fallback_resolved,
+                resolver,
+            ) =>
+        {
             true
         }
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return callable_non_alias_return_type_is_buildable(ty, resolved);
+                return type_expr_has_buildable_scalar_abi_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
             };
             let Some(target) = &symbol.alias_target else {
-                return callable_non_alias_return_type_is_buildable(ty, resolved);
+                return type_expr_has_buildable_scalar_abi_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return false;
             }
-            let result = callable_return_type_is_buildable_inner(target, resolved, resolving_names);
+            let result = type_expr_is_buildable_scalar_or_view_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
-        TypeExpr::Fallible(fallible) => {
-            callable_return_type_is_buildable_inner(&fallible.success, resolved, resolving_names)
-        }
-        TypeExpr::Optional(optional) => {
-            callable_return_type_is_buildable_inner(&optional.inner, resolved, resolving_names)
-        }
-        _ => callable_non_alias_return_type_is_buildable(ty, resolved),
+        _ => type_expr_has_buildable_scalar_abi_with_resolver(ty, fallback_resolved, resolver),
     }
 }
 
-fn callable_non_alias_return_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_buildable_scalar_or_view(ty, resolved)
-        || type_expr_is_error_parameter(ty, resolved)
-        || type_expr_is_supported_aggregate_value(ty, resolved)
-}
-
-fn type_expr_is_error_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_error_parameter_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn type_expr_is_error_parameter_inner(
+fn type_expr_has_buildable_scalar_abi_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+        .is_ok_and(|value| {
+            matches!(
+                value.ty,
+                AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Pointer
+            )
+        })
+}
+
+fn type_expr_resolves_to_str(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_resolves_to_str_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn type_expr_resolves_to_str_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_resolves_to_builtin_reference_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        "str",
+        &mut HashSet::new(),
+    )
+}
+
+fn type_expr_resolves_to_builtin_reference_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    expected: &str,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
-        TypeExpr::Reference(reference) if reference.name == "error" => true,
+        TypeExpr::Reference(reference) if reference.name == expected => true,
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
@@ -1653,7 +1718,13 @@ fn type_expr_is_error_parameter_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return false;
             }
-            let result = type_expr_is_error_parameter_inner(target, resolved, resolving_names);
+            let result = type_expr_resolves_to_builtin_reference_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                expected,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -1661,20 +1732,367 @@ fn type_expr_is_error_parameter_inner(
     }
 }
 
-fn type_expr_is_supported_borrow_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+fn type_expr_resolves_to_view_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_resolves_to_view_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_resolves_to_view_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::View(_) => true,
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = type_expr_resolves_to_view_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
+}
+
+fn type_expr_resolves_to_supported_slice_view(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<bool> {
+    type_expr_resolves_to_supported_slice_view_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_resolves_to_supported_slice_view_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<bool> {
+    match ty {
+        TypeExpr::View(view) => Some(type_expr_is_supported_slice_index_element(
+            &view.element,
+            resolved,
+        )),
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result =
+                type_expr_resolves_to_supported_slice_view_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
+}
+
+fn type_expr_resolved_view_element_kind(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<TypecheckSliceElementKind> {
+    type_expr_resolved_view_element_kind_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_resolved_view_element_kind_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<TypecheckSliceElementKind> {
+    match ty {
+        TypeExpr::View(view) => Some(type_expr_slice_element_kind(&view.element, resolved)),
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result =
+                type_expr_resolved_view_element_kind_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
+}
+
+fn callable_parameter_type_is_buildable_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    callable_parameter_type_is_buildable_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn callable_parameter_type_is_buildable_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return callable_non_alias_parameter_type_is_buildable_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
+            };
+            let Some(target) = &symbol.alias_target else {
+                return callable_non_alias_parameter_type_is_buildable_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = callable_parameter_type_is_buildable_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => callable_non_alias_parameter_type_is_buildable_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        ),
+    }
+}
+
+fn callable_non_alias_parameter_type_is_buildable_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+}
+
+fn callable_return_type_is_buildable_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    callable_return_type_is_buildable_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn callable_return_type_is_buildable_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Reference(reference) if matches!(reference.name.as_str(), "void" | "never") => {
+            true
+        }
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return callable_non_alias_return_type_is_buildable_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
+            };
+            let Some(target) = &symbol.alias_target else {
+                return callable_non_alias_return_type_is_buildable_with_resolver(
+                    ty,
+                    fallback_resolved,
+                    resolver,
+                );
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = callable_return_type_is_buildable_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Fallible(fallible) => callable_return_type_is_buildable_inner(
+            &fallible.success,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => callable_return_type_is_buildable_inner(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        _ => callable_non_alias_return_type_is_buildable_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        ),
+    }
+}
+
+fn callable_non_alias_return_type_is_buildable_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+}
+
+fn type_expr_is_error_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_error_parameter_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn type_expr_is_error_parameter_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_error_parameter_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_is_error_parameter_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "error" => true,
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = type_expr_is_error_parameter_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
+}
+
+fn type_expr_is_supported_borrow_parameter_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     let TypeExpr::Borrow(borrow) = ty else {
         return false;
     };
-    abi_value_from_type_expr(&borrow.inner, resolved).is_ok_and(|value| {
+    if !borrow.is_readwrite
+        && type_expr_resolves_to_str_with_resolver(&borrow.inner, fallback_resolved, resolver)
+    {
+        return true;
+    }
+    if type_expr_resolves_to_view_with_resolver(&borrow.inner, fallback_resolved, resolver) {
+        return true;
+    }
+    abi_value_from_type_expr_with_resolver(&borrow.inner, fallback_resolved, |source| {
+        resolver(source)
+    })
+    .is_ok_and(|value| {
         matches!(
             value.ty,
-            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Struct(_)
+            AbiType::I32
+                | AbiType::U8
+                | AbiType::Usize
+                | AbiType::Bool
+                | AbiType::Pointer
+                | AbiType::Struct(_)
         )
     })
 }
 
 fn type_expr_is_supported_aggregate_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    abi_value_from_type_expr(ty, resolved)
+    type_expr_is_supported_aggregate_value_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn type_expr_is_supported_aggregate_value_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
         .is_ok_and(|value| matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0)
 }
 
@@ -2708,17 +3126,13 @@ fn return_shape_from_type_expr_inner(
             ReturnShape::DiscardableScalar
         }
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
         {
             ReturnShape::DiscardableView
         }
         TypeExpr::Borrow(borrow)
-            if matches!(
-                borrow.inner.as_ref(),
-                TypeExpr::View(view)
-                    if matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-            ) =>
+            if type_expr_resolves_to_supported_slice_view(&borrow.inner, resolved)
+                .unwrap_or(false) =>
         {
             ReturnShape::DiscardableView
         }
@@ -3387,13 +3801,13 @@ fn field_type_expr_for_member<'a>(
 }
 
 fn member_field_value_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
+    if type_expr_contains_unresolved_type_parameter(ty, resolved) {
+        return None;
+    }
     if type_expr_is_buildable_scalar_or_view(ty, resolved)
         || type_expr_is_supported_aggregate_value(ty, resolved)
     {
         return Some(true);
-    }
-    if type_expr_contains_unresolved_type_parameter(ty, resolved) {
-        return None;
     }
     Some(false)
 }
@@ -3721,19 +4135,12 @@ fn slice_index_target_type_expr_is_buildable_inner(
 ) -> Option<bool> {
     match ty {
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
         {
             Some(true)
         }
         TypeExpr::Borrow(borrow) => {
-            let TypeExpr::View(view) = borrow.inner.as_ref() else {
-                return None;
-            };
-            Some(type_expr_is_supported_slice_index_element(
-                &view.element,
-                resolved,
-            ))
+            type_expr_resolves_to_supported_slice_view(&borrow.inner, resolved)
         }
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
@@ -3764,10 +4171,10 @@ fn slice_index_target_type_expr_element_kind_inner(
 ) -> Option<TypecheckSliceElementKind> {
     match ty {
         TypeExpr::Borrow(borrow) => {
-            let TypeExpr::View(view) = borrow.inner.as_ref() else {
-                return None;
-            };
-            Some(type_expr_slice_element_kind(&view.element, resolved))
+            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) {
+                return Some(TypecheckSliceElementKind::Str);
+            }
+            type_expr_resolved_view_element_kind(&borrow.inner, resolved)
         }
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
@@ -4010,8 +4417,7 @@ fn type_expr_slice_element_kind_inner(
             TypecheckSliceElementKind::Bool
         }
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
         {
             TypecheckSliceElementKind::Str
         }

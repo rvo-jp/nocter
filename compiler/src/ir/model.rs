@@ -75,6 +75,10 @@ pub(crate) enum Instruction {
         destination: UsizeLocation,
         value: UsizeValue,
     },
+    SetUsizeFromBorrow {
+        destination: UsizeLocation,
+        source: BorrowSource,
+    },
     SetBool {
         destination: BoolLocation,
         value: BoolValue,
@@ -657,6 +661,7 @@ pub(crate) enum BorrowSource {
     U8(U8Location),
     Usize(UsizeLocation),
     Bool(BoolLocation),
+    BorrowParameter(usize),
     SliceIndex {
         source: SliceLocation,
         index: SliceElementIndex,

@@ -7,8 +7,8 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, ErrorPayloads,
-    FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
+    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, BorrowParameter,
+    ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
     LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
     drop_glue_for_type_expr_with_resolver,
 };
@@ -460,8 +460,17 @@ fn lower_scalar_parameters(
             ScalarParameterKind::Error => {
                 slots.push_error_parameter(parameter.name.clone());
             }
-            ScalarParameterKind::Borrow => {
-                slots.push_empty_abi_word();
+            ScalarParameterKind::Borrow {
+                inner,
+                is_readwrite,
+            } => {
+                let parameter_index = slots.reserve_empty_abi_words(1);
+                slots.borrow_parameters.push(BorrowParameter {
+                    name: parameter.name.clone(),
+                    inner,
+                    parameter_index,
+                    is_readwrite,
+                });
             }
             ScalarParameterKind::BorrowAggregate {
                 layout,
@@ -617,7 +626,10 @@ enum ScalarParameterKind {
     Str,
     Slice(SliceTypeInfo),
     Error,
-    Borrow,
+    Borrow {
+        inner: Type,
+        is_readwrite: bool,
+    },
     BorrowAggregate {
         layout: crate::abi::ValueLayout,
         is_readwrite: bool,
@@ -767,7 +779,10 @@ fn lower_borrow_parameter_kind(
                 resolved_sources,
             )
         }
-        Some(_) => Ok(ScalarParameterKind::Borrow),
+        Some(inner) => Ok(ScalarParameterKind::Borrow {
+            inner,
+            is_readwrite: borrow.is_readwrite,
+        }),
         None => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
 }

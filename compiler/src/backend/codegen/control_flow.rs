@@ -439,6 +439,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
+            | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
             | Instruction::SetStrRawParts { .. }

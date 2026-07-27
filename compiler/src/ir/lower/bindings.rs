@@ -1343,7 +1343,10 @@ fn unwrap_group(expression: &Expr) -> &Expr {
 
 fn expression_is_pointer_address_value(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
-        Expr::Call(call) => context.primitive_name_for_call(call) == Some("from_addr"),
+        Expr::Call(call) => matches!(
+            context.primitive_name_for_call(call),
+            Some("from_addr" | "from_ref" | "from_ref_mut")
+        ),
         Expr::Group(group) => expression_is_pointer_address_value(&group.expression, context),
         _ => false,
     }
@@ -3120,7 +3123,9 @@ fn primitive_call_scalar_binding_kind(
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
     match context.primitive_name_for_call(call)? {
-        "addr" | "pointee_size" => Some(ScalarBindingKind::Usize),
+        "addr" | "from_addr" | "from_ref" | "from_ref_mut" | "pointee_size" => {
+            Some(ScalarBindingKind::Usize)
+        }
         "str_from_raw_parts" => Some(ScalarBindingKind::Str),
         "bytes_from_str" => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
             TypecheckSliceElementKind::U8,

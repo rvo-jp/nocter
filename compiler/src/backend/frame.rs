@@ -472,6 +472,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }
@@ -598,6 +599,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             matches!(source, AggregateLocation::Slot(_))
         }
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
+        Instruction::SetUsizeFromBorrow { .. } => true,
         Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
@@ -793,6 +795,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }
@@ -954,6 +957,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateBool { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
         | Instruction::SetSlice { .. }
@@ -1586,6 +1590,9 @@ fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::SetUsizeFromBorrow { source, .. } => {
+            record_borrow_source_parameter_spill_request(*source, requests);
+        }
         Instruction::SetBool { value, .. } => {
             if include_value_parameters {
                 record_bool_value_parameter_spill_requests(value, requests);
@@ -1926,7 +1933,8 @@ fn record_borrow_source_parameter_spill_request(
         | BorrowSource::Bool(BoolLocation::Parameter(index)) => {
             requests.insert(index);
         }
-        BorrowSource::AggregateParameter(index)
+        BorrowSource::BorrowParameter(index)
+        | BorrowSource::AggregateParameter(index)
         | BorrowSource::AggregateParameterField {
             parameter_index: index,
             ..
@@ -2195,6 +2203,13 @@ fn record_instruction_scalar_locals(
         Instruction::SetUsize { destination, value } => {
             record_usize_location(*destination, highest_local_index);
             record_usize_value(value, highest_local_index);
+        }
+        Instruction::SetUsizeFromBorrow {
+            destination,
+            source,
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_borrow_source(*source, highest_local_index);
         }
         Instruction::SetBool { destination, value } => {
             record_bool_location(*destination, highest_local_index);
@@ -2603,6 +2618,7 @@ fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<u
         BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
+        BorrowSource::BorrowParameter(_) => {}
         BorrowSource::SliceIndex { source, index, .. } => {
             record_slice_location(source, highest_local_index);
             record_slice_element_index(index, highest_local_index);

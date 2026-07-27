@@ -35,6 +35,8 @@ Nocter ABI v0 is register-first:
 - scalar `i32`, `u8`, and `bool` occupy one ABI word but use 32-bit or narrower
   value operations as appropriate
 - `usize` and raw pointers occupy one ABI word
+- public raw pointer conversions lower raw pointers as address-carrying `usize`
+  ABI words; pointer dereference is not part of v0 backend support
 - ABI layout recognizes additional integer widths for aggregate storage, but
   standalone runtime scalar values are currently limited to the documented
   buildable scalar subset

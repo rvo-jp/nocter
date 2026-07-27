@@ -39,12 +39,13 @@ pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;
 use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
-    lower_addr_primitive_call_to_word, lower_arg_count_raw_primitive_call_to_word,
-    lower_arg_raw_primitive_call_to_value, lower_bool_normal_call, lower_call_arguments,
-    lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
-    lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call, lower_exit_raw_primitive_call,
-    lower_fallible_void_normal_call, lower_i32_normal_call,
-    lower_pointee_size_primitive_call_to_word,
+    lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,
+    lower_arg_count_raw_primitive_call_to_word, lower_arg_raw_primitive_call_to_value,
+    lower_bool_normal_call, lower_call_arguments, lower_close_fd_raw_primitive_call,
+    lower_copy_ptr_to_ptr_primitive_call, lower_copy_str_to_ptr_primitive_call,
+    lower_direct_tail_call, lower_exit_raw_primitive_call, lower_fallible_void_normal_call,
+    lower_from_ref_primitive_call_to_location, lower_from_ref_primitive_call_to_word,
+    lower_i32_normal_call, lower_pointee_size_primitive_call_to_word,
     lower_slice_from_raw_parts_primitive_call_to_location, lower_slice_normal_call,
     lower_store_u8_to_ptr_primitive_call, lower_store_value_to_ptr_primitive_call,
     lower_str_bytes_primitive_call_to_location, lower_str_bytes_primitive_call_to_value,
@@ -52,10 +53,10 @@ use calls::{
     lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
     primitive_arg_count_raw_call, primitive_arg_raw_call, primitive_bytes_from_str_call,
     primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call, primitive_copy_str_to_ptr_call,
-    primitive_exit_raw_call, primitive_pointee_size_call, primitive_slice_from_raw_parts_call,
-    primitive_store_u8_to_ptr_call, primitive_store_value_to_ptr_call,
-    primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
-    primitive_write_text_raw_call,
+    primitive_exit_raw_call, primitive_from_ref_call, primitive_pointee_size_call,
+    primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
+    primitive_store_value_to_ptr_call, primitive_str_from_raw_parts_call,
+    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
 };
 pub(super) use calls::{
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
@@ -277,10 +278,29 @@ pub(super) fn lower_usize_expression_to_location(
                 return Ok(instructions);
             }
             if primitive_addr_call(call, context) {
-                let (mut instructions, value) =
-                    lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                return lower_addr_primitive_call_to_location(
+                    call,
+                    destination,
+                    context,
+                    &mut temporaries,
+                );
+            }
+            if context.primitive_name_for_call(call) == Some("from_addr") {
+                let (mut instructions, value) = lower_pointer_address_expression_to_word(
+                    expression,
+                    context,
+                    &mut temporaries,
+                )?;
                 instructions.push(Instruction::SetUsize { destination, value });
                 return Ok(instructions);
+            }
+            if primitive_from_ref_call(call, context) {
+                return lower_from_ref_primitive_call_to_location(
+                    call,
+                    destination,
+                    context,
+                    &mut temporaries,
+                );
             }
             if primitive_pointee_size_call(call, context) {
                 let (mut instructions, value) =
@@ -2190,6 +2210,22 @@ fn lower_usize_expression_to_value(
                     value,
                 });
             }
+            if context.primitive_name_for_call(call) == Some("from_addr") {
+                let (instructions, value) =
+                    lower_pointer_address_expression_to_word(expression, context, temporaries)?;
+                return Ok(LoweredUsizeValue {
+                    instructions,
+                    value,
+                });
+            }
+            if primitive_from_ref_call(call, context) {
+                let (instructions, value) =
+                    lower_from_ref_primitive_call_to_word(call, context, temporaries)?;
+                return Ok(LoweredUsizeValue {
+                    instructions,
+                    value,
+                });
+            }
             if primitive_pointee_size_call(call, context) {
                 let (instructions, value) =
                     lower_pointee_size_primitive_call_to_word(call, context, temporaries)?;
@@ -2754,12 +2790,35 @@ pub(super) fn lower_usize_return_expression(
                 return Ok(instructions);
             }
             if primitive_addr_call(call, context) {
-                let (mut instructions, value) =
-                    lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                let mut instructions = lower_addr_primitive_call_to_location(
+                    call,
+                    UsizeLocation::Return,
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            if context.primitive_name_for_call(call) == Some("from_addr") {
+                let (mut instructions, value) = lower_pointer_address_expression_to_word(
+                    expression,
+                    context,
+                    &mut temporaries,
+                )?;
                 instructions.push(Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value,
                 });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            if primitive_from_ref_call(call, context) {
+                let mut instructions = lower_from_ref_primitive_call_to_location(
+                    call,
+                    UsizeLocation::Return,
+                    context,
+                    &mut temporaries,
+                )?;
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }

@@ -285,7 +285,7 @@ where
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
-        AbiType::Usize => Some(Type::Usize),
+        AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
         AbiType::Bool => Some(Type::Bool),
         _ => None,
     }
@@ -402,7 +402,7 @@ where
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
-        AbiType::Usize => Some(Type::Usize),
+        AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
         AbiType::Bool => Some(Type::Bool),
         AbiType::Struct(_) => aggregate_type_from_abi_value(&value),
         _ => None,

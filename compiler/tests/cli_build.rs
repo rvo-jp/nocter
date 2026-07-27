@@ -2413,6 +2413,67 @@ func echo(bytes: &+Bytes): &+Bytes {
 }
 
 #[test]
+fn build_command_lowers_reachable_alias_view_signature() {
+    let project = TempProject::new("cli-build-reachable-alias-view-signature");
+    let source = project.write_source(
+        "alias_view_signature.nct",
+        r#"type Exit = i32
+type Text = str
+
+func main(): i32 {
+    return length("Nocter")
+}
+
+func length(text: &Text): Exit {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_nested_concrete_generic_aggregate_field() {
+    let project = TempProject::new("cli-build-nested-concrete-generic-aggregate-field");
+    let source = project.write_source(
+        "nested_concrete_generic_aggregate_field.nct",
+        r#"struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+struct Box<T> {
+    value: Pair<T, i32>
+}
+
+func main(): i32 {
+    let box = make_box()
+    return read(move box)
+}
+
+func make_box(): Box<i32> {
+    return Box<i32>{ value: Pair<i32, i32>{ first: 1, second: 42 } }
+}
+
+func read(box: Box<i32>): i32 {
+    return box.value.second
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_imported_bool_condition() {
     let project = TempProject::new("cli-build-imported-bool-condition");
     project.write_nocter_home_file(
@@ -4680,6 +4741,39 @@ func main(): i32 {
     let holder = Buffer{ bytes: buffer() }
     holder.bytes[0] = 1
     return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_public_pointer_from_ref_address_conversion() {
+    let project = TempProject::new("cli-build-pointer-from-ref-address");
+    project.write_nocter_home_file(
+        "std/ptr.nct",
+        r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref<T>(value: &T): *T
+"#,
+    );
+    let source = project.write_source(
+        "pointer_from_ref.nct",
+        r#"use std/ptr as ptr
+
+func main(): i32 {
+    let byte: u8 = 1
+    let address: usize = address_of(&byte)
+    return 0
+}
+
+func address_of(value: &u8): usize {
+    let pointer = ptr.from_ref(value)
+    return ptr.addr(pointer)
 }
 "#,
     );

@@ -40,6 +40,7 @@ pub(super) struct LoweringContext<'a> {
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
+    borrow_parameters: Vec<BorrowParameter>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
     error_payloads: ErrorPayloads,
     next_aggregate_slot_index: Rc<Cell<usize>>,
@@ -66,6 +67,7 @@ impl<'a> Clone for LoweringContext<'a> {
             reserved_local_abi_words: self.reserved_local_abi_words,
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
+            borrow_parameters: self.borrow_parameters.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
             error_payloads: self.error_payloads.clone(),
             next_aggregate_slot_index: self.next_aggregate_slot_index.clone(),
@@ -82,6 +84,7 @@ pub(super) struct LoweringParameterSlots {
     pub(super) str: Vec<Option<String>>,
     pub(super) slice: Vec<Option<SliceBinding>>,
     pub(super) error: Vec<Option<String>>,
+    pub(super) borrow_parameters: Vec<BorrowParameter>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
 }
@@ -207,6 +210,14 @@ pub(super) struct AggregateBorrowParameter {
     pub(super) fields: Vec<AggregateField>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct BorrowParameter {
+    pub(super) name: String,
+    pub(super) inner: Type,
+    pub(super) parameter_index: usize,
+    pub(super) is_readwrite: bool,
+}
+
 impl<'a> LoweringContext<'a> {
     pub(super) fn empty(
         function_name: String,
@@ -232,6 +243,7 @@ impl<'a> LoweringContext<'a> {
             reserved_local_abi_words: 0,
             locals: Vec::new(),
             aggregate_fields: HashMap::new(),
+            borrow_parameters: Vec::new(),
             aggregate_borrows: Vec::new(),
             error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(0)),
@@ -286,6 +298,7 @@ impl<'a> LoweringContext<'a> {
             reserved_local_abi_words: 0,
             locals,
             aggregate_fields,
+            borrow_parameters: parameters.borrow_parameters,
             aggregate_borrows: parameters.aggregate_borrows,
             error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(next_aggregate_slot_index)),
@@ -1213,6 +1226,12 @@ impl<'a> LoweringContext<'a> {
         self.aggregate_borrows
             .iter()
             .find(|borrow| borrow.name == aggregate_name)
+    }
+
+    pub(super) fn borrow_parameter(&self, name: &str) -> Option<&BorrowParameter> {
+        self.borrow_parameters
+            .iter()
+            .find(|borrow| borrow.name == name)
     }
 
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {

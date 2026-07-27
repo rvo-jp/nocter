@@ -53,7 +53,7 @@ The distribution must not require target-specific source file names such as
 | `std/io` | Runtime-shipped narrow `File`, `open`, `read`, `write`, `write_text`, stdout/stderr, `print`, close-on-drop state, and raw fd helpers behind `pub(nocter)`. |
 | `std/process` | Runtime-shipped `exit`, `abort`, `cwd`, and `args` on `arm64-darwin`. `env(name): &str?!` is check-only. |
 | `std/vec` | Runtime-shipped narrow `Vec<T>` construction, capacity, len, is_empty, reserve, push, from_slice, clear, readonly/readwrite views, and storage release for scalar, `&str`, and current copy-aggregate element paths. |
-| `std/ptr` | Runtime-shipped narrow public pointer address conversions plus std-internal raw storage helpers. Pointer dereference is deferred. |
+| `std/ptr` | Runtime-shipped public `addr`, `from_ref`, and `from_ref_mut` address conversions plus std-internal raw storage helpers. Pointer dereference is deferred. |
 | `std/os` | Std-internal common OS records and target-gated syscall/trap primitives. No public user-facing OS module surface is shipped in v0. |
 
 ## Known Std Gaps

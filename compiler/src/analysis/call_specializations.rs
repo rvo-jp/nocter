@@ -75,7 +75,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
-                let Some((file, method)) =
+                let Some((file, impl_, method)) =
                     method_declaration_for_span(analysis, specialization.declaration_span)
                 else {
                     continue;
@@ -83,11 +83,13 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if method.body.is_none() {
                     continue;
                 }
+                let context_substitutions =
+                    method_specialization_context_substitutions(impl_, &specialization);
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
                     method.span,
-                    &specialization.substitutions,
+                    &context_substitutions,
                     &mut queue,
                 );
             }
@@ -237,7 +239,7 @@ fn function_declaration_for_span<'a>(
 fn method_declaration_for_span<'a>(
     analysis: &'a CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&'a FileAnalysis, &'a MethodDecl)> {
+) -> Option<(&'a FileAnalysis, &'a ImplDecl, &'a MethodDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
             let Item::Impl(impl_) = item else {
@@ -247,7 +249,7 @@ fn method_declaration_for_span<'a>(
                 let ImplMember::Method(method) = member else {
                     return None;
                 };
-                (method.name_span == declaration_span).then_some((file, method))
+                (method.name_span == declaration_span).then_some((file, impl_, method))
             })
         })
     })
@@ -288,7 +290,17 @@ fn drop_specialization_from_typecheck_fact(
     })
 }
 
-fn impl_substitutions_for_self_ty(
+fn method_specialization_context_substitutions(
+    impl_: &ImplDecl,
+    specialization: &MethodCallSpecialization,
+) -> HashMap<String, TypeExpr> {
+    let mut substitutions =
+        impl_substitutions_for_self_ty(impl_, &specialization.self_ty).unwrap_or_default();
+    substitutions.extend(specialization.substitutions.clone());
+    substitutions
+}
+
+pub(crate) fn impl_substitutions_for_self_ty(
     impl_: &ImplDecl,
     self_ty: &TypeExpr,
 ) -> Option<HashMap<String, TypeExpr>> {

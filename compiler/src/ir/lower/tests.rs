@@ -11948,6 +11948,139 @@ pub func make(): Text {
 }
 
 #[test]
+fn lowers_pointer_from_ref_scalar_borrow_parameter_binding_return() {
+    let function = lower_named_function_with_nocter_home_files(
+        r#"use std/ptr.{addr, from_ref}
+
+func address_of(value: &u8): usize {
+    let pointer = from_ref(value)
+    return addr(pointer)
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        "address_of",
+        &[(
+            "std/ptr.nct",
+            r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref<T>(value: &T): *T
+"#,
+        )],
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "address_of".to_string(),
+            target: CallTarget::same_file("address_of"),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsizeFromBorrow {
+                    destination: UsizeLocation::Local(0),
+                    source: BorrowSource::BorrowParameter(0),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::Location(UsizeLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_pointer_from_ref_local_borrow_binding() {
+    let function = lower_named_function_with_nocter_home_files(
+        r#"use std/ptr.{addr, from_ref}
+
+func main(): i32 {
+    let value: u8 = 1
+    let pointer = from_ref(&value)
+    let address: usize = addr(pointer)
+    return 0
+}
+"#,
+        "main",
+        &[(
+            "std/ptr.nct",
+            r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref<T>(value: &T): *T
+"#,
+        )],
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: u8_const(1),
+                },
+                Instruction::SetUsizeFromBorrow {
+                    destination: UsizeLocation::Local(1),
+                    source: BorrowSource::U8(U8Location::Local(0)),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(2),
+                    value: UsizeValue::Location(UsizeLocation::Local(1)),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_pointer_from_ref_direct_addr_local_borrow() {
+    let function = lower_named_function_with_nocter_home_files(
+        r#"use std/ptr.{addr, from_ref}
+
+func main(): i32 {
+    let value: u8 = 1
+    let address: usize = addr(from_ref(&value))
+    return 0
+}
+"#,
+        "main",
+        &[(
+            "std/ptr.nct",
+            r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref<T>(value: &T): *T
+"#,
+        )],
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Local(0),
+                    value: u8_const(1),
+                },
+                Instruction::SetUsizeFromBorrow {
+                    destination: UsizeLocation::Local(1),
+                    source: BorrowSource::U8(U8Location::Local(0)),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_aggregate_i32_field_return_from_local_slot() {
     let function = lower_named_function(
         r#"struct Header {
@@ -27761,6 +27894,31 @@ fn lower_named_function_with_signatures(
         resolved_sources,
         context::ErrorPayloads::default(),
     )
+}
+
+fn lower_named_function_with_nocter_home_files(
+    text: &str,
+    function_name: &str,
+    home_files: &[(&str, &str)],
+) -> Function {
+    let fixture = analyze_text_fixture_with_nocter_home_files(text, home_files);
+    let analysis = &fixture.analysis;
+    let root = analysis.root_file().unwrap();
+    let target = CallTarget::same_file(function_name);
+    let index = FunctionIndex::new(analysis, root.ast.span.source);
+    let function = index.definition(&target).unwrap();
+
+    function
+        .lower(
+            target,
+            &fixture.sources,
+            index.signatures(),
+            index.names(),
+            index.error_payloads(root.ast.span.source),
+            index.resolved_sources(),
+            root.ast.span.source,
+        )
+        .unwrap()
 }
 
 fn lower_imported_named_function_with_nocter_home_files(

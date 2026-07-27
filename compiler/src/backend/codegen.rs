@@ -3,9 +3,9 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::{
-    CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location, I32Value,
-    Instruction, IrModule, ScalarArgument, SliceValue, StrLocation, StrValue, Type, UsizeLocation,
-    UsizeValue,
+    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location,
+    I32Value, Instruction, IrModule, ScalarArgument, SliceValue, StrLocation, StrValue, Type,
+    UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -215,6 +215,12 @@ impl EntryEmitter {
             }
             Instruction::SetUsize { destination, value } => {
                 self.emit_set_usize(*destination, value)?;
+            }
+            Instruction::SetUsizeFromBorrow {
+                destination,
+                source,
+            } => {
+                self.emit_set_usize_from_borrow(*destination, *source, frame)?;
             }
             Instruction::SetBool { destination, value } => {
                 self.emit_set_bool(*destination, value)?;
@@ -1583,6 +1589,22 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_set_usize_from_borrow(
+        &mut self,
+        destination: UsizeLocation,
+        source: BorrowSource,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "borrow-to-pointer emission requires a stack frame",
+            )]);
+        };
+        self.emit_borrow_source_address_to_x(source, XReg::X16, frame)?;
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
     fn emit_static_data_address(&mut self, register: XReg, bytes: &[u8]) {
         let data_offset = self.read_only_data.len();
         self.read_only_data.extend_from_slice(bytes);
@@ -2415,6 +2437,7 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
         Instruction::SetI32 { value, .. } => i32_value_uses_process_arguments(value),
         Instruction::SetU8 { value, .. } => u8_value_uses_process_arguments(value),
         Instruction::SetUsize { value, .. } => usize_value_uses_process_arguments(value),
+        Instruction::SetUsizeFromBorrow { .. } => false,
         Instruction::SetBool { value, .. } => bool_value_uses_process_arguments(value),
         Instruction::SetStr { value, .. } => str_value_uses_process_arguments(value),
         Instruction::SetStrRawParts { pointer, len, .. }

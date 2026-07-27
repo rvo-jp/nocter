@@ -8,7 +8,8 @@ use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
 use super::super::types::{
-    scalar_or_view_type_from_type_expr_with_resolver, view_element_type_from_type_expr,
+    borrow_inner_type_with_resolver, scalar_or_view_type_from_type_expr_with_resolver,
+    view_element_type_from_type_expr,
 };
 use super::temporaries::TemporaryAllocator;
 use super::{
@@ -1230,9 +1231,10 @@ fn lower_borrow_argument(
             )?
         }
         Expr::Identifier(identifier)
-            if context
-                .aggregate_borrow_parameter(&identifier.name)
-                .is_some() =>
+            if context.borrow_parameter(&identifier.name).is_some()
+                || context
+                    .aggregate_borrow_parameter(&identifier.name)
+                    .is_some() =>
         {
             (
                 Vec::new(),
@@ -1508,6 +1510,20 @@ fn lower_borrow_source_from_identifier(
     callee_name: &str,
     context: &LoweringContext,
 ) -> Result<BorrowSource, Vec<Diagnostic>> {
+    let requires_readwrite = matches!(
+        parameter_type,
+        Type::Borrow {
+            is_readwrite: true,
+            ..
+        }
+    );
+    if let Some(borrow) = context.borrow_parameter(identifier_name)
+        && borrow.inner == *inner
+        && (!requires_readwrite || borrow.is_readwrite)
+    {
+        return Ok(BorrowSource::BorrowParameter(borrow.parameter_index));
+    }
+
     match inner {
         Type::I32 => match context.i32_location(identifier_name) {
             Some(I32Location::Local(index)) => Ok(BorrowSource::I32(I32Location::Local(index))),
@@ -2276,6 +2292,13 @@ pub(super) fn primitive_addr_call(call: &CallExpr, context: &LoweringContext) ->
     matches!(context.primitive_name_for_call(call), Some("addr"))
 }
 
+pub(super) fn primitive_from_ref_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("from_ref" | "from_ref_mut")
+    )
+}
+
 pub(super) fn primitive_pointee_size_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(context.primitive_name_for_call(call), Some("pointee_size"))
 }
@@ -2355,6 +2378,115 @@ pub(super) fn lower_addr_primitive_call_to_word(
         ));
     }
     lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)
+}
+
+pub(super) fn lower_addr_primitive_call_to_location(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`addr` requires one pointer argument",
+        ));
+    }
+    if let Expr::Call(pointer_call) = unwrap_group(&call.arguments[0])
+        && primitive_from_ref_call(pointer_call, context)
+    {
+        return lower_from_ref_primitive_call_to_location(
+            pointer_call,
+            destination,
+            context,
+            temporaries,
+        );
+    }
+
+    let (mut instructions, value) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    instructions.push(Instruction::SetUsize { destination, value });
+    Ok(instructions)
+}
+
+pub(super) fn lower_from_ref_primitive_call_to_location(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (mut instructions, source) =
+        lower_from_ref_primitive_call_to_borrow_source(call, context, temporaries)?;
+    instructions.push(Instruction::SetUsizeFromBorrow {
+        destination,
+        source,
+    });
+    Ok(instructions)
+}
+
+pub(super) fn lower_from_ref_primitive_call_to_word(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    let destination = temporaries.next_usize()?;
+    let instructions =
+        lower_from_ref_primitive_call_to_location(call, destination, context, temporaries)?;
+    Ok((instructions, UsizeValue::Location(destination)))
+}
+
+fn lower_from_ref_primitive_call_to_borrow_source(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    let Some(primitive_name) = context.primitive_name_for_call(call) else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "borrow-to-pointer conversion requires a pointer primitive",
+        ));
+    };
+    let is_readwrite = match primitive_name {
+        "from_ref" => false,
+        "from_ref_mut" => true,
+        _ => {
+            return Err(unsupported_pointer_primitive_diagnostic(
+                "borrow-to-pointer conversion requires `from_ref` or `from_ref_mut`",
+            ));
+        }
+    };
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires one borrow argument"
+        )));
+    }
+    let Some(pointee_type) = context.function_call_type_substitution(call, "T") else {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires a concrete pointer element type"
+        )));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires resolved type information"
+        )));
+    };
+    let Some(inner) = borrow_inner_type_with_resolver(&pointee_type, resolved, |source| {
+        context.resolved_source(source)
+    }) else {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires a borrowable pointer element type"
+        )));
+    };
+    let parameter_type = Type::Borrow {
+        is_readwrite,
+        inner: Box::new(inner),
+    };
+    let (instructions, argument) = lower_borrow_argument(
+        &call.arguments[0],
+        &parameter_type,
+        primitive_name,
+        context,
+        temporaries,
+    )?;
+    Ok((instructions, argument.source))
 }
 
 pub(super) fn lower_pointee_size_primitive_call_to_word(
@@ -2881,6 +3013,15 @@ pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
                 lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
             Ok((address.instructions, address.value))
         }
+        Expr::Call(call) if primitive_from_ref_call(call, context) => {
+            lower_from_ref_primitive_call_to_word(call, context, temporaries)
+        }
+        Expr::Identifier(identifier) => context
+            .usize_location(&identifier.name)
+            .map(|location| (Vec::new(), UsizeValue::Location(location)))
+            .ok_or_else(|| {
+                unsupported_pointer_primitive_diagnostic("pointer argument must be a pointer value")
+            }),
         Expr::Member(_) => {
             let access = lower_aggregate_member_field_access(expression, context, temporaries)?
                 .filter(|access| access.kind == AggregateFieldKind::Usize)
@@ -2902,15 +3043,18 @@ pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
             lower_pointer_address_expression_to_word(&group.expression, context, temporaries)
         }
         _ => Err(unsupported_pointer_primitive_diagnostic(
-            "pointer argument must come from `from_addr(...)` or a pointer aggregate field",
+            "pointer argument must come from a pointer value, `from_addr(...)`, `from_ref(...)`, `from_ref_mut(...)`, or a pointer aggregate field",
         )),
     }
 }
 
-fn unsupported_pointer_primitive_diagnostic(reason: &str) -> Vec<Diagnostic> {
+fn unsupported_pointer_primitive_diagnostic(reason: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 cannot lower pointer primitive call: {reason}"),
+        format!(
+            "IR v0 cannot lower pointer primitive call: {}",
+            reason.into()
+        ),
     )]
 }
 
