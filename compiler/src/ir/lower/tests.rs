@@ -18480,6 +18480,41 @@ func is_elf(bytes: &[u8]): bool {
 }
 
 #[test]
+fn lowers_byte_literal_bool_return_comparison() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func is_a(): bool {
+    return b'\x41' == b'A'
+}
+"#,
+        "is_a",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "is_a".to_string(),
+            target: crate::ir::CallTarget::same_file("is_a".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(u8_const(65))),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(65))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_alias_conversion_bool_return_comparison() {
     let function = lower_named_function(
         r#"type Byte = u8

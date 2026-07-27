@@ -637,6 +637,7 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
 
 fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::ByteLiteral(_) => true,
         Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
