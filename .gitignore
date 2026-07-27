@@ -1,5 +1,3 @@
 /target/
 /compiler/target/
-/.nocter/
-/.nocter-*/
 /dist/

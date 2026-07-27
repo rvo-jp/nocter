@@ -58,7 +58,7 @@ Recommended order:
   release metadata inputs, and
   `../compiler/scripts/package-local-release.sh` generates `../dist/.nocter`.
   Distributed-home tests synthesize a temporary Nocter home from those tracked
-  inputs instead of reading root `.nocter`.
+  inputs.
 - Value-producing `if`, payloadless enum `if is`, and payloadless enum `match`
   branch blocks now lower supported leading bindings, assignments, and
   buildable expression statements before their final value. Buildability
