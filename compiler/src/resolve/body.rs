@@ -302,6 +302,7 @@ impl Resolver<'_> {
                 }
             }
             Expr::IntegerLiteral(_)
+            | Expr::ByteLiteral(_)
             | Expr::StringLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::NoneLiteral(_) => {}

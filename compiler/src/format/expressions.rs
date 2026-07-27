@@ -26,6 +26,7 @@ impl Formatter {
         match expression {
             Expr::Identifier(expression) => self.write(&expression.name),
             Expr::IntegerLiteral(expression)
+            | Expr::ByteLiteral(expression)
             | Expr::StringLiteral(expression)
             | Expr::BoolLiteral(expression)
             | Expr::NoneLiteral(expression) => self.write(&expression.value),
@@ -149,6 +150,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | Expr::Index(_) => PREC_POSTFIX,
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::InterpolatedString(_)
         | Expr::BoolLiteral(_)

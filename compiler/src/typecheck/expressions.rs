@@ -74,6 +74,7 @@ pub(super) fn expression_type(
 ) -> Type {
     match expression {
         Expr::IntegerLiteral(_) => Type::I32,
+        Expr::ByteLiteral(_) => Type::Primitive("u8".to_string()),
         Expr::StringLiteral(_) => Type::Str,
         Expr::InterpolatedString(_) => interpolated_string_type(resolved),
         Expr::BoolLiteral(_) => Type::Primitive("bool".to_string()),

@@ -595,6 +595,25 @@ func identity(byte: u8): u8 {
 }
 
 #[test]
+fn build_command_lowers_byte_literal() {
+    let project = TempProject::new("cli-build-byte-literal");
+    let source = project.write_source(
+        "byte_literal.nct",
+        r#"func main(): i32 {
+    let byte: u8 = b'\x41'
+    return byte as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_void_terminal_if_function() {
     let project = TempProject::new("cli-build-void-terminal-if-function");
     let source = project.write_source(

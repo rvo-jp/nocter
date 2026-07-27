@@ -840,6 +840,30 @@ func identity(byte: u8): u8 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_byte_literal_exit_code() {
+    let project = TempProject::new("cli-run-byte-literal");
+    let source = project.write_source(
+        "byte_literal.nct",
+        r#"func main(): i32 {
+    let byte: u8 = b'\x41'
+    return byte as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(65),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_normal_call_exit_code() {
     let project = TempProject::new("cli-run-normal-call");
     let source = project.write_source(

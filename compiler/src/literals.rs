@@ -40,6 +40,22 @@ pub(crate) fn decode_string_literal_bytes(text: &str) -> Result<Vec<u8>, &'stati
     }
 }
 
+pub(crate) fn decode_byte_literal(text: &str) -> Result<u8, &'static str> {
+    let Some(content) = text
+        .strip_prefix("b'")
+        .and_then(|text| text.strip_suffix('\''))
+    else {
+        return Err("expected byte literal");
+    };
+
+    let bytes = decode_escaped_bytes(content, false, false)?;
+    match bytes.as_slice() {
+        [byte] => Ok(*byte),
+        [] => Err("byte literal must decode exactly one byte"),
+        _ => Err("byte literal must decode exactly one byte"),
+    }
+}
+
 pub(crate) fn validate_string_literal_source(text: &str) -> Result<(), StringLiteralError> {
     let parts = string_literal_parts(text)?;
     if parts
@@ -355,6 +371,16 @@ fn validate_multi_line_indentation(
 }
 
 fn decode_escaped_text(text: &str, allow_raw_newlines: bool) -> Result<Vec<u8>, &'static str> {
+    let output = decode_escaped_bytes(text, allow_raw_newlines, true)?;
+    str::from_utf8(&output).map_err(|_| "string literal escapes must decode to valid UTF-8")?;
+    Ok(output)
+}
+
+fn decode_escaped_bytes(
+    text: &str,
+    allow_raw_newlines: bool,
+    reject_interpolation: bool,
+) -> Result<Vec<u8>, &'static str> {
     let mut output = Vec::with_capacity(text.len());
     let mut index = 0usize;
 
@@ -392,7 +418,7 @@ fn decode_escaped_text(text: &str, allow_raw_newlines: bool) -> Result<Vec<u8>, 
                 }
                 index += 1;
             }
-            b'$' if text.as_bytes().get(index + 1) == Some(&b'{') => {
+            b'$' if reject_interpolation && text.as_bytes().get(index + 1) == Some(&b'{') => {
                 return Err("string interpolation is not implemented yet");
             }
             b'\n' if allow_raw_newlines => {
@@ -413,7 +439,6 @@ fn decode_escaped_text(text: &str, allow_raw_newlines: bool) -> Result<Vec<u8>, 
         }
     }
 
-    str::from_utf8(&output).map_err(|_| "string literal escapes must decode to valid UTF-8")?;
     Ok(output)
 }
 
@@ -497,7 +522,10 @@ fn hex_digit(byte: u8) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{StringLiteralPartSpan, decode_string_literal_bytes, string_literal_parts};
+    use super::{
+        StringLiteralPartSpan, decode_byte_literal, decode_string_literal_bytes,
+        string_literal_parts,
+    };
 
     #[test]
     fn decodes_single_line_string_literal() {
@@ -583,5 +611,27 @@ mod tests {
         let error = decode_string_literal_bytes("\"\\xFF\"").unwrap_err();
 
         assert!(error.contains("valid UTF-8"));
+    }
+
+    #[test]
+    fn decodes_byte_literal() {
+        assert_eq!(decode_byte_literal("b'a'").unwrap(), b'a');
+        assert_eq!(decode_byte_literal("b'\\n'").unwrap(), b'\n');
+        assert_eq!(decode_byte_literal("b'\\xFF'").unwrap(), 0xFF);
+    }
+
+    #[test]
+    fn rejects_byte_literal_with_zero_or_multiple_bytes() {
+        assert!(decode_byte_literal("b''").unwrap_err().contains("one byte"));
+        assert!(
+            decode_byte_literal("b'ab'")
+                .unwrap_err()
+                .contains("one byte")
+        );
+        assert!(
+            decode_byte_literal("b'é'")
+                .unwrap_err()
+                .contains("one byte")
+        );
     }
 }

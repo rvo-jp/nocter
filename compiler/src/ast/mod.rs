@@ -480,6 +480,7 @@ pub struct ExpressionStmt {
 pub enum Expr {
     Identifier(IdentifierExpr),
     IntegerLiteral(LiteralExpr),
+    ByteLiteral(LiteralExpr),
     StringLiteral(LiteralExpr),
     InterpolatedString(InterpolatedStringExpr),
     BoolLiteral(LiteralExpr),
@@ -768,6 +769,7 @@ impl Expr {
         match self {
             Expr::Identifier(expression) => expression.span,
             Expr::IntegerLiteral(expression) => expression.span,
+            Expr::ByteLiteral(expression) => expression.span,
             Expr::StringLiteral(expression) => expression.span,
             Expr::InterpolatedString(expression) => expression.span,
             Expr::BoolLiteral(expression) => expression.span,

@@ -176,6 +176,7 @@ fn collect_scoped_import_name_spans_in_expression(
         Expr::Match(statement) => collect_scoped_import_name_spans_in_switch(statement, spans),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
@@ -415,6 +416,7 @@ fn scoped_import_spans_in_expression_at_offset(
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => Some(visible.clone()),

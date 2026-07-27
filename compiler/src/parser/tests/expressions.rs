@@ -367,6 +367,32 @@ fn parses_multi_line_string_literal_expression() {
 }
 
 #[test]
+fn parses_byte_literal_expression() {
+    let (sources, output) = parse_text_with_sources(
+        r#"func main(): u8 {
+    return b'\xFF'
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Return(statement) = &function.body.statements[0] else {
+        panic!("expected return statement");
+    };
+    let Some(Expr::ByteLiteral(literal)) = &statement.expression else {
+        panic!("expected byte literal");
+    };
+    assert_eq!(literal.value, "b'\\xFF'");
+
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "byte_literal").is_some());
+}
+
+#[test]
 fn parses_interpolated_string_expression() {
     let (sources, output) = parse_text_with_sources(
         r#"func main(name: &str): i32 {

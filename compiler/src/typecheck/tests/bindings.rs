@@ -17,6 +17,35 @@ fn diagnoses_binding_annotation_type_mismatch() {
 }
 
 #[test]
+fn accepts_byte_literal_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let byte: u8 = b'\xFF'
+    return byte as i32
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_byte_literal_i32_binding_without_explicit_conversion() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let code: i32 = b'a'
+    return code
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0342");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("u8"));
+}
+
+#[test]
 fn diagnoses_assignment_to_let_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

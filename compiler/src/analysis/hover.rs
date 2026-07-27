@@ -396,6 +396,7 @@ fn module_path_in_expression_at_offset(expression: &Expr, offset: usize) -> Opti
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => None,
@@ -1007,6 +1008,7 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}

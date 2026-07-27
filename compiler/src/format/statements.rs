@@ -253,6 +253,7 @@ fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
         Expr::InterpolatedString(_)
         | Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_)

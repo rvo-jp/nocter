@@ -202,6 +202,7 @@ fn formats_imports_impls_and_literals_stably() {
 use std/io.{print as write,File}
 use std/process as process
 impl File{pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
+let marker=b'\n'
 var point=Point{x:1,y:2}
 while ready(){print(text)}
 }}
@@ -217,6 +218,7 @@ impl File{drop &+self{drop self}}
             "impl File {\n",
             "    pub method &+self.write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
+            "        let marker = b'\\n'\n",
             "        var point = Point { x: 1, y: 2 }\n",
             "        while ready() { print(text) }\n",
             "    }\n",

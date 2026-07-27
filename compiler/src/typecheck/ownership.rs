@@ -690,6 +690,7 @@ fn expression_move_action(
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => None,
@@ -844,6 +845,7 @@ fn expression_read_action(
                 })
         }
         Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => None,
@@ -1155,6 +1157,7 @@ fn collect_direct_borrow_expressions(
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
@@ -1350,6 +1353,7 @@ fn expression_uses_identifier(expression: &Expr, name: &str) -> bool {
                     .is_some_and(|arm| block_uses_identifier(&arm.body, name))
         }
         Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => false,
@@ -2066,6 +2070,7 @@ fn check_expression_ownership(
             );
         }
         Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}

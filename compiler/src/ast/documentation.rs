@@ -147,6 +147,7 @@ fn collect_expression_targets(
     match expression {
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}

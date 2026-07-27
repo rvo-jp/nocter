@@ -738,6 +738,12 @@ impl Expr {
                 json_span(sources, expression.span),
                 Vec::new(),
             ),
+            Expr::ByteLiteral(expression) => JsonAstNode::with_value(
+                "byte_literal",
+                expression.value.clone(),
+                json_span(sources, expression.span),
+                Vec::new(),
+            ),
             Expr::StringLiteral(expression) => JsonAstNode::with_value(
                 "string_literal",
                 expression.value.clone(),

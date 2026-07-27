@@ -2781,6 +2781,7 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
@@ -2979,6 +2980,7 @@ fn expression_contains_explicit_aggregate_move_matching(
         }),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => false,

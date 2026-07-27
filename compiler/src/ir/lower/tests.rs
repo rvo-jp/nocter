@@ -25969,6 +25969,37 @@ func choose(flag: bool): &str {
 }
 
 #[test]
+fn lowers_u8_returning_function_with_byte_literal() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func byte(): u8 {
+    return b'\x41'
+}
+"#,
+        "byte",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "byte".to_string(),
+            target: crate::ir::CallTarget::same_file("byte".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: u8_const(65),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_slice_returning_function_with_terminal_if() {
     let function = lower_named_function(
         r#"func main(): i32 {

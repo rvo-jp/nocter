@@ -1,7 +1,7 @@
 use crate::ast::{Expr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrValue;
-use crate::literals::decode_string_literal_bytes;
+use crate::literals::{decode_byte_literal, decode_string_literal_bytes};
 
 pub(super) fn lower_str_literal(expression: &Expr) -> Result<StrValue, Vec<Diagnostic>> {
     match expression {
@@ -52,10 +52,12 @@ pub(super) fn lower_usize_literal(expression: &Expr) -> Result<u64, Vec<Diagnost
 pub(super) fn lower_u8_literal(expression: &Expr) -> Result<u8, Vec<Diagnostic>> {
     match expression {
         Expr::IntegerLiteral(literal) => parse_u8_literal(&literal.value),
+        Expr::ByteLiteral(literal) => decode_byte_literal(&literal.value)
+            .map_err(|message| vec![Diagnostic::error("E8003", message)]),
         Expr::Group(group) => lower_u8_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower integer literal returns",
+            "IR v0 can only lower u8 literal values",
         )]),
     }
 }

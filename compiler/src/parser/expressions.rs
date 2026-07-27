@@ -414,6 +414,13 @@ impl Parser<'_> {
                     value: self.lexeme(&token),
                 }))
             }
+            TokenKind::ByteLiteral => {
+                let token = self.bump();
+                Ok(Expr::ByteLiteral(LiteralExpr {
+                    span: token.span,
+                    value: self.lexeme(&token),
+                }))
+            }
             TokenKind::StringLiteral => {
                 let token = self.bump();
                 self.parse_string_literal_expression(token)
