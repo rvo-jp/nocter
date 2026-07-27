@@ -81,7 +81,7 @@ cargo test --manifest-path compiler/Cargo.toml --test example_corpus
 
 | Area | v0 decision | Complete when |
 |---|---|---|
-| Source loading, lexing, parser recovery | ship | All v0 tokens and item/expression forms parse or diagnose without panic. Legacy `import` / `from`, top-level `trait`, top-level `literal`, embedding declarations, `if let`, `while let`, `if var`, `while var`, `let ... else`, `var ... else`, `??`, and deferred `...` spread/rest/variadic forms produce removed/deferred-syntax diagnostics where they overlap parser grammar. |
+| Source loading, lexing, parser recovery | ship | All v0 tokens and item/expression forms parse or diagnose without panic. Legacy `import` / `from`, wildcard imports, source-level prelude imports, textual include, top-level `trait`, top-level `literal`, embedding declarations, `if let`, `while let`, `if var`, `while var`, `let ... else`, `var ... else`, `??`, and deferred `...` spread/rest/variadic forms produce removed/deferred-syntax diagnostics where they overlap parser grammar. |
 | Formatting | ship narrow | Comment-free v0 syntax formats idempotently. Comments may remain a formatter rejection boundary until comment preservation is implemented. |
 | Modules, `use`, visibility, prelude | ship | Namespace `use path`, selected `use`, grouped `use`, aliases, `pub use`, private-by-default visibility, `pub`, `pub(nocter)`, source-root lookup, Nocter-home lookup, compiler-managed prelude loading, shadowing rules, and distributed std loading are resolved by compiler-owned facts. |
 | Entry and CLI roots | ship | `main.nct` is the default root file for `build`, `run`, and `check`; `fmt` requires a file; root-file `main` is the entry function; `--entry` is rejected. |

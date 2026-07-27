@@ -48,6 +48,11 @@ impl Parser<'_> {
             return Err(());
         }
 
+        if self.at_identifier_text("include") {
+            self.error_current("textual include is not part of v0; use `use` imports");
+            return Err(());
+        }
+
         let visibility = self.parse_visibility()?;
         let is_copy = self.match_identifier_text("copy").is_some();
 
@@ -65,6 +70,11 @@ impl Parser<'_> {
 
         if self.at_identifier_text("from") || self.at_identifier_text("import") {
             self.error_current("`import` syntax has been removed; use `use` imports");
+            return Err(());
+        }
+
+        if self.at_identifier_text("include") {
+            self.error_current("textual include is not part of v0; use `use` imports");
             return Err(());
         }
 
@@ -300,6 +310,10 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_imported_name(&mut self, message: &str) -> ParseResult<ImportedName> {
+        if self.at_punctuation("*") {
+            self.error_current("wildcard imports are not part of v0");
+            return Err(());
+        }
         let name = self.expect_identifier(message)?;
         let mut end = name.span.end;
         let alias = if self.match_keyword(Keyword::As).is_some() {

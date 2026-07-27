@@ -76,6 +76,9 @@ The v0 parser rejects these forms with diagnostics instead of accepting them as
 partial language support:
 
 - `trait Name { ... }`
+- wildcard imports such as `use std/io.*` and `pub use std/io.*`
+- source-level prelude imports such as `use std/prelude`
+- textual include such as `include std/prelude`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
 - `literal Type [...]`

@@ -181,6 +181,43 @@ fn rejects_source_level_prelude_import_forms() {
 }
 
 #[test]
+fn diagnoses_wildcard_imports_as_deferred() {
+    for source in [
+        "use std/io.*\n",
+        "pub use std/io.*\n",
+        "use std/io.{print, *}\n",
+        "pub use std/io.{*}\n",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(output.diagnostics.len(), 1, "{source}");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("wildcard imports are not part of v0"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn diagnoses_textual_include_as_deferred() {
+    for source in ["include std/prelude\n", "pub include std/prelude\n"] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(output.diagnostics.len(), 1, "{source}");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("textual include is not part of v0"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
 fn parses_qualified_associated_functions_inherent_methods_and_generic_params() {
     let output = parse_text(
         r#"pub struct Counter {
@@ -624,6 +661,23 @@ fn parses_drop_as_ordinary_function_name() {
         panic!("expected function");
     };
     assert_eq!(function.name, "drop");
+}
+
+#[test]
+fn parses_include_as_ordinary_function_name() {
+    let output = parse_text(
+        r#"func include(): void {
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert_eq!(function.name, "include");
 }
 
 #[test]
