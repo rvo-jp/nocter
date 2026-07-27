@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `63e2ae5 Lower public borrow-to-pointer conversions`
   - `c4f9bb7 Reject unsupported scalar values before IR`
   - `248ee34 Promote u8 compound assignments`
-  - `ed61b60 Implement checked u8 arithmetic lowering`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
@@ -40,11 +40,23 @@ Recommended order:
 - `process.env` keeps the future `&str?!` API shape but is not runtime-shipped.
 - Bare string interpolation is parsed and typed, but buildability rejects it
   until an explicit allocator source is designed.
+- `std/ptr.addr`, `std/ptr.from_ref`, and `std/ptr.from_ref_mut` are public
+  runtime-shipped address conversions. `from_addr` and raw storage helpers
+  remain trusted `pub(nocter)` boundaries; pointer dereference is still
+  deferred.
 - `Vec<T>` supports scalar, `&str`, and current copy-aggregate element storage
   paths. Non-copy aggregate element drop glue, insertion/removal APIs, and
   iteration helpers remain deferred.
 - Interface declarations are contract-only. v0 has no interface dispatch,
   generic bounds, trait declarations, or code reuse through interfaces.
+
+## Recent Notes
+
+- Buildability signature checks now resolve substituted `TypeExpr` values by
+  source file. This matters for std generic helpers specialized with user
+  project aggregate types, such as `Vec<Pair>.push`.
+- Generic impl method specialization now carries the receiver-derived impl
+  substitutions into nested generic calls in the method body.
 
 ## Session Start
 
