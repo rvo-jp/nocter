@@ -79,6 +79,8 @@ partial language support:
 - wildcard imports such as `use std/io.*` and `pub use std/io.*`
 - source-level prelude imports such as `use std/prelude`
 - textual include such as `include std/prelude`
+- dotted module paths such as `use std.io.print`
+- explicit `.nct` extensions in import paths such as `use ./config.nct.Config`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
 - `literal Type [...]`

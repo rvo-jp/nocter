@@ -218,6 +218,26 @@ fn diagnoses_textual_include_as_deferred() {
 }
 
 #[test]
+fn diagnoses_dotted_import_paths_as_removed() {
+    for source in [
+        "use std.io.print\n",
+        "pub use std.io.print\n",
+        "use ./config.nct.Config\n",
+    ] {
+        let output = parse_text(source);
+        assert!(output.ast.is_none(), "{source}");
+        assert_eq!(output.diagnostics.len(), 1, "{source}");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("dotted module paths are not part of v0"),
+            "{source}: {:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
 fn parses_qualified_associated_functions_inherent_methods_and_generic_params() {
     let output = parse_text(
         r#"pub struct Counter {

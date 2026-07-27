@@ -286,6 +286,13 @@ impl Parser<'_> {
                 (vec![name], end)
             };
 
+            if self.at_punctuation(".") {
+                self.error_current(
+                    "dotted module paths are not part of v0; use `/` between module path segments",
+                );
+                return Err(());
+            }
+
             return Ok(Item::FromImport(FromImportItem {
                 span: self.span(start.span.start, end),
                 visibility,
