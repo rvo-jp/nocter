@@ -48,6 +48,7 @@ pub(super) fn v0_buildability_diagnostics(
             sources,
             root_source,
             &index.names,
+            &index.resolved_sources,
             nocter_home,
             &mut queue,
             &mut diagnostics,
@@ -60,6 +61,7 @@ pub(super) fn v0_buildability_diagnostics(
 struct CallableIndex<'a> {
     definitions: HashMap<CallTarget, IndexedCallable<'a>>,
     names: HashMap<ByteSpan, String>,
+    resolved_sources: ResolvedSources<'a>,
 }
 
 type ResolvedSources<'a> = HashMap<SourceId, &'a ResolveOutput>;
@@ -235,7 +237,11 @@ impl<'a> CallableIndex<'a> {
             }
         }
 
-        Self { definitions, names }
+        Self {
+            definitions,
+            names,
+            resolved_sources,
+        }
     }
 
     fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
@@ -468,6 +474,7 @@ fn collect_callable_diagnostics(
     sources: &SourceMap,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -491,6 +498,7 @@ fn collect_callable_diagnostics(
         &callable.substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -527,6 +535,7 @@ fn collect_terminal_return_block_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -540,6 +549,7 @@ fn collect_terminal_return_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -554,6 +564,7 @@ fn collect_terminal_return_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -569,6 +580,7 @@ fn collect_block_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -582,6 +594,7 @@ fn collect_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -596,6 +609,7 @@ fn collect_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -611,6 +625,7 @@ fn collect_terminal_return_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -632,6 +647,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -653,6 +669,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -674,6 +691,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -688,6 +706,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -700,6 +719,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -713,6 +733,7 @@ fn collect_terminal_return_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -728,6 +749,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -740,6 +762,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -753,6 +776,7 @@ fn collect_terminal_return_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -768,6 +792,7 @@ fn collect_terminal_return_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -781,6 +806,7 @@ fn collect_terminal_return_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -795,6 +821,7 @@ fn collect_terminal_return_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -809,6 +836,7 @@ fn collect_terminal_return_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -824,6 +852,7 @@ fn collect_value_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -838,6 +867,7 @@ fn collect_value_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -850,6 +880,7 @@ fn collect_value_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -863,6 +894,7 @@ fn collect_value_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -878,6 +910,7 @@ fn collect_value_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -890,6 +923,7 @@ fn collect_value_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -903,6 +937,7 @@ fn collect_value_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -918,6 +953,7 @@ fn collect_value_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -931,6 +967,7 @@ fn collect_value_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -945,6 +982,7 @@ fn collect_value_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -959,6 +997,7 @@ fn collect_value_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -974,6 +1013,7 @@ fn collect_value_block_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -987,6 +1027,7 @@ fn collect_value_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1003,6 +1044,7 @@ fn collect_value_block_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1017,6 +1059,7 @@ fn collect_void_effect_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1038,6 +1081,7 @@ fn collect_void_effect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -1059,6 +1103,7 @@ fn collect_void_effect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -1080,6 +1125,7 @@ fn collect_void_effect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -1103,6 +1149,7 @@ fn collect_void_effect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -1119,6 +1166,7 @@ fn collect_void_effect_if_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1131,6 +1179,7 @@ fn collect_void_effect_if_expression_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1143,6 +1192,7 @@ fn collect_void_effect_if_expression_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1156,6 +1206,7 @@ fn collect_void_effect_if_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1171,6 +1222,7 @@ fn collect_void_effect_if_is_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1183,6 +1235,7 @@ fn collect_void_effect_if_is_expression_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1195,6 +1248,7 @@ fn collect_void_effect_if_is_expression_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1208,6 +1262,7 @@ fn collect_void_effect_if_is_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1223,6 +1278,7 @@ fn collect_void_effect_match_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1235,6 +1291,7 @@ fn collect_void_effect_match_expression_diagnostics(
         generic_substitutions,
         root_source,
         names,
+        resolved_sources,
         nocter_home,
         queue,
         diagnostics,
@@ -1248,6 +1305,7 @@ fn collect_void_effect_match_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1262,6 +1320,7 @@ fn collect_void_effect_match_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1277,6 +1336,7 @@ fn collect_void_effect_block_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1290,6 +1350,7 @@ fn collect_void_effect_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -1304,6 +1365,7 @@ fn collect_void_effect_block_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -2394,6 +2456,7 @@ fn collect_statement_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -2410,6 +2473,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2439,6 +2503,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2452,6 +2517,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2496,6 +2562,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2513,6 +2580,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2526,6 +2594,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2541,6 +2610,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2553,6 +2623,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2566,6 +2637,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2589,6 +2661,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2601,6 +2674,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2614,6 +2688,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2637,6 +2712,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2650,6 +2726,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2664,6 +2741,7 @@ fn collect_statement_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -2687,6 +2765,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2699,6 +2778,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2711,6 +2791,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2725,6 +2806,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2737,6 +2819,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2751,6 +2834,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -2774,6 +2858,7 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3210,6 +3295,7 @@ fn collect_expression_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -3238,6 +3324,7 @@ fn collect_expression_diagnostics(
                         generic_substitutions,
                         root_source,
                         names,
+                        resolved_sources,
                         nocter_home,
                         queue,
                         diagnostics,
@@ -3261,6 +3348,7 @@ fn collect_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -3281,6 +3369,7 @@ fn collect_expression_diagnostics(
                         generic_substitutions,
                         root_source,
                         names,
+                        resolved_sources,
                         nocter_home,
                         queue,
                         diagnostics,
@@ -3294,6 +3383,7 @@ fn collect_expression_diagnostics(
                         generic_substitutions,
                         root_source,
                         names,
+                        resolved_sources,
                         nocter_home,
                         queue,
                         diagnostics,
@@ -3309,6 +3399,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3321,6 +3412,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3334,6 +3426,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3346,6 +3439,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3359,6 +3453,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3371,6 +3466,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3384,6 +3480,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3396,6 +3493,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3409,6 +3507,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3427,6 +3526,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 nocter_home,
@@ -3489,6 +3589,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3522,6 +3623,7 @@ fn collect_expression_diagnostics(
                         generic_substitutions,
                         root_source,
                         names,
+                        resolved_sources,
                         nocter_home,
                         queue,
                         diagnostics,
@@ -3535,6 +3637,7 @@ fn collect_expression_diagnostics(
                         generic_substitutions,
                         root_source,
                         names,
+                        resolved_sources,
                         nocter_home,
                         queue,
                         diagnostics,
@@ -3568,6 +3671,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3592,6 +3696,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3604,6 +3709,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3617,6 +3723,7 @@ fn collect_expression_diagnostics(
             generic_substitutions,
             root_source,
             names,
+            resolved_sources,
             nocter_home,
             queue,
             diagnostics,
@@ -3630,6 +3737,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3642,6 +3750,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3662,6 +3771,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3674,6 +3784,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3687,6 +3798,7 @@ fn collect_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -3708,6 +3820,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3720,6 +3833,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3733,6 +3847,7 @@ fn collect_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -3754,6 +3869,7 @@ fn collect_expression_diagnostics(
                 generic_substitutions,
                 root_source,
                 names,
+                resolved_sources,
                 nocter_home,
                 queue,
                 diagnostics,
@@ -3767,6 +3883,7 @@ fn collect_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -3781,6 +3898,7 @@ fn collect_expression_diagnostics(
                     generic_substitutions,
                     root_source,
                     names,
+                    resolved_sources,
                     nocter_home,
                     queue,
                     diagnostics,
@@ -4230,6 +4348,7 @@ fn unsupported_std_vec_element_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     nocter_home: Option<&Path>,
@@ -4241,7 +4360,7 @@ fn unsupported_std_vec_element_call_diagnostic(
         generic_substitutions,
         nocter_home,
     )?;
-    if type_expr_is_supported_std_vec_element_storage(&element, resolved, call.span.source) {
+    if type_expr_is_supported_std_vec_element_storage(&element, resolved, resolved_sources) {
         return None;
     }
 
@@ -4329,40 +4448,66 @@ fn std_vec_element_storage_type(
 
 fn type_expr_is_supported_std_vec_element_storage(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    current_source: SourceId,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
-    if type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    if type_expr_slice_element_kind_with_resolver(ty, fallback_resolved, &source_resolver)
+        != TypecheckSliceElementKind::Other
+    {
         return true;
     }
 
-    if ty.span().source != current_source {
-        return true;
-    }
-
-    type_expr_is_supported_copy_aggregate_vec_element(ty, resolved)
+    type_expr_is_supported_copy_aggregate_vec_element_with_resolver(
+        ty,
+        fallback_resolved,
+        &source_resolver,
+    )
 }
 
 fn type_expr_is_supported_copy_aggregate_vec_element(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> bool {
-    let Ok(value) = abi_value_from_type_expr(ty, resolved) else {
+    type_expr_is_supported_copy_aggregate_vec_element_with_resolver(ty, resolved, &|_| {
+        Some(resolved)
+    })
+}
+
+fn type_expr_is_supported_copy_aggregate_vec_element_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
         return false;
     };
     if !matches!(value.ty, AbiType::Struct(_)) || value.layout.size == 0 {
         return false;
     }
-    type_expr_is_copy_struct_for_vec_element(ty, resolved, &mut HashSet::new())
+    type_expr_is_copy_struct_for_vec_element_with_resolver(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
 }
 
-fn type_expr_is_copy_struct_for_vec_element(
+fn type_expr_is_copy_struct_for_vec_element_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
@@ -4378,8 +4523,12 @@ fn type_expr_is_copy_struct_for_vec_element(
                     if !resolving_names.insert(symbol.canonical_name.clone()) {
                         return false;
                     }
-                    let is_copy =
-                        type_expr_is_copy_struct_for_vec_element(target, resolved, resolving_names);
+                    let is_copy = type_expr_is_copy_struct_for_vec_element_with_resolver(
+                        target,
+                        fallback_resolved,
+                        resolver,
+                        resolving_names,
+                    );
                     resolving_names.remove(&symbol.canonical_name);
                     is_copy
                 }
@@ -4387,6 +4536,7 @@ fn type_expr_is_copy_struct_for_vec_element(
             }
         }
         TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
                 return false;
             };
@@ -4409,9 +4559,10 @@ fn type_expr_is_copy_struct_for_vec_element(
                         return false;
                     }
                     let target = substitute_type_expr_parameters(target, &substitutions);
-                    let is_copy = type_expr_is_copy_struct_for_vec_element(
+                    let is_copy = type_expr_is_copy_struct_for_vec_element_with_resolver(
                         &target,
-                        resolved,
+                        fallback_resolved,
+                        resolver,
                         resolving_names,
                     );
                     resolving_names.remove(&symbol.canonical_name);
@@ -4420,12 +4571,18 @@ fn type_expr_is_copy_struct_for_vec_element(
                 TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
             }
         }
-        TypeExpr::Fallible(fallible) => {
-            type_expr_is_copy_struct_for_vec_element(&fallible.success, resolved, resolving_names)
-        }
-        TypeExpr::Optional(optional) => {
-            type_expr_is_copy_struct_for_vec_element(&optional.inner, resolved, resolving_names)
-        }
+        TypeExpr::Fallible(fallible) => type_expr_is_copy_struct_for_vec_element_with_resolver(
+            &fallible.success,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_is_copy_struct_for_vec_element_with_resolver(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
         _ => false,
     }
 }
@@ -4434,14 +4591,29 @@ fn type_expr_slice_element_kind(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> TypecheckSliceElementKind {
-    type_expr_slice_element_kind_inner(ty, resolved, &mut HashSet::new())
+    type_expr_slice_element_kind_with_resolver(ty, resolved, &|_| Some(resolved))
 }
 
-fn type_expr_slice_element_kind_inner(
+fn type_expr_slice_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> TypecheckSliceElementKind
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_slice_element_kind_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_slice_element_kind_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> TypecheckSliceElementKind {
+) -> TypecheckSliceElementKind
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => TypecheckSliceElementKind::I32,
         TypeExpr::Reference(reference) if reference.name == "u8" => TypecheckSliceElementKind::U8,
@@ -4452,11 +4624,17 @@ fn type_expr_slice_element_kind_inner(
             TypecheckSliceElementKind::Bool
         }
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
+            if !borrow.is_readwrite
+                && type_expr_resolves_to_str_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                ) =>
         {
             TypecheckSliceElementKind::Str
         }
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return TypecheckSliceElementKind::Other;
             };
@@ -4469,7 +4647,12 @@ fn type_expr_slice_element_kind_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return TypecheckSliceElementKind::Other;
             }
-            let kind = type_expr_slice_element_kind_inner(target, resolved, resolving_names);
+            let kind = type_expr_slice_element_kind_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             kind
         }

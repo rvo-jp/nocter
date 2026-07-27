@@ -1,7 +1,6 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::ast::{
-    CallExpr, Expr, MemberExpr, TypeExpr, TypeReference, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -373,9 +372,6 @@ impl<'a> LoweringContext<'a> {
         if let Some(return_type) = self.method_call_return_type_expr(call) {
             return Some(return_type);
         }
-        if let Some(return_type) = self.primitive_call_return_type_expr(call) {
-            return Some(return_type);
-        }
 
         let resolution = self.call_resolution.as_ref()?;
         let signature = resolution.resolved.call_signature_for_call(call)?;
@@ -393,25 +389,6 @@ impl<'a> LoweringContext<'a> {
             &return_type,
             &self.generic_substitutions,
         ))
-    }
-
-    fn primitive_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
-        if let Some(signature) = self
-            .call_resolution
-            .as_ref()
-            .and_then(|resolution| resolution.resolved.call_signature_for_call(call))
-        {
-            return Some(signature.return_type.clone());
-        }
-
-        match self.primitive_name_for_call(call)? {
-            "syscall0" | "syscall1" | "syscall2" | "syscall3" | "syscall4" | "syscall5"
-            | "syscall6" => Some(TypeExpr::Reference(TypeReference {
-                span: call.span,
-                name: "std/os.SyscallResult".to_string(),
-            })),
-            _ => None,
-        }
     }
 
     pub(super) fn function_call_type_substitution(

@@ -75,9 +75,13 @@ Recommended order:
   construction before IR lowering. The integer literal decoder is shared with
   type checking, so decimal, hex, binary, and underscored zero spellings use the
   same interpretation.
-- Buildability signature checks now resolve substituted `TypeExpr` values by
-  source file. This matters for std generic helpers specialized with user
-  project aggregate types, such as `Vec<Pair>.push`.
+- Buildability signature and std `Vec<T>` element-storage checks now resolve
+  substituted `TypeExpr` values by source file. This matters for std generic
+  helpers specialized with user project aggregate types, such as
+  `Vec<Pair>.push` and `Vec.with_capacity` through a user generic wrapper.
+- IR lowering now applies function call specializations before deriving call
+  return `TypeExpr` values, so drop glue for aggregate results targets concrete
+  drop functions such as `Vec<Pair>.drop` instead of `Vec<T>.drop`.
 - Generic impl method specialization now carries the receiver-derived impl
   substitutions into nested generic calls in the method body.
 

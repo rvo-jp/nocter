@@ -1496,6 +1496,125 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_std_vec_builds_cross_source_generic_copy_aggregate_with_capacity() {
+    let project =
+        TempProject::new("distributed-home-vec-cross-source-generic-copy-aggregate-capacity");
+    project.write_source(
+        "types.nct",
+        r#"pub copy struct Pair {
+    pub value: i32
+}
+"#,
+    );
+    project.write_source(
+        "factory.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+pub func make<T>(seed: T): Vec<T>! {
+    var allocator = page_allocator()
+    return Vec.with_capacity(&+allocator, 1)?
+}
+"#,
+    );
+    let source = project.write_source(
+        "app.nct",
+        r#"use std/vec.Vec
+use ./factory.make
+use ./types.Pair
+
+func main(): i32! {
+    let values: Vec<Pair> = make(Pair { value: 1 })?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("app");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        executable.exists(),
+        "build should produce an executable for cross-source generic copy aggregate Vec.with_capacity"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_cross_source_generic_non_copy_aggregate_with_capacity() {
+    let project =
+        TempProject::new("distributed-home-vec-cross-source-generic-non-copy-aggregate-capacity");
+    project.write_source(
+        "types.nct",
+        r#"pub struct Text {
+    pub value: &str
+}
+"#,
+    );
+    project.write_source(
+        "factory.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+pub func make<T>(seed: T): Vec<T>! {
+    var allocator = page_allocator()
+    return Vec.with_capacity(&+allocator, 1)?
+}
+"#,
+    );
+    let source = project.write_source(
+        "app.nct",
+        r#"use std/vec.Vec
+use ./factory.make
+use ./types.Text
+
+func main(): i32! {
+    let values: Vec<Text> = make(Text { value: "x" })?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("app");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr
+            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
+        "expected Vec element storage diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
+        "expected factory source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn distributed_std_vec_builds_copy_aggregate_reserve() {
     let project = TempProject::new("distributed-home-vec-aggregate-reserve-boundary");
     let source = project.write_source(
