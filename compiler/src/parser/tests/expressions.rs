@@ -699,7 +699,7 @@ fn diagnoses_relative_and_absolute_module_path_expressions_as_use_only() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("module paths are only valid in `use` declarations"),
+                .contains("introduce the module namespace with `use`"),
             "{source}: {:?}",
             output.diagnostics
         );

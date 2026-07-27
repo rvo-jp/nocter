@@ -60,12 +60,12 @@ impl Parser<'_> {
         }
 
         if self.at_identifier_text("from") || self.at_identifier_text("import") {
-            self.error_current("`import` syntax has been removed; use `use` imports");
+            self.error_current("`import` syntax has been removed; write a `use` declaration");
             return Err(());
         }
 
         if self.at_identifier_text("include") {
-            self.error_current("textual include is not part of v0; use `use` imports");
+            self.error_current("textual include is not part of v0; write a `use` declaration");
             return Err(());
         }
 
@@ -85,12 +85,12 @@ impl Parser<'_> {
         }
 
         if self.at_identifier_text("from") || self.at_identifier_text("import") {
-            self.error_current("`import` syntax has been removed; use `use` imports");
+            self.error_current("`import` syntax has been removed; write a `use` declaration");
             return Err(());
         }
 
         if self.at_identifier_text("include") {
-            self.error_current("textual include is not part of v0; use `use` imports");
+            self.error_current("textual include is not part of v0; write a `use` declaration");
             return Err(());
         }
 

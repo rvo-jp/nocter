@@ -26,7 +26,8 @@ The buildable subset remains narrower than the checked subset. Code outside the
 runtime subset should fail through buildability diagnostics before IR or backend
 emission. Reachable callable signatures, local bindings, and field member value
 uses that mention storage-only scalar types such as `u16` or `u32` are rejected
-at this boundary instead of surfacing as IR lowering errors.
+at this boundary instead of surfacing as IR lowering errors. Reachable array
+literals and bare string interpolation are also rejected at the same boundary.
 
 ## Implemented Capability
 

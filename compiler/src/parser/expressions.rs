@@ -458,14 +458,14 @@ impl Parser<'_> {
             TokenKind::Punctuation(".") if self.at_relative_module_path_expression() => {
                 self.error_at(
                     self.current().span,
-                    "module paths are only valid in `use` declarations; import the module before using it",
+                    "module paths are only valid in `use` declarations; introduce the module namespace with `use` before using it",
                 );
                 Err(())
             }
             TokenKind::Punctuation("/") if self.at_absolute_module_path_expression() => {
                 self.error_at(
                     self.current().span,
-                    "module paths are only valid in `use` declarations; import the module before using it",
+                    "module paths are only valid in `use` declarations; introduce the module namespace with `use` before using it",
                 );
                 Err(())
             }

@@ -67,6 +67,49 @@ fn fmt_check_accepts_formatted_source() {
 }
 
 #[test]
+fn fmt_command_formats_block_use_declarations() {
+    let project = TempProject::new("cli-fmt-block-use");
+    let source = project.write_source(
+        "app.nct",
+        r#"func greet(  ):void{use std/io.{print,write as output}
+print("hello")
+output("done")
+return}
+"#,
+    );
+
+    let output = nocter(&project, ["fmt", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "stdout:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(source).unwrap(),
+        concat!(
+            "func greet(): void {\n",
+            "    use std/io.{print, write as output}\n",
+            "    print(\"hello\")\n",
+            "    output(\"done\")\n",
+            "    return\n",
+            "}\n",
+        )
+    );
+}
+
+#[test]
 fn fmt_check_reports_unformatted_source_without_rewriting() {
     let project = TempProject::new("cli-fmt-check-fail");
     let original = "func main(  ):i32{return 0}\n";

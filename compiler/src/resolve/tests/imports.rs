@@ -162,6 +162,37 @@ func debug(): void {
 }
 
 #[test]
+fn block_scoped_imports_cannot_shadow_parameters() {
+    let output = resolve_text(
+        r#"func debug(print: i32): i32 {
+    use std/io.print
+    return print
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0400");
+    assert!(output.diagnostics[0].message.contains("print"));
+}
+
+#[test]
+fn locals_cannot_shadow_block_scoped_imports() {
+    let output = resolve_text(
+        r#"func debug(): i32 {
+    use std/io.print
+    let print = 0
+    return print
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0400");
+    assert!(output.diagnostics[0].message.contains("print"));
+}
+
+#[test]
 fn block_scoped_import_aliases_can_avoid_shadowing_outer_imports() {
     let output = resolve_text(
         r#"use std/io.print
