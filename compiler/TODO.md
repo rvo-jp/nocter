@@ -8,9 +8,9 @@ Durable design belongs in `docs/`; user-facing language rules belong in
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `c70a569 Reject null from_addr during buildability`
   - `886218c Tighten use diagnostics and buildability coverage`
   - `63e2ae5 Lower public borrow-to-pointer conversions`
-  - `c4f9bb7 Reject unsupported scalar values before IR`
 - The current standard-library distribution lives under `../.nocter/std`.
 - The active v0 completion definition is `docs/v0-closure.md`.
 - Current implementation capability is summarized in
@@ -58,6 +58,10 @@ Recommended order:
 - CLI coverage now pins bare string interpolation as a source-backed E0435
   buildability rejection before IR lowering, and `fmt` now has coverage for
   block-scope grouped `use` declarations.
+- Buildability now rejects trusted `std/ptr.from_addr(0)` as null raw pointer
+  construction before IR lowering. The integer literal decoder is shared with
+  type checking, so decimal, hex, binary, and underscored zero spellings use the
+  same interpretation.
 - Buildability signature checks now resolve substituted `TypeExpr` values by
   source file. This matters for std generic helpers specialized with user
   project aggregate types, such as `Vec<Pair>.push`.
