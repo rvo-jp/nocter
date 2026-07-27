@@ -119,6 +119,21 @@ impl Parser<'_> {
             return Err(());
         }
 
+        if self.at_identifier_text("literal") {
+            if target.is_some() {
+                self.error_current(
+                    "`#target` applies only to function, primitive, or type declarations in v0",
+                );
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations in v0");
+                return Err(());
+            }
+            self.error_current("literal definitions are not part of v0");
+            return Err(());
+        }
+
         if self.at_keyword(Keyword::Impl) {
             if target.is_some() {
                 self.error_current(

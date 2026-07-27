@@ -627,6 +627,41 @@ fn parses_trait_as_ordinary_function_name() {
 }
 
 #[test]
+fn parses_literal_as_ordinary_function_name() {
+    let output = parse_text(
+        r#"func literal(): void {
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert_eq!(function.name, "literal");
+}
+
+#[test]
+fn diagnoses_literal_definitions_as_deferred() {
+    let output = parse_text(
+        r#"literal Vec<T> [...items: [T]]: Self {
+    return Self.empty()
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("literal definitions are not part of v0")
+    );
+}
+
+#[test]
 fn parses_relative_import_paths() {
     let output = parse_text(
         r#"use ./config.Config
