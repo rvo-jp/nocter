@@ -1,5 +1,8 @@
+use super::body::Scope;
+use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
-    missing_import_diagnostic, restricted_import_diagnostic, unloaded_import_diagnostic,
+    builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic, missing_import_diagnostic,
+    restricted_import_diagnostic, unloaded_import_diagnostic,
 };
 use super::module_index::is_relative_module_path;
 use super::signatures::{
@@ -142,6 +145,176 @@ impl Resolver<'_> {
                 }),
             );
         }
+    }
+
+    pub(super) fn collect_scoped_import_namespace_symbol(
+        &mut self,
+        item: &ImportItem,
+        scope: &mut Scope,
+    ) {
+        let import_source = self
+            .module_index
+            .import_ast_for_span(item.path.span, self.import_sources)
+            .map(|(_, source)| source);
+
+        if import_source.is_none() && is_relative_module_path(&item.path.value) {
+            self.output.diagnostics.push(unloaded_import_diagnostic(
+                self.sources,
+                &item.path.value,
+                item.alias.span,
+            ));
+            return;
+        }
+
+        self.define_scoped_symbol(
+            item.alias.name.clone(),
+            item.alias.span,
+            item.path.span,
+            SymbolKind::Imported(ImportedSymbol {
+                path: item.path.value.clone(),
+                source: import_source.map(|source| source.source),
+                access: import_source.map(|source| source.access),
+                kind: ImportedSymbolKind::Namespace,
+            }),
+            scope,
+        );
+    }
+
+    pub(super) fn collect_scoped_imported_symbols(
+        &mut self,
+        item: &FromImportItem,
+        scope: &mut Scope,
+    ) {
+        if let Some((imported_ast, import_source)) =
+            self.module_index.import_ast(item, self.import_sources)
+        {
+            self.collect_loaded_scoped_imported_symbols(
+                item,
+                imported_ast,
+                import_source.access,
+                scope,
+            );
+            return;
+        }
+
+        if is_relative_module_path(&item.path.value) {
+            self.report_unloaded_imported_symbols(item);
+            return;
+        }
+
+        for name in &item.names {
+            self.define_scoped_symbol(
+                name.local_name().to_string(),
+                name.local_span(),
+                item.span,
+                SymbolKind::Imported(ImportedSymbol {
+                    path: item.path.value.clone(),
+                    source: None,
+                    access: None,
+                    kind: ImportedSymbolKind::UnloadedName,
+                }),
+                scope,
+            );
+        }
+    }
+
+    fn collect_loaded_scoped_imported_symbols(
+        &mut self,
+        item: &FromImportItem,
+        imported_ast: &AstFile,
+        access: ImportAccess,
+        scope: &mut Scope,
+    ) {
+        for name in &item.names {
+            match self.find_importable_symbol(imported_ast, &name.name) {
+                Some(imported) if imported.is_visible_to(access) => {
+                    let imported = filter_importable_symbol_for_access(imported, access);
+                    let dependency_imported_type_names = imported.imported_type_names.clone();
+                    let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
+                    let dependency_type_names = imported.local_type_names.clone();
+                    self.define_scoped_symbol(
+                        name.local_name().to_string(),
+                        name.local_span(),
+                        imported.declaration_span,
+                        imported.kind,
+                        scope,
+                    );
+                    self.collect_hidden_imported_type_symbols(
+                        imported_ast,
+                        &item.path.value,
+                        access,
+                        &dependency_type_names,
+                    );
+                    self.collect_hidden_imported_type_dependencies(&dependency_imported_type_names);
+                }
+                Some(imported) => {
+                    self.output.diagnostics.push(restricted_import_diagnostic(
+                        self.sources,
+                        &name.name,
+                        &item.path.value,
+                        imported.visibility,
+                        name.name_span,
+                        imported.declaration_span,
+                    ));
+                }
+                None => {
+                    self.output.diagnostics.push(missing_import_diagnostic(
+                        self.sources,
+                        &name.name,
+                        &item.path.value,
+                        name.name_span,
+                    ));
+                }
+            }
+        }
+    }
+
+    fn define_scoped_symbol(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+        scope: &mut Scope,
+    ) {
+        if is_builtin_type_name(&name) {
+            self.output.diagnostics.push(builtin_name_reuse_diagnostic(
+                self.sources,
+                &name,
+                name_span,
+            ));
+            return;
+        }
+
+        if let Some(first_span) = scope.get(&name) {
+            self.output
+                .diagnostics
+                .push(duplicate_visible_name_diagnostic(
+                    self.sources,
+                    &name,
+                    first_span,
+                    name_span,
+                ));
+            return;
+        }
+
+        if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
+            self.output
+                .diagnostics
+                .push(duplicate_visible_name_diagnostic(
+                    self.sources,
+                    &name,
+                    symbol.name_span,
+                    name_span,
+                ));
+            return;
+        }
+
+        let id = self
+            .output
+            .symbols
+            .define_hidden(name.clone(), name_span, declaration_span, kind);
+        scope.define_symbol(name, name_span, id);
     }
 
     fn collect_loaded_imported_symbols(

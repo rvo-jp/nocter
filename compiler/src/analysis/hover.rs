@@ -210,21 +210,200 @@ pub(crate) fn definition_span_for_ast(
 }
 
 pub(crate) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
-    ast.items.iter().find_map(|item| {
-        let path = match item {
-            Item::Import(item) => &item.path,
-            Item::FromImport(item) => &item.path,
-            Item::Function(_)
-            | Item::Primitive(_)
-            | Item::TypeAlias(_)
-            | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_)
-            | Item::Impl(_) => return None,
-        };
+    ast.items
+        .iter()
+        .find_map(|item| module_path_in_item_at_offset(item, offset))
+}
 
-        span_contains(path.span, offset).then_some(path)
-    })
+fn module_path_in_item_at_offset(item: &Item, offset: usize) -> Option<&ModulePath> {
+    match item {
+        Item::Import(item) => path_if_at_offset(&item.path, offset),
+        Item::FromImport(item) => path_if_at_offset(&item.path, offset),
+        Item::Function(function) => module_path_in_block_at_offset(&function.body, offset),
+        Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
+            ImplMember::Method(method) => method
+                .body
+                .as_ref()
+                .and_then(|body| module_path_in_block_at_offset(body, offset)),
+            ImplMember::Drop(drop_) => module_path_in_block_at_offset(&drop_.body, offset),
+        }),
+        Item::Primitive(_)
+        | Item::TypeAlias(_)
+        | Item::Struct(_)
+        | Item::Enum(_)
+        | Item::Interface(_) => None,
+    }
+}
+
+fn module_path_in_block_at_offset(block: &Block, offset: usize) -> Option<&ModulePath> {
+    block
+        .statements
+        .iter()
+        .find_map(|statement| module_path_in_statement_at_offset(statement, offset))
+        .or_else(|| {
+            block
+                .result
+                .as_deref()
+                .and_then(|result| module_path_in_expression_at_offset(result, offset))
+        })
+}
+
+fn module_path_in_statement_at_offset(statement: &Stmt, offset: usize) -> Option<&ModulePath> {
+    match statement {
+        Stmt::Import(statement) => path_if_at_offset(&statement.path, offset),
+        Stmt::FromImport(statement) => path_if_at_offset(&statement.path, offset),
+        Stmt::Return(statement) => statement
+            .expression
+            .as_ref()
+            .and_then(|expression| module_path_in_expression_at_offset(expression, offset)),
+        Stmt::Binding(statement) => {
+            module_path_in_expression_at_offset(&statement.initializer, offset)
+        }
+        Stmt::Assignment(statement) => {
+            module_path_in_expression_at_offset(&statement.target, offset)
+                .or_else(|| module_path_in_expression_at_offset(&statement.value, offset))
+        }
+        Stmt::If(statement) => module_path_in_expression_at_offset(&statement.condition, offset)
+            .or_else(|| module_path_in_block_at_offset(&statement.then_block, offset))
+            .or_else(|| {
+                statement
+                    .else_block
+                    .as_ref()
+                    .and_then(|block| module_path_in_block_at_offset(block, offset))
+            }),
+        Stmt::IfIs(statement) => module_path_in_expression_at_offset(&statement.expression, offset)
+            .or_else(|| module_path_in_block_at_offset(&statement.then_block, offset))
+            .or_else(|| {
+                statement
+                    .else_block
+                    .as_ref()
+                    .and_then(|block| module_path_in_block_at_offset(block, offset))
+            }),
+        Stmt::Switch(statement) => {
+            module_path_in_expression_at_offset(&statement.expression, offset)
+                .or_else(|| {
+                    statement
+                        .arms
+                        .iter()
+                        .find_map(|arm| module_path_in_block_at_offset(&arm.body, offset))
+                })
+                .or_else(|| {
+                    statement
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| module_path_in_block_at_offset(&arm.body, offset))
+                })
+        }
+        Stmt::ForRange(statement) => module_path_in_expression_at_offset(&statement.start, offset)
+            .or_else(|| module_path_in_expression_at_offset(&statement.end, offset))
+            .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
+        Stmt::While(statement) => module_path_in_expression_at_offset(&statement.condition, offset)
+            .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
+        Stmt::Loop(statement) => module_path_in_block_at_offset(&statement.body, offset),
+        Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
+        Stmt::Expression(statement) => {
+            module_path_in_expression_at_offset(&statement.expression, offset)
+        }
+    }
+}
+
+fn module_path_in_expression_at_offset(expression: &Expr, offset: usize) -> Option<&ModulePath> {
+    match expression {
+        Expr::InterpolatedString(expression) => {
+            expression.parts.iter().find_map(|part| match part {
+                InterpolatedStringPart::Expression(part) => {
+                    module_path_in_expression_at_offset(&part.expression, offset)
+                }
+                InterpolatedStringPart::Text(_) => None,
+            })
+        }
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| module_path_in_expression_at_offset(element, offset)),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .find_map(|field| module_path_in_expression_at_offset(&field.value, offset)),
+        Expr::Propagate(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+        }
+        Expr::Force(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+        }
+        Expr::Catch(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+                .or_else(|| module_path_in_block_at_offset(&expression.catch_block, offset))
+        }
+        Expr::Borrow(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+        }
+        Expr::Unary(expression) => module_path_in_expression_at_offset(&expression.operand, offset),
+        Expr::Binary(expression) => module_path_in_expression_at_offset(&expression.left, offset)
+            .or_else(|| module_path_in_expression_at_offset(&expression.right, offset)),
+        Expr::TypeConversion(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+        }
+        Expr::Call(expression) => module_path_in_expression_at_offset(&expression.callee, offset)
+            .or_else(|| {
+                expression
+                    .arguments
+                    .iter()
+                    .find_map(|argument| module_path_in_expression_at_offset(argument, offset))
+            }),
+        Expr::Member(expression) => module_path_in_expression_at_offset(&expression.object, offset),
+        Expr::Index(expression) => module_path_in_expression_at_offset(&expression.object, offset)
+            .or_else(|| module_path_in_expression_at_offset(&expression.index, offset)),
+        Expr::Group(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+        }
+        Expr::Otherwise(expression) => {
+            module_path_in_expression_at_offset(&expression.value, offset)
+                .or_else(|| module_path_in_block_at_offset(&expression.fallback, offset))
+        }
+        Expr::If(expression) => module_path_in_expression_at_offset(&expression.condition, offset)
+            .or_else(|| module_path_in_block_at_offset(&expression.then_block, offset))
+            .or_else(|| {
+                expression
+                    .else_block
+                    .as_ref()
+                    .and_then(|block| module_path_in_block_at_offset(block, offset))
+            }),
+        Expr::IfIs(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+                .or_else(|| module_path_in_block_at_offset(&expression.then_block, offset))
+                .or_else(|| {
+                    expression
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| module_path_in_block_at_offset(block, offset))
+                })
+        }
+        Expr::Match(expression) => {
+            module_path_in_expression_at_offset(&expression.expression, offset)
+                .or_else(|| {
+                    expression
+                        .arms
+                        .iter()
+                        .find_map(|arm| module_path_in_block_at_offset(&arm.body, offset))
+                })
+                .or_else(|| {
+                    expression
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| module_path_in_block_at_offset(&arm.body, offset))
+                })
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => None,
+    }
+}
+
+fn path_if_at_offset(path: &ModulePath, offset: usize) -> Option<&ModulePath> {
+    span_contains(path.span, offset).then_some(path)
 }
 
 fn module_path_hover_for_ast(
@@ -641,6 +820,7 @@ fn collect_block_hover_symbols(text: &str, block: &Block, symbols: &mut Vec<Hove
 
 fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut Vec<HoverSymbol>) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_expression_hover_symbols(text, expression, symbols);

@@ -2,8 +2,8 @@ use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
-    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, LoopStmt, ReturnStmt, Stmt,
-    SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileStmt,
+    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, Item, LoopStmt, ReturnStmt,
+    Stmt, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, Visibility, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -12,6 +12,7 @@ impl Parser<'_> {
         let start = self.expect_punctuation("{", "`{`")?;
         let mut statements = Vec::new();
         let mut result = None;
+        let mut allow_use = true;
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -20,8 +21,11 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            let statement = self.parse_statement()?;
+            let statement = self.parse_statement(allow_use)?;
             self.skip_newlines();
+            if !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)) {
+                allow_use = false;
+            }
             if self.at_punctuation("}") {
                 match statement_into_block_result(statement) {
                     Ok(expression) => {
@@ -43,8 +47,21 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_statement(&mut self) -> ParseResult<Stmt> {
+    pub(super) fn parse_statement(&mut self, allow_use: bool) -> ParseResult<Stmt> {
         self.skip_newlines();
+
+        if self.at_keyword(Keyword::Use) {
+            if !allow_use {
+                self.error_current("block `use` declarations must appear before other statements");
+                return Err(());
+            }
+            return self.parse_use_statement();
+        }
+
+        if self.at_keyword(Keyword::Pub) {
+            self.error_current("block `use` declarations cannot be public");
+            return Err(());
+        }
 
         if self.at_keyword(Keyword::Return) {
             return self.parse_return_statement();
@@ -87,6 +104,14 @@ impl Parser<'_> {
         }
 
         self.parse_expression_statement()
+    }
+
+    fn parse_use_statement(&mut self) -> ParseResult<Stmt> {
+        match self.parse_use_item(Visibility::Private)? {
+            Item::Import(item) => Ok(Stmt::Import(item)),
+            Item::FromImport(item) => Ok(Stmt::FromImport(item)),
+            _ => unreachable!("parse_use_item returns an import item"),
+        }
     }
 
     pub(super) fn parse_return_statement(&mut self) -> ParseResult<Stmt> {

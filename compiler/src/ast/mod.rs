@@ -318,6 +318,8 @@ pub struct Block {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt {
+    Import(ImportItem),
+    FromImport(FromImportItem),
     Return(ReturnStmt),
     Binding(BindingStmt),
     Assignment(AssignmentStmt),
@@ -742,6 +744,8 @@ impl TypeExpr {
 impl Stmt {
     pub fn span(&self) -> ByteSpan {
         match self {
+            Stmt::Import(statement) => statement.span,
+            Stmt::FromImport(statement) => statement.span,
             Stmt::Return(statement) => statement.span,
             Stmt::Binding(statement) => statement.span,
             Stmt::Assignment(statement) => statement.span,

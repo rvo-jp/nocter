@@ -36,6 +36,66 @@ func main(): i32 {
 }
 
 #[test]
+fn check_loads_block_scope_non_relative_selected_imports() {
+    let root = make_temp_project("block-std-selected-import");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"func main(): i32 {
+    use std/math.answer
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/math.nct"),
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_loads_block_scope_non_relative_namespace_imports() {
+    let root = make_temp_project("block-std-namespace-import");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"func main(): i32 {
+    use std/math
+    return math.answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/math.nct"),
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_bare_use_loads_non_relative_namespace_exports() {
     let root = make_temp_project("bare-std-use");
     let home = make_nocter_home(&root);

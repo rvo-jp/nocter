@@ -24,6 +24,26 @@ func main(): i32 {
 }
 
 #[test]
+fn rejects_top_level_use_after_declaration() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+use std/io.print
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("top-level `use` declarations must appear before other declarations")
+    );
+}
+
+#[test]
 fn parses_bare_use_as_default_namespace_import_for_any_module_path() {
     let source = r#"use std/io
 use ./config

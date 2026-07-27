@@ -44,6 +44,95 @@ fn rejects_optional_var_else_binding() {
 }
 
 #[test]
+fn parses_block_use_statements_at_block_start() {
+    let output = parse_text(
+        r#"func greet(): void {
+    use std/io.print
+    print("hello")
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+
+    assert!(matches!(function.body.statements[0], Stmt::FromImport(_)));
+    assert!(matches!(function.body.statements[1], Stmt::Expression(_)));
+    assert!(matches!(function.body.statements[2], Stmt::Return(_)));
+}
+
+#[test]
+fn parses_block_use_at_nested_block_start() {
+    let output = parse_text(
+        r#"func process(debug: bool): void {
+    if debug {
+        use std/io.print
+        print("debug")
+    }
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::If(statement) = &function.body.statements[0] else {
+        panic!("expected if statement");
+    };
+
+    assert!(matches!(
+        statement.then_block.statements[0],
+        Stmt::FromImport(_)
+    ));
+}
+
+#[test]
+fn rejects_block_use_after_other_statement() {
+    let output = parse_text(
+        r#"func greet(): void {
+    print("hello")
+    use std/io.print
+    return
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("block `use` declarations must appear before other statements")
+    );
+}
+
+#[test]
+fn rejects_public_block_use() {
+    let output = parse_text(
+        r#"func greet(): void {
+    pub use std/io.print
+    return
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("block `use` declarations cannot be public")
+    );
+}
+
+#[test]
 fn parses_assignment_and_compound_assignment_statements() {
     let output = parse_text(
         r#"func main(): i32 {

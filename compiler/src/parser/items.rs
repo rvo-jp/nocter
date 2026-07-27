@@ -13,10 +13,21 @@ use crate::source::ByteSpan;
 impl Parser<'_> {
     pub(super) fn parse_source_file(&mut self) -> ParseResult<AstFile> {
         let mut items = Vec::new();
+        let mut allow_use = true;
 
         self.skip_newlines();
         while !self.at_eof() {
-            items.push(self.parse_item()?);
+            if !allow_use && self.at_top_level_use_start() {
+                self.error_current(
+                    "top-level `use` declarations must appear before other declarations",
+                );
+                return Err(());
+            }
+            let item = self.parse_item()?;
+            if !matches!(item, Item::Import(_) | Item::FromImport(_)) {
+                allow_use = false;
+            }
+            items.push(item);
             self.skip_newlines();
         }
 
@@ -25,6 +36,11 @@ impl Parser<'_> {
             span: self.span(0, eof.span.end),
             items,
         })
+    }
+
+    fn at_top_level_use_start(&self) -> bool {
+        self.at_keyword(Keyword::Use)
+            || (self.at_keyword(Keyword::Pub) && self.next_is_keyword(Keyword::Use))
     }
 
     pub(super) fn parse_item(&mut self) -> ParseResult<Item> {

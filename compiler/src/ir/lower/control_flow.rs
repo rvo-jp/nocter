@@ -871,6 +871,7 @@ fn lower_nonterminal_loop_block_statements(
     let mut ends_execution = false;
     for (index, statement) in statements.iter().enumerate() {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
                 if expression_contains_explicit_aggregate_move_outside(
                     &statement.initializer,
@@ -1233,6 +1234,7 @@ fn statement_sequence_or_result_exits_function(
 
 fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Return(_) => true,
         Stmt::Expression(statement) => expression_exits_function(&statement.expression, context),
         Stmt::If(statement) => {
@@ -1308,6 +1310,7 @@ fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bo
 
 fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Break(_) | Stmt::Continue(_) => true,
         Stmt::If(statement) => {
             block_may_exit_current_loop(&statement.then_block)
@@ -2352,6 +2355,7 @@ pub(super) fn lower_terminal_branch_leading_statements(
     let mut instructions = Vec::new();
     for statement in statements {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => instructions.extend(
                 lower_local_binding(statement, context).map_err(|diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)

@@ -41,6 +41,8 @@ impl Formatter {
 
     fn format_statement(&mut self, statement: &Stmt) {
         match statement {
+            Stmt::Import(statement) => self.format_import_item(statement),
+            Stmt::FromImport(statement) => self.format_from_import_item(statement),
             Stmt::Return(statement) => {
                 self.write("return");
                 if let Some(expression) = &statement.expression {

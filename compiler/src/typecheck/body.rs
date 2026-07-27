@@ -149,6 +149,7 @@ fn check_statement_expressions(
     loop_depth: usize,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 check_expression_tree(

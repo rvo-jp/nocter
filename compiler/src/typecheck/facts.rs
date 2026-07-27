@@ -647,6 +647,7 @@ impl TypecheckFactCollector<'_> {
         return_type: Option<&Type>,
     ) {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Return(statement) => {
                 if let Some(expression) = &statement.expression {
                     if let Some(return_type) = return_type {

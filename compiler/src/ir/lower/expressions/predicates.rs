@@ -121,6 +121,7 @@ fn block_contains_call(block: &crate::ast::Block) -> bool {
 
 fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
     match statement {
+        crate::ast::Stmt::Import(_) | crate::ast::Stmt::FromImport(_) => false,
         crate::ast::Stmt::Return(statement) => statement
             .expression
             .as_ref()
@@ -259,6 +260,7 @@ fn block_contains_interpolated_string(block: &crate::ast::Block) -> bool {
 
 fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool {
     match statement {
+        crate::ast::Stmt::Import(_) | crate::ast::Stmt::FromImport(_) => false,
         crate::ast::Stmt::Return(statement) => statement
             .expression
             .as_ref()

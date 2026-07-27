@@ -85,6 +85,7 @@ fn collect_block_targets(text: &str, block: &Block, targets: &mut Vec<Documentat
 
 fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<DocumentationTarget>) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_expression_targets(text, expression, targets);

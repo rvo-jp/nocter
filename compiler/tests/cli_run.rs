@@ -229,6 +229,37 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_block_scoped_imported_function_call_exit_code() {
+    let project = TempProject::new("cli-run-block-scoped-imported-function-call");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "block_call.nct",
+        r#"func main(): i32 {
+    use std/math.answer
+    return answer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_alias_function_call_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-function-call");
     project.write_nocter_home_file(

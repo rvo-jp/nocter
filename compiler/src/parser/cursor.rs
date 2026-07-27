@@ -252,6 +252,13 @@ impl Parser<'_> {
         matches!(self.token_kind_at_offset(1), Some(TokenKind::Identifier))
     }
 
+    pub(super) fn next_is_keyword(&self, keyword: Keyword) -> bool {
+        matches!(
+            self.token_kind_at_offset(1),
+            Some(TokenKind::Keyword(actual)) if actual == keyword
+        )
+    }
+
     pub(super) fn current_touches_next_identifier(&self) -> bool {
         self.token_at_offset(1).is_some_and(|next| {
             next.kind == TokenKind::Identifier && self.current().span.end == next.span.start

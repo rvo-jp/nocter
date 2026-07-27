@@ -515,7 +515,15 @@ impl<'a> IndexedCallable<'a> {
         else {
             return None;
         };
-        let [Stmt::Return(statement)] = function.body.statements.as_slice() else {
+        let mut runtime_statements = function
+            .body
+            .statements
+            .iter()
+            .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));
+        let Some(Stmt::Return(statement)) = runtime_statements.next() else {
+            return None;
+        };
+        if runtime_statements.next().is_some() {
             return None;
         };
         let expression = statement.expression.as_ref()?;

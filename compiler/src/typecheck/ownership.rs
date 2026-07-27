@@ -363,6 +363,7 @@ fn statement_conflicting_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => None,
         Stmt::Drop(statement)
             if BorrowPlace::whole(statement.name.clone()).conflicts_with(source) =>
         {
@@ -471,6 +472,7 @@ fn statement_read_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => None,
         Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
             expression_read_action(expression, source, resolved, environment)
         }),
@@ -855,6 +857,7 @@ fn collect_direct_borrow_expressions_in_statement(
     borrows: &mut Vec<DirectBorrowSource>,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_direct_borrow_expressions(expression, resolved, environment, borrows);
@@ -1190,6 +1193,7 @@ fn method_borrow_receiver_source(
 
 fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Return(statement) => statement
             .expression
             .as_ref()
@@ -1361,6 +1365,7 @@ fn check_statement_ownership(
     ownership: &mut OwnershipState,
 ) -> FlowState {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => FlowState::fallthrough(),
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 check_expression_ownership(

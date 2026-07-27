@@ -1574,6 +1574,7 @@ fn lower_catch_leading_statements(
 
     for statement in statements {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
                 instructions.extend(lower_local_binding(statement, context)?);
             }

@@ -268,6 +268,7 @@ fn check_statement_returns(
     borrow_provenance: &mut BorrowReturnEnvironment,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 check_expression_for_nested_returns(
@@ -1714,6 +1715,7 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
                 && block_guarantees_return(&else_arm.body)
         }),
         Stmt::Loop(statement) => block_guarantees_return(&statement.body),
+        Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Binding(_)
         | Stmt::Assignment(_)
         | Stmt::ForRange(_)

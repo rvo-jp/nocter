@@ -31,7 +31,7 @@ impl Formatter {
         }
     }
 
-    fn format_import_item(&mut self, item: &ImportItem) {
+    pub(super) fn format_import_item(&mut self, item: &ImportItem) {
         self.write("use ");
         self.write(&item.path.value);
         if !item.alias_is_default {
@@ -40,7 +40,7 @@ impl Formatter {
         }
     }
 
-    fn format_from_import_item(&mut self, item: &FromImportItem) {
+    pub(super) fn format_from_import_item(&mut self, item: &FromImportItem) {
         self.format_visibility(item.visibility);
         self.write("use ");
         self.write(&item.path.value);

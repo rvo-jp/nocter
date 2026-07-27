@@ -19,7 +19,8 @@ examples/word_count.nct                                  => examples/word_count
 
 The file path is the source of truth. There is no separate module name inside the file.
 
-`use` declarations make names from another module available.
+`use` declarations make names from another module available. A `use`
+declaration is lexical compile-time syntax, not a runtime statement.
 
 ```nct
 use std/io.{File, stdout}
@@ -40,6 +41,42 @@ pub use std/string.String
 
 use std/io as console
 ```
+
+Top-level `use` declarations must appear at the start of the source file before
+non-`use` declarations. Block-scope `use` declarations must appear at the start
+of a `{ ... }` block before executable statements, bindings, or result
+expressions:
+
+```nct
+func greet(): void {
+    use std/io.print
+
+    print("hello")
+}
+```
+
+The scope of a block-scope `use` starts after the declaration and ends at the
+end of that block. Nested blocks may use their own block-scope imports:
+
+```nct
+func process(debug: bool): void {
+    if debug {
+        use std/io.print
+
+        print("debug mode")
+    }
+
+    print("done")
+    // error: print is not visible outside the if block
+}
+```
+
+`pub use` is allowed only at the top level. A block-scope `use` cannot re-export
+anything.
+
+Even inside `if`, `match`, `while`, or `loop`, a block-scope `use` is not a
+conditional dependency. The imported module is loaded as part of the compile
+unit whenever the containing file is compiled.
 
 Meaning:
 
@@ -99,6 +136,19 @@ Use aliases to resolve collisions.
 ```nct
 use std/io.File as StdFile
 use ./my/fs.File as MyFile
+```
+
+Block-scope imports follow the same collision rule. They must not shadow an
+outer visible name, a parameter, a local binding, another import, a top-level
+declaration, a prelude name, or a built-in type name:
+
+```nct
+use std/io.print
+
+func debug(): void {
+    use debug/console.print
+    // error: print is already visible; write `as debug_print`
+}
 ```
 
 Not adopted:

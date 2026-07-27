@@ -72,6 +72,14 @@ The v0 parser accepts these top-level item forms:
 - `impl Interface for Type`
 - `impl Interface for Type {}`
 
+Top-level `use` and `pub use` forms are accepted only at the start of a source
+file before non-`use` declarations.
+
+The v0 parser also accepts the non-`pub` `use` forms above at the start of any
+block scope. Block-scope `use` declarations are lexical declarations. They are
+not runtime statements, and their imported names are visible only inside the
+containing block after the declaration.
+
 The v0 parser rejects these forms with diagnostics instead of accepting them as
 partial language support:
 
@@ -83,6 +91,9 @@ partial language support:
 - explicit `.nct` extensions in import paths such as `use ./config.nct.Config`
 - path-like module expressions such as `std/io.print("hello")` and
   `./path/to/file.something()`
+- top-level `use` after a non-`use` declaration
+- block-scope `use` after a non-`use` statement or result expression
+- block-scope `pub use`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
 - `literal Type [...]`

@@ -117,7 +117,10 @@ fn lower_entry_body(
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
 
-    if statements.is_empty() && function.body.result.is_none() && *success_type == Type::Void {
+    if statements.iter().all(statement_is_import)
+        && function.body.result.is_none()
+        && *success_type == Type::Void
+    {
         return Ok(vec![success_return_instruction(return_type)]);
     }
 
@@ -153,7 +156,9 @@ fn lower_entry_body(
 
     if success_type == &Type::Void
         && statements
-            .last()
+            .iter()
+            .rev()
+            .find(|statement| !statement_is_import(statement))
             .is_some_and(statement_allows_implicit_void_return)
     {
         let mut instructions = lower_leading_bindings(statements, &mut context, sources)?;
@@ -513,6 +518,10 @@ fn statement_allows_implicit_void_return(statement: &Stmt) -> bool {
     )
 }
 
+fn statement_is_import(statement: &Stmt) -> bool {
+    matches!(statement, Stmt::Import(_) | Stmt::FromImport(_))
+}
+
 fn attach_primary_span_if_absent(
     diagnostics: Vec<Diagnostic>,
     sources: &SourceMap,
@@ -533,6 +542,7 @@ fn lower_leading_bindings(
 
     for statement in statements {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
                 instructions.extend(lower_local_binding(statement, context).map_err(
                     |diagnostics| {

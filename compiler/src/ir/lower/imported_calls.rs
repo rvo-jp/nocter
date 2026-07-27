@@ -84,6 +84,7 @@ fn collect_statement(
     targets: &mut Vec<ImportedCallTarget>,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_expression(expression, root_source, resolved, targets);

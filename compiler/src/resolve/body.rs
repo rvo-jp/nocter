@@ -85,6 +85,10 @@ impl Resolver<'_> {
                     self.resolve_expression(expression, scope);
                 }
             }
+            Stmt::Import(statement) => {
+                self.collect_scoped_import_namespace_symbol(statement, scope)
+            }
+            Stmt::FromImport(statement) => self.collect_scoped_imported_symbols(statement, scope),
             Stmt::Binding(statement) => {
                 self.resolve_expression(&statement.initializer, scope);
                 self.define_local_name(
@@ -350,6 +354,10 @@ impl Resolver<'_> {
             return None;
         }
 
+        if let Some(symbol_id) = scope.resolve_symbol(&identifier.name) {
+            return Some(symbol_id);
+        }
+
         self.output
             .symbols
             .symbol_by_name(&identifier.name)
@@ -456,8 +464,9 @@ impl Resolver<'_> {
 }
 
 #[derive(Debug, Clone, Default)]
-struct Scope {
+pub(super) struct Scope {
     locals: HashMap<String, LocalBinding>,
+    symbols: HashMap<String, ScopedSymbolBinding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -466,20 +475,39 @@ struct LocalBinding {
     id: LocalSymbolId,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ScopedSymbolBinding {
+    span: ByteSpan,
+    id: SymbolId,
+}
+
 impl Scope {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self::default()
     }
 
-    fn get(&self, name: &str) -> Option<ByteSpan> {
-        self.locals.get(name).map(|local| local.span)
+    pub(super) fn get(&self, name: &str) -> Option<ByteSpan> {
+        self.locals
+            .get(name)
+            .map(|local| local.span)
+            .or_else(|| self.symbols.get(name).map(|symbol| symbol.span))
     }
 
-    fn resolve(&self, name: &str) -> Option<LocalSymbolId> {
+    pub(super) fn resolve(&self, name: &str) -> Option<LocalSymbolId> {
         self.locals.get(name).map(|local| local.id)
     }
 
-    fn define(&mut self, name: String, span: ByteSpan, id: LocalSymbolId) {
+    pub(super) fn resolve_symbol(&self, name: &str) -> Option<SymbolId> {
+        self.symbols.get(name).map(|symbol| symbol.id)
+    }
+
+    pub(super) fn define(&mut self, name: String, span: ByteSpan, id: LocalSymbolId) {
         self.locals.entry(name).or_insert(LocalBinding { span, id });
+    }
+
+    pub(super) fn define_symbol(&mut self, name: String, span: ByteSpan, id: SymbolId) {
+        self.symbols
+            .entry(name)
+            .or_insert(ScopedSymbolBinding { span, id });
     }
 }

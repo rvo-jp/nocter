@@ -506,6 +506,22 @@ impl Block {
 impl Stmt {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
+            Stmt::Import(item) => JsonAstNode::with_value(
+                "use_namespace_statement",
+                item.path.value.clone(),
+                json_span(sources, item.span),
+                vec![item.path.to_json(sources), item.alias.to_json(sources)],
+            ),
+            Stmt::FromImport(item) => {
+                let mut children = vec![item.path.to_json(sources)];
+                children.extend(item.names.iter().map(|name| name.to_json(sources)));
+                JsonAstNode::with_value(
+                    "use_names_statement",
+                    item.path.value.clone(),
+                    json_span(sources, item.span),
+                    children,
+                )
+            }
             Stmt::Return(statement) => JsonAstNode::new(
                 "return_statement",
                 json_span(sources, statement.span),

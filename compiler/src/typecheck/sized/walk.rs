@@ -29,6 +29,7 @@ fn check_statement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Binding(statement) => {
             if let Some(ty) = &statement.ty {
                 check_value_type(

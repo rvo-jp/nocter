@@ -1597,6 +1597,7 @@ fn collect_statement_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_terminal_return_expression_diagnostics(

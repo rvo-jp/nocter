@@ -31,7 +31,7 @@ emission.
 | Area | Current state |
 |---|---|
 | Entry and CLI root | `build`, `run`, and `check` use `main.nct` when no file is provided. The root-file `func main` is the executable entry. `fmt` still requires an explicit file. `--entry` is removed. |
-| Modules and `use` | Bare, selected, grouped, aliased, relative, absolute, source-root, Nocter-home, and `pub use` forms are implemented. Legacy `import` / `from` forms are removed syntax. |
+| Modules and `use` | File-start bare, selected, grouped, aliased, relative, absolute, source-root, Nocter-home, and `pub use` forms are implemented. Block-start non-`pub` `use` is implemented as lexical, compile-time-only scope. Legacy `import` / `from` forms are removed syntax. |
 | Target and distribution | The active Nocter home comes from `NOCTER_HOME`, otherwise the compiler executable's parent. Target-dependent std declarations use `#target("arm64-darwin")` inside stable std files. |
 | Scalars and strings | `i32`, `usize`, `u8`, `bool`, `void`, `never`, `&str`, string literals, selected arithmetic, comparisons, bool operators, shifts, and runtime trap checks are implemented in the buildable subset. |
 | Blocks and control expressions | Blocks can produce a value from the final expression. `if` and `match` can be value expressions in the supported subset. Loops remain statement-oriented in v0. |

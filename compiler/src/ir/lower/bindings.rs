@@ -237,6 +237,7 @@ fn lower_otherwise_leading_statement(
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => Ok(Vec::new()),
         Stmt::Binding(statement) => lower_local_binding_with_loop_control(
             statement,
             context,

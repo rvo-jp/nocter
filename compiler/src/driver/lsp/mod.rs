@@ -1072,6 +1072,51 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn returns_markdown_hover_for_block_import_module_path() {
+        let project = TempProject::new("lsp-hover-block-import-module");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        std::fs::write(
+            home.join("std/io.nct"),
+            "//! **I/O** module.\n//!\n//! Provides file and text APIs.\n\npub func print(text: &str): void! {\n    return\n}\n",
+        )
+        .unwrap();
+        let text = "func main(): i32 {\n    use std/io.print\n    return 0\n}\n";
+        let app = project.write_source("app.nct", text);
+        let app_uri = file_uri(&app);
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(app_uri.clone(), Some(1), text.to_string()),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(6),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 11
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nmodule std/io\n```\n\n**I/O** module.\nProvides file and text APIs.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(14));
+    }
+
+    #[test]
     fn returns_documented_hover_for_local_binding_declaration() {
         let uri = "file:///tmp/nocter-hover-local-docs.nct".to_string();
         let document = open_document(
@@ -1940,6 +1985,50 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
                 "position": {
                     "line": 0,
                     "character": 7
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
+        assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    }
+
+    #[test]
+    fn returns_definition_for_block_import_module_path() {
+        let project = TempProject::new("lsp-definition-block-import-module");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        std::fs::write(
+            home.join("std/io.nct"),
+            "//! I/O module.\n\npub func print(text: &str): void! {\n    return\n}\n",
+        )
+        .unwrap();
+        let text = "func main(): i32 {\n    use std/io.print\n    return 0\n}\n";
+        let app = project.write_source("app.nct", text);
+        let app_uri = file_uri(&app);
+        let io = home.join("std/io.nct").canonicalize().unwrap();
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(app_uri.clone(), Some(1), text.to_string()),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 11
                 }
             })),
         );

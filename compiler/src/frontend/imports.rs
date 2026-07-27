@@ -3,7 +3,7 @@ use super::diagnostics::{
     ImportPathKind, ambiguous_import_diagnostic, import_load_diagnostic,
     nocter_home_import_diagnostic, relative_import_without_file_path_diagnostic,
 };
-use crate::ast::{AstFile, Item, ModulePath};
+use crate::ast::{AstFile, Block, Expr, Item, ModulePath, Stmt};
 use crate::diagnostics::Diagnostic;
 use crate::home::resolve_nocter_home;
 use crate::resolve::ImportAccess;
@@ -11,14 +11,183 @@ use crate::source::{SourceId, SourceMap};
 use std::path::{Path, PathBuf};
 
 pub(super) fn import_paths(ast: &AstFile) -> Vec<&ModulePath> {
-    ast.items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Import(item) => Some(&item.path),
-            Item::FromImport(item) => Some(&item.path),
-            _ => None,
-        })
-        .collect()
+    let mut paths = Vec::new();
+    for item in &ast.items {
+        collect_item_import_paths(item, &mut paths);
+    }
+    paths
+}
+
+fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>) {
+    match item {
+        Item::Import(item) => paths.push(&item.path),
+        Item::FromImport(item) => paths.push(&item.path),
+        Item::Function(function) => collect_block_import_paths(&function.body, paths),
+        Item::Impl(impl_) => {
+            for member in &impl_.members {
+                match member {
+                    crate::ast::ImplMember::Method(method) => {
+                        if let Some(body) = &method.body {
+                            collect_block_import_paths(body, paths);
+                        }
+                    }
+                    crate::ast::ImplMember::Drop(drop_) => {
+                        collect_block_import_paths(&drop_.body, paths);
+                    }
+                }
+            }
+        }
+        Item::Primitive(_)
+        | Item::TypeAlias(_)
+        | Item::Struct(_)
+        | Item::Enum(_)
+        | Item::Interface(_) => {}
+    }
+}
+
+fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePath>) {
+    for statement in &block.statements {
+        match statement {
+            Stmt::Import(item) => paths.push(&item.path),
+            Stmt::FromImport(item) => paths.push(&item.path),
+            Stmt::Return(statement) => {
+                if let Some(expression) = &statement.expression {
+                    collect_expression_import_paths(expression, paths);
+                }
+            }
+            Stmt::Binding(statement) => {
+                collect_expression_import_paths(&statement.initializer, paths);
+            }
+            Stmt::Assignment(statement) => {
+                collect_expression_import_paths(&statement.target, paths);
+                collect_expression_import_paths(&statement.value, paths);
+            }
+            Stmt::If(statement) => {
+                collect_expression_import_paths(&statement.condition, paths);
+                collect_block_import_paths(&statement.then_block, paths);
+                if let Some(else_block) = &statement.else_block {
+                    collect_block_import_paths(else_block, paths);
+                }
+            }
+            Stmt::IfIs(statement) => {
+                collect_expression_import_paths(&statement.expression, paths);
+                collect_block_import_paths(&statement.then_block, paths);
+                if let Some(else_block) = &statement.else_block {
+                    collect_block_import_paths(else_block, paths);
+                }
+            }
+            Stmt::Switch(statement) => {
+                collect_expression_import_paths(&statement.expression, paths);
+                for arm in &statement.arms {
+                    collect_block_import_paths(&arm.body, paths);
+                }
+                if let Some(else_arm) = &statement.else_arm {
+                    collect_block_import_paths(&else_arm.body, paths);
+                }
+            }
+            Stmt::ForRange(statement) => {
+                collect_expression_import_paths(&statement.start, paths);
+                collect_expression_import_paths(&statement.end, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
+            Stmt::While(statement) => {
+                collect_expression_import_paths(&statement.condition, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
+            Stmt::Loop(statement) => collect_block_import_paths(&statement.body, paths),
+            Stmt::Expression(statement) => {
+                collect_expression_import_paths(&statement.expression, paths);
+            }
+            Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
+        }
+    }
+
+    if let Some(result) = &block.result {
+        collect_expression_import_paths(result, paths);
+    }
+}
+
+fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a ModulePath>) {
+    match expression {
+        Expr::Catch(expression) => {
+            collect_expression_import_paths(&expression.expression, paths);
+            collect_block_import_paths(&expression.catch_block, paths);
+        }
+        Expr::Otherwise(expression) => {
+            collect_expression_import_paths(&expression.value, paths);
+            collect_block_import_paths(&expression.fallback, paths);
+        }
+        Expr::If(expression) => {
+            collect_expression_import_paths(&expression.condition, paths);
+            collect_block_import_paths(&expression.then_block, paths);
+            if let Some(else_block) = &expression.else_block {
+                collect_block_import_paths(else_block, paths);
+            }
+        }
+        Expr::IfIs(expression) => {
+            collect_expression_import_paths(&expression.expression, paths);
+            collect_block_import_paths(&expression.then_block, paths);
+            if let Some(else_block) = &expression.else_block {
+                collect_block_import_paths(else_block, paths);
+            }
+        }
+        Expr::Match(expression) => {
+            collect_expression_import_paths(&expression.expression, paths);
+            for arm in &expression.arms {
+                collect_block_import_paths(&arm.body, paths);
+            }
+            if let Some(else_arm) = &expression.else_arm {
+                collect_block_import_paths(&else_arm.body, paths);
+            }
+        }
+        Expr::Propagate(expression) => {
+            collect_expression_import_paths(&expression.expression, paths)
+        }
+        Expr::Force(expression) => collect_expression_import_paths(&expression.expression, paths),
+        Expr::Borrow(expression) => collect_expression_import_paths(&expression.expression, paths),
+        Expr::Unary(expression) => collect_expression_import_paths(&expression.operand, paths),
+        Expr::Binary(expression) => {
+            collect_expression_import_paths(&expression.left, paths);
+            collect_expression_import_paths(&expression.right, paths);
+        }
+        Expr::TypeConversion(expression) => {
+            collect_expression_import_paths(&expression.expression, paths);
+        }
+        Expr::Call(expression) => {
+            collect_expression_import_paths(&expression.callee, paths);
+            for argument in &expression.arguments {
+                collect_expression_import_paths(argument, paths);
+            }
+        }
+        Expr::Member(expression) => collect_expression_import_paths(&expression.object, paths),
+        Expr::Index(expression) => {
+            collect_expression_import_paths(&expression.object, paths);
+            collect_expression_import_paths(&expression.index, paths);
+        }
+        Expr::ArrayLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_import_paths(element, paths);
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                collect_expression_import_paths(&field.value, paths);
+            }
+        }
+        Expr::Group(expression) => collect_expression_import_paths(&expression.expression, paths),
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_import_paths(&part.expression, paths);
+                }
+            }
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
 }
 
 pub(super) fn resolve_import_path(
