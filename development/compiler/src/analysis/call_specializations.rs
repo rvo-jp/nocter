@@ -220,10 +220,10 @@ fn enqueue_call_specializations_from_span(
     }
 }
 
-fn function_declaration_for_span<'a>(
-    analysis: &'a CompileUnitAnalysis,
+fn function_declaration_for_span(
+    analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&'a FileAnalysis, &'a FunctionDecl)> {
+) -> Option<(&FileAnalysis, &FunctionDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
             let Item::Function(function) = item else {
@@ -236,10 +236,10 @@ fn function_declaration_for_span<'a>(
     })
 }
 
-fn method_declaration_for_span<'a>(
-    analysis: &'a CompileUnitAnalysis,
+fn method_declaration_for_span(
+    analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&'a FileAnalysis, &'a ImplDecl, &'a MethodDecl)> {
+) -> Option<(&FileAnalysis, &ImplDecl, &MethodDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
             let Item::Impl(impl_) = item else {
@@ -255,10 +255,10 @@ fn method_declaration_for_span<'a>(
     })
 }
 
-fn drop_declaration_for_span<'a>(
-    analysis: &'a CompileUnitAnalysis,
+fn drop_declaration_for_span(
+    analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&'a FileAnalysis, &'a ImplDecl, &'a DropDecl)> {
+) -> Option<(&FileAnalysis, &ImplDecl, &DropDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
             let Item::Impl(impl_) = item else {

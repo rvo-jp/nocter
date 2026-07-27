@@ -250,17 +250,13 @@ fn scoped_import_spans_in_block_at_offset(
         }
 
         match statement {
-            Stmt::Import(import) => {
-                if import.span.end <= offset {
-                    visible.insert(import.alias.span);
-                    continue;
-                }
+            Stmt::Import(import) if import.span.end <= offset => {
+                visible.insert(import.alias.span);
+                continue;
             }
-            Stmt::FromImport(import) => {
-                if import.span.end <= offset {
-                    visible.extend(import.names.iter().map(|name| name.local_span()));
-                    continue;
-                }
+            Stmt::FromImport(import) if import.span.end <= offset => {
+                visible.extend(import.names.iter().map(|name| name.local_span()));
+                continue;
             }
             _ => {}
         }

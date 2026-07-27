@@ -1499,9 +1499,7 @@ fn local_binding_type_is_buildable(
 
     typecheck_facts
         .binding_type_label(statement.name_span)
-        .map_or(true, |label| {
-            inferred_binding_type_label_is_buildable(label, resolved)
-        })
+        .is_none_or(|label| inferred_binding_type_label_is_buildable(label, resolved))
 }
 
 fn inferred_binding_type_label_is_buildable(label: &str, resolved: &ResolveOutput) -> bool {
@@ -1680,13 +1678,12 @@ fn type_expr_has_buildable_scalar_abi_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
-        .is_ok_and(|value| {
-            matches!(
-                value.ty,
-                AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Pointer
-            )
-        })
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok_and(|value| {
+        matches!(
+            value.ty,
+            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Pointer
+        )
+    })
 }
 
 fn type_expr_resolves_to_str(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -2107,7 +2104,7 @@ fn type_expr_is_supported_aggregate_value_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
         .is_ok_and(|value| matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0)
 }
 
@@ -2177,7 +2174,7 @@ fn void_effect_if_expression_is_buildable(
         resolved,
         typecheck_facts,
         generic_substitutions,
-    ) && expression.else_block.as_ref().map_or(true, |block| {
+    ) && expression.else_block.as_ref().is_none_or(|block| {
         void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
     })
 }
@@ -2195,7 +2192,7 @@ fn void_effect_if_is_expression_is_buildable(
             typecheck_facts,
             generic_substitutions,
         )
-        && expression.else_block.as_ref().map_or(true, |block| {
+        && expression.else_block.as_ref().is_none_or(|block| {
             void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
         })
 }
@@ -2215,7 +2212,7 @@ fn void_effect_match_expression_is_buildable(
                 generic_substitutions,
             )
         })
-        && expression.else_arm.as_ref().map_or(true, |arm| {
+        && expression.else_arm.as_ref().is_none_or(|arm| {
             void_effect_block_is_buildable(
                 &arm.body,
                 resolved,

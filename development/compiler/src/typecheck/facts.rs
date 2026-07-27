@@ -1938,7 +1938,7 @@ fn type_to_type_expr_inner(
                 .collect::<Option<Vec<_>>>()?,
         })),
         Type::Parameter(name) => {
-            let free_type_parameters = free_type_parameters.as_deref_mut()?;
+            let free_type_parameters = free_type_parameters?;
             free_type_parameters.insert(name.clone());
             Some(type_reference(name, span))
         }

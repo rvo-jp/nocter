@@ -27,12 +27,12 @@ impl Parser<'_> {
                 allow_use = false;
             }
             if self.at_punctuation("}") {
-                match statement_into_block_result(statement) {
-                    Ok(expression) => {
+                match statement_into_block_tail(statement) {
+                    BlockTail::Result(expression) => {
                         result = Some(Box::new(expression));
                         break;
                     }
-                    Err(statement) => statements.push(statement),
+                    BlockTail::Statement(statement) => statements.push(*statement),
                 }
             } else {
                 statements.push(statement);
@@ -257,15 +257,15 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::If) {
             let expression = self.parse_if_expression()?;
             let end = expression.span().end;
-            return Ok(Some(match expression_into_block_result(expression) {
-                Ok(expression) => Block {
+            return Ok(Some(match expression_into_block_tail(expression) {
+                BlockTail::Result(expression) => Block {
                     span: self.span(else_token.span.start, end),
                     statements: Vec::new(),
                     result: Some(Box::new(expression)),
                 },
-                Err(statement) => Block {
+                BlockTail::Statement(statement) => Block {
                     span: self.span(else_token.span.start, end),
-                    statements: vec![statement],
+                    statements: vec![*statement],
                     result: None,
                 },
             }));
@@ -526,31 +526,38 @@ fn assignment_target_error(_expression: &Expr) -> &'static str {
     "expected assignment target"
 }
 
-fn statement_into_block_result(statement: Stmt) -> Result<Expr, Stmt> {
+enum BlockTail {
+    Result(Expr),
+    Statement(Box<Stmt>),
+}
+
+fn statement_into_block_tail(statement: Stmt) -> BlockTail {
     match statement {
-        Stmt::Expression(statement) => Ok(statement.expression),
+        Stmt::Expression(statement) => BlockTail::Result(statement.expression),
         Stmt::If(statement) if if_statement_has_value_result(&statement) => {
-            Ok(Expr::If(Box::new(statement)))
+            BlockTail::Result(Expr::If(Box::new(statement)))
         }
         Stmt::IfIs(statement) if if_is_statement_has_value_result(&statement) => {
-            Ok(Expr::IfIs(Box::new(statement)))
+            BlockTail::Result(Expr::IfIs(Box::new(statement)))
         }
         Stmt::Switch(statement) if switch_statement_has_value_result(&statement) => {
-            Ok(Expr::Match(Box::new(statement)))
+            BlockTail::Result(Expr::Match(Box::new(statement)))
         }
-        statement => Err(statement),
+        statement => BlockTail::Statement(Box::new(statement)),
     }
 }
 
-fn expression_into_block_result(expression: Expr) -> Result<Expr, Stmt> {
+fn expression_into_block_tail(expression: Expr) -> BlockTail {
     match expression {
-        Expr::If(statement) if if_statement_has_value_result(&statement) => Ok(Expr::If(statement)),
-        Expr::If(statement) => Err(Stmt::If(*statement)),
-        Expr::IfIs(statement) if if_is_statement_has_value_result(&statement) => {
-            Ok(Expr::IfIs(statement))
+        Expr::If(statement) if if_statement_has_value_result(&statement) => {
+            BlockTail::Result(Expr::If(statement))
         }
-        Expr::IfIs(statement) => Err(Stmt::IfIs(*statement)),
-        expression => Ok(expression),
+        Expr::If(statement) => BlockTail::Statement(Box::new(Stmt::If(*statement))),
+        Expr::IfIs(statement) if if_is_statement_has_value_result(&statement) => {
+            BlockTail::Result(Expr::IfIs(statement))
+        }
+        Expr::IfIs(statement) => BlockTail::Statement(Box::new(Stmt::IfIs(*statement))),
+        expression => BlockTail::Result(expression),
     }
 }
 

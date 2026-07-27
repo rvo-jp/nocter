@@ -148,10 +148,7 @@ impl Parser<'_> {
     fn parse_multiplicative_expression(&mut self) -> ParseResult<Expr> {
         let mut expression = self.parse_prefix_expression()?;
 
-        loop {
-            let Some(operator) = self.match_multiplicative_operator() else {
-                break;
-            };
+        while let Some(operator) = self.match_multiplicative_operator() {
             let right = self.parse_prefix_expression()?;
             expression = Expr::Binary(BinaryExpr {
                 span: self.span(expression.span().start, right.span().end),

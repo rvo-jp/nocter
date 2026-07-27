@@ -1765,18 +1765,17 @@ fn check_expression_ownership(
             ownership.require_initialized(sources, identifier, "use", diagnostics);
         }
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
-            if let Expr::Identifier(identifier) = expression.operand.as_ref() {
-                if let Some(ty) = environment.get(&identifier.name)
-                    && non_copy_struct_type_name(ty, resolved).is_some()
-                {
-                    ownership.ensure_binding_from_environment(
-                        &identifier.name,
-                        identifier.span,
-                        environment,
-                        resolved,
-                    );
-                    ownership.move_binding(sources, identifier, diagnostics);
-                }
+            if let Expr::Identifier(identifier) = expression.operand.as_ref()
+                && let Some(ty) = environment.get(&identifier.name)
+                && non_copy_struct_type_name(ty, resolved).is_some()
+            {
+                ownership.ensure_binding_from_environment(
+                    &identifier.name,
+                    identifier.span,
+                    environment,
+                    resolved,
+                );
+                ownership.move_binding(sources, identifier, diagnostics);
             }
         }
         Expr::Propagate(expression) => {

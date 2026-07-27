@@ -444,17 +444,17 @@ impl Resolver<'_> {
             self.output
                 .diagnostics
                 .push(builtin_name_reuse_diagnostic(self.sources, &name, span));
-        } else if scope.get(&name).is_none() {
-            if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
-                self.output
-                    .diagnostics
-                    .push(duplicate_visible_name_diagnostic(
-                        self.sources,
-                        &name,
-                        symbol.name_span,
-                        span,
-                    ));
-            }
+        } else if scope.get(&name).is_none()
+            && let Some(symbol) = self.output.symbols.symbol_by_name(&name)
+        {
+            self.output
+                .diagnostics
+                .push(duplicate_visible_name_diagnostic(
+                    self.sources,
+                    &name,
+                    symbol.name_span,
+                    span,
+                ));
         }
 
         let id = self

@@ -1505,15 +1505,9 @@ fn payloadless_switch_variant_names(
     statement: &SwitchStmt,
     context: &LoweringContext,
 ) -> Option<Vec<String>> {
-    let Some(first_arm) = statement.arms.first() else {
-        return None;
-    };
-    let Some((_, resolved)) = context.resolved_calls() else {
-        return None;
-    };
-    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
-        return None;
-    };
+    let first_arm = statement.arms.first()?;
+    let (_, resolved) = context.resolved_calls()?;
+    let target_symbol = resolved.type_symbol_by_name(&first_arm.enum_name)?;
     if target_symbol.kind != crate::resolve::TypeSymbolKind::Enum
         || target_symbol.variants.len() > 256
         || target_symbol

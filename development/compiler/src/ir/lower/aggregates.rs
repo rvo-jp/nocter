@@ -371,9 +371,7 @@ where
         TypeExpr::Optional(optional) => &optional.inner,
         _ => ty,
     };
-    let value =
-        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
-            .ok()?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, &resolver).ok()?;
     let AbiType::Struct(fields) = value.ty else {
         return Some(Vec::new());
     };
@@ -559,12 +557,10 @@ where
             fields: nested_fields,
         },
         is_copy: source_ty.is_some_and(|ty| {
-            type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, |source| resolver(source))
+            type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, resolver)
         }),
         drop_glue: source_ty.and_then(|ty| {
-            drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, |source| {
-                resolver(source)
-            })
+            drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
         }),
     });
 
@@ -608,11 +604,7 @@ where
         AbiType::SliceView => {
             let element_kind = source_ty
                 .and_then(|ty| {
-                    view_element_type_from_type_expr_with_resolver(
-                        ty,
-                        fallback_resolved,
-                        |source| resolver(source),
-                    )
+                    view_element_type_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
                 })
                 .map(typecheck_slice_element_kind_from_type)
                 .unwrap_or(TypecheckSliceElementKind::Other);

@@ -279,9 +279,7 @@ where
         return Some(ty);
     }
 
-    let value =
-        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
-            .ok()?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),
@@ -355,9 +353,7 @@ fn aggregate_type_from_type_expr_inner<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    let value =
-        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
-            .ok()?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
     aggregate_type_from_abi_value(&value)
 }
 
@@ -396,9 +392,7 @@ fn borrow_inner_type_inner<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    let value =
-        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, |source| resolver(source))
-            .ok()?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
     match &value.ty {
         AbiType::I32 => Some(Type::I32),
         AbiType::U8 => Some(Type::U8),

@@ -297,9 +297,11 @@ fn collect_reference_spans_for_parts(
                 declaration_span,
                 &scoped_import_spans,
             ));
-            spans.extend(facts.function_call_target_spans().filter_map(|span| {
-                (facts.function_call_target(span) == Some(declaration_span)).then_some(span)
-            }));
+            spans.extend(
+                facts
+                    .function_call_target_spans()
+                    .filter(|span| facts.function_call_target(*span) == Some(declaration_span)),
+            );
             spans.extend(facts.type_references().filter_map(|reference| {
                 (reference.symbol_declaration_span == Some(declaration_span))
                     .then_some(reference.span)
@@ -310,19 +312,25 @@ fn collect_reference_spans_for_parts(
                 spans.push(name_span);
             }
             spans.extend(
-                facts.field_target_spans().filter_map(|span| {
-                    (facts.field_target(span) == Some(name_span)).then_some(span)
-                }),
+                facts
+                    .field_target_spans()
+                    .filter(|span| facts.field_target(*span) == Some(name_span)),
             );
-            spans.extend(facts.associated_function_target_spans().filter_map(|span| {
-                (facts.associated_function_target(span) == Some(name_span)).then_some(span)
-            }));
-            spans.extend(facts.enum_variant_target_spans().filter_map(|span| {
-                (facts.enum_variant_target(span) == Some(name_span)).then_some(span)
-            }));
-            spans.extend(facts.method_call_spans().filter_map(|span| {
-                (facts.method_call_target(span) == Some(name_span)).then_some(span)
-            }));
+            spans.extend(
+                facts
+                    .associated_function_target_spans()
+                    .filter(|span| facts.associated_function_target(*span) == Some(name_span)),
+            );
+            spans.extend(
+                facts
+                    .enum_variant_target_spans()
+                    .filter(|span| facts.enum_variant_target(*span) == Some(name_span)),
+            );
+            spans.extend(
+                facts
+                    .method_call_spans()
+                    .filter(|span| facts.method_call_target(*span) == Some(name_span)),
+            );
         }
     }
 }

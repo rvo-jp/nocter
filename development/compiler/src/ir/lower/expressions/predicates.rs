@@ -83,7 +83,7 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_call(block))
+                    .is_some_and(block_contains_call)
         }
         Expr::IfIs(statement) => {
             expression_contains_call(&statement.expression)
@@ -91,7 +91,7 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_call(block))
+                    .is_some_and(block_contains_call)
         }
         Expr::Match(statement) => {
             expression_contains_call(&statement.expression)
@@ -109,10 +109,7 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
 }
 
 fn block_contains_call(block: &crate::ast::Block) -> bool {
-    block
-        .statements
-        .iter()
-        .any(|statement| statement_contains_call(statement))
+    block.statements.iter().any(statement_contains_call)
         || block
             .result
             .as_deref()
@@ -137,7 +134,7 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_call(block))
+                    .is_some_and(block_contains_call)
         }
         crate::ast::Stmt::IfIs(statement) => {
             expression_contains_call(&statement.expression)
@@ -145,7 +142,7 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_call(block))
+                    .is_some_and(block_contains_call)
         }
         crate::ast::Stmt::Switch(statement) => {
             expression_contains_call(&statement.expression)
@@ -222,7 +219,7 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_interpolated_string(block))
+                    .is_some_and(block_contains_interpolated_string)
         }
         Expr::IfIs(statement) => {
             expression_contains_interpolated_string(&statement.expression)
@@ -230,7 +227,7 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_interpolated_string(block))
+                    .is_some_and(block_contains_interpolated_string)
         }
         Expr::Match(statement) => {
             expression_contains_interpolated_string(&statement.expression)
@@ -278,7 +275,7 @@ fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_interpolated_string(block))
+                    .is_some_and(block_contains_interpolated_string)
         }
         crate::ast::Stmt::IfIs(statement) => {
             expression_contains_interpolated_string(&statement.expression)
@@ -286,7 +283,7 @@ fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool 
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_contains_interpolated_string(block))
+                    .is_some_and(block_contains_interpolated_string)
         }
         crate::ast::Stmt::Switch(statement) => {
             expression_contains_interpolated_string(&statement.expression)

@@ -1423,10 +1423,8 @@ fn slice_index_borrow_element_kind(
             .ok()
             .flatten()
         {
-            Some(kind) => match kind {
-                AggregateFieldKind::Slice(info) => info.element_kind,
-                _ => TypecheckSliceElementKind::Other,
-            },
+            Some(AggregateFieldKind::Slice(info)) => info.element_kind,
+            Some(_) => TypecheckSliceElementKind::Other,
             None => TypecheckSliceElementKind::Other,
         },
         Expr::Propagate(propagation) => {

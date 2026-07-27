@@ -1521,9 +1521,9 @@ func load(text: Text, view: &str): i32! {
 
     fn parse_source(sources: &mut SourceMap, display_path: &str, text: &str) -> AstFile {
         let source = sources.add_source(display_path, None, text);
-        let lexed = lex(&sources, source);
+        let lexed = lex(sources, source);
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
-        let parsed = parse(&sources, source, &lexed.tokens);
+        let parsed = parse(sources, source, &lexed.tokens);
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
         parsed.ast.unwrap()
     }

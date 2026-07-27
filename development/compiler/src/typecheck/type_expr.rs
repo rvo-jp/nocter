@@ -48,11 +48,7 @@ pub(super) fn infer_type_expr_substitutions(
     substitutions: &mut HashMap<String, Type>,
 ) {
     match expected {
-        TypeExpr::Reference(reference) if reference.name == "Self" => {
-            if self_type.is_some_and(|self_type| self_type == actual) {
-                return;
-            }
-        }
+        TypeExpr::Reference(reference) if reference.name == "Self" => {}
         TypeExpr::Reference(reference) if parameters.contains(reference.name.as_str()) => {
             merge_inferred_substitution(&reference.name, actual, substitutions);
         }

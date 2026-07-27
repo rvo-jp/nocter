@@ -645,16 +645,14 @@ fn lower_nonterminal_i32_for_range_statement(
     let end = context.next_i32_local_location()?;
     context.define_i32_local(end_hidden);
 
-    let mut instructions =
-        lower_i32_expression_to_location(&statement.start, value.clone(), context).map_err(
-            |diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.start.span())
-            },
-        )?;
+    let mut instructions = lower_i32_expression_to_location(&statement.start, value, context)
+        .map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, statement.start.span())
+        })?;
     instructions.extend(
-        lower_i32_expression_to_location(&statement.end, end.clone(), context).map_err(
-            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, statement.end.span()),
-        )?,
+        lower_i32_expression_to_location(&statement.end, end, context).map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, statement.end.span())
+        })?,
     );
     if !context.rename_local(&value_hidden, statement.name.clone()) {
         return Err(unsupported_nonterminal_if_diagnostic(
@@ -664,8 +662,8 @@ fn lower_nonterminal_i32_for_range_statement(
     }
 
     let increment = vec![Instruction::AddI32 {
-        destination: value.clone(),
-        left: I32Value::Location(value.clone()),
+        destination: value,
+        left: I32Value::Location(value),
         right: I32Value::Const(1),
     }];
     let body_instructions = lower_nonterminal_for_range_block(

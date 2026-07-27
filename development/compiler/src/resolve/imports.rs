@@ -67,13 +67,9 @@ impl Resolver<'_> {
             return None;
         }
 
-        let Some(source) = namespace.source else {
-            return None;
-        };
+        let source = namespace.source?;
         let access = namespace.access.unwrap_or(ImportAccess::Public);
-        let Some(imported_ast) = self.module_index.ast_for_source(source) else {
-            return None;
-        };
+        let imported_ast = self.module_index.ast_for_source(source)?;
 
         match self.find_importable_symbol(imported_ast, member_name) {
             Some(imported) if imported.is_visible_to(access) => {
