@@ -301,11 +301,16 @@ pub func Config.default(): Config {
 
 `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-The compile unit is the root file plus every `.nct` file reached by following explicit `use` declarations and eligible synthetic prelude loads recursively.
+The compile unit is the root file plus every `.nct` file reached by following
+top-level `use`, block-scope `use`, public re-export, and eligible synthetic
+prelude loads recursively.
 
 Rules:
 
-- Import, re-export, and explicit `use` declarations are allowed only at top level.
+- Top-level `use` and `pub use` declarations are allowed only at the start of a
+  source file. Block-scope `use` declarations are allowed only at the start of
+  a block.
+- `pub use` is allowed only at top level.
 - The synthetic prelude load is compiler-internal and behaves as if its names are introduced before source-level imports for eligible user project modules.
 - Top-level executable statements are not allowed.
 - A root executable must define top-level `main` in the root file.
