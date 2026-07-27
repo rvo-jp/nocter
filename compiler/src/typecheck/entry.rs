@@ -18,7 +18,8 @@ pub(super) fn check_default_entry_function(
         return;
     };
 
-    if !entry.parameters.parameters.is_empty()
+    if !entry.generics.parameters.is_empty()
+        || !entry.parameters.parameters.is_empty()
         || !is_valid_entry_return_type(&entry.return_type, resolved)
     {
         diagnostics.push(invalid_entry_function_diagnostic(sources, entry.span));

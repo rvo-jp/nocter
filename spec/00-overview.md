@@ -94,8 +94,9 @@ Rules:
 - `func main(): void` exits with status code `0`.
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
 - `func main(): void`, `func main(): i32`, and `func main(): usize` are accepted for simple infallible entry points in v0, but `func main(): i32!` is the preferred form for applications.
-- Entry function parameters are not part of v0.
-- Entry functions with parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
+- Entry function type parameters and value parameters are not part of v0.
+- Entry functions with type parameters, such as `func main<T>(): i32!`, are not part of v0.
+- Entry functions with value parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
 - Future manifest configuration may add project-level executable metadata, but v0 does not.
 

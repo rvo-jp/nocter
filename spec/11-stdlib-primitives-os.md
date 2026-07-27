@@ -413,7 +413,7 @@ V0 distribution status:
 
 Rules:
 
-- Entry function parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
+- Entry function type parameters and value parameters, such as `func main<T>(): i32!` and `func main(args: Vec<&str>): i32!`, are not part of v0.
 - The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
 - The generated low-level entry code may receive platform process entry information such as `argc`, `argv`, and `envp`.
 - That platform information is connected to a `std/process` process context inside the active target implementation.

@@ -114,7 +114,7 @@ Rules:
 - `--entry` is not part of v0.
 - Entry lookup considers only top-level functions in the root file.
 - Imported functions with the same name are ordinary functions and are not selected as the executable entry.
-- The selected function must have no parameters and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
+- The selected function must have no type parameters, no value parameters, and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
 - `main` is an ordinary function name except that root-file `main` is the v0 executable entry.
 - `fmt`, `tokens`, and `ast` do not perform executable entry validation.
 
@@ -494,4 +494,5 @@ The following are not part of v0:
 - package registry commands
 - project-wide command configuration
 - passing `run` child-process arguments before the `--` forwarding design is implemented
-- entry function parameters such as `func main(args: Vec<&str>): i32!`
+- entry function type parameters such as `func main<T>(): i32!`
+- entry function value parameters such as `func main(args: Vec<&str>): i32!`

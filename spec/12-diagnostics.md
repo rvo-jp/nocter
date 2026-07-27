@@ -292,7 +292,8 @@ Required v0 diagnostic families:
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
-- Selected entry function with parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.
+- Selected entry function with type parameters, such as `func main<T>(): i32!`, used in v0.
+- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.
 - Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
 - `return` without a value in a non-`void` function.
 - `return` with a value in a `void` function.

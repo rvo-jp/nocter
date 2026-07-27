@@ -537,6 +537,44 @@ fn build_command_lowers_usize_entry_return() {
 }
 
 #[test]
+fn build_command_rejects_generic_entry_before_ir_lowering() {
+    let project = TempProject::new("cli-build-generic-entry-boundary");
+    let source = project.write_source(
+        "generic_entry_boundary.nct",
+        r#"func main<T>(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0303]"),
+        "expected entry signature diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("no type parameters"),
+        "expected type parameter entry diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("1 | func main<T>(): i32 {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "frontend should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after frontend diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_usize_terminal_if_function() {
     let project = TempProject::new("cli-build-usize-terminal-if-function");
     let source = project.write_source(

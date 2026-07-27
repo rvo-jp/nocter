@@ -173,3 +173,16 @@ fn diagnoses_default_main_with_parameters() {
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0303");
 }
+
+#[test]
+fn diagnoses_default_main_with_type_parameters() {
+    let diagnostics = check_text(
+        r#"func main<T>(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0303");
+}
