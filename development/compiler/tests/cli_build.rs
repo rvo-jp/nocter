@@ -5401,6 +5401,28 @@ fn build_command_lowers_zero_length_fixed_array_literal_binding() {
 }
 
 #[test]
+fn build_command_lowers_zero_length_fixed_array_copy_and_assignment() {
+    let project = TempProject::new("cli-build-zero-length-fixed-array-copy-assignment");
+    let source = project.write_source(
+        "zero_length_fixed_array_copy_assignment.nct",
+        r#"func main(): i32 {
+    var empty: [u8; 0] = []
+    let copied: [u8; 0] = empty
+    empty = []
+    empty = copied
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_constant_index_compound_assignment() {
     let project = TempProject::new("cli-build-fixed-array-constant-index-compound-assignment");
     let source = project.write_source(

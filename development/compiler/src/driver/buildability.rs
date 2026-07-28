@@ -2164,7 +2164,7 @@ fn fixed_array_copy_binding_is_buildable(
     ) else {
         return false;
     };
-    if target_layout.size == 0 || !fixed_array_element_abi_is_buildable(&target_element) {
+    if !fixed_array_element_abi_is_buildable(&target_element) {
         return false;
     }
 
@@ -2338,7 +2338,7 @@ fn fixed_array_literal_assignment_is_buildable(
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
         return false;
     };
-    let Some((element, length, layout)) = fixed_array_assignment_target_abi(
+    let Some((element, length, _layout)) = fixed_array_assignment_target_abi(
         &statement.target,
         resolved,
         resolved_sources,
@@ -2347,8 +2347,7 @@ fn fixed_array_literal_assignment_is_buildable(
     ) else {
         return false;
     };
-    layout.size > 0
-        && u64::try_from(literal.elements.len()).ok() == Some(length)
+    u64::try_from(literal.elements.len()).ok() == Some(length)
         && fixed_array_element_abi_is_buildable(&element)
 }
 

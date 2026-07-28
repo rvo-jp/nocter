@@ -860,7 +860,7 @@ fn lower_aggregate_copy_binding(
     let Some(source) = context.aggregate_local(&identifier.name) else {
         return Ok(None);
     };
-    if !source.is_copy || !supported_aggregate_copy_layout(source.layout) {
+    if !source.is_copy {
         return Err(unsupported_binding_diagnostic(
             "IR v0 can only lower aggregate copy bindings from copy aggregate locals",
         ));
@@ -3299,7 +3299,6 @@ fn lower_aggregate_copy_assignment(
         || destination.layout != destination_layout
         || !source.is_copy
         || !destination.is_copy
-        || !supported_aggregate_copy_layout(destination_layout)
     {
         return Err(unsupported_assignment_diagnostic());
     }
