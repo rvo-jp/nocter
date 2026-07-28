@@ -7023,11 +7023,13 @@ fn run_command_reads_fixed_array_literal_constant_indices() {
     let sizes: [usize; 2] = [5, 6]
     let flags: [bool; 2] = [false, true]
     let words: [&str; 2] = ["bad", "Nocter"]
-    let score: i32 = scores[0] + scores[1] + scores[2]
+    let copied_scores: [i32; 3] = scores
+    let copied_words: [&str; 2] = words
+    let score: i32 = copied_scores[0] + copied_scores[1] + copied_scores[2]
     let byte: u8 = bytes[1]
     let size: usize = sizes[0] + sizes[1]
     let flag: bool = flags[1]
-    let word: &str = words[1]
+    let word: &str = copied_words[1]
     if score == 42 {
         if byte == 4 {
             if size == 11 {

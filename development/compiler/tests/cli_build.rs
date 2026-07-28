@@ -5293,10 +5293,10 @@ fn build_command_lowers_value_branch_fixed_array_literal() {
 }
 
 #[test]
-fn build_command_reports_fixed_array_copy_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-fixed-array-copy-binding-boundary");
+fn build_command_lowers_fixed_array_copy_binding() {
+    let project = TempProject::new("cli-build-fixed-array-copy-binding");
     let source = project.write_source(
-        "fixed_array_copy_binding_boundary.nct",
+        "fixed_array_copy_binding.nct",
         r#"func main(): i32 {
     let values: [i32; 2] = [1, 2]
     let copy: [i32; 2] = values
@@ -5308,28 +5308,8 @@ fn build_command_reports_fixed_array_copy_binding_before_ir_lowering() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("fixed array local bindings outside supported literal initialization"),
-        "expected fixed array binding diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("3 |     let copy: [i32; 2] = values"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

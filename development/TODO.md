@@ -57,10 +57,11 @@ Recommended order:
 ## Recent Notes
 
 - Fixed array ABI layout/classification is implemented. Runtime currently ships
-  non-empty local fixed array literals and constant index reads for `i32`, `u8`,
-  `usize`, `bool`, and `&str` elements. Variable indexing, mutation/index
-  assignment, array parameters/returns, zero-sized local arrays, move-only
-  element arrays, and broader array expressions remain rejected or deferred.
+  non-empty local fixed array literals, local copy bindings, and constant index
+  reads for `i32`, `u8`, `usize`, `bool`, and `&str` elements. Variable
+  indexing, mutation/index assignment, array parameters/returns, zero-sized
+  local arrays, move-only element arrays, and broader array expressions remain
+  rejected or deferred.
 - Release packaging layout now separates tracked inputs from generated output:
   `development/std` is the canonical standard-library source,
   `development/packaging` contains release metadata inputs, and

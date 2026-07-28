@@ -1935,19 +1935,34 @@ fn unsupported_local_binding_type_diagnostic(
         return None;
     }
 
-    if !matches!(
-        unwrap_group_expr(&statement.initializer),
-        Expr::ArrayLiteral(_)
-    ) && binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
-        .is_some_and(|ty| {
-            fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
-        })
+    if fixed_array_copy_binding_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+
+    if fixed_array_binding_type_abi(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
+    .is_some()
+        && !matches!(
+            unwrap_group_expr(&statement.initializer),
+            Expr::ArrayLiteral(_)
+        )
     {
         return Some(unsupported_v0_build_diagnostic(
             sources,
             statement.name_span,
             "fixed array local bindings outside supported literal initialization",
-            "initialize fixed array locals directly from a supported array literal until fixed array copy, call-result, and move lowering is promoted",
+            "initialize fixed array locals directly from a supported array literal or copy another supported fixed array local until fixed array call-result and move lowering is promoted",
         ));
     }
 
@@ -2030,6 +2045,61 @@ fn fixed_array_literal_binding_is_buildable(
         && fixed_array_element_abi_is_buildable(&element)
 }
 
+fn fixed_array_copy_binding_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::Identifier(identifier) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    let Some((target_element, target_length, target_layout)) = fixed_array_binding_type_abi(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    if target_layout.size == 0 || !fixed_array_element_abi_is_buildable(&target_element) {
+        return false;
+    }
+
+    let Some(source_ty) = local_identifier_type_expr_with_substitutions(
+        identifier,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    target_element == source_element
+        && target_length == source_length
+        && target_layout == source_layout
+        && fixed_array_element_abi_is_buildable(&source_element)
+}
+
+fn fixed_array_binding_type_abi(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
+    let ty =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)?;
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+}
+
 fn binding_type_expr_with_substitutions(
     statement: &BindingStmt,
     typecheck_facts: &TypecheckFacts,
@@ -2043,6 +2113,19 @@ fn binding_type_expr_with_substitutions(
                 .binding_type_expr(statement.name_span)
                 .cloned()
         })
+        .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
+}
+
+fn local_identifier_type_expr_with_substitutions(
+    identifier: &IdentifierExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let symbol = resolved.local_symbol_for_identifier(identifier)?;
+    typecheck_facts
+        .binding_type_expr(symbol.name_span)
+        .cloned()
         .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
 }
 
