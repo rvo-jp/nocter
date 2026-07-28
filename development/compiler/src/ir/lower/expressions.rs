@@ -131,6 +131,15 @@ pub(super) fn lower_i32_expression_to_location(
             context,
             i32_destination_reserved_abi_words(destination),
         ),
+        Expr::Unary(unary) if i32_unary_negate_requires_runtime(unary) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_i32_negate_expression_to_location_with_temporaries(
+                unary,
+                destination,
+                context,
+                &mut temporaries,
+            )
+        }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
@@ -1989,6 +1998,18 @@ fn lower_i32_expression_to_value(
         Expr::Match(statement) => {
             lower_i32_match_expression_to_value(statement, context, temporaries)
         }
+        Expr::Unary(unary) if i32_unary_negate_requires_runtime(unary) => {
+            let destination = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_negate_expression_to_location_with_temporaries(
+                    unary,
+                    destination,
+                    context,
+                    temporaries,
+                )?,
+                value: I32Value::Location(destination),
+            })
+        }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
@@ -2028,6 +2049,35 @@ fn lower_i32_expression_to_value(
             instructions: Vec::new(),
             value: lower_i32_value(expression, context)?,
         }),
+    }
+}
+
+fn lower_i32_negate_expression_to_location_with_temporaries(
+    unary: &UnaryExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let right = lower_i32_expression_to_value(&unary.operand, context, temporaries)?;
+    let mut instructions = right.instructions;
+    instructions.push(Instruction::SubtractI32 {
+        destination,
+        left: I32Value::Const(0),
+        right: right.value,
+    });
+    Ok(instructions)
+}
+
+fn i32_unary_negate_requires_runtime(unary: &UnaryExpr) -> bool {
+    unary.operator == UnaryOperator::Negate
+        && !expression_is_unsigned_integer_literal(&unary.operand)
+}
+
+fn expression_is_unsigned_integer_literal(expression: &Expr) -> bool {
+    match expression {
+        Expr::IntegerLiteral(_) => true,
+        Expr::Group(group) => expression_is_unsigned_integer_literal(&group.expression),
+        _ => false,
     }
 }
 

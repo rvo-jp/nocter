@@ -20887,6 +20887,33 @@ fn lowers_entry_returning_negative_i32_literal() {
 }
 
 #[test]
+fn lowers_i32_unary_negate_local_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 7
+    return -value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(7),
+            },
+            Instruction::SubtractI32 {
+                destination: I32Location::Return,
+                left: i32_const(0),
+                right: i32_local(0),
+            },
+            Instruction::Return
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_scalar_alias_return_type() {
     let ir = lower_text(
         r#"type Exit = i32
@@ -27858,15 +27885,25 @@ func helper(): i32 {
 }
 
 #[test]
-fn rejects_nested_negative_integer_literal() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_nested_negative_integer_literal() {
+    let ir = lower_text(
         r#"func main(): i32 {
     return -(-42)
 }
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8003");
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SubtractI32 {
+                destination: I32Location::Return,
+                left: i32_const(0),
+                right: i32_const(-42),
+            },
+            Instruction::Return
+        ]
+    );
 }
 
 fn lower_text(text: &str) -> IrModule {

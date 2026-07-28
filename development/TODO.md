@@ -113,6 +113,8 @@ Recommended order:
   in supported binding or return positions. General expression positions, such
   as call arguments, and broader fallback terminal-control shapes reject before
   IR lowering with E0435.
+- i32 unary negation now lowers as checked `0 - value` for non-literal operands;
+  negative integer literals still use the existing constant-literal path.
 
 ## Session Start
 

@@ -2197,6 +2197,33 @@ func offset(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_unary_negate_value_exit_code() {
+    let project = TempProject::new("cli-run-i32-unary-negate-value");
+    let source = project.write_source(
+        "i32_unary_negate_value.nct",
+        r#"func main(): i32 {
+    return 42 + negative(7)
+}
+
+func negative(value: i32): i32 {
+    return -value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(35),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_call_division_and_remainder_exit_code() {
     let project = TempProject::new("cli-run-i32-call-div-rem");
     let source = project.write_source(
@@ -2482,6 +2509,32 @@ func minimum(): i32 {
 
 func minus_one(): i32 {
     return -1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_unary_negate_overflow() {
+    let project = TempProject::new("cli-run-i32-unary-negate-overflow");
+    let source = project.write_source(
+        "i32_unary_negate_overflow.nct",
+        r#"func main(): i32 {
+    return -minimum()
+}
+
+func minimum(): i32 {
+    return -2147483648
 }
 "#,
     );
