@@ -5,8 +5,9 @@ use crate::analysis::{
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplDecl, ImplMember, Item, MemberExpr, MethodDecl, Parameter, Stmt, TypeExpr,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    FunctionDecl, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item, MemberExpr,
+    MethodDecl, Parameter, Stmt, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -698,6 +699,13 @@ fn collect_terminal_return_expression_diagnostics(
             );
         }
         Expr::If(expression) if terminal_if_expression_is_buildable(expression) => {
+            collect_terminal_control_condition_move_diagnostics(
+                &expression.condition,
+                sources,
+                resolved,
+                typecheck_facts,
+                diagnostics,
+            );
             collect_expression_diagnostics(
                 &expression.condition,
                 sources,
@@ -859,6 +867,13 @@ fn collect_value_expression_diagnostics(
 ) {
     match unwrap_group_expr(expression) {
         Expr::If(expression) if value_if_expression_is_buildable(expression) => {
+            collect_control_condition_move_diagnostics(
+                &expression.condition,
+                sources,
+                resolved,
+                typecheck_facts,
+                diagnostics,
+            );
             collect_expression_diagnostics(
                 &expression.condition,
                 sources,
@@ -1171,6 +1186,13 @@ fn collect_void_effect_if_expression_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    collect_control_condition_move_diagnostics(
+        &expression.condition,
+        sources,
+        resolved,
+        typecheck_facts,
+        diagnostics,
+    );
     collect_expression_diagnostics(
         &expression.condition,
         sources,
@@ -2602,13 +2624,22 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::If(statement) => {
-            if !if_statement_exits_function_for_buildability(
+            let exits_function = if_statement_exits_function_for_buildability(
                 statement,
                 resolved,
                 typecheck_facts,
                 generic_substitutions,
-            ) {
-                collect_nonterminal_control_block_drop_diagnostics(
+            );
+            if exits_function {
+                collect_terminal_control_condition_move_diagnostics(
+                    &statement.condition,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    diagnostics,
+                );
+            } else {
+                collect_nonterminal_control_block_aggregate_diagnostics(
                     &statement.then_block,
                     sources,
                     resolved,
@@ -2617,7 +2648,7 @@ fn collect_statement_diagnostics(
                     diagnostics,
                 );
                 if let Some(block) = &statement.else_block {
-                    collect_nonterminal_control_block_drop_diagnostics(
+                    collect_nonterminal_control_block_aggregate_diagnostics(
                         block,
                         sources,
                         resolved,
@@ -2626,6 +2657,13 @@ fn collect_statement_diagnostics(
                         diagnostics,
                     );
                 }
+                collect_control_condition_move_diagnostics(
+                    &statement.condition,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    diagnostics,
+                );
             }
             collect_expression_diagnostics(
                 &statement.condition,
@@ -2697,8 +2735,12 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                collect_nonterminal_control_block_drop_diagnostics(
+                collect_nonterminal_control_payload_block_aggregate_diagnostics(
                     &statement.then_block,
+                    statement
+                        .payload
+                        .as_ref()
+                        .map(|payload| payload.name.as_str()),
                     sources,
                     resolved,
                     typecheck_facts,
@@ -2706,7 +2748,7 @@ fn collect_statement_diagnostics(
                     diagnostics,
                 );
                 if let Some(block) = &statement.else_block {
-                    collect_nonterminal_control_block_drop_diagnostics(
+                    collect_nonterminal_control_block_aggregate_diagnostics(
                         block,
                         sources,
                         resolved,
@@ -2716,6 +2758,13 @@ fn collect_statement_diagnostics(
                     );
                 }
             }
+            collect_control_condition_move_diagnostics(
+                &statement.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                diagnostics,
+            );
             collect_block_diagnostics(
                 &statement.then_block,
                 sources,
@@ -2774,8 +2823,9 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
             ) {
                 for arm in &statement.arms {
-                    collect_nonterminal_control_block_drop_diagnostics(
+                    collect_nonterminal_control_payload_block_aggregate_diagnostics(
                         &arm.body,
+                        arm.payload.as_ref().map(|payload| payload.name.as_str()),
                         sources,
                         resolved,
                         typecheck_facts,
@@ -2784,7 +2834,7 @@ fn collect_statement_diagnostics(
                     );
                 }
                 if let Some(arm) = &statement.else_arm {
-                    collect_nonterminal_control_block_drop_diagnostics(
+                    collect_nonterminal_control_block_aggregate_diagnostics(
                         &arm.body,
                         sources,
                         resolved,
@@ -2794,6 +2844,13 @@ fn collect_statement_diagnostics(
                     );
                 }
             }
+            collect_control_condition_move_diagnostics(
+                &statement.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                diagnostics,
+            );
             for arm in &statement.arms {
                 collect_block_diagnostics(
                     &arm.body,
@@ -2860,7 +2917,7 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_nonterminal_control_block_drop_diagnostics(
+            collect_nonterminal_control_block_aggregate_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
@@ -2883,6 +2940,13 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::While(statement) => {
+            collect_control_condition_move_diagnostics(
+                &statement.condition,
+                sources,
+                resolved,
+                typecheck_facts,
+                diagnostics,
+            );
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -2896,7 +2960,7 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            collect_nonterminal_control_block_drop_diagnostics(
+            collect_nonterminal_control_block_aggregate_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
@@ -2919,7 +2983,7 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::Loop(statement) => {
-            collect_nonterminal_control_block_drop_diagnostics(
+            collect_nonterminal_control_block_aggregate_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
@@ -2969,7 +3033,71 @@ fn collect_statement_diagnostics(
     }
 }
 
-fn collect_nonterminal_control_block_drop_diagnostics(
+fn collect_control_condition_move_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(span) = expression_explicit_aggregate_move_span(expression, resolved, typecheck_facts)
+    else {
+        return;
+    };
+
+    diagnostics.push(unsupported_v0_build_diagnostic(
+        sources,
+        span,
+        "explicit aggregate moves in control-flow conditions",
+        "select the branch before moving aggregate values until control-flow condition move lowering is promoted",
+    ));
+}
+
+fn collect_terminal_control_condition_move_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(span) = expression_explicit_aggregate_move_span(expression, resolved, typecheck_facts)
+    else {
+        return;
+    };
+    if condition_explicit_moves_are_single_evaluation_call_for_buildability(expression) {
+        return;
+    }
+
+    diagnostics.push(unsupported_v0_build_diagnostic(
+        sources,
+        span,
+        "explicit aggregate moves in control-flow conditions",
+        "use a single call expression for terminal branch conditions that move aggregate values, or move aggregate values after branch selection until broader condition move lowering is promoted",
+    ));
+}
+
+fn condition_explicit_moves_are_single_evaluation_call_for_buildability(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Call(_) => true,
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            condition_explicit_moves_are_single_evaluation_call_for_buildability(&unary.operand)
+        }
+        Expr::Propagate(propagation) => {
+            condition_explicit_moves_are_single_evaluation_call_for_buildability(
+                &propagation.expression,
+            )
+        }
+        Expr::Force(force) => {
+            condition_explicit_moves_are_single_evaluation_call_for_buildability(&force.expression)
+        }
+        Expr::Catch(catch) => {
+            condition_explicit_moves_are_single_evaluation_call_for_buildability(&catch.expression)
+        }
+        _ => false,
+    }
+}
+
+fn collect_nonterminal_control_block_aggregate_diagnostics(
     block: &Block,
     sources: &SourceMap,
     resolved: &ResolveOutput,
@@ -2977,11 +3105,105 @@ fn collect_nonterminal_control_block_drop_diagnostics(
     generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
+        block,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        HashSet::new(),
+        diagnostics,
+    );
+}
+
+fn collect_nonterminal_control_payload_block_aggregate_diagnostics(
+    block: &Block,
+    payload_name: Option<&str>,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let mut local_bindings = HashSet::new();
+    if let Some(payload_name) = payload_name {
+        local_bindings.insert(payload_name.to_owned());
+    }
+    collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
+        block,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        local_bindings,
+        diagnostics,
+    );
+}
+
+fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    mut local_bindings: HashSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for (index, statement) in block.statements.iter().enumerate() {
         match statement {
             Stmt::Binding(statement) => {
+                if let Some(span) = unsupported_outer_aggregate_move_binding_span(
+                    statement,
+                    &block.statements,
+                    index,
+                    block.result.as_deref(),
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    &local_bindings,
+                ) {
+                    diagnostics.push(unsupported_v0_build_diagnostic(
+                        sources,
+                        span,
+                        "explicit outer aggregate moves inside non-terminal control flow",
+                        "move values created inside the branch/body, or move outer values only into bindings/assignments on paths that immediately exit the function until broader control-flow move lowering is promoted",
+                    ));
+                }
                 local_bindings.insert(statement.name.clone());
+            }
+            Stmt::Assignment(statement) => {
+                if let Some(span) = unsupported_outer_aggregate_move_assignment_span(
+                    statement,
+                    &block.statements,
+                    index,
+                    block.result.as_deref(),
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    &local_bindings,
+                ) {
+                    diagnostics.push(unsupported_v0_build_diagnostic(
+                        sources,
+                        span,
+                        "explicit outer aggregate moves inside non-terminal control flow",
+                        "move values created inside the branch/body, or move outer values only into bindings/assignments on paths that immediately exit the function until broader control-flow move lowering is promoted",
+                    ));
+                }
+            }
+            Stmt::Expression(statement) => {
+                if let Some(span) = expression_explicit_outer_aggregate_move_span(
+                    &statement.expression,
+                    resolved,
+                    typecheck_facts,
+                    &local_bindings,
+                ) {
+                    diagnostics.push(unsupported_v0_build_diagnostic(
+                        sources,
+                        span,
+                        "explicit outer aggregate moves inside non-terminal control flow",
+                        "move values created inside the branch/body, or bind or assign outer moves only on paths that immediately exit the function until broader control-flow move lowering is promoted",
+                    ));
+                }
             }
             Stmt::Drop(statement)
                 if !local_bindings.contains(&statement.name)
@@ -3004,6 +3226,706 @@ fn collect_nonterminal_control_block_drop_diagnostics(
             _ => {}
         }
     }
+    if let Some(result) = &block.result
+        && let Some(span) = expression_explicit_outer_aggregate_move_span(
+            result,
+            resolved,
+            typecheck_facts,
+            &local_bindings,
+        )
+    {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            span,
+            "explicit outer aggregate moves inside non-terminal control-flow results",
+            "move values created inside the branch/body, or move outer values only before a statement that immediately exits the function until broader control-flow move lowering is promoted",
+        ));
+    }
+}
+
+fn unsupported_outer_aggregate_move_binding_span(
+    statement: &BindingStmt,
+    statements: &[Stmt],
+    index: usize,
+    result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    local_bindings: &HashSet<String>,
+) -> Option<ByteSpan> {
+    let span = expression_explicit_outer_aggregate_move_span(
+        &statement.initializer,
+        resolved,
+        typecheck_facts,
+        local_bindings,
+    )?;
+    if direct_outer_aggregate_move_for_buildability(
+        &statement.initializer,
+        resolved,
+        typecheck_facts,
+        local_bindings,
+    ) && statement_suffix_exits_function_for_buildability(
+        statements,
+        index,
+        result,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+    Some(span)
+}
+
+fn unsupported_outer_aggregate_move_assignment_span(
+    statement: &AssignmentStmt,
+    statements: &[Stmt],
+    index: usize,
+    result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    local_bindings: &HashSet<String>,
+) -> Option<ByteSpan> {
+    let span = expression_explicit_outer_aggregate_move_span(
+        &statement.value,
+        resolved,
+        typecheck_facts,
+        local_bindings,
+    )?;
+    if assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability(
+        statement,
+        statements,
+        index,
+        result,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        local_bindings,
+    ) {
+        return None;
+    }
+    Some(span)
+}
+
+fn assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability(
+    statement: &AssignmentStmt,
+    statements: &[Stmt],
+    index: usize,
+    result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    local_bindings: &HashSet<String>,
+) -> bool {
+    direct_outer_aggregate_move_for_buildability(
+        &statement.value,
+        resolved,
+        typecheck_facts,
+        local_bindings,
+    ) && assignment_target_root_is_aggregate_binding_for_buildability(
+        &statement.target,
+        resolved,
+        typecheck_facts,
+    ) && statement_suffix_exits_function_for_buildability(
+        statements,
+        index,
+        result,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn direct_outer_aggregate_move_for_buildability(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    local_bindings: &HashSet<String>,
+) -> bool {
+    let Expr::Unary(unary) = unwrap_group_expr(expression) else {
+        return false;
+    };
+    if unary.operator != UnaryOperator::Move {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) else {
+        return false;
+    };
+    identifier_is_outer_aggregate_for_buildability(
+        identifier,
+        resolved,
+        typecheck_facts,
+        local_bindings,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ExplicitAggregateMoveScope<'a> {
+    Any,
+    OutsideLocals(&'a HashSet<String>),
+}
+
+fn expression_explicit_aggregate_move_span(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<ByteSpan> {
+    explicit_aggregate_move_span_in_expression(
+        expression,
+        resolved,
+        typecheck_facts,
+        ExplicitAggregateMoveScope::Any,
+    )
+}
+
+fn expression_explicit_outer_aggregate_move_span(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    local_bindings: &HashSet<String>,
+) -> Option<ByteSpan> {
+    explicit_aggregate_move_span_in_expression(
+        expression,
+        resolved,
+        typecheck_facts,
+        ExplicitAggregateMoveScope::OutsideLocals(local_bindings),
+    )
+}
+
+fn explicit_aggregate_move_span_in_expression(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> Option<ByteSpan> {
+    match expression {
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            if let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) {
+                explicit_aggregate_move_matches_identifier(
+                    identifier,
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+                .then_some(unary.span)
+            } else {
+                explicit_aggregate_move_span_in_expression(
+                    &unary.operand,
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            }
+        }
+        Expr::ArrayLiteral(literal) => literal.elements.iter().find_map(|element| {
+            explicit_aggregate_move_span_in_expression(element, resolved, typecheck_facts, scope)
+        }),
+        Expr::StructLiteral(literal) => literal.fields.iter().find_map(|field| {
+            explicit_aggregate_move_span_in_expression(
+                &field.value,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Expr::Propagate(propagation) => explicit_aggregate_move_span_in_expression(
+            &propagation.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Force(force) => explicit_aggregate_move_span_in_expression(
+            &force.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Catch(catch) => explicit_aggregate_move_span_in_expression(
+            &catch.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Borrow(borrow) => explicit_aggregate_move_span_in_expression(
+            &borrow.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Unary(unary) => explicit_aggregate_move_span_in_expression(
+            &unary.operand,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Binary(binary) => explicit_aggregate_move_span_in_expression(
+            &binary.left,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_expression(
+                &binary.right,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Expr::TypeConversion(conversion) => explicit_aggregate_move_span_in_expression(
+            &conversion.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Call(call) => explicit_aggregate_move_span_in_expression(
+            &call.callee,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            call.arguments.iter().find_map(|argument| {
+                explicit_aggregate_move_span_in_expression(
+                    argument,
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            })
+        }),
+        Expr::Member(member) => explicit_aggregate_move_span_in_expression(
+            &member.object,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Index(index) => explicit_aggregate_move_span_in_expression(
+            &index.object,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_expression(
+                &index.index,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Expr::Group(group) => explicit_aggregate_move_span_in_expression(
+            &group.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Expr::Otherwise(expression) => explicit_aggregate_move_span_in_expression(
+            &expression.value,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(
+                &expression.fallback,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Expr::If(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.condition,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(
+                &statement.then_block,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        })
+        .or_else(|| {
+            statement.else_block.as_ref().and_then(|block| {
+                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+            })
+        }),
+        Expr::IfIs(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_payload_block(
+                &statement.then_block,
+                statement
+                    .payload
+                    .as_ref()
+                    .map(|payload| payload.name.as_str()),
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        })
+        .or_else(|| {
+            statement.else_block.as_ref().and_then(|block| {
+                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+            })
+        }),
+        Expr::Match(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            statement.arms.iter().find_map(|arm| {
+                explicit_aggregate_move_span_in_payload_block(
+                    &arm.body,
+                    arm.payload.as_ref().map(|payload| payload.name.as_str()),
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            })
+        })
+        .or_else(|| {
+            statement.else_arm.as_ref().and_then(|arm| {
+                explicit_aggregate_move_span_in_block(&arm.body, resolved, typecheck_facts, scope)
+            })
+        }),
+        Expr::InterpolatedString(interpolated) => interpolated.parts.iter().find_map(|part| {
+            if let InterpolatedStringPart::Expression(part) = part {
+                explicit_aggregate_move_span_in_expression(
+                    &part.expression,
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            } else {
+                None
+            }
+        }),
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => None,
+    }
+}
+
+fn explicit_aggregate_move_span_in_block(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> Option<ByteSpan> {
+    match scope {
+        ExplicitAggregateMoveScope::Any => block
+            .statements
+            .iter()
+            .find_map(|statement| {
+                explicit_aggregate_move_span_in_statement(
+                    statement,
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            })
+            .or_else(|| {
+                block.result.as_ref().and_then(|result| {
+                    explicit_aggregate_move_span_in_expression(
+                        result,
+                        resolved,
+                        typecheck_facts,
+                        scope,
+                    )
+                })
+            }),
+        ExplicitAggregateMoveScope::OutsideLocals(local_bindings) => {
+            let mut nested_locals = local_bindings.clone();
+            for statement in &block.statements {
+                let span = explicit_aggregate_move_span_in_statement(
+                    statement,
+                    resolved,
+                    typecheck_facts,
+                    ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
+                );
+                if span.is_some() {
+                    return span;
+                }
+                if let Stmt::Binding(statement) = statement {
+                    nested_locals.insert(statement.name.clone());
+                }
+            }
+            block.result.as_ref().and_then(|result| {
+                explicit_aggregate_move_span_in_expression(
+                    result,
+                    resolved,
+                    typecheck_facts,
+                    ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
+                )
+            })
+        }
+    }
+}
+
+fn explicit_aggregate_move_span_in_statement(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> Option<ByteSpan> {
+    match statement {
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Drop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => None,
+        Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
+            explicit_aggregate_move_span_in_expression(expression, resolved, typecheck_facts, scope)
+        }),
+        Stmt::Binding(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.initializer,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+        Stmt::Assignment(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.target,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_expression(
+                &statement.value,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Stmt::If(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.condition,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(
+                &statement.then_block,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        })
+        .or_else(|| {
+            statement.else_block.as_ref().and_then(|block| {
+                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+            })
+        }),
+        Stmt::IfIs(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_payload_block(
+                &statement.then_block,
+                statement
+                    .payload
+                    .as_ref()
+                    .map(|payload| payload.name.as_str()),
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        })
+        .or_else(|| {
+            statement.else_block.as_ref().and_then(|block| {
+                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+            })
+        }),
+        Stmt::Switch(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            statement.arms.iter().find_map(|arm| {
+                explicit_aggregate_move_span_in_payload_block(
+                    &arm.body,
+                    arm.payload.as_ref().map(|payload| payload.name.as_str()),
+                    resolved,
+                    typecheck_facts,
+                    scope,
+                )
+            })
+        })
+        .or_else(|| {
+            statement.else_arm.as_ref().and_then(|arm| {
+                explicit_aggregate_move_span_in_block(&arm.body, resolved, typecheck_facts, scope)
+            })
+        }),
+        Stmt::ForRange(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.start,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_expression(
+                &statement.end,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        })
+        .or_else(|| {
+            explicit_aggregate_move_span_in_for_range_body(
+                statement,
+                resolved,
+                typecheck_facts,
+                scope,
+            )
+        }),
+        Stmt::While(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.condition,
+            resolved,
+            typecheck_facts,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
+        }),
+        Stmt::Loop(statement) => {
+            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
+        }
+        Stmt::Expression(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            scope,
+        ),
+    }
+}
+
+fn explicit_aggregate_move_span_in_for_range_body(
+    statement: &ForRangeStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> Option<ByteSpan> {
+    match scope {
+        ExplicitAggregateMoveScope::Any => {
+            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
+        }
+        ExplicitAggregateMoveScope::OutsideLocals(local_bindings) => {
+            let mut body_locals = local_bindings.clone();
+            body_locals.insert(statement.name.clone());
+            explicit_aggregate_move_span_in_block(
+                &statement.body,
+                resolved,
+                typecheck_facts,
+                ExplicitAggregateMoveScope::OutsideLocals(&body_locals),
+            )
+        }
+    }
+}
+
+fn explicit_aggregate_move_span_in_payload_block(
+    block: &Block,
+    payload_name: Option<&str>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> Option<ByteSpan> {
+    match (scope, payload_name) {
+        (ExplicitAggregateMoveScope::OutsideLocals(local_bindings), Some(payload_name)) => {
+            let mut nested_locals = local_bindings.clone();
+            nested_locals.insert(payload_name.to_owned());
+            explicit_aggregate_move_span_in_block(
+                block,
+                resolved,
+                typecheck_facts,
+                ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
+            )
+        }
+        _ => explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope),
+    }
+}
+
+fn explicit_aggregate_move_matches_identifier(
+    identifier: &IdentifierExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    scope: ExplicitAggregateMoveScope<'_>,
+) -> bool {
+    match scope {
+        ExplicitAggregateMoveScope::Any => {
+            identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
+        }
+        ExplicitAggregateMoveScope::OutsideLocals(local_bindings) => {
+            identifier_is_outer_aggregate_for_buildability(
+                identifier,
+                resolved,
+                typecheck_facts,
+                local_bindings,
+            )
+        }
+    }
+}
+
+fn assignment_target_root_is_aggregate_binding_for_buildability(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(identifier) => {
+            identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
+        }
+        Expr::Member(member) => assignment_target_root_is_aggregate_binding_for_buildability(
+            &member.object,
+            resolved,
+            typecheck_facts,
+        ),
+        _ => false,
+    }
+}
+
+fn identifier_is_outer_aggregate_for_buildability(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    local_bindings: &HashSet<String>,
+) -> bool {
+    !local_bindings.contains(&identifier.name)
+        && identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
+}
+
+fn identifier_is_aggregate_for_buildability(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+        return false;
+    };
+    typecheck_facts
+        .binding_type_label(symbol.name_span)
+        .is_some()
+        && typecheck_facts
+            .binding_scalar_view_kind(symbol.name_span)
+            .is_none()
 }
 
 fn statement_suffix_exits_function_for_buildability(
@@ -5840,6 +6762,44 @@ func main(): i32 {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains("`match` expressions")),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn does_not_treat_if_is_payload_move_as_outer_control_move() {
+        let (sources, analysis) = analyze_text(
+            r#"struct File {
+    fd: i32
+}
+
+enum Event {
+    file(file: File)
+    empty
+}
+
+func main(): i32 {
+    let event = Event.file(File{ fd: 1 })
+    if event is Event.file(file) {
+        var moved = move file
+    }
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("`if is` pattern branches")),
+            "{diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().all(|diagnostic| !diagnostic
+                .message
+                .contains("explicit outer aggregate moves inside non-terminal control flow")),
             "{diagnostics:?}"
         );
     }

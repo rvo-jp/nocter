@@ -1119,6 +1119,128 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_rejects_nonterminal_if_branch_outer_move_binding() {
+    let project = TempProject::new("cli-build-nonterminal-if-branch-outer-move-binding");
+    let source = project.write_source(
+        "nonterminal_if_branch_outer_move_binding.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if true {
+        var moved = move file
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit outer aggregate moves inside non-terminal control flow"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("14 |         var moved = move file"),
+        "stderr missing move span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
+fn build_command_lowers_nonterminal_if_branch_outer_move_binding_before_return() {
+    let project =
+        TempProject::new("cli-build-nonterminal-if-branch-outer-move-binding-before-return");
+    let source = project.write_source(
+        "nonterminal_if_branch_outer_move_binding_before_return.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        var moved = move file
+        return moved.fd
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_nonterminal_if_branch_outer_move_assignment_before_return() {
+    let project =
+        TempProject::new("cli-build-nonterminal-if-branch-outer-move-assignment-before-return");
+    let source = project.write_source(
+        "nonterminal_if_branch_outer_move_assignment_before_return.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var target = File{ fd: 1 }
+    var source = File{ fd: 2 }
+    if true {
+        target = move source
+        return target.fd
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_nonterminal_if_distinct_branch_aggregate_layouts() {
     let project = TempProject::new("cli-build-nonterminal-if-distinct-branch-layouts");
     let source = project.write_source(
@@ -1452,6 +1574,63 @@ func main(): i32 {
 
     assert_success(&output);
     assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_nonterminal_while_body_outer_move_assignment_before_loop_control() {
+    let project =
+        TempProject::new("cli-build-nonterminal-while-body-outer-move-assignment-before-control");
+    let source = project.write_source(
+        "nonterminal_while_body_outer_move_assignment_before_control.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var source = File{ fd: 2 }
+    while false {
+        var target = File{ fd: 1 }
+        target = move source
+        break
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit outer aggregate moves inside non-terminal control flow"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("15 |         target = move source"),
+        "stderr missing move span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
 }
 
 #[test]
@@ -3780,6 +3959,180 @@ func main(): i32 {
 
     assert_success(&output);
     assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_compound_terminal_if_condition_outer_move() {
+    let project = TempProject::new("cli-build-compound-terminal-if-condition-outer-move");
+    let source = project.write_source(
+        "compound_terminal_if_condition_outer_move.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if consume(move file) && true {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit aggregate moves in control-flow conditions"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("17 |     if consume(move file) && true {"),
+        "stderr missing condition span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
+fn build_command_rejects_value_if_condition_outer_move() {
+    let project = TempProject::new("cli-build-value-if-condition-outer-move");
+    let source = project.write_source(
+        "value_if_condition_outer_move.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let code = if consume(move file) {
+        0
+    } else {
+        1
+    }
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit aggregate moves in control-flow conditions"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("17 |     let code = if consume(move file) {"),
+        "stderr missing condition span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
+fn build_command_rejects_nonterminal_while_condition_outer_move() {
+    let project = TempProject::new("cli-build-nonterminal-while-condition-outer-move");
+    let source = project.write_source(
+        "nonterminal_while_condition_outer_move.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while consume(move file) {
+        break
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit aggregate moves in control-flow conditions"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("17 |     while consume(move file) {"),
+        "stderr missing condition span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
 }
 
 #[test]

@@ -8,11 +8,10 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `8df594b Reject outer drops in nonterminal control flow`
   - `214e2f8 Fix source-aware generic Vec storage checks`
   - `3420be0 Document the full compiler verification gate`
   - `86332aa Keep compiler clean under current clippy`
-  - `43e62e2 Move development assets under development root`
-  - `87f8ee7 Drop legacy root Nocter home entrypoint`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
@@ -88,6 +87,12 @@ Recommended order:
   non-terminal `if`/`match`/loop branches before IR lowering, while still
   allowing branch/body-local explicit drops and outer drops on paths that
   immediately exit the function.
+- Buildability now mirrors the current IR boundary for explicit aggregate
+  `move` inside control flow: value-producing control conditions, non-terminal
+  loop/branch conditions, compound terminal conditions, and unsupported
+  non-terminal outer moves reject before IR lowering, while terminal single-call
+  conditions and outer moves into bindings/assignments before immediate function
+  exit remain buildable.
 - Generic impl method specialization now carries the receiver-derived impl
   substitutions into nested generic calls in the method body.
 
