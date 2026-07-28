@@ -119,7 +119,8 @@ Recommended order:
   CLI run, and distributed-home runtime tests alongside `from_ref`.
 - Buildability now resolves imported type aliases by declaring source when it
   decides whether value-producing control expressions are in scalar/view
-  binding, assignment, or call-argument positions.
+  binding, assignment, or call-argument positions, and when it classifies
+  discardable scalar/view/aggregate expression statements.
 
 ## Session Start
 

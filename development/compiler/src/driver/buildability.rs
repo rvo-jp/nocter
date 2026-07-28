@@ -13,7 +13,7 @@ use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
 use crate::literals::decode_integer_literal_value;
-use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
+use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
     FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
@@ -688,6 +688,7 @@ fn collect_terminal_return_expression_diagnostics(
             if void_effect_if_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -710,6 +711,7 @@ fn collect_terminal_return_expression_diagnostics(
             if void_effect_if_is_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -732,6 +734,7 @@ fn collect_terminal_return_expression_diagnostics(
             if void_effect_match_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -1145,6 +1148,7 @@ fn collect_otherwise_return_expression_diagnostics(
     if !otherwise_return_fallback_runtime_shape_is_buildable(
         &expression.fallback,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) {
@@ -1210,6 +1214,7 @@ fn collect_otherwise_binding_initializer_diagnostics(
     if !otherwise_binding_fallback_runtime_shape_is_buildable(
         &expression.fallback,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) {
@@ -1436,6 +1441,7 @@ fn collect_void_effect_expression_diagnostics(
             if void_effect_if_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -1458,6 +1464,7 @@ fn collect_void_effect_expression_diagnostics(
             if void_effect_if_is_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -1480,6 +1487,7 @@ fn collect_void_effect_expression_diagnostics(
             if void_effect_match_expression_is_buildable(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) =>
@@ -1503,6 +1511,7 @@ fn collect_void_effect_expression_diagnostics(
                 sources,
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -1981,7 +1990,7 @@ fn type_expr_is_known_unsupported_scalar_value_inner(
     match ty {
         TypeExpr::Reference(reference) if unsupported_scalar_type_label(&reference.name) => true,
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -2021,7 +2030,48 @@ fn resolved_for_type_expr<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    resolver(ty.span().source).unwrap_or(fallback_resolved)
+    let source_resolved = resolver(ty.span().source);
+    let Some(name) = type_expr_symbol_name(ty) else {
+        return source_resolved.unwrap_or(fallback_resolved);
+    };
+
+    if let Some(resolved) = source_resolved
+        && type_symbol_by_reference_name(resolved, name).is_some()
+    {
+        return resolved;
+    }
+    if type_symbol_by_reference_name(fallback_resolved, name).is_some() {
+        return fallback_resolved;
+    }
+
+    source_resolved.unwrap_or(fallback_resolved)
+}
+
+fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
+    }
+}
+
+fn type_symbol_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<&'a TypeSymbol> {
+    resolved.type_symbol_by_reference_name(name).or_else(|| {
+        short_qualified_type_name(name)
+            .and_then(|short| resolved.type_symbol_by_reference_name(short))
+    })
+}
+
+fn short_qualified_type_name(name: &str) -> Option<&str> {
+    name.rsplit_once('.').map(|(_module, short)| short)
 }
 
 fn type_expr_is_top_level_optional_with_resolver<'a, F>(
@@ -2048,7 +2098,7 @@ where
         TypeExpr::Optional(_) => true,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -2135,7 +2185,7 @@ where
         }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return type_expr_has_buildable_scalar_abi_with_resolver(
                     ty,
                     fallback_resolved,
@@ -2216,7 +2266,7 @@ where
         TypeExpr::Reference(reference) if reference.name == expected => true,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -2263,7 +2313,7 @@ where
         TypeExpr::View(_) => true,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -2289,27 +2339,53 @@ fn type_expr_resolves_to_supported_slice_view(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Option<bool> {
-    type_expr_resolves_to_supported_slice_view_inner(ty, resolved, &mut HashSet::new())
+    type_expr_resolves_to_supported_slice_view_with_resolver(ty, resolved, &|_| Some(resolved))
 }
 
-fn type_expr_resolves_to_supported_slice_view_inner(
+fn type_expr_resolves_to_supported_slice_view_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<bool>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_resolves_to_supported_slice_view_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn type_expr_resolves_to_supported_slice_view_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<bool> {
+) -> Option<bool>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
-        TypeExpr::View(view) => Some(type_expr_is_supported_slice_index_element(
+        TypeExpr::View(view) => Some(type_expr_is_supported_slice_index_element_with_resolver(
             &view.element,
-            resolved,
+            fallback_resolved,
+            resolver,
         )),
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result =
-                type_expr_resolves_to_supported_slice_view_inner(target, resolved, resolving_names);
+            let result = type_expr_resolves_to_supported_slice_view_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -2332,7 +2408,7 @@ fn type_expr_resolved_view_element_kind_inner(
     match ty {
         TypeExpr::View(view) => Some(type_expr_slice_element_kind(&view.element, resolved)),
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
@@ -2369,7 +2445,7 @@ where
     match ty {
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return callable_non_alias_parameter_type_is_buildable_with_resolver(
                     ty,
                     fallback_resolved,
@@ -2443,7 +2519,7 @@ where
         }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return callable_non_alias_return_type_is_buildable_with_resolver(
                     ty,
                     fallback_resolved,
@@ -2530,7 +2606,7 @@ where
         TypeExpr::Reference(reference) if reference.name == "error" => true,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -2661,22 +2737,31 @@ fn value_block_leading_statement_is_buildable(statement: &Stmt) -> bool {
 fn void_effect_if_expression_is_buildable(
     expression: &crate::ast::IfStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     void_effect_block_is_buildable(
         &expression.then_block,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) && expression.else_block.as_ref().is_none_or(|block| {
-        void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
+        void_effect_block_is_buildable(
+            block,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
     })
 }
 
 fn void_effect_if_is_expression_is_buildable(
     expression: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -2684,17 +2769,25 @@ fn void_effect_if_is_expression_is_buildable(
         && void_effect_block_is_buildable(
             &expression.then_block,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
         && expression.else_block.as_ref().is_none_or(|block| {
-            void_effect_block_is_buildable(block, resolved, typecheck_facts, generic_substitutions)
+            void_effect_block_is_buildable(
+                block,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
         })
 }
 
 fn void_effect_match_expression_is_buildable(
     expression: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -2703,6 +2796,7 @@ fn void_effect_match_expression_is_buildable(
             void_effect_block_is_buildable(
                 &arm.body,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -2711,6 +2805,7 @@ fn void_effect_match_expression_is_buildable(
             void_effect_block_is_buildable(
                 &arm.body,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -2720,6 +2815,7 @@ fn void_effect_match_expression_is_buildable(
 fn void_effect_block_is_buildable(
     block: &Block,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -2727,6 +2823,7 @@ fn void_effect_block_is_buildable(
         Some(result) => void_effect_expression_is_buildable(
             result,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -2737,6 +2834,7 @@ fn void_effect_block_is_buildable(
 fn void_effect_expression_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -2744,24 +2842,28 @@ fn void_effect_expression_is_buildable(
         Expr::If(expression) => void_effect_if_expression_is_buildable(
             expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::IfIs(expression) => void_effect_if_is_expression_is_buildable(
             expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Match(expression) => void_effect_match_expression_is_buildable(
             expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         _ => expression_statement_is_supported(
             expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -3446,6 +3548,7 @@ fn collect_statement_diagnostics(
                 sources,
                 &statement.expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -4836,12 +4939,14 @@ fn unsupported_expression_statement_diagnostic(
     sources: &SourceMap,
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     if expression_statement_is_supported(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) {
@@ -4859,12 +4964,19 @@ fn unsupported_expression_statement_diagnostic(
 fn expression_statement_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => {
-            match call_return_shape(call, resolved, typecheck_facts, generic_substitutions) {
+            match call_return_shape_for_sources(
+                call,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 Some(
                     ReturnShape::Void
                     | ReturnShape::Never
@@ -4879,18 +4991,21 @@ fn expression_statement_is_supported(
         Expr::Propagate(expression) => fallible_void_statement_inner_is_supported(
             &expression.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Force(expression) => fallible_void_statement_inner_is_supported(
             &expression.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Catch(expression) => fallible_void_statement_inner_is_supported(
             &expression.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -4902,6 +5017,7 @@ fn expression_statement_is_supported(
 fn catch_block_runtime_shape_is_buildable(
     block: &Block,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -4917,12 +5033,14 @@ fn catch_block_runtime_shape_is_buildable(
         catch_block_leading_statement_runtime_shape_is_buildable(
             statement,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
     }) && catch_block_terminal_statement_runtime_shape_is_buildable(
         last,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     )
@@ -4931,6 +5049,7 @@ fn catch_block_runtime_shape_is_buildable(
 fn catch_block_leading_statement_runtime_shape_is_buildable(
     statement: &Stmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -4939,6 +5058,7 @@ fn catch_block_leading_statement_runtime_shape_is_buildable(
         Stmt::Expression(statement) => expression_statement_is_supported(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -4958,6 +5078,7 @@ fn catch_block_leading_statement_runtime_shape_is_buildable(
 fn catch_block_terminal_statement_runtime_shape_is_buildable(
     statement: &Stmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -4972,6 +5093,7 @@ fn catch_block_terminal_statement_runtime_shape_is_buildable(
             ) || expression_statement_is_supported(
                 &statement.expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -5017,6 +5139,7 @@ fn otherwise_optional_value_call_is_buildable(
 fn otherwise_return_fallback_runtime_shape_is_buildable(
     block: &Block,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -5025,6 +5148,7 @@ fn otherwise_return_fallback_runtime_shape_is_buildable(
             otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -5039,6 +5163,7 @@ fn otherwise_return_fallback_runtime_shape_is_buildable(
         otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
             statement,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
@@ -5069,6 +5194,7 @@ fn otherwise_return_fallback_runtime_shape_is_buildable(
 fn otherwise_binding_fallback_runtime_shape_is_buildable(
     block: &Block,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -5077,6 +5203,7 @@ fn otherwise_binding_fallback_runtime_shape_is_buildable(
             otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -5091,6 +5218,7 @@ fn otherwise_binding_fallback_runtime_shape_is_buildable(
         otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
             statement,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
@@ -5119,6 +5247,7 @@ fn otherwise_binding_fallback_runtime_shape_is_buildable(
 fn otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
     statement: &Stmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -5131,6 +5260,7 @@ fn otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
         Stmt::Expression(statement) => expression_statement_is_supported(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -5149,12 +5279,14 @@ fn otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
 fn otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
     statement: &Stmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
         statement,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     )
@@ -5187,12 +5319,19 @@ fn aggregate_literal_statement_is_supported(
 fn fallible_void_statement_inner_is_supported(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => {
-            match call_return_shape(call, resolved, typecheck_facts, generic_substitutions) {
+            match call_return_shape_for_sources(
+                call,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 Some(ReturnShape::FallibleDiscardable) | None => true,
                 Some(
                     ReturnShape::Void
@@ -5436,15 +5575,59 @@ fn call_return_shape(
     Some(return_shape_from_type_expr(&return_type, resolved))
 }
 
-fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
-    return_shape_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+fn call_return_shape_for_sources(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<ReturnShape> {
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    Some(return_shape_from_type_expr_for_sources(
+        &return_type,
+        resolved,
+        resolved_sources,
+    ))
 }
 
-fn return_shape_from_type_expr_inner(
+fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
+    return_shape_from_type_expr_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn return_shape_from_type_expr_for_sources(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> ReturnShape {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    return_shape_from_type_expr_with_resolver(ty, fallback_resolved, &source_resolver)
+}
+
+fn return_shape_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> ReturnShape
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    return_shape_from_type_expr_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn return_shape_from_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> ReturnShape
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) if reference.name == "void" => ReturnShape::Void,
         TypeExpr::Reference(reference) if reference.name == "never" => ReturnShape::Never,
@@ -5454,21 +5637,36 @@ fn return_shape_from_type_expr_inner(
             ReturnShape::DiscardableScalar
         }
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
+            if !borrow.is_readwrite
+                && type_expr_resolves_to_str_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                ) =>
         {
             ReturnShape::DiscardableView
         }
         TypeExpr::Borrow(borrow)
-            if type_expr_resolves_to_supported_slice_view(&borrow.inner, resolved)
-                .unwrap_or(false) =>
+            if type_expr_resolves_to_supported_slice_view_with_resolver(
+                &borrow.inner,
+                fallback_resolved,
+                resolver,
+            )
+            .unwrap_or(false) =>
         {
             ReturnShape::DiscardableView
         }
-        _ if type_expr_is_supported_aggregate_return(ty, resolved) => {
+        _ if type_expr_is_supported_aggregate_return_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        ) =>
+        {
             ReturnShape::DiscardableAggregate
         }
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return ReturnShape::Other;
             };
             let Some(target) = &symbol.alias_target else {
@@ -5477,12 +5675,22 @@ fn return_shape_from_type_expr_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return ReturnShape::Other;
             }
-            let shape = return_shape_from_type_expr_inner(target, resolved, resolving_names);
+            let shape = return_shape_from_type_expr_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             shape
         }
         TypeExpr::Fallible(fallible) => {
-            match return_shape_from_type_expr_inner(&fallible.success, resolved, resolving_names) {
+            match return_shape_from_type_expr_inner(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ) {
                 ReturnShape::Void
                 | ReturnShape::DiscardableScalar
                 | ReturnShape::DiscardableView
@@ -5496,8 +5704,15 @@ fn return_shape_from_type_expr_inner(
     }
 }
 
-fn type_expr_is_supported_aggregate_return(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    let Ok(value) = abi_value_from_type_expr(ty, resolved) else {
+fn type_expr_is_supported_aggregate_return_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
         return false;
     };
     matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0
@@ -5637,6 +5852,7 @@ fn collect_expression_diagnostics(
             if !catch_block_runtime_shape_is_buildable(
                 &expression.catch_block,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -6205,9 +6421,7 @@ fn type_expr_contains_unresolved_type_parameter(ty: &TypeExpr, resolved: &Resolv
     match ty {
         TypeExpr::Reference(reference) => {
             !known_builtin_type_name(&reference.name)
-                && resolved
-                    .type_symbol_by_reference_name(&reference.name)
-                    .is_none()
+                && type_symbol_by_reference_name(resolved, &reference.name).is_none()
         }
         TypeExpr::Generic(generic) => generic
             .arguments
@@ -6362,9 +6576,21 @@ fn typecheck_slice_element_kind_is_buildable(element: TypecheckSliceElementKind)
     )
 }
 
-fn type_expr_is_supported_slice_index_element(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_slice_element_kind(ty, resolved) != TypecheckSliceElementKind::Other
-        || type_expr_is_supported_copy_aggregate_vec_element(ty, resolved)
+fn type_expr_is_supported_slice_index_element_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_slice_element_kind_with_resolver(ty, fallback_resolved, resolver)
+        != TypecheckSliceElementKind::Other
+        || type_expr_is_supported_copy_aggregate_vec_element_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        )
 }
 
 fn slice_index_assignment_element_kind(
@@ -6532,7 +6758,7 @@ fn slice_index_target_type_expr_is_buildable_inner(
             type_expr_resolves_to_supported_slice_view(&borrow.inner, resolved)
         }
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
@@ -6566,7 +6792,7 @@ fn slice_index_target_type_expr_element_kind_inner(
             type_expr_resolved_view_element_kind(&borrow.inner, resolved)
         }
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
@@ -6701,15 +6927,6 @@ fn type_expr_is_supported_std_vec_element_storage(
     )
 }
 
-fn type_expr_is_supported_copy_aggregate_vec_element(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> bool {
-    type_expr_is_supported_copy_aggregate_vec_element_with_resolver(ty, resolved, &|_| {
-        Some(resolved)
-    })
-}
-
 fn type_expr_is_supported_copy_aggregate_vec_element_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -6744,7 +6961,7 @@ where
     match ty {
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             if symbol.generic_arity > 0 {
@@ -6773,7 +6990,7 @@ where
         }
         TypeExpr::Generic(generic) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
                 return false;
             };
             if symbol.generic_arity != generic.arguments.len() {
@@ -6871,7 +7088,7 @@ where
         }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return TypecheckSliceElementKind::Other;
             };
             if symbol.kind != TypeSymbolKind::Alias {
@@ -7209,7 +7426,7 @@ fn type_expr_resolves_to_borrow_inner(
     match ty {
         TypeExpr::Borrow(_) => true,
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -7369,7 +7586,7 @@ fn type_expr_fallible_depth_inner(
 ) -> usize {
     match ty {
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return 0;
             };
             let Some(target) = &symbol.alias_target else {

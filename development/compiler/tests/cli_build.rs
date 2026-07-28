@@ -2897,6 +2897,38 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_discards_imported_alias_scalar_call() {
+    let project = TempProject::new("cli-build-discard-imported-alias-scalar-call");
+    project.write_nocter_home_file(
+        "std/metrics.nct",
+        r#"pub type Count = i32
+
+pub func record(value: Count): Count {
+    return value
+}
+"#,
+    );
+    let source = project.write_source(
+        "discard_imported_alias_scalar_call.nct",
+        r#"use std/metrics.record
+
+func main(): i32 {
+    record(1)
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
 fn build_command_lowers_fallible_aggregate_binding_and_borrow_argument() {
     let project = TempProject::new("cli-build-fallible-aggregate-binding-borrow");
     let source = project.write_source(

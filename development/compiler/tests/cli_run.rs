@@ -637,6 +637,41 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_discards_imported_alias_scalar_call_exit_code() {
+    let project = TempProject::new("cli-run-discard-imported-alias-scalar-call");
+    project.write_nocter_home_file(
+        "std/metrics.nct",
+        r#"pub type Count = i32
+
+pub func record(value: Count): Count {
+    return value
+}
+"#,
+    );
+    let source = project.write_source(
+        "discard_imported_alias_scalar_call.nct",
+        r#"use std/metrics.record
+
+func main(): i32 {
+    record(1)
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_direct_aggregate_call_exit_code() {
     let project = TempProject::new("cli-run-imported-direct-aggregate-call");
     project.write_nocter_home_file(

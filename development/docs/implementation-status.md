@@ -35,8 +35,8 @@ are ignored by return/reachability checking, buildability, and IR lowering.
 Buildability and IR lowering consume structured typechecker facts for binding
 types and method receiver kinds, and buildability resolves imported type aliases
 by their declaring source when deciding whether value-producing control
-expressions are in scalar/view runtime positions. Hover labels remain editor
-presentation data.
+expressions or discardable expression statements are in scalar/view runtime
+positions. Hover labels remain editor presentation data.
 
 ## Implemented Capability
 
