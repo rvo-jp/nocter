@@ -58,7 +58,8 @@ Rules:
 - `use path.Name` imports selected public names.
 - `use path as name` imports a namespace alias.
 - Paths starting with `./` or `../` are resolved relative to the current file.
-- Paths such as `std/io` are resolved from the active Nocter home.
+- Non-relative paths such as `std/io` are resolved from the source root first and
+  the active Nocter home second.
 - Do not invent wildcard imports, textual includes, explicit `.nct` import suffixes, or `module` declarations.
 
 ## Errors And Optionals
@@ -200,8 +201,8 @@ func read(): String ! IOError
 // invalid: Nocter does not use a module declaration
 module app/main
 
-// invalid: enum pattern handling uses match, not match
-match error {
+// invalid: enum pattern handling uses `match`, not `switch`
+switch error {
     AppError.missing_path {
         return 1
     }
@@ -241,6 +242,7 @@ Expected AI loop:
 write Nocter code
 run nocter fmt
 run nocter check --format json
+run nocter build or nocter run when runtime buildability matters
 use diagnostics spans and fix hints
 repeat
 ```
@@ -249,6 +251,8 @@ Rules:
 
 - `fmt` is the source of canonical formatting.
 - `check --format json` is the source of semantic diagnostics.
+- `check` can accept explicitly check-only surfaces; use `build` or `run` when
+  the generated program must be runtime-buildable today.
 - `tokens --format json` is the source of lexer output.
 - `ast --format json` is the source of parser structure and attached documentation text.
 - AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or the fixed root `main` entry rule.

@@ -1,3 +1,5 @@
+// check-valid: `std/process.env` is check-only until runtime environment
+// lowering is promoted.
 use std/process.env
 
 func main(): i32! {
