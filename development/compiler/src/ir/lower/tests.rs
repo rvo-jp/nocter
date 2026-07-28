@@ -16911,6 +16911,80 @@ func update(values: &+[i32]): void {
 }
 
 #[test]
+fn lowers_fixed_array_variable_index_compound_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(): void {
+    var values: [i32; 2] = [1, 2]
+    let index: usize = 1
+    values[index] += addend()
+    return
+}
+
+func addend(): i32 {
+    return 7
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(1),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(2),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(0),
+                    value: usize_const(1),
+                },
+                call_i32(I32Location::Local(1), "addend", vec![]),
+                Instruction::LoadAggregateI32Indexed {
+                    destination: I32Location::Local(2),
+                    source: AggregateLocation::Slot(0),
+                    base_offset: 0,
+                    index: usize_local(0),
+                    length: 2,
+                    stride: 4,
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Local(2),
+                    left: i32_local(2),
+                    right: i32_local(1),
+                },
+                Instruction::StoreAggregateI32Indexed {
+                    destination: AggregateLocation::Slot(0),
+                    base_offset: 0,
+                    index: usize_local(0),
+                    length: 2,
+                    stride: 4,
+                    value: i32_local(2),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_readwrite_usize_slice_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

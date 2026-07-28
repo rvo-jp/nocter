@@ -3605,7 +3605,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, or read-write slice element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, read-write slice element, or local fixed-array element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             if let Some(diagnostic) = unsupported_index_assignment_target_diagnostic(
@@ -5960,9 +5960,7 @@ fn fixed_array_index_compound_assignment_is_buildable(
     ) else {
         return false;
     };
-    fixed_array_constant_index_value(&expression.index).is_some()
-        && layout.size > 0
-        && matches!(element, AbiType::I32 | AbiType::U8 | AbiType::Usize)
+    layout.size > 0 && matches!(element, AbiType::I32 | AbiType::U8 | AbiType::Usize)
 }
 
 fn slice_index_compound_assignment_is_buildable(
@@ -7269,13 +7267,6 @@ fn fixed_array_index_target_type_expr(
             typecheck_facts,
             generic_substitutions,
         ),
-        _ => None,
-    }
-}
-
-fn fixed_array_constant_index_value(expression: &Expr) -> Option<u128> {
-    match unwrap_group_expr(expression) {
-        Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value),
         _ => None,
     }
 }
@@ -8745,15 +8736,18 @@ func main(): i32 {
     #[test]
     fn reports_reachable_scope_drop_body_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"struct Resource {
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Resource {
     value: i32
 }
 
 impl Resource {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -8768,25 +8762,24 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("compound assignment statements")
-        );
+        assert!(diagnostics[0].message.contains("payload enum values"));
     }
 
     #[test]
     fn reports_reachable_generic_scope_drop_body_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"struct Box<T> {
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Box<T> {
     value: T
 }
 
 impl<T> Box<T> {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -8801,25 +8794,24 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("compound assignment statements")
-        );
+        assert!(diagnostics[0].message.contains("payload enum values"));
     }
 
     #[test]
     fn reports_reachable_field_replacement_drop_body_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"struct Resource {
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Resource {
     value: i32
 }
 
 impl Resource {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -8839,25 +8831,24 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("compound assignment statements")
-        );
+        assert!(diagnostics[0].message.contains("payload enum values"));
     }
 
     #[test]
     fn reports_reachable_generic_field_replacement_drop_body_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"struct Resource {
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Resource {
     value: i32
 }
 
 impl Resource {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -8877,11 +8868,7 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("compound assignment statements")
-        );
+        assert!(diagnostics[0].message.contains("payload enum values"));
     }
 
     #[test]

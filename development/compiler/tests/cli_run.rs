@@ -7377,6 +7377,52 @@ fn run_command_applies_fixed_array_constant_index_compound_assignments() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_applies_fixed_array_variable_index_compound_assignments() {
+    let project = TempProject::new("cli-run-fixed-array-variable-index-compound");
+    let source = project.write_source(
+        "fixed_array_variable_index_compound.nct",
+        r#"func main(): i32 {
+    var scores: [i32; 3] = [10, 10, 10]
+    var bytes: [u8; 2] = [8, 2]
+    var sizes: [usize; 2] = [9, 7]
+    let a: usize = 0
+    let b: usize = 1
+    let c: usize = 2
+    scores[a] += 5
+    scores[b] *= 2
+    scores[c] -= 3
+    bytes[a] -= 4
+    bytes[b] *= 2
+    sizes[a] /= 3
+    sizes[b] %= 5
+    let score: i32 = scores[a] + scores[b] + scores[c]
+    let byte: u8 = bytes[b]
+    let size: usize = sizes[a] + sizes[b]
+    if score == 42 {
+        if byte == 4 {
+            if size == 5 {
+                return 42
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_fixed_array_constant_index_assignment_out_of_bounds() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-assignment-oob");
     let source = project.write_source(
@@ -7437,6 +7483,31 @@ fn run_command_traps_fixed_array_variable_index_write_out_of_bounds() {
     var values: [i32; 2] = [1, 2]
     let index: usize = 2
     values[index] = 3
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_fixed_array_variable_index_compound_assignment_out_of_bounds() {
+    let project = TempProject::new("cli-run-fixed-array-variable-index-compound-oob");
+    let source = project.write_source(
+        "fixed_array_variable_index_compound_oob.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    let index: usize = 2
+    values[index] += 3
     return values[0]
 }
 "#,

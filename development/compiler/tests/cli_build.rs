@@ -5427,11 +5427,10 @@ fn build_command_lowers_fixed_array_variable_index_assignment() {
 }
 
 #[test]
-fn build_command_reports_fixed_array_variable_index_compound_assignment_before_ir_lowering() {
-    let project =
-        TempProject::new("cli-build-fixed-array-variable-index-compound-assignment-boundary");
+fn build_command_lowers_fixed_array_variable_index_compound_assignment() {
+    let project = TempProject::new("cli-build-fixed-array-variable-index-compound-assignment");
     let source = project.write_source(
-        "fixed_array_variable_index_compound_assignment_boundary.nct",
+        "fixed_array_variable_index_compound_assignment.nct",
         r#"func main(): i32 {
     var values: [i32; 2] = [1, 2]
     let index: usize = 0
@@ -5442,18 +5441,10 @@ fn build_command_reports_fixed_array_variable_index_compound_assignment_before_i
     );
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let stderr = text(&output.stderr);
+    let executable = source.with_extension("");
 
-    assert!(
-        !output.status.success(),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        stderr
-    );
-    assert!(
-        stderr.contains("compound assignment statements"),
-        "expected compound assignment diagnostic, got:\n{stderr}"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -5500,15 +5491,18 @@ fn build_command_reports_scope_drop_body_before_ir_lowering() {
     let project = TempProject::new("cli-build-scope-drop-body-boundary");
     let source = project.write_source(
         "scope_drop_body_boundary.nct",
-        r#"struct Resource {
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Resource {
     value: i32
 }
 
 impl Resource {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -5530,11 +5524,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("compound assignment statements"),
-        "expected compound assignment diagnostic from drop body, got:\n{stderr}"
+        stderr.contains("payload enum values"),
+        "expected payload enum diagnostic from drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("9 |         bytes[index] += 1"),
+        stderr.contains("12 |         let result = Result.ok(1)"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -5552,15 +5546,18 @@ fn build_command_reports_field_replacement_drop_body_before_ir_lowering() {
     let project = TempProject::new("cli-build-field-replacement-drop-body-boundary");
     let source = project.write_source(
         "field_replacement_drop_body_boundary.nct",
-        r#"struct Resource {
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Resource {
     value: i32
 }
 
 impl Resource {
     drop &+self {
-        var bytes: [u8; 2] = [1, 2]
-        let index: usize = 1
-        bytes[index] += 1
+        let result = Result.ok(1)
         return
     }
 }
@@ -5587,11 +5584,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("compound assignment statements"),
-        "expected compound assignment diagnostic from field drop body, got:\n{stderr}"
+        stderr.contains("payload enum values"),
+        "expected payload enum diagnostic from field drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("9 |         bytes[index] += 1"),
+        stderr.contains("12 |         let result = Result.ok(1)"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

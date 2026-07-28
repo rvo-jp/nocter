@@ -1599,6 +1599,11 @@ fn lower_compound_index_assignment(
     {
         return Ok(instructions);
     }
+    if let Some(instructions) =
+        lower_fixed_array_indexed_compound_assignment(statement, target, context)?
+    {
+        return Ok(instructions);
+    }
     lower_compound_slice_index_assignment(statement, target, context)
 }
 
@@ -1695,6 +1700,126 @@ fn lower_fixed_array_index_compound_assignment(
             instructions.push(Instruction::StoreAggregateUsize {
                 destination: access.source,
                 offset: access.offset,
+                value: UsizeValue::Location(current),
+            });
+            Ok(Some(instructions))
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_fixed_array_indexed_compound_assignment(
+    statement: &AssignmentStmt,
+    target: &IndexExpr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some(access) = fixed_array_element_indexed_access(
+        target,
+        context,
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?
+    else {
+        return Ok(None);
+    };
+    let mut instructions = access.index_instructions;
+    let index = materialize_slice_index_assignment_index(
+        &mut instructions,
+        access.index,
+        &mut temporaries,
+    )?;
+
+    match access.element {
+        AbiType::I32 => {
+            let (value_instructions, right) = lower_i32_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_i32()?;
+            instructions.push(Instruction::LoadAggregateI32Indexed {
+                destination: current,
+                source: access.source,
+                base_offset: access.base_offset,
+                index: index.clone(),
+                length: access.length,
+                stride: access.stride,
+            });
+            instructions.push(i32_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateI32Indexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value: I32Value::Location(current),
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::U8 => {
+            let (value_instructions, right) = lower_u8_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_u8()?;
+            instructions.push(Instruction::LoadAggregateU8Indexed {
+                destination: current,
+                source: access.source,
+                base_offset: access.base_offset,
+                index: index.clone(),
+                length: access.length,
+                stride: access.stride,
+            });
+            instructions.push(u8_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateU8Indexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value: U8Value::Location(current),
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::Usize => {
+            let (value_instructions, right) = lower_usize_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            instructions.extend(value_instructions);
+            let current = temporaries.next_usize()?;
+            instructions.push(Instruction::LoadAggregateUsizeIndexed {
+                destination: current,
+                source: access.source,
+                base_offset: access.base_offset,
+                index: index.clone(),
+                length: access.length,
+                stride: access.stride,
+            });
+            instructions.push(usize_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateUsizeIndexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
                 value: UsizeValue::Location(current),
             });
             Ok(Some(instructions))
