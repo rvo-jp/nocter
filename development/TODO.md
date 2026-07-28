@@ -104,8 +104,11 @@ Recommended order:
   Buildability uses that fact to identify `&+self` calls instead of parsing
   LSP hover labels.
 - TypecheckFacts also records binding `TypeExpr` values. Buildability and IR
-  range-for lowering should use structured binding facts; `binding_type_label`
-  should stay presentation-only for hover.
+  range-for lowering use structured binding/scalar-view facts; `binding_type_label`
+  stays presentation-only for hover.
+- `catch` blocks that can fall through are now typechecked as E0337. Runtime
+  buildability rejects broader catch terminal-control shapes, such as terminal
+  `if` inside a catch block, before IR lowering with E0435.
 
 ## Session Start
 

@@ -3925,6 +3925,64 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_rejects_terminal_if_inside_catch_block_before_ir_lowering() {
+    let project = TempProject::new("cli-build-terminal-if-inside-catch-block");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "terminal_if_inside_catch_block.nct",
+        r#"use std/error.Error
+
+func fail(): i32! {
+    return Error.new("app.fail", "fail")
+}
+
+func main(): i32 {
+    return fail() catch error {
+        if true {
+            return 1
+        } else {
+            return 2
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`catch` blocks outside the v0 runtime subset"),
+        "expected catch block construct, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "catch block should be rejected before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_explicit_move_in_terminal_if_condition() {
     let project = TempProject::new("cli-build-move-in-terminal-if-condition");
     let source = project.write_source(

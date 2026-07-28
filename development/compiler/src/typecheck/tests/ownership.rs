@@ -1075,9 +1075,20 @@ func take(text: Text): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0385");
-    assert!(diagnostics[0].message.contains("may be uninitialized"));
+    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0385"
+                && diagnostic.message.contains("may be uninitialized")),
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0337" && diagnostic.message.contains("catch")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

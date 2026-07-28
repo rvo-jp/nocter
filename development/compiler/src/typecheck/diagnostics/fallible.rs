@@ -1,4 +1,6 @@
-use super::{ByteSpan, Diagnostic, ReturnContext, SourceMap, Type, add_declared_return_note};
+use super::{
+    Block, ByteSpan, Diagnostic, ReturnContext, SourceMap, Type, add_declared_return_note,
+};
 
 pub(in crate::typecheck) fn propagation_on_non_propagatable_diagnostic(
     sources: &SourceMap,
@@ -32,6 +34,22 @@ pub(in crate::typecheck) fn catch_on_non_fallible_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(catch_span).ok().map(Box::new);
     diagnostic.help = Some("use `catch` only on `T!`; use `?` or `otherwise` for `T?`".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn catch_block_fallthrough_diagnostic(
+    sources: &SourceMap,
+    block: &Block,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0337",
+        "`catch` block may reach the end without leaving the current control path",
+    );
+    diagnostic.primary_span = sources.span_to_json(block.span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "end the `catch` block with `return`, `break`, `continue`, or a `never` expression"
+            .to_string(),
+    );
     diagnostic
 }
 

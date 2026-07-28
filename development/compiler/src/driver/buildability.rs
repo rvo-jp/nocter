@@ -4502,6 +4502,99 @@ fn expression_statement_is_supported(
     }
 }
 
+fn catch_block_runtime_shape_is_buildable(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if block.result.is_some() {
+        return false;
+    }
+
+    let Some((last, leading)) = block.statements.split_last() else {
+        return false;
+    };
+
+    leading.iter().all(|statement| {
+        catch_block_leading_statement_runtime_shape_is_buildable(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    }) && catch_block_terminal_statement_runtime_shape_is_buildable(
+        last,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn catch_block_leading_statement_runtime_shape_is_buildable(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) | Stmt::Binding(_) | Stmt::Assignment(_) => true,
+        Stmt::Expression(statement) => expression_statement_is_supported(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Return(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Drop(_) => false,
+    }
+}
+
+fn catch_block_terminal_statement_runtime_shape_is_buildable(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match statement {
+        Stmt::Return(_) => true,
+        Stmt::Expression(statement) => {
+            expression_exits_function_for_buildability(
+                &statement.expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) || expression_statement_is_supported(
+                &statement.expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Drop(_) => false,
+    }
+}
+
 fn aggregate_literal_statement_is_supported(
     literal: &crate::ast::StructLiteralExpr,
     resolved: &ResolveOutput,
@@ -4961,6 +5054,19 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Catch(expression) => {
+            if !catch_block_runtime_shape_is_buildable(
+                &expression.catch_block,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.catch_block.span,
+                    "`catch` blocks outside the v0 runtime subset",
+                    "end runtime-shipped `catch` blocks with a direct `return` or supported effect-only/never expression statement until broader catch control-flow lowering is promoted",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -7420,6 +7526,35 @@ func make<T>(): Marker<T> {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_terminal_if_inside_catch_block_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return source() catch error {
+        if true {
+            return 1
+        } else {
+            return 2
+        }
+    }
+}
+
+func source(): i32! {
+    return 1
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower `catch` blocks outside the v0 runtime subset yet"
+        );
     }
 
     #[test]

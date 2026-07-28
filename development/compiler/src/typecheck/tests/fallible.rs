@@ -224,6 +224,53 @@ func answer(): i32! {
 }
 
 #[test]
+fn accepts_terminal_if_inside_catch_block() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return answer() catch error {
+        if true {
+            return 1
+        } else {
+            return 2
+        }
+    }
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_catch_block_fallthrough() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return answer() catch error {
+        let value = 1
+    }
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0337");
+    assert!(diagnostics[0].message.contains("catch"));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("without leaving the current control path")
+    );
+}
+
+#[test]
 fn accepts_fallible_force_unwrap() {
     let diagnostics = check_text(
         r#"func main(): i32 {
