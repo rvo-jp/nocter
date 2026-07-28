@@ -54,7 +54,7 @@ classified as `ship`, `reject`, or `defer`, and tests lock that decision.
 1. Malformed source must not panic the compiler.
 2. Backend lowering must not invent language facts that resolver or typechecker
    did not provide.
-3. User source outside the runtime subset must fail with a user-facing
+3. Reachable user source outside the runtime subset must fail with a user-facing
    diagnostic before machine-code emission.
 4. ABI changes must update `../../spec/09-abi-layout.md`, `backend-v0.md`, this
    document, and ABI tests in the same commit.

@@ -22,15 +22,16 @@ It can load a v0 compile unit, typecheck a meaningful language subset, lower the
 runtime subset to IR, emit ARM64 Darwin machine code, write a Mach-O executable,
 and run that executable.
 
-The buildable subset remains narrower than the checked subset. Code outside the
-runtime subset should fail through buildability diagnostics before IR or backend
-emission. Reachable callable signatures, local bindings, and field member value
-uses that mention storage-only scalar types such as `u16` or `u32` are rejected
-at this boundary instead of surfacing as IR lowering errors. Reachable array
-literals, bare string interpolation, unsupported explicit aggregate moves in
-control-flow conditions, and unsupported outer aggregate moves/drops inside
-non-terminal control-flow branches/bodies are also rejected at the same
-boundary.
+The buildable subset remains narrower than the checked subset. Reachable code
+outside the runtime subset should fail through buildability diagnostics before
+IR or backend emission. Reachable callable signatures, local bindings, and field
+member value uses that mention storage-only scalar types such as `u16` or `u32`
+are rejected at this boundary instead of surfacing as IR lowering errors.
+Reachable array literals, bare string interpolation, unsupported explicit
+aggregate moves in control-flow conditions, and unsupported outer aggregate
+moves/drops inside non-terminal control-flow branches/bodies are also rejected
+at the same boundary. Unreachable body tails after proven terminal statements
+are ignored by return/reachability checking, buildability, and IR lowering.
 
 ## Implemented Capability
 

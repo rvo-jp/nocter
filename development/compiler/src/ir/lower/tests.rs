@@ -27811,13 +27811,50 @@ func done(): bool {
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): void {
+    1
     return
-    let value = 1
 }
 "#,
     );
 
     assert_eq!(diagnostics[0].code, "E8002");
+}
+
+#[test]
+fn skips_unreachable_entry_tail_after_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return 0
+    let header: [u8; 2] = [1, 2]
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![set_return_i32(0), Instruction::Return]
+    );
+}
+
+#[test]
+fn skips_unreachable_callable_tail_after_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return helper()
+}
+
+func helper(): i32 {
+    return 7
+    let header: [u8; 2] = [1, 2]
+}
+"#,
+        "helper",
+    );
+
+    assert_eq!(
+        function.instructions,
+        vec![set_return_i32(7), Instruction::Return]
+    );
 }
 
 #[test]

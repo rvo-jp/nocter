@@ -15,7 +15,7 @@ use super::functions::{
     append_scope_end_drops_before_exit, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement, reachable_body_prefix,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
 use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
@@ -115,9 +115,9 @@ fn lower_entry_body(
     error_payloads: ErrorPayloads,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
-    let statements = function.body.statements.as_slice();
+    let original_statements = function.body.statements.as_slice();
 
-    if statements.iter().all(statement_is_import)
+    if original_statements.iter().all(statement_is_import)
         && function.body.result.is_none()
         && *success_type == Type::Void
     {
@@ -143,7 +143,13 @@ fn lower_entry_body(
     )
     .with_error_payloads(error_payloads);
 
-    if let Some(result) = &function.body.result {
+    let (statements, body_result) = reachable_body_prefix(
+        original_statements,
+        function.body.result.as_deref(),
+        &context,
+    );
+
+    if let Some(result) = body_result {
         let mut instructions = lower_leading_bindings(statements, &mut context, sources)?;
         instructions.extend(lower_entry_body_result(
             result,

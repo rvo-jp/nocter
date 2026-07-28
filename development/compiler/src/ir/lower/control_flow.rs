@@ -1230,7 +1230,7 @@ fn statement_sequence_or_result_exits_function(
     result.is_some_and(|expression| expression_exits_function(expression, context))
 }
 
-fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool {
+pub(super) fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Return(_) => true,

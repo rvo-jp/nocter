@@ -385,7 +385,12 @@ Rules:
 - Falling off the end of a `never` function is a compile error.
 - A call whose type is `never` terminates the current control path.
 - Code after `return`, `break`, `continue`, or a `never` call in the same block is unreachable.
-- Unreachable code is a compile-time error in the initial design.
+- Unreachable statements have no runtime semantics. They do not contribute to
+  body result typing, definite-initialization joins, move/drop liveness on later
+  reachable paths, or v0 buildability requirements.
+- v0 accepts unreachable statements after a proven terminal statement. A future
+  lint may report them, but unreachable code is not a required compile-time
+  error.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.

@@ -541,7 +541,15 @@ fn collect_terminal_return_block_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for statement in &block.statements {
+    let (statements, result) = reachable_block_parts_for_buildability(
+        &block.statements,
+        block.result.as_deref(),
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    );
+
+    for statement in statements {
         collect_statement_diagnostics(
             statement,
             sources,
@@ -556,7 +564,7 @@ fn collect_terminal_return_block_diagnostics(
             diagnostics,
         );
     }
-    if let Some(result) = &block.result {
+    if let Some(result) = result {
         collect_terminal_return_expression_diagnostics(
             result,
             sources,
@@ -586,7 +594,15 @@ fn collect_block_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for statement in &block.statements {
+    let (statements, result) = reachable_block_parts_for_buildability(
+        &block.statements,
+        block.result.as_deref(),
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    );
+
+    for statement in statements {
         collect_statement_diagnostics(
             statement,
             sources,
@@ -601,7 +617,7 @@ fn collect_block_diagnostics(
             diagnostics,
         );
     }
-    if let Some(result) = &block.result {
+    if let Some(result) = result {
         collect_expression_diagnostics(
             result,
             sources,
@@ -616,6 +632,27 @@ fn collect_block_diagnostics(
             diagnostics,
         );
     }
+}
+
+fn reachable_block_parts_for_buildability<'a>(
+    statements: &'a [Stmt],
+    result: Option<&'a Expr>,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> (&'a [Stmt], Option<&'a Expr>) {
+    for (index, statement) in statements.iter().enumerate() {
+        if statement_exits_function_for_buildability(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ) {
+            return (&statements[..=index], None);
+        }
+    }
+
+    (statements, result)
 }
 
 fn collect_terminal_return_expression_diagnostics(
@@ -3149,14 +3186,22 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
     mut local_bindings: HashSet<String>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (index, statement) in block.statements.iter().enumerate() {
+    let (statements, result) = reachable_block_parts_for_buildability(
+        &block.statements,
+        block.result.as_deref(),
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    );
+
+    for (index, statement) in statements.iter().enumerate() {
         match statement {
             Stmt::Binding(statement) => {
                 if let Some(span) = unsupported_outer_aggregate_move_binding_span(
                     statement,
-                    &block.statements,
+                    statements,
                     index,
-                    block.result.as_deref(),
+                    result,
                     resolved,
                     typecheck_facts,
                     generic_substitutions,
@@ -3174,9 +3219,9 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
             Stmt::Assignment(statement) => {
                 if let Some(span) = unsupported_outer_aggregate_move_assignment_span(
                     statement,
-                    &block.statements,
+                    statements,
                     index,
-                    block.result.as_deref(),
+                    result,
                     resolved,
                     typecheck_facts,
                     generic_substitutions,
@@ -3208,9 +3253,9 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
             Stmt::Drop(statement)
                 if !local_bindings.contains(&statement.name)
                     && !statement_suffix_exits_function_for_buildability(
-                        &block.statements,
+                        statements,
                         index,
-                        block.result.as_deref(),
+                        result,
                         resolved,
                         typecheck_facts,
                         generic_substitutions,
@@ -3226,7 +3271,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
             _ => {}
         }
     }
-    if let Some(result) = &block.result
+    if let Some(result) = result
         && let Some(span) = expression_explicit_outer_aggregate_move_span(
             result,
             resolved,
@@ -6962,6 +7007,21 @@ func main(): i32 {
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert!(diagnostics[0].message.contains("array literals"));
+    }
+
+    #[test]
+    fn does_not_report_unreachable_tail_after_return() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return 0
+    let bytes: [u8; 2] = [1, 2]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

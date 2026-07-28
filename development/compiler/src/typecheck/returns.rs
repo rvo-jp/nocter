@@ -195,7 +195,7 @@ fn check_block_returns(
         return;
     }
 
-    check_block_return_statements(
+    let block_exits = check_block_return_statements(
         sources,
         block,
         context,
@@ -204,6 +204,10 @@ fn check_block_returns(
         environment,
         borrow_provenance,
     );
+
+    if block_exits {
+        return;
+    }
 
     if let Some(result) = &block.result {
         check_body_result_return(
@@ -233,7 +237,7 @@ fn check_block_return_statements(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
-) {
+) -> bool {
     for statement in &block.statements {
         check_statement_returns(
             sources,
@@ -244,6 +248,9 @@ fn check_block_return_statements(
             environment,
             borrow_provenance,
         );
+        if statement_guarantees_return_or_never(statement, resolved, environment) {
+            return true;
+        }
     }
     if let Some(result) = &block.result {
         check_expression_for_nested_returns(
@@ -255,7 +262,10 @@ fn check_block_return_statements(
             environment,
             borrow_provenance,
         );
+        return expression_type(result, resolved, environment) == Type::Never;
     }
+
+    false
 }
 
 fn check_statement_returns(
@@ -1546,14 +1556,16 @@ fn return_expression_is_fallible_failure(
 }
 
 pub(super) fn block_guarantees_return(block: &Block) -> bool {
-    if let Some(result) = &block.result {
-        return expression_guarantees_return(result);
+    for statement in &block.statements {
+        if statement_guarantees_return(statement) {
+            return true;
+        }
     }
 
     block
-        .statements
-        .last()
-        .is_some_and(statement_guarantees_return)
+        .result
+        .as_deref()
+        .is_some_and(expression_guarantees_return)
 }
 
 pub(super) fn block_guarantees_return_or_never(
@@ -1561,13 +1573,16 @@ pub(super) fn block_guarantees_return_or_never(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    if let Some(result) = &block.result {
-        return expression_type(result, resolved, environment) == Type::Never;
+    for statement in &block.statements {
+        if statement_guarantees_return_or_never(statement, resolved, environment) {
+            return true;
+        }
     }
 
-    block.statements.last().is_some_and(|statement| {
-        statement_guarantees_return_or_never(statement, resolved, environment)
-    })
+    block
+        .result
+        .as_ref()
+        .is_some_and(|result| expression_type(result, resolved, environment) == Type::Never)
 }
 
 pub(super) fn block_guarantees_control_exit_or_never(
@@ -1575,13 +1590,16 @@ pub(super) fn block_guarantees_control_exit_or_never(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    if let Some(result) = &block.result {
-        return expression_type(result, resolved, environment) == Type::Never;
+    for statement in &block.statements {
+        if statement_guarantees_control_exit_or_never(statement, resolved, environment) {
+            return true;
+        }
     }
 
-    block.statements.last().is_some_and(|statement| {
-        statement_guarantees_control_exit_or_never(statement, resolved, environment)
-    })
+    block
+        .result
+        .as_ref()
+        .is_some_and(|result| expression_type(result, resolved, environment) == Type::Never)
 }
 
 fn statement_guarantees_control_exit_or_never(

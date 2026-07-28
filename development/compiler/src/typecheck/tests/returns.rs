@@ -54,6 +54,32 @@ fn diagnoses_missing_return_from_i32_function() {
 }
 
 #[test]
+fn accepts_unreachable_statement_tail_after_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+    let value = "unreachable"
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_unreachable_body_result_after_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+    "unreachable"
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_terminal_never_expression_statement() {
     let diagnostics = check_text(
         r#"primitive trap(): never

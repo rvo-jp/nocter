@@ -19,7 +19,7 @@ use super::control_flow::{
     lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
     lower_terminal_str_if_statement, lower_terminal_u8_if_statement,
     lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
-    split_terminal_branch_block,
+    split_terminal_branch_block, statement_exits_function,
 };
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
@@ -889,16 +889,19 @@ fn lower_callable_body(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
-    let statements = body.statements.as_slice();
+    let original_statements = body.statements.as_slice();
 
-    if statements.iter().all(statement_is_import)
+    if original_statements.iter().all(statement_is_import)
         && body.result.is_none()
         && *success_type == Type::Void
     {
         return Ok(vec![success_return_instruction(return_type)]);
     }
 
-    if let Some(result) = &body.result {
+    let (statements, body_result) =
+        reachable_body_prefix(original_statements, body.result.as_deref(), context);
+
+    if let Some(result) = body_result {
         let mut instructions = lower_leading_bindings(statements, context, sources)?;
         instructions.extend(lower_callable_body_result(
             function_name,
@@ -3403,6 +3406,20 @@ fn statement_allows_implicit_void_return(statement: &Stmt) -> bool {
 
 fn statement_is_import(statement: &Stmt) -> bool {
     matches!(statement, Stmt::Import(_) | Stmt::FromImport(_))
+}
+
+pub(super) fn reachable_body_prefix<'a>(
+    statements: &'a [Stmt],
+    result: Option<&'a Expr>,
+    context: &LoweringContext,
+) -> (&'a [Stmt], Option<&'a Expr>) {
+    for (index, statement) in statements.iter().enumerate() {
+        if statement_exits_function(statement, context) {
+            return (&statements[..=index], None);
+        }
+    }
+
+    (statements, result)
 }
 
 fn lower_aggregate_local_return_to_location(

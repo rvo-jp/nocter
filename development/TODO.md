@@ -8,10 +8,10 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `ba54fbd Preflight aggregate moves in control-flow buildability`
   - `8df594b Reject outer drops in nonterminal control flow`
   - `214e2f8 Fix source-aware generic Vec storage checks`
   - `3420be0 Document the full compiler verification gate`
-  - `86332aa Keep compiler clean under current clippy`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
@@ -28,8 +28,9 @@ Recommended order:
 1. Keep `spec/`, `development/docs/v0-closure.md`, and
    `development/docs/implementation-status.md` consistent whenever source
    syntax, standard-library API, ABI behavior, or runtime support changes.
-2. Close buildability gaps before broadening syntax: accepted source that cannot
-   run must fail before IR or backend emission with a source-backed diagnostic.
+2. Close buildability gaps before broadening syntax: reachable accepted source
+   that cannot run must fail before IR or backend emission with a source-backed
+   diagnostic.
 3. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 4. Continue std runtime work only when the public API is stable in
@@ -93,6 +94,10 @@ Recommended order:
   non-terminal outer moves reject before IR lowering, while terminal single-call
   conditions and outer moves into bindings/assignments before immediate function
   exit remain buildable.
+- Return checking, buildability, and IR lowering now share the same
+  reachable-prefix rule for block bodies: statements after a proven terminal
+  statement do not force missing-return diagnostics, are not runtime lowered,
+  and do not trigger runtime-subset buildability diagnostics.
 - Generic impl method specialization now carries the receiver-derived impl
   substitutions into nested generic calls in the method body.
 
