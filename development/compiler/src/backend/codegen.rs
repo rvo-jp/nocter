@@ -295,12 +295,48 @@ impl EntryEmitter {
             } => {
                 self.emit_load_aggregate_usize(*destination, *source, *offset, frame)?;
             }
+            Instruction::LoadAggregateUsizeIndexed {
+                destination,
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => {
+                self.emit_load_aggregate_usize_indexed(
+                    *destination,
+                    *source,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    frame,
+                )?;
+            }
             Instruction::LoadAggregateI32 {
                 destination,
                 source,
                 offset,
             } => {
                 self.emit_load_aggregate_i32(*destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateI32Indexed {
+                destination,
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => {
+                self.emit_load_aggregate_i32_indexed(
+                    *destination,
+                    *source,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    frame,
+                )?;
             }
             Instruction::LoadAggregateU8 {
                 destination,
@@ -309,12 +345,48 @@ impl EntryEmitter {
             } => {
                 self.emit_load_aggregate_u8(*destination, *source, *offset, frame)?;
             }
+            Instruction::LoadAggregateU8Indexed {
+                destination,
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => {
+                self.emit_load_aggregate_u8_indexed(
+                    *destination,
+                    *source,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    frame,
+                )?;
+            }
             Instruction::LoadAggregateBool {
                 destination,
                 source,
                 offset,
             } => {
                 self.emit_load_aggregate_bool(*destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateBoolIndexed {
+                destination,
+                source,
+                base_offset,
+                index,
+                length,
+                stride,
+            } => {
+                self.emit_load_aggregate_bool_indexed(
+                    *destination,
+                    *source,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    frame,
+                )?;
             }
             Instruction::CopyAggregate {
                 destination,
@@ -2454,6 +2526,12 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. } => false,
+        Instruction::LoadAggregateUsizeIndexed { index, .. }
+        | Instruction::LoadAggregateI32Indexed { index, .. }
+        | Instruction::LoadAggregateU8Indexed { index, .. }
+        | Instruction::LoadAggregateBoolIndexed { index, .. } => {
+            usize_value_uses_process_arguments(index)
+        }
         Instruction::StoreAggregateUsize { value, .. } => usize_value_uses_process_arguments(value),
         Instruction::StoreAggregateI32 { value, .. } => i32_value_uses_process_arguments(value),
         Instruction::StoreAggregateU16 { .. } | Instruction::StoreAggregateU32 { .. } => false,

@@ -129,6 +129,10 @@ fn collect_reachable_call_targets(
             | Instruction::LoadAggregateI32 { .. }
             | Instruction::LoadAggregateU8 { .. }
             | Instruction::LoadAggregateBool { .. }
+            | Instruction::LoadAggregateUsizeIndexed { .. }
+            | Instruction::LoadAggregateI32Indexed { .. }
+            | Instruction::LoadAggregateU8Indexed { .. }
+            | Instruction::LoadAggregateBoolIndexed { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::CopyAggregateRange { .. }
             | Instruction::PropagateFailure

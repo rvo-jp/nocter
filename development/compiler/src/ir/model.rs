@@ -148,11 +148,27 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         offset: u32,
     },
+    LoadAggregateUsizeIndexed {
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+    },
     #[allow(dead_code)]
     LoadAggregateI32 {
         destination: I32Location,
         source: AggregateLocation,
         offset: u32,
+    },
+    LoadAggregateI32Indexed {
+        destination: I32Location,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
     },
     #[allow(dead_code)]
     LoadAggregateU8 {
@@ -160,11 +176,27 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         offset: u32,
     },
+    LoadAggregateU8Indexed {
+        destination: U8Location,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+    },
     #[allow(dead_code)]
     LoadAggregateBool {
         destination: BoolLocation,
         source: AggregateLocation,
         offset: u32,
+    },
+    LoadAggregateBoolIndexed {
+        destination: BoolLocation,
+        source: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
     },
     #[allow(dead_code)]
     CopyAggregate {

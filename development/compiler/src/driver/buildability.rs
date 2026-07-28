@@ -6044,12 +6044,17 @@ fn fixed_array_index_assignment_target_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
-    fixed_array_index_expression_is_buildable(
+    let (element, layout) = fixed_array_index_target_abi(
         expression,
         resolved,
         typecheck_facts,
         generic_substitutions,
         resolved_sources,
+    )?;
+    Some(
+        fixed_array_constant_index_value(&expression.index).is_some()
+            && layout.size > 0
+            && fixed_array_element_abi_is_buildable(&element),
     )
 }
 
@@ -7191,8 +7196,8 @@ fn unsupported_slice_index_diagnostic(
         return Some(unsupported_v0_build_diagnostic(
             sources,
             expression.span,
-            "fixed array indexing outside constant scalar/view element reads",
-            "use a constant index into `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until general fixed array indexing is promoted",
+            "fixed array indexing outside scalar/view element local reads",
+            "index a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` value until broader fixed array indexing is promoted",
         ));
     }
 
@@ -7227,9 +7232,6 @@ fn fixed_array_index_expression_is_buildable(
         generic_substitutions,
         resolved_sources,
     )?;
-    if fixed_array_constant_index_value(&expression.index).is_none() {
-        return Some(false);
-    }
     Some(layout.size > 0 && fixed_array_element_abi_is_buildable(&element))
 }
 
@@ -8753,9 +8755,9 @@ func main(): i32 {
 
 impl Resource {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -8770,7 +8772,11 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("fixed array indexing"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("fixed array index assignment")
+        );
     }
 
     #[test]
@@ -8782,9 +8788,9 @@ func main(): i32 {
 
 impl<T> Box<T> {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -8799,7 +8805,11 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("fixed array indexing"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("fixed array index assignment")
+        );
     }
 
     #[test]
@@ -8811,9 +8821,9 @@ func main(): i32 {
 
 impl Resource {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -8833,7 +8843,11 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("fixed array indexing"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("fixed array index assignment")
+        );
     }
 
     #[test]
@@ -8845,9 +8859,9 @@ func main(): i32 {
 
 impl Resource {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -8867,7 +8881,11 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("fixed array indexing"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("fixed array index assignment")
+        );
     }
 
     #[test]

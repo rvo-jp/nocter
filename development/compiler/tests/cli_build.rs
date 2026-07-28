@@ -5229,10 +5229,10 @@ func make_file(): File {
 }
 
 #[test]
-fn build_command_reports_fixed_array_variable_index_before_ir_lowering() {
-    let project = TempProject::new("cli-build-fixed-array-variable-index-boundary");
+fn build_command_lowers_fixed_array_variable_index_reads() {
+    let project = TempProject::new("cli-build-fixed-array-variable-index-reads");
     let source = project.write_source(
-        "fixed_array_variable_index_boundary.nct",
+        "fixed_array_variable_index_reads.nct",
         r#"func main(): i32 {
     let values: [i32; 2] = [1, 2]
     let index: usize = 1
@@ -5244,28 +5244,8 @@ fn build_command_reports_fixed_array_variable_index_before_ir_lowering() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("fixed array indexing"),
-        "expected fixed array indexing diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     return values[index]"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -5506,9 +5486,9 @@ fn build_command_reports_scope_drop_body_before_ir_lowering() {
 
 impl Resource {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -5530,11 +5510,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("fixed array indexing"),
-        "expected fixed array indexing diagnostic from drop body, got:\n{stderr}"
+        stderr.contains("fixed array index assignment"),
+        "expected fixed array index assignment diagnostic from drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("9 |         let byte: u8 = bytes[index]"),
+        stderr.contains("9 |         bytes[index] = 3"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -5558,9 +5538,9 @@ fn build_command_reports_field_replacement_drop_body_before_ir_lowering() {
 
 impl Resource {
     drop &+self {
-        let bytes: [u8; 2] = [1, 2]
+        var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        let byte: u8 = bytes[index]
+        bytes[index] = 3
         return
     }
 }
@@ -5587,11 +5567,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("fixed array indexing"),
-        "expected fixed array indexing diagnostic from field drop body, got:\n{stderr}"
+        stderr.contains("fixed array index assignment"),
+        "expected fixed array index assignment diagnostic from field drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("9 |         let byte: u8 = bytes[index]"),
+        stderr.contains("9 |         bytes[index] = 3"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

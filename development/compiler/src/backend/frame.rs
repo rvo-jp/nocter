@@ -469,6 +469,10 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
+        | Instruction::LoadAggregateUsizeIndexed { .. }
+        | Instruction::LoadAggregateI32Indexed { .. }
+        | Instruction::LoadAggregateU8Indexed { .. }
+        | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -595,7 +599,11 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::LoadAggregateUsize { source, .. }
         | Instruction::LoadAggregateI32 { source, .. }
         | Instruction::LoadAggregateU8 { source, .. }
-        | Instruction::LoadAggregateBool { source, .. } => {
+        | Instruction::LoadAggregateBool { source, .. }
+        | Instruction::LoadAggregateUsizeIndexed { source, .. }
+        | Instruction::LoadAggregateI32Indexed { source, .. }
+        | Instruction::LoadAggregateU8Indexed { source, .. }
+        | Instruction::LoadAggregateBoolIndexed { source, .. } => {
             matches!(source, AggregateLocation::Slot(_))
         }
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
@@ -790,6 +798,10 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
+        | Instruction::LoadAggregateUsizeIndexed { .. }
+        | Instruction::LoadAggregateI32Indexed { .. }
+        | Instruction::LoadAggregateU8Indexed { .. }
+        | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
         | Instruction::SetI32 { .. }
@@ -955,6 +967,10 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
+        | Instruction::LoadAggregateUsizeIndexed { .. }
+        | Instruction::LoadAggregateI32Indexed { .. }
+        | Instruction::LoadAggregateU8Indexed { .. }
+        | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetUsizeFromBorrow { .. }
@@ -1532,6 +1548,40 @@ fn record_instruction_parameter_spill_requests(
                 record_aggregate_location_parameter_spill_request(*source, *offset, 1, requests);
             }
         }
+        Instruction::LoadAggregateUsizeIndexed {
+            source,
+            base_offset,
+            index,
+            ..
+        }
+        | Instruction::LoadAggregateI32Indexed {
+            source,
+            base_offset,
+            index,
+            ..
+        }
+        | Instruction::LoadAggregateU8Indexed {
+            source,
+            base_offset,
+            index,
+            ..
+        }
+        | Instruction::LoadAggregateBoolIndexed {
+            source,
+            base_offset,
+            index,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *source,
+                    *base_offset,
+                    1,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
+            }
+        }
         Instruction::CopyAggregate {
             destination,
             source,
@@ -2015,14 +2065,38 @@ fn record_instruction_scalar_locals(
         Instruction::LoadAggregateUsize { destination, .. } => {
             record_usize_location(*destination, highest_local_index);
         }
+        Instruction::LoadAggregateUsizeIndexed {
+            destination, index, ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
         Instruction::LoadAggregateI32 { destination, .. } => {
             record_i32_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateI32Indexed {
+            destination, index, ..
+        } => {
+            record_i32_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
         }
         Instruction::LoadAggregateU8 { destination, .. } => {
             record_u8_location(*destination, highest_local_index);
         }
+        Instruction::LoadAggregateU8Indexed {
+            destination, index, ..
+        } => {
+            record_u8_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
         Instruction::LoadAggregateBool { destination, .. } => {
             record_bool_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateBoolIndexed {
+            destination, index, ..
+        } => {
+            record_bool_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
         }
         Instruction::WriteStr { fd, text } => {
             record_i32_value(fd, highest_local_index);
