@@ -163,6 +163,16 @@ Rules:
 - Without an expected type, the compiler infers the element type from the elements.
 - Integer-only array literals use `i32` unless context provides another integer type.
 - The inferred length is part of the array type.
+- The length `N` in `[T; N]` is a compile-time integer literal value that must
+  fit in `usize`.
+- `[T; 0]` is valid and contains no initialized elements.
+- The element type `T` must be sized. Unsized `str` and `[T]` elements must be
+  used behind an indirection such as `&str` or `&[T]`.
+- Array literal elements are evaluated left to right.
+- If a later element expression fails through postfix `?`, already initialized
+  owned elements are dropped in reverse index order before the failure propagates.
+- A fixed array is copyable only when its element type is copyable.
+- A fixed array is move-only when its element type is move-only.
 
 Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
 Future typed collection literals such as `Vec [1, 2, 3]` are specified

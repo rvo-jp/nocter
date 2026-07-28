@@ -194,6 +194,7 @@ Frontend facts required by backend and ABI lowering:
 - resolved nominal type identity
 - field order and field types
 - enum variant order and payload types
+- fixed-array element type and compile-time length
 - `copy struct` marker
 - whether a type has an inherent `drop` member
 - expression ownership category: copy, move-only owned value, borrow, view,
@@ -208,11 +209,15 @@ Rules fixed for v0:
 
 - struct fields are laid out in declaration order
 - struct layout does not change when a `drop` member exists
-- enum values use an explicit tag and payload union
+- payloadless enum values use the explicit `u8` tag layout specified by ABI v0
+- payload-carrying enum values are typechecked in v0 but rejected before
+  build/run lowering until their runtime layout is promoted into ABI v0
+- fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification
 - values larger than 16 bytes use indirect ABI classification
-- drop glue must drop only live fields or active payloads
+- drop glue must drop only live fields, initialized array elements, or active
+  payloads
 - moved-from owned places are dead until assigned a new value
 
 ## String Type Contract

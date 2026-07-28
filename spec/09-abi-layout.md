@@ -132,6 +132,25 @@ pointer, borrow    align 8
 
 Aggregates use their computed aggregate alignment.
 
+### Fixed-Size Array Layout
+
+`[T; N]` stores `N` elements of `T` contiguously in index order.
+
+Rules:
+
+- The element type `T` must have a sized ABI layout.
+- The array alignment is the element alignment.
+- The element stride is the element size rounded up to the element alignment.
+- Element `i` starts at byte offset `i * stride`.
+- The array size is `stride * N`.
+- `[T; 0]` has size `0` and the same alignment as `T`.
+- Array ABI classification uses the total array size and alignment, following the
+  ordinary direct-versus-indirect rules.
+- Drop glue for a fixed array drops initialized owned elements in reverse index
+  order.
+- Fixed arrays of copy element types are copyable. Fixed arrays of move-only
+  element types are move-only.
+
 ### Enum Layout
 
 The v0 backend only ships payloadless enum values. They are represented as a
@@ -157,6 +176,40 @@ Rules:
   payload enum values. That promotion must define the tag width, payload
   alignment, inactive-byte behavior, and active-payload drop rules in this
   document before code generation relies on them.
+
+### Built-In Error Layout
+
+The built-in `error` payload is represented as two borrowed string slices:
+
+```text
+error:
+  code:    &str
+  message: &str
+```
+
+Layout:
+
+```text
+word 0: code.ptr
+word 1: code.len
+word 2: message.ptr
+word 3: message.len
+```
+
+Rules:
+
+- `error.code` and `error.message` are the user-facing fields of `error`.
+- Both fields have type `&str`.
+- The field order is `code`, then `message`.
+- The built-in `error` type has size 32 bytes and alignment 8 on ABI v0.
+- `error` does not own its string storage and has no drop member.
+- `error` is copyable because both fields are copyable borrowed views.
+- An `error` value carries borrow-like provenance from both `&str` fields.
+- Returning or storing an `error` must satisfy the same borrow-like escape rules
+  as any aggregate containing `&str`.
+- The compiler-generated entry wrapper may report `error.code` and
+  `error.message` directly from these fields without allocating or calling a
+  fallible standard-library API.
 
 ### Optional Layout
 
@@ -224,7 +277,8 @@ Rules:
 - `drop` must not return a value.
 - The caller passes a readwrite borrow of the value being destroyed.
 - After `drop` returns, the caller treats that value as dead.
-- Drop glue for structs, enums, optionals, and fallible values must follow active-field and active-payload rules.
+- Drop glue for structs, fixed arrays, enums, optionals, and fallible values must
+  follow active-field, initialized-element, and active-payload rules.
 
 ### Primitive ABI
 

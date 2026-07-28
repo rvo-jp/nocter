@@ -25,7 +25,7 @@ T! = fallible T with built-in error
 
 The failure type is not written at each call site. All fallible values use the same failure payload type, `error`.
 
-Initial conceptual payload fields:
+Initial payload fields:
 
 ```text
 code: &str
@@ -46,6 +46,11 @@ Rules:
 - Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
 - `error.code` and `error.message` are the initial direct user-facing fields for reporting.
 - `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
+- `error.message` is a human-readable diagnostic message string.
+- The built-in `error` payload is copyable, non-owning, and carries borrow-like
+  provenance from its `&str` fields. Returning or storing an `error` follows the
+  same escape rules as other aggregates containing borrow-like values.
+- The ABI layout of `error` is specified in [ABI and Layout](09-abi-layout.md#built-in-error-layout).
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity.
 
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.

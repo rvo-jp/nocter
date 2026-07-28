@@ -347,7 +347,9 @@ Rules:
 - A `copy struct` cannot define `drop`.
 - A `copy struct` must not own resources that require destruction.
 - Primitive numeric types, `bool`, and raw pointers are copyable.
+- The built-in `error` type is copyable.
 - Payloadless enum values are copyable.
+- Fixed-size arrays `[T; N]` are copyable when `T` is copyable.
 - Type aliases to copy types are copyable. For example, a project-local alias to `i32` is copyable.
 - `&T` is copyable.
 - `&+T` is not copyable.
