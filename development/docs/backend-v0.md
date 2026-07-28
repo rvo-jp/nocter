@@ -86,8 +86,8 @@ The backend currently supports the documented subset of:
   subset
 - concrete generic specializations whose lowered bodies stay inside the runtime
   subset
-- fallible and optional propagation, force unwrap, `catch`, and `otherwise` for
-  scalar/view and supported aggregate paths
+- fallible and optional propagation, force unwrap, `catch`, and direct-call
+  `otherwise` in supported binding/return scalar/view and aggregate paths
 - terminal and selected non-terminal control flow with cleanup
 - payloadless enum tag comparisons, `if is`, and `match`
 - direct and indirect aggregate parameters, arguments, returns, call-result

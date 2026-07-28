@@ -4207,6 +4207,7 @@ fn lower_otherwise_return_statement_prefix(
     let mut instructions = Vec::new();
     for statement in statements {
         match statement {
+            Stmt::Import(_) | Stmt::FromImport(_) => {}
             Stmt::Binding(statement) => {
                 instructions.extend(lower_local_binding(statement, context)?)
             }

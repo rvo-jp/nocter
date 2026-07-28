@@ -3983,6 +3983,48 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_rejects_otherwise_call_argument_before_ir_lowering() {
+    let project = TempProject::new("cli-build-otherwise-call-argument");
+    let source = project.write_source(
+        "otherwise_call_argument.nct",
+        r#"func main(): i32 {
+    return use_value(source() otherwise { 1 })
+}
+
+func use_value(value: i32): i32 {
+    return value
+}
+
+func source(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`otherwise` expressions outside direct binding or return positions"),
+        "expected otherwise expression construct, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "otherwise expression should be rejected before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_explicit_move_in_terminal_if_condition() {
     let project = TempProject::new("cli-build-move-in-terminal-if-condition");
     let source = project.write_source(

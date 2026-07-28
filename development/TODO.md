@@ -109,6 +109,10 @@ Recommended order:
 - `catch` blocks that can fall through are now typechecked as E0337. Runtime
   buildability rejects broader catch terminal-control shapes, such as terminal
   `if` inside a catch block, before IR lowering with E0435.
+- Runtime `otherwise` is now explicitly gated to direct optional-returning calls
+  in supported binding or return positions. General expression positions, such
+  as call arguments, and broader fallback terminal-control shapes reject before
+  IR lowering with E0435.
 
 ## Session Start
 

@@ -6,8 +6,8 @@ use crate::analysis::{
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
     FunctionDecl, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item, MemberExpr,
-    MethodDecl, Parameter, Stmt, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
-    type_expr_display_lossy,
+    MethodDecl, OtherwiseExpr, Parameter, Stmt, TypeExpr, UnaryOperator,
+    substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -669,6 +669,21 @@ fn collect_terminal_return_expression_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match unwrap_group_expr(expression) {
+        Expr::Otherwise(expression) => {
+            collect_otherwise_return_expression_diagnostics(
+                expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Expr::If(expression)
             if void_effect_if_expression_is_buildable(
                 expression,
@@ -1103,6 +1118,304 @@ fn collect_value_block_diagnostics(
         queue,
         diagnostics,
     );
+}
+
+fn collect_otherwise_return_expression_diagnostics(
+    expression: &OtherwiseExpr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_otherwise_runtime_value_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+        diagnostics,
+    );
+    if !otherwise_return_fallback_runtime_shape_is_buildable(
+        &expression.fallback,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.fallback.span,
+            "`otherwise` fallback blocks outside the v0 return subset",
+            "end runtime-shipped `otherwise` return fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
+        ));
+    }
+
+    collect_expression_diagnostics(
+        &expression.value,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_otherwise_return_fallback_block_diagnostics(
+        &expression.fallback,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn collect_otherwise_binding_initializer_diagnostics(
+    expression: &OtherwiseExpr,
+    binding_is_scalar_or_view: bool,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_otherwise_runtime_value_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+        diagnostics,
+    );
+    if !otherwise_binding_fallback_runtime_shape_is_buildable(
+        &expression.fallback,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.fallback.span,
+            "`otherwise` fallback blocks outside the v0 binding subset",
+            "end runtime-shipped `otherwise` binding fallbacks with a value, direct `return`, loop-local `break`/`continue`, or supported `never` expression until broader fallback lowering is promoted",
+        ));
+    }
+
+    collect_expression_diagnostics(
+        &expression.value,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_otherwise_binding_fallback_block_diagnostics(
+        &expression.fallback,
+        binding_is_scalar_or_view,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn collect_otherwise_runtime_value_diagnostics(
+    expression: &OtherwiseExpr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if otherwise_optional_value_call_is_buildable(
+        &expression.value,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+    ) {
+        return;
+    }
+
+    diagnostics.push(unsupported_v0_build_diagnostic(
+        sources,
+        expression.value.span(),
+        "`otherwise` values outside the v0 runtime subset",
+        "apply runtime-shipped `otherwise` directly to a call returning a top-level optional value",
+    ));
+}
+
+fn collect_otherwise_return_fallback_block_diagnostics(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if block.result.is_none() {
+        collect_block_diagnostics(
+            block,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+        return;
+    }
+
+    for statement in &block.statements {
+        collect_statement_diagnostics(
+            statement,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+    if let Some(result) = &block.result {
+        collect_terminal_return_expression_diagnostics(
+            result,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
+fn collect_otherwise_binding_fallback_block_diagnostics(
+    block: &Block,
+    binding_is_scalar_or_view: bool,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if block.result.is_none() {
+        collect_block_diagnostics(
+            block,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+        return;
+    }
+
+    for statement in &block.statements {
+        collect_statement_diagnostics(
+            statement,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+    if let Some(result) = &block.result {
+        if binding_is_scalar_or_view {
+            collect_value_expression_diagnostics(
+                result,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        } else {
+            collect_expression_diagnostics(
+                result,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+    }
 }
 
 fn collect_void_effect_expression_diagnostics(
@@ -1698,6 +2011,52 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     resolver(ty.span().source).unwrap_or(fallback_resolved)
+}
+
+fn type_expr_is_top_level_optional_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_top_level_optional_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_is_top_level_optional_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Optional(_) => true,
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = type_expr_is_top_level_optional_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
 }
 
 fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -2544,12 +2903,28 @@ fn collect_statement_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
-            if binding_initializer_may_use_value_control_expression(
+            let binding_is_scalar_or_view = binding_initializer_may_use_value_control_expression(
                 statement,
                 resolved,
                 typecheck_facts,
                 generic_substitutions,
-            ) {
+            );
+            if let Expr::Otherwise(expression) = unwrap_group_expr(&statement.initializer) {
+                collect_otherwise_binding_initializer_diagnostics(
+                    expression,
+                    binding_is_scalar_or_view,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else if binding_is_scalar_or_view {
                 collect_value_expression_diagnostics(
                     &statement.initializer,
                     sources,
@@ -4595,6 +4970,189 @@ fn catch_block_terminal_statement_runtime_shape_is_buildable(
     }
 }
 
+fn otherwise_optional_value_call_is_buildable(
+    value: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let Expr::Call(call) = unwrap_group_expr(value) else {
+        return false;
+    };
+    let Some(return_type) = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_top_level_optional_with_resolver(&return_type, resolved, &source_resolver)
+}
+
+fn otherwise_return_fallback_runtime_shape_is_buildable(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if block.result.is_some() {
+        return block.statements.iter().all(|statement| {
+            otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        });
+    }
+
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return false;
+    };
+
+    leading.iter().all(|statement| {
+        otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    }) && match terminal {
+        Stmt::Return(_) => true,
+        Stmt::Expression(statement) => expression_is_never_runtime_shape_is_buildable(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Drop(_) => false,
+    }
+}
+
+fn otherwise_binding_fallback_runtime_shape_is_buildable(
+    block: &Block,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if block.result.is_some() {
+        return block.statements.iter().all(|statement| {
+            otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
+                statement,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        });
+    }
+
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return false;
+    };
+
+    leading.iter().all(|statement| {
+        otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
+            statement,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    }) && match terminal {
+        Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_) => true,
+        Stmt::Expression(statement) => expression_is_never_runtime_shape_is_buildable(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Drop(_) => false,
+    }
+}
+
+fn otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match statement {
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Binding(_)
+        | Stmt::Assignment(_)
+        | Stmt::Drop(_) => true,
+        Stmt::Expression(statement) => expression_statement_is_supported(
+            &statement.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Return(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => false,
+    }
+}
+
+fn otherwise_binding_fallback_leading_statement_runtime_shape_is_buildable(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    otherwise_return_fallback_leading_statement_runtime_shape_is_buildable(
+        statement,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn expression_is_never_runtime_shape_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Call(call) => matches!(
+            call_return_shape(call, resolved, typecheck_facts, generic_substitutions),
+            Some(ReturnShape::Never)
+        ),
+        _ => false,
+    }
+}
+
 fn aggregate_literal_statement_is_supported(
     literal: &crate::ast::StructLiteralExpr,
     resolved: &ResolveOutput,
@@ -5378,6 +5936,12 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Otherwise(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "`otherwise` expressions outside direct binding or return positions",
+                "bind or return the `otherwise` expression directly until general optional expression lowering is promoted",
+            ));
             collect_expression_diagnostics(
                 &expression.value,
                 sources,
@@ -7554,6 +8118,63 @@ func source(): i32! {
         assert_eq!(
             diagnostics[0].message,
             "Nocter v0 build cannot lower `catch` blocks outside the v0 runtime subset yet"
+        );
+    }
+
+    #[test]
+    fn reports_otherwise_call_argument_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return use_value(source() otherwise { 1 })
+}
+
+func use_value(value: i32): i32 {
+    return value
+}
+
+func source(): i32? {
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct binding or return positions yet"
+        );
+    }
+
+    #[test]
+    fn reports_terminal_if_inside_otherwise_binding_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    let value = source() otherwise {
+        if true {
+            return 1
+        } else {
+            return 2
+        }
+    }
+    return value
+}
+
+func source(): i32? {
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower `otherwise` fallback blocks outside the v0 binding subset yet"
         );
     }
 
