@@ -5313,6 +5313,30 @@ fn build_command_lowers_fixed_array_copy_binding() {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_value_parameters_and_returns() {
+    let project = TempProject::new("cli-build-fixed-array-value-parameters-returns");
+    let source = project.write_source(
+        "fixed_array_value_parameters_returns.nct",
+        r#"func main(): i32 {
+    let values: [i32; 3] = [10, 20, 12]
+    let copied: [i32; 3] = identity(values)
+    return copied[0]
+}
+
+func identity(values: [i32; 3]): [i32; 3] {
+    return values
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_whole_assignments() {
     let project = TempProject::new("cli-build-fixed-array-whole-assignments");
     let source = project.write_source(

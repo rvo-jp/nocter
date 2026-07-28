@@ -7065,6 +7065,80 @@ fn run_command_reads_fixed_array_literal_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_passes_and_returns_fixed_arrays_by_value() {
+    let project = TempProject::new("cli-run-fixed-array-value-parameters-returns");
+    let source = project.write_source(
+        "fixed_array_value_parameters_returns.nct",
+        r#"func main(): i32 {
+    let pair: [i32; 2] = [20, 22]
+    let copied_pair: [i32; 2] = identity_pair(pair)
+    let words: [&str; 3] = ["bad", "Nocter", "lang"]
+    let copied_words: [&str; 3] = identity_words(words)
+    let word: &str = copied_words[1]
+    if sum_pair(copied_pair) == 42 {
+        if word.len() == 6 {
+            return 42
+        }
+    }
+    return 1
+}
+
+func identity_pair(values: [i32; 2]): [i32; 2] {
+    return values
+}
+
+func sum_pair(values: [i32; 2]): i32 {
+    return values[0] + values[1]
+}
+
+func identity_words(values: [&str; 3]): [&str; 3] {
+    return values
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_binds_fallible_fixed_array_call_result() {
+    let project = TempProject::new("cli-run-fallible-fixed-array-call-result");
+    let source = project.write_source(
+        "fallible_fixed_array_call_result.nct",
+        r#"func main(): i32 {
+    let values: [i32; 2] = make_pair()!
+    return values[0] + values[1]
+}
+
+func make_pair(): [i32; 2]! {
+    let values: [i32; 2] = [20, 22]
+    return values
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_constant_indices() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
     let source = project.write_source(

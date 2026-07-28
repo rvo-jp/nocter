@@ -1,4 +1,6 @@
-use crate::abi::{AbiType, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver};
+use crate::abi::{
+    AbiType, AbiValue, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
+};
 use crate::analysis::{
     CompileUnitAnalysis, FileAnalysis,
     call_specializations::{collect_call_specializations, impl_substitutions_for_self_ty},
@@ -1945,6 +1947,16 @@ fn unsupported_local_binding_type_diagnostic(
         return None;
     }
 
+    if fixed_array_call_binding_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+
     if fixed_array_binding_type_abi(
         statement,
         resolved,
@@ -1961,8 +1973,8 @@ fn unsupported_local_binding_type_diagnostic(
         return Some(unsupported_v0_build_diagnostic(
             sources,
             statement.name_span,
-            "fixed array local bindings outside supported literal initialization",
-            "initialize fixed array locals directly from a supported array literal or copy another supported fixed array local until fixed array call-result and move lowering is promoted",
+            "fixed array local bindings outside supported initialization",
+            "initialize fixed array locals directly from a supported array literal, copy another supported fixed array local, or bind a matching fixed array call result until broader fixed array move lowering is promoted",
         ));
     }
 
@@ -2086,6 +2098,143 @@ fn fixed_array_copy_binding_is_buildable(
         && target_length == source_length
         && target_layout == source_layout
         && fixed_array_element_abi_is_buildable(&source_element)
+}
+
+fn fixed_array_call_binding_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some((target_element, target_length, target_layout)) = fixed_array_binding_type_abi(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    if target_layout.size == 0 || !fixed_array_element_abi_is_buildable(&target_element) {
+        return false;
+    }
+
+    let Some(source_ty) = fixed_array_call_binding_initializer_type_expr(
+        &statement.initializer,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    target_element == source_element
+        && target_length == source_length
+        && target_layout == source_layout
+        && fixed_array_element_abi_is_buildable(&source_element)
+}
+
+fn fixed_array_call_binding_initializer_type_expr(
+    initializer: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    match unwrap_group_expr(initializer) {
+        Expr::Call(call) => call_return_type_expr_with_substitutions(
+            call,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group_expr(&propagation.expression) else {
+                return None;
+            };
+            fixed_array_success_type_expr_from_fallible_call(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group_expr(&force.expression) else {
+                return None;
+            };
+            fixed_array_success_type_expr_from_fallible_call(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group_expr(&catch.expression) else {
+                return None;
+            };
+            fixed_array_success_type_expr_from_fallible_call(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
+        Expr::Otherwise(otherwise) => {
+            let Expr::Call(call) = unwrap_group_expr(&otherwise.value) else {
+                return None;
+            };
+            fixed_array_inner_type_expr_from_optional_call(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn fixed_array_success_type_expr_from_fallible_call(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let TypeExpr::Fallible(fallible) = return_type else {
+        return None;
+    };
+    Some(*fallible.success)
+}
+
+fn fixed_array_inner_type_expr_from_optional_call(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let TypeExpr::Optional(optional) = return_type else {
+        return None;
+    };
+    Some(*optional.inner)
 }
 
 fn fixed_array_literal_assignment_is_buildable(
@@ -2895,7 +3044,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
-        .is_ok_and(|value| matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0)
+        .is_ok_and(|value| abi_value_is_supported_aggregate_value(&value))
+}
+
+fn abi_value_is_supported_aggregate_value(value: &AbiValue) -> bool {
+    match &value.ty {
+        AbiType::Struct(_) => value.layout.size > 0,
+        AbiType::Array { element, .. } => {
+            value.layout.size > 0 && fixed_array_element_abi_is_buildable(element)
+        }
+        _ => false,
+    }
 }
 
 fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
@@ -6043,7 +6202,7 @@ where
     let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
         return false;
     };
-    matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0
+    abi_value_is_supported_aggregate_value(&value)
 }
 
 fn collect_expression_diagnostics(

@@ -14,8 +14,8 @@ use super::functions::propagating_failure_mode;
 use super::literals::{lower_u16_literal, lower_u32_literal};
 use super::types::view_element_type_from_type_expr_with_resolver;
 use crate::abi::{
-    AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
-    array_element_stride, layout_of, layout_struct,
+    AbiType, AbiValue, ValueLayout, abi_value_from_type_expr,
+    abi_value_from_type_expr_with_resolver, array_element_stride, layout_of, layout_struct,
 };
 use crate::ast::{
     ArrayLiteralExpr, CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator,
@@ -52,7 +52,7 @@ pub(super) fn aggregate_call_return_layout_from_resolved(
         context.resolved_source(source)
     })
     .ok()?;
-    if matches!(value.ty, AbiType::Struct(_)) {
+    if matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. }) {
         Some(value.layout)
     } else {
         None
@@ -72,6 +72,69 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_copy_struct_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
+}
+
+pub(super) fn type_expr_is_copy_aggregate_value_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if type_expr_is_copy_fixed_array_value_with_resolver(ty, fallback_resolved, &resolver) {
+        return true;
+    }
+    if type_expr_is_copy_struct(ty, fallback_resolved) {
+        return true;
+    }
+    type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, resolver)
+}
+
+fn type_expr_is_copy_fixed_array_value_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Fallible(fallible) => {
+            return type_expr_is_copy_fixed_array_value_with_resolver(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+            );
+        }
+        TypeExpr::Optional(optional) => {
+            return type_expr_is_copy_fixed_array_value_with_resolver(
+                &optional.inner,
+                fallback_resolved,
+                resolver,
+            );
+        }
+        _ => {}
+    }
+
+    abi_value_from_type_expr(ty, fallback_resolved).is_ok_and(fixed_array_value_is_runtime_copy)
+        || abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
+            .is_ok_and(fixed_array_value_is_runtime_copy)
+}
+
+fn fixed_array_element_abi_is_runtime_copy(element: &AbiType) -> bool {
+    matches!(
+        element,
+        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
+    )
+}
+
+fn fixed_array_value_is_runtime_copy(value: AbiValue) -> bool {
+    value.layout.size > 0
+        && matches!(
+            value.ty,
+            AbiType::Array { ref element, .. } if fixed_array_element_abi_is_runtime_copy(element)
+        )
 }
 
 fn type_expr_is_copy_struct_inner<'a, F>(

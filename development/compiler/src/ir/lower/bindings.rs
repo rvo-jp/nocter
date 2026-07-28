@@ -5,7 +5,8 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
+    type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct,
+    type_expr_is_copy_struct_with_resolver,
 };
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;
@@ -553,7 +554,7 @@ fn lower_otherwise_aggregate_binding(
     };
     validate_aggregate_binding_layout(layout)?;
 
-    let is_copy = call_success_type_is_copy_struct(call, context);
+    let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
@@ -754,7 +755,7 @@ fn lower_aggregate_normal_call_binding(
         && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
     {
         validate_aggregate_binding_layout(layout)?;
-        let is_copy = call_success_type_is_copy_struct(call, context);
+        let is_copy = call_success_type_is_copy_aggregate_value(call, context);
         let drop_glue = call_success_drop_glue(call, context);
         let fields = call_success_aggregate_fields(call, context);
         let slot_index = context.define_aggregate_local(
@@ -792,7 +793,7 @@ fn lower_aggregate_normal_call_binding(
     };
     validate_aggregate_binding_layout(layout)?;
 
-    let is_copy = call_success_type_is_copy_struct(call, context);
+    let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
@@ -829,7 +830,7 @@ fn lower_aggregate_fallible_call_binding(
     };
     validate_aggregate_binding_layout(layout)?;
 
-    let is_copy = call_success_type_is_copy_struct(call, context);
+    let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
@@ -3626,14 +3627,16 @@ fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContex
     }
 }
 
-fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) -> bool {
+fn call_success_type_is_copy_aggregate_value(call: &CallExpr, context: &LoweringContext) -> bool {
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return false;
     };
     let Some(return_type) = context.call_return_type_expr(call) else {
         return false;
     };
-    type_expr_is_copy_struct(&return_type, resolved)
+    type_expr_is_copy_aggregate_value_with_resolver(&return_type, resolved, |source| {
+        context.resolved_source(source)
+    })
 }
 
 fn call_success_aggregate_fields(

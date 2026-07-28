@@ -3,7 +3,7 @@ use super::aggregates::{
     aggregate_type_layout, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct_with_resolver,
+    type_expr_is_copy_aggregate_value_with_resolver,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
@@ -494,7 +494,7 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
-                    is_copy: type_expr_is_copy_struct_with_resolver(
+                    is_copy: type_expr_is_copy_aggregate_value_with_resolver(
                         &parameter.ty,
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
@@ -520,7 +520,7 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
-                    is_copy: type_expr_is_copy_struct_with_resolver(
+                    is_copy: type_expr_is_copy_aggregate_value_with_resolver(
                         &parameter.ty,
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
@@ -684,7 +684,7 @@ fn lower_scalar_parameter_kind(
             resolved,
             resolved_sources,
         ),
-        AbiType::Struct(_) => lower_aggregate_parameter_kind(
+        AbiType::Struct(_) | AbiType::Array { .. } => lower_aggregate_parameter_kind(
             parameter,
             function_name,
             root_source,
@@ -826,7 +826,9 @@ fn lower_aggregate_parameter_kind(
     resolved_sources: &ResolvedSources<'_>,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
+    if !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        || !supported_aggregate_copy_layout(value.layout)
+    {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
     let fields = aggregate_fields_from_type_expr_with_resolver(
