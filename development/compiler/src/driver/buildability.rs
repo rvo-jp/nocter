@@ -3343,6 +3343,7 @@ fn collect_statement_diagnostics(
                 sources,
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -5680,6 +5681,7 @@ fn unsupported_index_assignment_target_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
@@ -5689,6 +5691,23 @@ fn unsupported_index_assignment_target_diagnostic(
     let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
         return None;
     };
+    if let Some(is_buildable) = fixed_array_index_assignment_target_is_buildable(
+        index,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        if is_buildable {
+            return None;
+        }
+        return Some(unsupported_v0_build_diagnostic(
+            sources,
+            index.span,
+            "fixed array index assignment targets outside constant scalar/view element locals",
+            "assign through a constant index into a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until general fixed array mutation is promoted",
+        ));
+    }
     if matches!(
         slice_index_assignment_target_is_buildable(
             &index.object,
@@ -5707,6 +5726,22 @@ fn unsupported_index_assignment_target_diagnostic(
         "index assignment targets outside supported slice values",
         "assign through a slice binding, supported slice-returning call result, or slice aggregate field until broader index assignment lowering is promoted",
     ))
+}
+
+fn fixed_array_index_assignment_target_is_buildable(
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<bool> {
+    fixed_array_index_expression_is_buildable(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+    )
 }
 
 fn slice_index_assignment_target_is_buildable(

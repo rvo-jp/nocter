@@ -4605,14 +4605,14 @@ pub(super) fn lower_usize_value(
     }
 }
 
-struct FixedArrayElementAccess {
-    source: AggregateLocation,
-    offset: u32,
-    element: AbiType,
-    out_of_bounds: bool,
+pub(super) struct FixedArrayElementAccess {
+    pub(super) source: AggregateLocation,
+    pub(super) offset: u32,
+    pub(super) element: AbiType,
+    pub(super) out_of_bounds: bool,
 }
 
-fn fixed_array_element_access(
+pub(super) fn fixed_array_element_access(
     expression: &IndexExpr,
     context: &LoweringContext,
     unsupported_diagnostic: impl Fn() -> Vec<Diagnostic>,

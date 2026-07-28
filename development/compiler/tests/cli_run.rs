@@ -7065,6 +7065,87 @@ fn run_command_reads_fixed_array_literal_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_writes_fixed_array_constant_indices() {
+    let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
+    let source = project.write_source(
+        "fixed_array_constant_index_writes.nct",
+        r#"func main(): i32 {
+    var scores: [i32; 3] = [0, 0, 0]
+    var bytes: [u8; 2] = [0, 0]
+    var sizes: [usize; 2] = [0, 0]
+    var flags: [bool; 2] = [false, false]
+    var words: [&str; 2] = ["bad", "bad"]
+    scores[0] = 10
+    scores[1] = 20
+    scores[2] = 12
+    bytes[0] = 3
+    bytes[1] = 4
+    sizes[0] = 5
+    sizes[1] = 6
+    flags[1] = true
+    words[1] = "Nocter"
+    let score: i32 = scores[0] + scores[1] + scores[2]
+    let byte: u8 = bytes[1]
+    let size: usize = sizes[0] + sizes[1]
+    let flag: bool = flags[1]
+    let word: &str = words[1]
+    if score == 42 {
+        if byte == 4 {
+            if size == 11 {
+                if flag {
+                    if word.len() == 6 {
+                        return 42
+                    }
+                }
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_fixed_array_constant_index_assignment_out_of_bounds() {
+    let project = TempProject::new("cli-run-fixed-array-constant-index-assignment-oob");
+    let source = project.write_source(
+        "fixed_array_constant_index_assignment_oob.nct",
+        r#"func main(): i32 {
+    var values: [i32; 1] = [0]
+    values[1] = replacement()
+    return values[0]
+}
+
+func replacement(): i32 {
+    return 7
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_str_is_empty_exit_code() {
     let project = TempProject::new("cli-run-str-is-empty");
     let source = project.write_source(

@@ -12,9 +12,9 @@ use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    lower_aggregate_member_field_access, lower_bool_expression_to_location,
-    lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
-    lower_call_arguments_to_scalar_arguments,
+    fixed_array_element_access, lower_aggregate_member_field_access,
+    lower_bool_expression_to_location, lower_bool_expression_to_value,
+    lower_bool_expression_to_value_with_temporaries, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
@@ -1425,7 +1425,7 @@ pub(super) fn lower_assignment(
             lower_identifier_assignment(identifier, &statement.value, context)
         }
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
-        Expr::Index(index) => lower_slice_index_assignment(index, &statement.value, context),
+        Expr::Index(index) => lower_index_assignment(index, &statement.value, context),
         _ => Err(unsupported_assignment_diagnostic()),
     }
 }
@@ -1918,6 +1918,110 @@ fn lower_identifier_assignment(
     }
 
     Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_index_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_fixed_array_index_assignment(target, value, context)? {
+        return Ok(instructions);
+    }
+    lower_slice_index_assignment(target, value, context)
+}
+
+fn lower_fixed_array_index_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(target, context, unsupported_assignment_diagnostic)?
+    else {
+        return Ok(None);
+    };
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    match access.element {
+        AbiType::I32 => {
+            let (mut instructions, value) =
+                lower_i32_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+            } else {
+                instructions.push(Instruction::StoreAggregateI32 {
+                    destination: access.source,
+                    offset: access.offset,
+                    value,
+                });
+            }
+            Ok(Some(instructions))
+        }
+        AbiType::U8 => {
+            let (mut instructions, value) =
+                lower_u8_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+            } else {
+                instructions.push(Instruction::StoreAggregateU8 {
+                    destination: access.source,
+                    offset: access.offset,
+                    value,
+                });
+            }
+            Ok(Some(instructions))
+        }
+        AbiType::Usize => {
+            let (mut instructions, value) =
+                lower_usize_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+            } else {
+                instructions.push(Instruction::StoreAggregateUsize {
+                    destination: access.source,
+                    offset: access.offset,
+                    value,
+                });
+            }
+            Ok(Some(instructions))
+        }
+        AbiType::Bool => {
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                value,
+                context,
+                "E8008",
+                &mut temporaries,
+            )?;
+            if access.out_of_bounds {
+                lowered.instructions.push(Instruction::Trap);
+            } else {
+                lowered.instructions.push(Instruction::StoreAggregateBool {
+                    destination: access.source,
+                    offset: access.offset,
+                    value: lowered.value,
+                });
+            }
+            Ok(Some(lowered.instructions))
+        }
+        AbiType::StrView => {
+            let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
+            if access.out_of_bounds {
+                lowered.instructions.push(Instruction::Trap);
+            } else {
+                push_store_str_view_to_aggregate_field(
+                    &mut lowered.instructions,
+                    access.source,
+                    access.offset,
+                    lowered.value,
+                    &mut temporaries,
+                    unsupported_assignment_diagnostic,
+                )?;
+            }
+            Ok(Some(lowered.instructions))
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
 }
 
 fn lower_slice_index_assignment(

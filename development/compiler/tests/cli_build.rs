@@ -5335,6 +5335,57 @@ fn build_command_lowers_fixed_array_whole_assignments() {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_constant_index_assignment() {
+    let project = TempProject::new("cli-build-fixed-array-constant-index-assignment");
+    let source = project.write_source(
+        "fixed_array_constant_index_assignment.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    values[0] = 7
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_fixed_array_variable_index_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-fixed-array-variable-index-assignment-boundary");
+    let source = project.write_source(
+        "fixed_array_variable_index_assignment_boundary.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    let index: usize = 0
+    values[index] = 7
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        stderr
+    );
+    assert!(
+        stderr.contains(
+            "fixed array index assignment targets outside constant scalar/view element locals"
+        ),
+        "expected fixed array index assignment diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(

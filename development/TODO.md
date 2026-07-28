@@ -58,8 +58,8 @@ Recommended order:
 
 - Fixed array ABI layout/classification is implemented. Runtime currently ships
   non-empty local fixed array literals, local copy bindings, whole-local
-  assignment, and constant index reads for `i32`, `u8`, `usize`, `bool`, and
-  `&str` elements. Variable indexing, element mutation/index assignment, array
+  assignment, and constant index reads/writes for `i32`, `u8`, `usize`, `bool`,
+  and `&str` elements. Variable indexing, compound index assignment, array
   parameters/returns, zero-sized local arrays, move-only element arrays, and
   broader array expressions remain rejected or deferred.
 - Release packaging layout now separates tracked inputs from generated output:
