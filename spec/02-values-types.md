@@ -59,10 +59,16 @@ Rules:
 - Reinitializing only a field of an uninitialized binding is not part of v0.
 - Assignment is a statement, not an expression.
 - Assignment target must be a writable place.
-- Writable places in v0 are `var` bindings, fields reachable through writable places, and fields reachable through `&+T` borrow bindings or parameters.
+- Writable places in v0 are `var` bindings, fields reachable through writable
+  places, fields reachable through `&+T` borrow bindings or parameters,
+  elements of fixed-size arrays reached through writable places, and elements
+  of `&+[T]` readwrite slices.
 - `let` bindings are not writable places.
 - Fields reached through `&T` are not writable places.
-- Index assignment into `&+[T]`, arrays, or collections is deferred.
+- Elements reached through `&[T]` are not writable places.
+- Built-in index assignment applies to fixed-size arrays and `&+[T]` slices.
+  Owned collection indexing is ordinary library API behavior and is not a
+  compiler-provided writable place in v0.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
