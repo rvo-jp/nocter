@@ -341,6 +341,40 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_ptr_from_ref_mut_address_runs() {
+    let project = TempProject::new("distributed-home-ptr-from-ref-mut-address-run");
+    let source = project.write_source(
+        "ptr_from_ref_mut_address.nct",
+        r#"use std/ptr.{addr, from_ref_mut}
+
+func main(): i32 {
+    var byte: u8 = 1
+    let address = address_of(&+byte)
+    if address == 0 {
+        return 1
+    }
+    return 0
+}
+
+func address_of(value: &+u8): usize {
+    return addr(from_ref_mut(value))
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_vec_contract_shape_passes_check() {
     let project = TempProject::new("distributed-home-vec-contract-shape");

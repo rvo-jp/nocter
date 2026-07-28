@@ -5519,6 +5519,39 @@ func address_of(value: &u8): usize {
 }
 
 #[test]
+fn build_command_lowers_public_pointer_from_ref_mut_address_conversion() {
+    let project = TempProject::new("cli-build-pointer-from-ref-mut-address");
+    project.write_nocter_home_file(
+        "std/ptr.nct",
+        r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref_mut<T>(value: &+T): *T
+"#,
+    );
+    let source = project.write_source(
+        "pointer_from_ref_mut.nct",
+        r#"use std/ptr as ptr
+
+func main(): i32 {
+    var byte: u8 = 1
+    let address: usize = address_of(&+byte)
+    return 0
+}
+
+func address_of(value: &+u8): usize {
+    let pointer = ptr.from_ref_mut(value)
+    return ptr.addr(pointer)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_does_not_reject_unreachable_array_literal() {
     let project = TempProject::new("cli-build-unreachable-array-literal");
     let source = project.write_source(

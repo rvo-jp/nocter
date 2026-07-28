@@ -115,6 +115,8 @@ Recommended order:
   IR lowering with E0435.
 - i32 unary negation now lowers as checked `0 - value` for non-literal operands;
   negative integer literals still use the existing constant-literal path.
+- Public `std/ptr.from_ref_mut` address conversion is now covered by CLI build,
+  CLI run, and distributed-home runtime tests alongside `from_ref`.
 
 ## Session Start
 

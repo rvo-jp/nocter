@@ -123,6 +123,49 @@ func address_of(value: &u8): usize {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nonzero_public_pointer_from_ref_mut_address() {
+    let project = TempProject::new("cli-run-pointer-from-ref-mut-address");
+    project.write_nocter_home_file(
+        "std/ptr.nct",
+        r#"pub primitive addr<T>(pointer: *T): usize
+pub primitive from_ref_mut<T>(value: &+T): *T
+"#,
+    );
+    let source = project.write_source(
+        "pointer_from_ref_mut.nct",
+        r#"use std/ptr as ptr
+
+func main(): i32 {
+    var byte: u8 = 1
+    let address: usize = address_of(&+byte)
+    if address == 0 {
+        return 1
+    }
+    return 0
+}
+
+func address_of(value: &+u8): usize {
+    let pointer = ptr.from_ref_mut(value)
+    return ptr.addr(pointer)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_aggregate_field_method_receiver_exit_code() {
     let project = TempProject::new("cli-run-aggregate-field-method-receiver");
     let source = project.write_source(
