@@ -25,6 +25,7 @@ pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
     function_return_type: Type,
+    function_return_type_expr: Option<TypeExpr>,
     function_returns_optional: bool,
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
@@ -52,6 +53,7 @@ impl<'a> Clone for LoweringContext<'a> {
             function_name: self.function_name.clone(),
             return_type: self.return_type.clone(),
             function_return_type: self.function_return_type.clone(),
+            function_return_type_expr: self.function_return_type_expr.clone(),
             function_returns_optional: self.function_returns_optional,
             function_signatures: self.function_signatures.clone(),
             call_resolution: self.call_resolution.clone(),
@@ -227,6 +229,7 @@ impl<'a> LoweringContext<'a> {
         Self {
             function_name,
             function_return_type: return_type.clone(),
+            function_return_type_expr: None,
             return_type,
             function_returns_optional: false,
             function_signatures,
@@ -282,6 +285,7 @@ impl<'a> LoweringContext<'a> {
         Self {
             function_name,
             function_return_type: return_type.clone(),
+            function_return_type_expr: None,
             return_type,
             function_returns_optional: false,
             function_signatures,
@@ -336,6 +340,11 @@ impl<'a> LoweringContext<'a> {
         self
     }
 
+    pub(super) fn with_function_return_type_expr(mut self, return_type: TypeExpr) -> Self {
+        self.function_return_type_expr = Some(return_type);
+        self
+    }
+
     pub(super) fn with_function_returns_optional(
         mut self,
         function_returns_optional: bool,
@@ -359,6 +368,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn function_return_type(&self) -> &Type {
         &self.function_return_type
+    }
+
+    pub(super) fn function_return_type_expr(&self) -> Option<&TypeExpr> {
+        self.function_return_type_expr.as_ref()
     }
 
     pub(super) fn function_returns_optional(&self) -> bool {

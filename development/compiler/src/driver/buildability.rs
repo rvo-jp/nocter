@@ -255,6 +255,7 @@ impl<'a> CallableIndex<'a> {
 struct IndexedCallable<'a> {
     span: ByteSpan,
     body: &'a Block,
+    return_type: Option<TypeExpr>,
     substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
     typecheck_facts: &'a TypecheckFacts,
@@ -285,6 +286,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: function.span,
             body: &function.body,
+            return_type: Some(function.return_type.clone()),
             substitutions: HashMap::new(),
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -310,6 +312,10 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: function.span,
             body: &function.body,
+            return_type: Some(substitute_type_expr_parameters(
+                &function.return_type,
+                &substitutions,
+            )),
             substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -341,6 +347,10 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: method.span,
             body,
+            return_type: Some(substitute_type_expr_parameters(
+                &method.return_type,
+                &contextual_substitutions,
+            )),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -367,6 +377,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             span: drop_.span,
             body: &drop_.body,
+            return_type: None,
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -495,6 +506,7 @@ fn collect_callable_diagnostics(
 
     collect_terminal_return_block_diagnostics(
         callable.body,
+        callable.return_type.as_ref(),
         sources,
         callable.resolved,
         callable.typecheck_facts,
@@ -532,6 +544,7 @@ fn enqueue_drop_targets_in_callable(
 
 fn collect_terminal_return_block_diagnostics(
     block: &Block,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -554,6 +567,7 @@ fn collect_terminal_return_block_diagnostics(
     for statement in statements {
         collect_statement_diagnostics(
             statement,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -569,6 +583,7 @@ fn collect_terminal_return_block_diagnostics(
     if let Some(result) = result {
         collect_terminal_return_expression_diagnostics(
             result,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -585,6 +600,7 @@ fn collect_terminal_return_block_diagnostics(
 
 fn collect_block_diagnostics(
     block: &Block,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -607,6 +623,7 @@ fn collect_block_diagnostics(
     for statement in statements {
         collect_statement_diagnostics(
             statement,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -659,6 +676,7 @@ fn reachable_block_parts_for_buildability<'a>(
 
 fn collect_terminal_return_expression_diagnostics(
     expression: &Expr,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -674,6 +692,29 @@ fn collect_terminal_return_expression_diagnostics(
         Expr::Otherwise(expression) => {
             collect_otherwise_return_expression_diagnostics(
                 expression,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Expr::ArrayLiteral(_)
+            if fixed_array_literal_return_is_buildable(
+                expression,
+                return_type,
+                resolved,
+                resolved_sources,
+            ) =>
+        {
+            collect_fixed_array_literal_elements_diagnostics(
+                unwrap_group_expr(expression),
                 sources,
                 resolved,
                 typecheck_facts,
@@ -779,6 +820,7 @@ fn collect_terminal_return_expression_diagnostics(
             );
             collect_terminal_return_block_diagnostics(
                 &expression.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -793,6 +835,7 @@ fn collect_terminal_return_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_terminal_return_block_diagnostics(
                     else_block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -822,6 +865,7 @@ fn collect_terminal_return_expression_diagnostics(
             );
             collect_terminal_return_block_diagnostics(
                 &expression.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -836,6 +880,7 @@ fn collect_terminal_return_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_terminal_return_block_diagnostics(
                     else_block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -866,6 +911,7 @@ fn collect_terminal_return_expression_diagnostics(
             for arm in &expression.arms {
                 collect_terminal_return_block_diagnostics(
                     &arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -881,6 +927,7 @@ fn collect_terminal_return_expression_diagnostics(
             if let Some(else_arm) = &expression.else_arm {
                 collect_terminal_return_block_diagnostics(
                     &else_arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -912,6 +959,7 @@ fn collect_terminal_return_expression_diagnostics(
 
 fn collect_value_expression_diagnostics(
     expression: &Expr,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -948,6 +996,7 @@ fn collect_value_expression_diagnostics(
             );
             collect_value_block_diagnostics(
                 &expression.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -962,6 +1011,7 @@ fn collect_value_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_value_block_diagnostics(
                     else_block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -991,6 +1041,7 @@ fn collect_value_expression_diagnostics(
             );
             collect_value_block_diagnostics(
                 &expression.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -1005,6 +1056,7 @@ fn collect_value_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_value_block_diagnostics(
                     else_block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -1035,6 +1087,7 @@ fn collect_value_expression_diagnostics(
             for arm in &expression.arms {
                 collect_value_block_diagnostics(
                     &arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -1050,6 +1103,7 @@ fn collect_value_expression_diagnostics(
             if let Some(else_arm) = &expression.else_arm {
                 collect_value_block_diagnostics(
                     &else_arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -1081,6 +1135,7 @@ fn collect_value_expression_diagnostics(
 
 fn collect_value_block_diagnostics(
     block: &Block,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1095,6 +1150,7 @@ fn collect_value_block_diagnostics(
     for statement in &block.statements {
         collect_statement_diagnostics(
             statement,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1112,6 +1168,7 @@ fn collect_value_block_diagnostics(
     };
     collect_value_expression_diagnostics(
         result,
+        return_type,
         sources,
         resolved,
         typecheck_facts,
@@ -1127,6 +1184,7 @@ fn collect_value_block_diagnostics(
 
 fn collect_otherwise_return_expression_diagnostics(
     expression: &OtherwiseExpr,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1177,6 +1235,7 @@ fn collect_otherwise_return_expression_diagnostics(
     );
     collect_otherwise_return_fallback_block_diagnostics(
         &expression.fallback,
+        return_type,
         sources,
         resolved,
         typecheck_facts,
@@ -1193,6 +1252,7 @@ fn collect_otherwise_return_expression_diagnostics(
 fn collect_otherwise_binding_initializer_diagnostics(
     expression: &OtherwiseExpr,
     binding_is_scalar_or_view: bool,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1244,6 +1304,7 @@ fn collect_otherwise_binding_initializer_diagnostics(
     collect_otherwise_binding_fallback_block_diagnostics(
         &expression.fallback,
         binding_is_scalar_or_view,
+        return_type,
         sources,
         resolved,
         typecheck_facts,
@@ -1286,6 +1347,7 @@ fn collect_otherwise_runtime_value_diagnostics(
 
 fn collect_otherwise_return_fallback_block_diagnostics(
     block: &Block,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1300,6 +1362,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
     if block.result.is_none() {
         collect_block_diagnostics(
             block,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1317,6 +1380,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
     for statement in &block.statements {
         collect_statement_diagnostics(
             statement,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1332,6 +1396,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
     if let Some(result) = &block.result {
         collect_terminal_return_expression_diagnostics(
             result,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1349,6 +1414,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
 fn collect_otherwise_binding_fallback_block_diagnostics(
     block: &Block,
     binding_is_scalar_or_view: bool,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1363,6 +1429,7 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
     if block.result.is_none() {
         collect_block_diagnostics(
             block,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1380,6 +1447,7 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
     for statement in &block.statements {
         collect_statement_diagnostics(
             statement,
+            return_type,
             sources,
             resolved,
             typecheck_facts,
@@ -1396,6 +1464,7 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
         if binding_is_scalar_or_view {
             collect_value_expression_diagnostics(
                 result,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -1730,6 +1799,7 @@ fn collect_void_effect_block_diagnostics(
     for statement in &block.statements {
         collect_statement_diagnostics(
             statement,
+            None,
             sources,
             resolved,
             typecheck_facts,
@@ -2032,6 +2102,25 @@ fn local_binding_type_expr_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput)
         || type_expr_is_supported_aggregate_value(ty, resolved)
 }
 
+fn fixed_array_literal_return_is_buildable(
+    expression: &Expr,
+    return_type: Option<&TypeExpr>,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
+        return false;
+    };
+    let Some((element, length, layout)) =
+        return_type.and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
+    else {
+        return false;
+    };
+    layout.size > 0
+        && u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
 fn fixed_array_literal_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
@@ -2293,6 +2382,22 @@ fn fixed_array_binding_type_abi(
     let ty =
         binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+}
+
+fn fixed_array_return_type_abi(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
+    match ty {
+        TypeExpr::Fallible(fallible) => {
+            fixed_array_return_type_abi(&fallible.success, resolved, resolved_sources)
+        }
+        TypeExpr::Optional(optional) => {
+            fixed_array_return_type_abi(&optional.inner, resolved, resolved_sources)
+        }
+        _ => fixed_array_type_abi_for_sources(ty, resolved, resolved_sources),
+    }
 }
 
 fn binding_type_expr_with_substitutions(
@@ -3363,6 +3468,7 @@ fn switch_statement_covers_all_payloadless_variants(
 
 fn collect_statement_diagnostics(
     statement: &Stmt,
+    return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -3380,6 +3486,7 @@ fn collect_statement_diagnostics(
             if let Some(expression) = &statement.expression {
                 collect_terminal_return_expression_diagnostics(
                     expression,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3422,6 +3529,7 @@ fn collect_statement_diagnostics(
                 collect_otherwise_binding_initializer_diagnostics(
                     expression,
                     binding_is_scalar_or_view,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3450,6 +3558,7 @@ fn collect_statement_diagnostics(
             } else if binding_is_scalar_or_view {
                 collect_value_expression_diagnostics(
                     &statement.initializer,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3538,6 +3647,7 @@ fn collect_statement_diagnostics(
             ) {
                 collect_value_expression_diagnostics(
                     &statement.value,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3638,6 +3748,7 @@ fn collect_statement_diagnostics(
             );
             collect_block_diagnostics(
                 &statement.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -3652,6 +3763,7 @@ fn collect_statement_diagnostics(
             if let Some(block) = &statement.else_block {
                 collect_block_diagnostics(
                     block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3726,6 +3838,7 @@ fn collect_statement_diagnostics(
             );
             collect_block_diagnostics(
                 &statement.then_block,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -3740,6 +3853,7 @@ fn collect_statement_diagnostics(
             if let Some(block) = &statement.else_block {
                 collect_block_diagnostics(
                     block,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3814,6 +3928,7 @@ fn collect_statement_diagnostics(
             for arm in &statement.arms {
                 collect_block_diagnostics(
                     &arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3829,6 +3944,7 @@ fn collect_statement_diagnostics(
             if let Some(arm) = &statement.else_arm {
                 collect_block_diagnostics(
                     &arm.body,
+                    return_type,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -3887,6 +4003,7 @@ fn collect_statement_diagnostics(
             );
             collect_block_diagnostics(
                 &statement.body,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -3931,6 +4048,7 @@ fn collect_statement_diagnostics(
             );
             collect_block_diagnostics(
                 &statement.body,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -3954,6 +4072,7 @@ fn collect_statement_diagnostics(
             );
             collect_block_diagnostics(
                 &statement.body,
+                return_type,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -6281,6 +6400,7 @@ fn collect_expression_diagnostics(
                 ) {
                     collect_value_expression_diagnostics(
                         &field.value,
+                        None,
                         sources,
                         resolved,
                         typecheck_facts,
@@ -6365,6 +6485,7 @@ fn collect_expression_diagnostics(
             );
             collect_block_diagnostics(
                 &expression.catch_block,
+                None,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -6550,6 +6671,7 @@ fn collect_expression_diagnostics(
                 ) {
                     collect_value_expression_diagnostics(
                         argument,
+                        None,
                         sources,
                         resolved,
                         typecheck_facts,
@@ -6684,6 +6806,7 @@ fn collect_expression_diagnostics(
             );
             collect_block_diagnostics(
                 &expression.fallback,
+                None,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -6718,6 +6841,7 @@ fn collect_expression_diagnostics(
             );
             collect_block_diagnostics(
                 &expression.then_block,
+                None,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -6732,6 +6856,7 @@ fn collect_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_block_diagnostics(
                     else_block,
+                    None,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6767,6 +6892,7 @@ fn collect_expression_diagnostics(
             );
             collect_block_diagnostics(
                 &expression.then_block,
+                None,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -6781,6 +6907,7 @@ fn collect_expression_diagnostics(
             if let Some(else_block) = &expression.else_block {
                 collect_block_diagnostics(
                     else_block,
+                    None,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6817,6 +6944,7 @@ fn collect_expression_diagnostics(
             for arm in &expression.arms {
                 collect_block_diagnostics(
                     &arm.body,
+                    None,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6832,6 +6960,7 @@ fn collect_expression_diagnostics(
             if let Some(else_arm) = &expression.else_arm {
                 collect_block_diagnostics(
                     &else_arm.body,
+                    None,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6909,6 +7038,7 @@ fn collect_fixed_array_literal_elements_diagnostics(
     for element in &literal.elements {
         collect_value_expression_diagnostics(
             element,
+            None,
             sources,
             resolved,
             typecheck_facts,

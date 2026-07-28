@@ -5337,6 +5337,29 @@ func identity(values: [i32; 3]): [i32; 3] {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_literal_returns() {
+    let project = TempProject::new("cli-build-fixed-array-literal-returns");
+    let source = project.write_source(
+        "fixed_array_literal_returns.nct",
+        r#"func main(): i32 {
+    let values: [i32; 2] = make_pair()
+    return values[0]
+}
+
+func make_pair(): [i32; 2] {
+    return [42, 1]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_whole_assignments() {
     let project = TempProject::new("cli-build-fixed-array-whole-assignments");
     let source = project.write_source(

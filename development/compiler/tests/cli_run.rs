@@ -7110,6 +7110,46 @@ func identity_words(values: [&str; 3]): [&str; 3] {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_fixed_array_literals() {
+    let project = TempProject::new("cli-run-fixed-array-literal-returns");
+    let source = project.write_source(
+        "fixed_array_literal_returns.nct",
+        r#"func main(): i32 {
+    let pair: [i32; 2] = make_pair()
+    let words: [&str; 3] = make_words()
+    let total: i32 = pair[0] + pair[1]
+    let word: &str = words[1]
+    if total == 42 {
+        if word.len() == 6 {
+            return 42
+        }
+    }
+    return 1
+}
+
+func make_pair(): [i32; 2] {
+    return [20, 22]
+}
+
+func make_words(): [&str; 3] {
+    return ["bad", "Nocter", "lang"]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_binds_fallible_fixed_array_call_result() {
     let project = TempProject::new("cli-run-fallible-fixed-array-call-result");
     let source = project.write_source(
@@ -7120,8 +7160,7 @@ fn run_command_binds_fallible_fixed_array_call_result() {
 }
 
 func make_pair(): [i32; 2]! {
-    let values: [i32; 2] = [20, 22]
-    return values
+    return [20, 22]
 }
 "#,
     );

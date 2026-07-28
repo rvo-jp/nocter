@@ -1,6 +1,7 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr_with_resolver,
-    aggregate_type_layout, lower_aggregate_struct_literal_to_location,
+    aggregate_type_layout, lower_aggregate_array_literal_to_location,
+    lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_aggregate_value_with_resolver,
@@ -46,9 +47,9 @@ use crate::abi::{
     function_parameter_abi_word_count_from_signature_with_resolver,
 };
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr, FunctionDecl,
-    IdentifierExpr, IfIsStmt, IfStmt, MemberExpr, MethodDecl, Parameter, ReturnStmt, Stmt,
-    StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
+    ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
+    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr, MethodDecl, Parameter, ReturnStmt,
+    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
     substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
@@ -142,6 +143,7 @@ pub(super) fn lower_function<'a>(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_return_type_expr(return_type_expr.clone())
     .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
         &return_type_expr,
         resolved,
@@ -343,6 +345,7 @@ pub(super) fn lower_method_function<'a>(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_return_type_expr(return_type_expr.clone())
     .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
         &return_type_expr,
         resolved,
@@ -3179,6 +3182,14 @@ fn lower_aggregate_return_expression_to_location(
             resolved,
             context,
         ),
+        Expr::ArrayLiteral(literal) => lower_aggregate_array_literal_return_to_location(
+            literal,
+            return_type,
+            destination,
+            function_name,
+            resolved,
+            context,
+        ),
         Expr::Call(call) => lower_aggregate_call_return_to_location(
             call,
             return_type,
@@ -3605,6 +3616,109 @@ fn lower_aggregate_struct_literal_return_to_location(
         }
         Err(error) => return Err(error),
     })
+}
+
+fn lower_aggregate_array_literal_return_to_location(
+    literal: &ArrayLiteralExpr,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
+    let Some(value) = fixed_array_return_abi_value(resolved, context) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    if !matches!(&value.ty, AbiType::Array { .. }) || value.layout != expected_layout {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let subject = format!("returns from function `{function_name}`");
+    let aggregate_slot_mark = context.aggregate_slot_mark();
+    let lowered_direct = lower_aggregate_array_literal_to_location(
+        literal,
+        &value.ty,
+        expected_layout,
+        destination,
+        "E8007",
+        &subject,
+        resolved,
+        context,
+    );
+    Ok(match lowered_direct {
+        Ok(instructions) => instructions,
+        Err(error) if matches!(destination, AggregateLocation::DirectReturn) => {
+            context.restore_aggregate_slot_mark(aggregate_slot_mark);
+            lower_direct_aggregate_array_literal_return_through_slot(
+                literal,
+                &value.ty,
+                expected_layout,
+                &subject,
+                resolved,
+                context,
+            )
+            .map_err(|_| error)?
+        }
+        Err(error) => return Err(error),
+    })
+}
+
+fn fixed_array_return_abi_value(
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Option<AbiValue> {
+    let mut ty = context.function_return_type_expr()?;
+    loop {
+        match ty {
+            TypeExpr::Fallible(fallible) => ty = &fallible.success,
+            TypeExpr::Optional(optional) => ty = &optional.inner,
+            _ => {
+                return abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .ok();
+            }
+        }
+    }
+}
+
+fn lower_direct_aggregate_array_literal_return_through_slot(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(expected_layout) {
+        return Err(unsupported_aggregate_return_diagnostic(
+            context.function_name(),
+        ));
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(lower_aggregate_array_literal_to_location(
+        literal,
+        expected_type,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        subject,
+        resolved,
+        context,
+    )?);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
+    Ok(instructions)
 }
 
 fn lower_direct_aggregate_struct_literal_return_through_slot(
