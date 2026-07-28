@@ -32,6 +32,8 @@ aggregate moves in control-flow conditions, and unsupported outer aggregate
 moves/drops inside non-terminal control-flow branches/bodies are also rejected
 at the same boundary. Unreachable body tails after proven terminal statements
 are ignored by return/reachability checking, buildability, and IR lowering.
+Buildability and IR lowering consume structured typechecker facts for binding
+types and method receiver kinds; hover labels remain editor presentation data.
 
 ## Implemented Capability
 

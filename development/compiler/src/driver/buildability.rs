@@ -741,6 +741,7 @@ fn collect_terminal_return_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 diagnostics,
             );
             collect_expression_diagnostics(
@@ -909,6 +910,7 @@ fn collect_value_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 diagnostics,
             );
             collect_expression_diagnostics(
@@ -1228,6 +1230,7 @@ fn collect_void_effect_if_expression_diagnostics(
         sources,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         diagnostics,
     );
     collect_expression_diagnostics(
@@ -1436,24 +1439,25 @@ fn binding_initializer_may_use_value_control_expression(
     statement: &crate::ast::BindingStmt,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if typecheck_facts
-        .binding_scalar_view_kind(statement.name_span)
-        .is_some()
-    {
-        return true;
-    }
-
-    let Some(ty) = &statement.ty else {
+    let ty = statement.ty.clone().or_else(|| {
+        typecheck_facts
+            .binding_type_expr(statement.name_span)
+            .cloned()
+    });
+    let Some(ty) = ty else {
         return false;
     };
-    type_expr_is_buildable_scalar_or_view(ty, resolved)
+    let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
+    type_expr_is_buildable_scalar_or_view(&ty, resolved)
 }
 
 fn assignment_value_may_use_value_control_expression(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(&statement.target) {
         Expr::Identifier(identifier) => {
@@ -1461,8 +1465,9 @@ fn assignment_value_may_use_value_control_expression(
                 return false;
             };
             typecheck_facts
-                .binding_scalar_view_kind(symbol.name_span)
-                .is_some()
+                .binding_type_expr(symbol.name_span)
+                .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
+                .is_some_and(|ty| type_expr_is_buildable_scalar_or_view(&ty, resolved))
         }
         Expr::Member(member) => typecheck_facts
             .field_scalar_view_kind(member.member_span)
@@ -1619,22 +1624,12 @@ fn local_binding_type_is_buildable(
     }
 
     typecheck_facts
-        .binding_type_label(statement.name_span)
-        .is_none_or(|label| inferred_binding_type_label_is_buildable(label, resolved))
-}
-
-fn inferred_binding_type_label_is_buildable(label: &str, resolved: &ResolveOutput) -> bool {
-    if unsupported_scalar_type_label(label) {
-        return false;
-    }
-
-    let Some(symbol) = resolved.type_symbol_by_reference_name(label) else {
-        return true;
-    };
-    let Some(target) = &symbol.alias_target else {
-        return true;
-    };
-    !type_expr_is_known_unsupported_scalar_value(target, resolved)
+        .binding_type_expr(statement.name_span)
+        .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
+        .is_none_or(|ty| {
+            local_binding_type_expr_is_buildable(&ty, resolved)
+                || !type_expr_is_known_unsupported_scalar_value(&ty, resolved)
+        })
 }
 
 fn unsupported_scalar_type_label(label: &str) -> bool {
@@ -2553,6 +2548,7 @@ fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
             ) {
                 collect_value_expression_diagnostics(
                     &statement.initializer,
@@ -2630,6 +2626,7 @@ fn collect_statement_diagnostics(
                 statement,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
             ) {
                 collect_value_expression_diagnostics(
                     &statement.value,
@@ -2673,6 +2670,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     diagnostics,
                 );
             } else {
@@ -2699,6 +2697,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     diagnostics,
                 );
             }
@@ -2800,6 +2799,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 diagnostics,
             );
             collect_block_diagnostics(
@@ -2886,6 +2886,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 diagnostics,
             );
             for arm in &statement.arms {
@@ -2982,6 +2983,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 diagnostics,
             );
             collect_expression_diagnostics(
@@ -3075,10 +3077,15 @@ fn collect_control_condition_move_diagnostics(
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(span) = expression_explicit_aggregate_move_span(expression, resolved, typecheck_facts)
-    else {
+    let Some(span) = expression_explicit_aggregate_move_span(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
         return;
     };
 
@@ -3095,10 +3102,15 @@ fn collect_terminal_control_condition_move_diagnostics(
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(span) = expression_explicit_aggregate_move_span(expression, resolved, typecheck_facts)
-    else {
+    let Some(span) = expression_explicit_aggregate_move_span(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
         return;
     };
     if condition_explicit_moves_are_single_evaluation_call_for_buildability(expression) {
@@ -3240,6 +3252,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
                     &statement.expression,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     &local_bindings,
                 ) {
                     diagnostics.push(unsupported_v0_build_diagnostic(
@@ -3276,6 +3289,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
             result,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             &local_bindings,
         )
     {
@@ -3302,12 +3316,14 @@ fn unsupported_outer_aggregate_move_binding_span(
         &statement.initializer,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         local_bindings,
     )?;
     if direct_outer_aggregate_move_for_buildability(
         &statement.initializer,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         local_bindings,
     ) && statement_suffix_exits_function_for_buildability(
         statements,
@@ -3336,6 +3352,7 @@ fn unsupported_outer_aggregate_move_assignment_span(
         &statement.value,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         local_bindings,
     )?;
     if assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability(
@@ -3367,11 +3384,13 @@ fn assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability
         &statement.value,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         local_bindings,
     ) && assignment_target_root_is_aggregate_binding_for_buildability(
         &statement.target,
         resolved,
         typecheck_facts,
+        generic_substitutions,
     ) && statement_suffix_exits_function_for_buildability(
         statements,
         index,
@@ -3386,6 +3405,7 @@ fn direct_outer_aggregate_move_for_buildability(
     expression: &Expr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
 ) -> bool {
     let Expr::Unary(unary) = unwrap_group_expr(expression) else {
@@ -3401,6 +3421,7 @@ fn direct_outer_aggregate_move_for_buildability(
         identifier,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         local_bindings,
     )
 }
@@ -3415,11 +3436,13 @@ fn expression_explicit_aggregate_move_span(
     expression: &Expr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<ByteSpan> {
     explicit_aggregate_move_span_in_expression(
         expression,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         ExplicitAggregateMoveScope::Any,
     )
 }
@@ -3428,12 +3451,14 @@ fn expression_explicit_outer_aggregate_move_span(
     expression: &Expr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
 ) -> Option<ByteSpan> {
     explicit_aggregate_move_span_in_expression(
         expression,
         resolved,
         typecheck_facts,
+        generic_substitutions,
         ExplicitAggregateMoveScope::OutsideLocals(local_bindings),
     )
 }
@@ -3442,6 +3467,7 @@ fn explicit_aggregate_move_span_in_expression(
     expression: &Expr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match expression {
@@ -3451,6 +3477,7 @@ fn explicit_aggregate_move_span_in_expression(
                     identifier,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
                 .then_some(unary.span)
@@ -3459,18 +3486,26 @@ fn explicit_aggregate_move_span_in_expression(
                     &unary.operand,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             }
         }
         Expr::ArrayLiteral(literal) => literal.elements.iter().find_map(|element| {
-            explicit_aggregate_move_span_in_expression(element, resolved, typecheck_facts, scope)
+            explicit_aggregate_move_span_in_expression(
+                element,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
         }),
         Expr::StructLiteral(literal) => literal.fields.iter().find_map(|field| {
             explicit_aggregate_move_span_in_expression(
                 &field.value,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3478,36 +3513,42 @@ fn explicit_aggregate_move_span_in_expression(
             &propagation.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Force(force) => explicit_aggregate_move_span_in_expression(
             &force.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Catch(catch) => explicit_aggregate_move_span_in_expression(
             &catch.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Borrow(borrow) => explicit_aggregate_move_span_in_expression(
             &borrow.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Unary(unary) => explicit_aggregate_move_span_in_expression(
             &unary.operand,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Binary(binary) => explicit_aggregate_move_span_in_expression(
             &binary.left,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3515,6 +3556,7 @@ fn explicit_aggregate_move_span_in_expression(
                 &binary.right,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3522,12 +3564,14 @@ fn explicit_aggregate_move_span_in_expression(
             &conversion.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Call(call) => explicit_aggregate_move_span_in_expression(
             &call.callee,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3536,6 +3580,7 @@ fn explicit_aggregate_move_span_in_expression(
                     argument,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             })
@@ -3544,12 +3589,14 @@ fn explicit_aggregate_move_span_in_expression(
             &member.object,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Index(index) => explicit_aggregate_move_span_in_expression(
             &index.object,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3557,6 +3604,7 @@ fn explicit_aggregate_move_span_in_expression(
                 &index.index,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3564,12 +3612,14 @@ fn explicit_aggregate_move_span_in_expression(
             &group.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Expr::Otherwise(expression) => explicit_aggregate_move_span_in_expression(
             &expression.value,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3577,6 +3627,7 @@ fn explicit_aggregate_move_span_in_expression(
                 &expression.fallback,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3584,6 +3635,7 @@ fn explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3591,18 +3643,26 @@ fn explicit_aggregate_move_span_in_expression(
                 &statement.then_block,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         })
         .or_else(|| {
             statement.else_block.as_ref().and_then(|block| {
-                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    block,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Expr::IfIs(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3614,18 +3674,26 @@ fn explicit_aggregate_move_span_in_expression(
                     .map(|payload| payload.name.as_str()),
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         })
         .or_else(|| {
             statement.else_block.as_ref().and_then(|block| {
-                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    block,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Expr::Match(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3635,13 +3703,20 @@ fn explicit_aggregate_move_span_in_expression(
                     arm.payload.as_ref().map(|payload| payload.name.as_str()),
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             })
         })
         .or_else(|| {
             statement.else_arm.as_ref().and_then(|arm| {
-                explicit_aggregate_move_span_in_block(&arm.body, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    &arm.body,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Expr::InterpolatedString(interpolated) => interpolated.parts.iter().find_map(|part| {
@@ -3650,6 +3725,7 @@ fn explicit_aggregate_move_span_in_expression(
                     &part.expression,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             } else {
@@ -3669,6 +3745,7 @@ fn explicit_aggregate_move_span_in_block(
     block: &Block,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match scope {
@@ -3680,6 +3757,7 @@ fn explicit_aggregate_move_span_in_block(
                     statement,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             })
@@ -3689,6 +3767,7 @@ fn explicit_aggregate_move_span_in_block(
                         result,
                         resolved,
                         typecheck_facts,
+                        generic_substitutions,
                         scope,
                     )
                 })
@@ -3700,6 +3779,7 @@ fn explicit_aggregate_move_span_in_block(
                     statement,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
                 );
                 if span.is_some() {
@@ -3714,6 +3794,7 @@ fn explicit_aggregate_move_span_in_block(
                     result,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
                 )
             })
@@ -3725,6 +3806,7 @@ fn explicit_aggregate_move_span_in_statement(
     statement: &Stmt,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match statement {
@@ -3734,18 +3816,26 @@ fn explicit_aggregate_move_span_in_statement(
         | Stmt::Break(_)
         | Stmt::Continue(_) => None,
         Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
-            explicit_aggregate_move_span_in_expression(expression, resolved, typecheck_facts, scope)
+            explicit_aggregate_move_span_in_expression(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
         }),
         Stmt::Binding(statement) => explicit_aggregate_move_span_in_expression(
             &statement.initializer,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
         Stmt::Assignment(statement) => explicit_aggregate_move_span_in_expression(
             &statement.target,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3753,6 +3843,7 @@ fn explicit_aggregate_move_span_in_statement(
                 &statement.value,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3760,6 +3851,7 @@ fn explicit_aggregate_move_span_in_statement(
             &statement.condition,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3767,18 +3859,26 @@ fn explicit_aggregate_move_span_in_statement(
                 &statement.then_block,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         })
         .or_else(|| {
             statement.else_block.as_ref().and_then(|block| {
-                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    block,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Stmt::IfIs(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3790,18 +3890,26 @@ fn explicit_aggregate_move_span_in_statement(
                     .map(|payload| payload.name.as_str()),
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         })
         .or_else(|| {
             statement.else_block.as_ref().and_then(|block| {
-                explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    block,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Stmt::Switch(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3811,19 +3919,27 @@ fn explicit_aggregate_move_span_in_statement(
                     arm.payload.as_ref().map(|payload| payload.name.as_str()),
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     scope,
                 )
             })
         })
         .or_else(|| {
             statement.else_arm.as_ref().and_then(|arm| {
-                explicit_aggregate_move_span_in_block(&arm.body, resolved, typecheck_facts, scope)
+                explicit_aggregate_move_span_in_block(
+                    &arm.body,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
             })
         }),
         Stmt::ForRange(statement) => explicit_aggregate_move_span_in_expression(
             &statement.start,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
@@ -3831,6 +3947,7 @@ fn explicit_aggregate_move_span_in_statement(
                 &statement.end,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         })
@@ -3839,6 +3956,7 @@ fn explicit_aggregate_move_span_in_statement(
                 statement,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 scope,
             )
         }),
@@ -3846,18 +3964,30 @@ fn explicit_aggregate_move_span_in_statement(
             &statement.condition,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         )
         .or_else(|| {
-            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
+            explicit_aggregate_move_span_in_block(
+                &statement.body,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
         }),
-        Stmt::Loop(statement) => {
-            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
-        }
+        Stmt::Loop(statement) => explicit_aggregate_move_span_in_block(
+            &statement.body,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
         Stmt::Expression(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             scope,
         ),
     }
@@ -3867,12 +3997,17 @@ fn explicit_aggregate_move_span_in_for_range_body(
     statement: &ForRangeStmt,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match scope {
-        ExplicitAggregateMoveScope::Any => {
-            explicit_aggregate_move_span_in_block(&statement.body, resolved, typecheck_facts, scope)
-        }
+        ExplicitAggregateMoveScope::Any => explicit_aggregate_move_span_in_block(
+            &statement.body,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
         ExplicitAggregateMoveScope::OutsideLocals(local_bindings) => {
             let mut body_locals = local_bindings.clone();
             body_locals.insert(statement.name.clone());
@@ -3880,6 +4015,7 @@ fn explicit_aggregate_move_span_in_for_range_body(
                 &statement.body,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 ExplicitAggregateMoveScope::OutsideLocals(&body_locals),
             )
         }
@@ -3891,6 +4027,7 @@ fn explicit_aggregate_move_span_in_payload_block(
     payload_name: Option<&str>,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match (scope, payload_name) {
@@ -3901,10 +4038,17 @@ fn explicit_aggregate_move_span_in_payload_block(
                 block,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
             )
         }
-        _ => explicit_aggregate_move_span_in_block(block, resolved, typecheck_facts, scope),
+        _ => explicit_aggregate_move_span_in_block(
+            block,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
     }
 }
 
@@ -3912,17 +4056,22 @@ fn explicit_aggregate_move_matches_identifier(
     identifier: &IdentifierExpr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> bool {
     match scope {
-        ExplicitAggregateMoveScope::Any => {
-            identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
-        }
+        ExplicitAggregateMoveScope::Any => identifier_is_aggregate_for_buildability(
+            identifier,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
         ExplicitAggregateMoveScope::OutsideLocals(local_bindings) => {
             identifier_is_outer_aggregate_for_buildability(
                 identifier,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 local_bindings,
             )
         }
@@ -3933,15 +4082,20 @@ fn assignment_target_root_is_aggregate_binding_for_buildability(
     expression: &Expr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     match unwrap_group_expr(expression) {
-        Expr::Identifier(identifier) => {
-            identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
-        }
+        Expr::Identifier(identifier) => identifier_is_aggregate_for_buildability(
+            identifier,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
         Expr::Member(member) => assignment_target_root_is_aggregate_binding_for_buildability(
             &member.object,
             resolved,
             typecheck_facts,
+            generic_substitutions,
         ),
         _ => false,
     }
@@ -3951,26 +4105,32 @@ fn identifier_is_outer_aggregate_for_buildability(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
 ) -> bool {
     !local_bindings.contains(&identifier.name)
-        && identifier_is_aggregate_for_buildability(identifier, resolved, typecheck_facts)
+        && identifier_is_aggregate_for_buildability(
+            identifier,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
 }
 
 fn identifier_is_aggregate_for_buildability(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
         return false;
     };
-    typecheck_facts
-        .binding_type_label(symbol.name_span)
-        .is_some()
-        && typecheck_facts
-            .binding_scalar_view_kind(symbol.name_span)
-            .is_none()
+    let Some(ty) = typecheck_facts.binding_type_expr(symbol.name_span) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    type_expr_is_supported_aggregate_value(&ty, resolved)
 }
 
 fn statement_suffix_exits_function_for_buildability(
@@ -4380,8 +4540,8 @@ fn range_for_binding_type_is_buildable(
     typecheck_facts: &TypecheckFacts,
 ) -> bool {
     matches!(
-        typecheck_facts.binding_type_label(statement.name_span),
-        Some("i32" | "usize")
+        typecheck_facts.binding_scalar_view_kind(statement.name_span),
+        Some(TypecheckScalarViewKind::I32 | TypecheckScalarViewKind::Usize)
     )
 }
 
@@ -4400,8 +4560,12 @@ fn assignment_operator_is_buildable(
                 return false;
             };
             matches!(
-                typecheck_facts.binding_type_label(symbol.name_span),
-                Some("i32" | "usize" | "u8")
+                typecheck_facts.binding_scalar_view_kind(symbol.name_span),
+                Some(
+                    TypecheckScalarViewKind::I32
+                        | TypecheckScalarViewKind::Usize
+                        | TypecheckScalarViewKind::U8
+                )
             )
         }
         Expr::Member(member) => {

@@ -575,13 +575,6 @@ impl<'a> LoweringContext<'a> {
         u8::try_from(index).ok()
     }
 
-    pub(super) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
-        self.call_resolution
-            .as_ref()?
-            .typecheck_facts
-            .binding_type_label(name_span)
-    }
-
     pub(super) fn binding_scalar_view_kind(
         &self,
         name_span: ByteSpan,

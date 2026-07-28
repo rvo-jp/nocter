@@ -30,6 +30,7 @@ use crate::ir::{
     StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
+use crate::typecheck::TypecheckScalarViewKind;
 use std::collections::HashSet;
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
@@ -609,15 +610,15 @@ pub(super) fn lower_nonterminal_for_range_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match context.binding_type_label(statement.name_span) {
-        Some("i32") => lower_nonterminal_i32_for_range_statement(
+    match context.binding_scalar_view_kind(statement.name_span) {
+        Some(TypecheckScalarViewKind::I32) => lower_nonterminal_i32_for_range_statement(
             statement,
             context,
             diagnostic_code,
             subject,
             sources,
         ),
-        Some("usize") => lower_nonterminal_usize_for_range_statement(
+        Some(TypecheckScalarViewKind::Usize) => lower_nonterminal_usize_for_range_statement(
             statement,
             context,
             diagnostic_code,

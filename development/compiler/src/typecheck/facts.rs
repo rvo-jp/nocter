@@ -40,6 +40,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
+    binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     binding_readonly: HashMap<ByteSpan, bool>,
     declaration_hover_labels: HashMap<ByteSpan, String>,
@@ -66,6 +67,10 @@ pub(crate) struct TypecheckFacts {
 impl TypecheckFacts {
     pub(crate) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
         self.binding_type_labels.get(&name_span).map(String::as_str)
+    }
+
+    pub(crate) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<&TypeExpr> {
+        self.binding_type_exprs.get(&name_span)
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -1521,6 +1526,12 @@ impl TypecheckFactCollector<'_> {
                 .binding_type_labels
                 .insert(name_span, type_hover_label(ty, self.resolved));
         }
+        let mut free_type_parameters = HashSet::new();
+        if let Some(ty) =
+            type_to_type_expr_allowing_parameters(ty, name_span, &mut free_type_parameters)
+        {
+            self.facts.binding_type_exprs.insert(name_span, ty);
+        }
         if let Some(kind) = scalar_view_kind(ty) {
             self.facts.binding_scalar_view_kinds.insert(name_span, kind);
         }
@@ -2619,6 +2630,24 @@ func main(): i32 {
         assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::Owned));
         assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::ReadonlyBorrow));
         assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::ReadwriteBorrow));
+    }
+
+    #[test]
+    fn records_binding_type_expr_facts_for_generic_parameters() {
+        let text = r#"func keep<T>(value: T): T {
+    let inferred = value
+    return inferred
+}
+"#;
+        let (ast, resolved) = parse_and_resolve_text(text);
+        let facts = collect_typecheck_facts(&ast, &resolved);
+        let start = text.find("inferred").expect("expected binding name");
+        let span = ByteSpan::new(ast.span.source, start, start + "inferred".len());
+
+        let Some(TypeExpr::Reference(reference)) = facts.binding_type_expr(span) else {
+            panic!("expected inferred binding type expr for generic parameter");
+        };
+        assert_eq!(reference.name, "T");
     }
 
     fn resolve_text(text: &str) -> ResolveOutput {

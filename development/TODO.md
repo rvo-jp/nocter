@@ -103,6 +103,9 @@ Recommended order:
 - TypecheckFacts now records method receiver kinds as structured compiler data.
   Buildability uses that fact to identify `&+self` calls instead of parsing
   LSP hover labels.
+- TypecheckFacts also records binding `TypeExpr` values. Buildability and IR
+  range-for lowering should use structured binding facts; `binding_type_label`
+  should stay presentation-only for hover.
 
 ## Session Start
 
