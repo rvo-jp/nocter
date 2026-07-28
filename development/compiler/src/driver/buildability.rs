@@ -16,8 +16,8 @@ use crate::literals::decode_integer_literal_value;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
-    FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts, TypecheckScalarViewKind,
-    TypecheckSliceElementKind,
+    FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
+    TypecheckMethodReceiverKind, TypecheckScalarViewKind, TypecheckSliceElementKind,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
@@ -6306,12 +6306,10 @@ fn method_call_receiver_is_readwrite_borrow(
     member_span: ByteSpan,
     typecheck_facts: &TypecheckFacts,
 ) -> bool {
-    let Some((_span, label)) = typecheck_facts.call_hover_at_offset(member_span.start) else {
-        return false;
-    };
-    label
-        .strip_prefix("method ")
-        .is_some_and(|label| label.starts_with("&+"))
+    matches!(
+        typecheck_facts.method_call_receiver_kind(member_span),
+        Some(TypecheckMethodReceiverKind::ReadwriteBorrow)
+    )
 }
 
 fn readwrite_borrow_argument_source_is_buildable(

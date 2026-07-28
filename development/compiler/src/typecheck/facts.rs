@@ -54,6 +54,7 @@ pub(crate) struct TypecheckFacts {
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
+    method_call_receiver_kinds: HashMap<ByteSpan, TypecheckMethodReceiverKind>,
     generic_function_call_spans: HashMap<ByteSpan, ByteSpan>,
     function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
@@ -164,6 +165,13 @@ impl TypecheckFacts {
 
     pub(crate) fn method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.method_call_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn method_call_receiver_kind(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<TypecheckMethodReceiverKind> {
+        self.method_call_receiver_kinds.get(&member_span).copied()
     }
 
     pub(crate) fn generic_function_call_target(&self, call_span: ByteSpan) -> Option<ByteSpan> {
@@ -297,6 +305,13 @@ pub(crate) enum TypecheckSliceElementKind {
     Bool,
     Str,
     Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckMethodReceiverKind {
+    Owned,
+    ReadonlyBorrow,
+    ReadwriteBorrow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1057,6 +1072,11 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
+                    if let Some(kind) = method_receiver_kind(&resolved_method.receiver.ty) {
+                        self.facts
+                            .method_call_receiver_kinds
+                            .insert(method.member_span, kind);
+                    }
                     if !resolved_method.signature.generic_parameters.is_empty() {
                         self.facts
                             .generic_method_call_spans
@@ -2341,11 +2361,25 @@ fn method_signature_receiver_label(
 }
 
 fn self_receiver_prefix(ty: &TypeExpr) -> Option<&'static str> {
+    match method_receiver_kind(ty)? {
+        TypecheckMethodReceiverKind::Owned => Some(""),
+        TypecheckMethodReceiverKind::ReadonlyBorrow => Some("&"),
+        TypecheckMethodReceiverKind::ReadwriteBorrow => Some("&+"),
+    }
+}
+
+fn method_receiver_kind(ty: &TypeExpr) -> Option<TypecheckMethodReceiverKind> {
     match ty {
-        TypeExpr::Reference(reference) if reference.name == "Self" => Some(""),
+        TypeExpr::Reference(reference) if reference.name == "Self" => {
+            Some(TypecheckMethodReceiverKind::Owned)
+        }
         TypeExpr::Borrow(borrow) => match borrow.inner.as_ref() {
             TypeExpr::Reference(reference) if reference.name == "Self" => {
-                Some(if borrow.is_readwrite { "&+" } else { "&" })
+                Some(if borrow.is_readwrite {
+                    TypecheckMethodReceiverKind::ReadwriteBorrow
+                } else {
+                    TypecheckMethodReceiverKind::ReadonlyBorrow
+                })
             }
             _ => None,
         },
@@ -2546,7 +2580,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn records_method_receiver_kind_facts() {
+        let (ast, resolved) = parse_and_resolve_text(
+            r#"struct Box {
+    value: i32
+}
+
+impl Box {
+    method self.take(): i32 {
+        return self.value
+    }
+
+    method &self.read(): i32 {
+        return self.value
+    }
+
+    method &+self.write(): void {
+        self.value = 2
+        return
+    }
+}
+
+func main(): i32 {
+    var box = Box{ value: 1 }
+    box.write()
+    let copy = Box{ value: 2 }
+    return copy.read() + Box{ value: 3 }.take()
+}
+"#,
+        );
+        let facts = collect_typecheck_facts(&ast, &resolved);
+        let receiver_kinds = facts
+            .method_call_spans()
+            .filter_map(|span| facts.method_call_receiver_kind(span))
+            .collect::<Vec<_>>();
+
+        assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::Owned));
+        assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::ReadonlyBorrow));
+        assert!(receiver_kinds.contains(&TypecheckMethodReceiverKind::ReadwriteBorrow));
+    }
+
     fn resolve_text(text: &str) -> ResolveOutput {
+        parse_and_resolve_text(text).1
+    }
+
+    fn parse_and_resolve_text(text: &str) -> (AstFile, ResolveOutput) {
         let mut sources = SourceMap::new();
         let source = sources.add_source("test.nct", None, text.to_string());
         let lex_output = lex(&sources, source);
@@ -2562,6 +2641,7 @@ mod tests {
             parse_output.diagnostics
         );
         let ast = parse_output.ast.expect("expected ast");
-        resolve(&sources, &ast)
+        let resolved = resolve(&sources, &ast);
+        (ast, resolved)
     }
 }

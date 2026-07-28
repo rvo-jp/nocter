@@ -8,10 +8,10 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `b5b280a Skip unreachable body tails consistently`
   - `ba54fbd Preflight aggregate moves in control-flow buildability`
   - `8df594b Reject outer drops in nonterminal control flow`
   - `214e2f8 Fix source-aware generic Vec storage checks`
-  - `3420be0 Document the full compiler verification gate`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
@@ -100,6 +100,9 @@ Recommended order:
   and do not trigger runtime-subset buildability diagnostics.
 - Generic impl method specialization now carries the receiver-derived impl
   substitutions into nested generic calls in the method body.
+- TypecheckFacts now records method receiver kinds as structured compiler data.
+  Buildability uses that fact to identify `&+self` calls instead of parsing
+  LSP hover labels.
 
 ## Session Start
 
