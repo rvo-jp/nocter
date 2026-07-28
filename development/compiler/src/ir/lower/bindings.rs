@@ -678,7 +678,6 @@ fn lower_aggregate_array_literal_binding(
     if !matches!(value.ty, AbiType::Array { .. }) {
         return Ok(None);
     }
-    validate_aggregate_binding_layout(value.layout)?;
 
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),

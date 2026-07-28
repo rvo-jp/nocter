@@ -936,6 +936,14 @@ mod tests {
         assert_eq!(
             layout_of(&AbiType::Array {
                 element: Box::new(AbiType::U8),
+                length: 0,
+            })
+            .unwrap(),
+            ValueLayout::new(0, 1)
+        );
+        assert_eq!(
+            layout_of(&AbiType::Array {
+                element: Box::new(AbiType::U8),
                 length: 4,
             })
             .unwrap(),

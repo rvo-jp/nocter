@@ -16985,6 +16985,35 @@ func addend(): i32 {
 }
 
 #[test]
+fn lowers_zero_length_fixed_array_literal_binding() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    let empty: [u8; 0] = []
+    return 42
+}
+"#,
+        "main",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(0, 1),
+                },
+                set_return_i32(42),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_readwrite_usize_slice_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

@@ -2136,13 +2136,12 @@ fn fixed_array_literal_binding_is_buildable(
     else {
         return false;
     };
-    let Some((element, length, layout)) =
+    let Some((element, length, _layout)) =
         fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
     else {
         return false;
     };
-    layout.size > 0
-        && u64::try_from(literal.elements.len()).ok() == Some(length)
+    u64::try_from(literal.elements.len()).ok() == Some(length)
         && fixed_array_element_abi_is_buildable(&element)
 }
 

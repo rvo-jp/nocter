@@ -7278,6 +7278,30 @@ fn run_command_writes_fixed_array_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_binds_zero_length_fixed_array_literal() {
+    let project = TempProject::new("cli-run-zero-length-fixed-array-literal-binding");
+    let source = project.write_source(
+        "zero_length_fixed_array_literal_binding.nct",
+        r#"func main(): i32 {
+    let empty: [u8; 0] = []
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_variable_indices() {
     let project = TempProject::new("cli-run-fixed-array-variable-index-writes");
     let source = project.write_source(
