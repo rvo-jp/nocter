@@ -530,7 +530,8 @@ Precedence, from highest to lowest:
 10. logical or
     ||
 
-11. optional otherwise
+11. fallible catch / optional otherwise
+    expr catch name { body }
     expr otherwise { body }
 ```
 
@@ -538,6 +539,8 @@ Rules:
 
 - Assignment is a statement, not an expression, and is not part of the precedence table.
 - The half-open range token `..<` is part of the initial `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
+- `catch` binds to the immediately preceding expression after higher-precedence
+  operators have been parsed.
 - `otherwise` is right-associative.
 - `if` and `match` are control expressions, not precedence-table operators.
 - `condition ? then : else` is not Nocter syntax. Use `if condition { then } else { else_value }`.
@@ -672,6 +675,9 @@ Rules:
 - In the v0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
+- `build` and `run` reject payload-carrying enum runtime positions during v0
+  buildability validation. `check` may still accept them for source-level
+  typechecking.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` wildcard patterns are not part of the initial design.
 

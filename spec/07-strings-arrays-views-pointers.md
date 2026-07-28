@@ -518,7 +518,10 @@ Allocator and lowering rules:
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
 - The exact standard-library lowering API for interpolated strings is part of the string formatting design and must remain explicit about allocation.
 - A conforming implementation must not silently choose a process-global allocator for interpolation.
-- Until the standard-library formatting API is finalized, an implementation may parse and type-check interpolation syntax but reject lowering with a diagnostic that the interpolation lowering API is not implemented.
+- Until the standard-library formatting API is finalized, an implementation may
+  parse and type-check interpolation syntax for `check`, but `build` and `run`
+  must reject it during buildability validation with a diagnostic that the
+  interpolation lowering API is not implemented.
 
 The intended lowering is equivalent to constructing a `String` through ordinary standard-library operations, appending decoded text segments and formatted expression values in source order, then returning that owned value or a failure.
 

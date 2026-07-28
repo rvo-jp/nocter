@@ -302,6 +302,9 @@ Rules:
   implementation.
 - Non-copy aggregate element storage, per-element drop glue, insertion/removal
   APIs, and iterator helpers are deferred.
+- `check` may accept `Vec<T>` APIs outside the runtime-supported element subset
+  when they typecheck. `build` and `run` must reject unsupported `Vec<T>` element
+  storage paths during v0 buildability validation.
 - `clear` resets length. Element drop behavior is deferred until per-element
   drop glue is designed.
 - `view` and `view_mut` expose slices over initialized elements only.
@@ -410,6 +413,9 @@ V0 distribution status:
 - `cwd(allocator)` is runtime-shipped on `arm64-darwin` through the standard-library syscall boundary and returns caller-owned `String` storage.
 - `args()` is runtime-shipped on `arm64-darwin` and returns an owned `Vec<&str>` whose string views point into process context storage.
 - `env(name)` reserves the future `&str?!` API shape, but useful runtime behavior is check-only until nested fallible/optional return lowering and process context runtime are promoted. It must not silently succeed with `none` before environment access is implemented.
+- During the check-only period, `check` accepts calls to `env(name)` for
+  source-level validation, while `build` and `run` reject them during v0
+  buildability validation.
 
 Rules:
 
@@ -421,6 +427,9 @@ Rules:
 - User code reads environment values with `std/process.env(name)`.
 - `args()` returns an owned `Vec<&str>` of borrowed string slices on success.
 - The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
+- The `env(name)` runtime behavior rules below are the contract for the future
+  promoted implementation. During the v0 check-only period, `build` and `run`
+  reject `env(name)` before lowering.
 - `env(name)` has type `&str?!`.
 - `env(name)` succeeds with `none` when the variable is absent.
 - `env(name)` succeeds with a present `&str` when the variable is present and valid UTF-8.

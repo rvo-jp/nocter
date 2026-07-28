@@ -129,7 +129,7 @@ nocter build app.nct
 
 Rules:
 
-- `build` runs lexing, parsing, name resolution, type checking, ownership checking, target lowering, ARM64 code generation, and Mach-O executable generation.
+- `build` runs lexing, parsing, name resolution, type checking, ownership checking, v0 buildability validation, target lowering, ARM64 code generation, and Mach-O executable generation.
 - `-o path` sets the executable output path.
 - If `-o` is omitted, the initial driver may derive an output path from the root file stem.
 - `build` must not invoke `clang`, `as`, `ld`, Xcode Command Line Tools, or an external linker.
@@ -160,7 +160,7 @@ source.nct
 
 Rules:
 
-- `run` uses the same front end, semantic checks, target lowering, ARM64 code generation, and Mach-O writer as `build`.
+- `run` uses the same front end, semantic checks, v0 buildability validation, target lowering, ARM64 code generation, and Mach-O writer as `build`.
 - `run` does not create a persistent project output file.
 - `run` creates a temporary executable in a private temporary location.
 - The temporary executable is a real Mach-O executable for the active target.
@@ -214,7 +214,14 @@ nocter check app.nct --format json
 
 Rules:
 
-- `check` runs lexing, parsing, name resolution, type checking, ownership checking, target selection, and target validation needed to produce the same source diagnostics as `build`.
+- `check` runs lexing, parsing, name resolution, type checking, ownership checking, target selection, and target-gated declaration validation.
+- `check` reports the same source-language diagnostics as `build` for lexing,
+  parsing, import resolution, name resolution, type checking, ownership, target
+  selection, and target-gated declarations.
+- `check` does not require every accepted construct to be supported by build/run
+  lowering. Constructs explicitly marked check-only in the v0 contract are valid
+  for `check` and are rejected by `build` and `run` during buildability
+  validation.
 - `check` does not emit an executable.
 - `check` does not execute user code.
 - `--format human` is the default format.
@@ -227,10 +234,14 @@ The JSON diagnostic envelope is specified in [Diagnostics](12-diagnostics.md#mac
 
 The root path and source span path rules are specified in [Modules and Use Declarations](01-modules-use.md#source-file-identity).
 
-Initial implementation note:
+Implementation staging:
 
-- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, selected entry function validation, and basic return checking.
-- Later implementations should extend the same command with import resolution, name resolution, type checking, ownership checking, target selection, and target validation.
+- Development snapshots may temporarily ship partial `check --format json`
+  coverage while the compiler pipeline is being built.
+- A v0 release `check` implementation must satisfy the rules above for parsing,
+  import resolution, name resolution, type checking, ownership checking, target
+  selection, target-gated declaration validation, JSON shape, and check-only
+  construct handling.
 
 ## Format
 

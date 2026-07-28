@@ -178,11 +178,43 @@ For v0, typechecking must produce or diagnose:
 - associated function call target
 - move, copy, and drop state for owned values
 - use-after-move and invalid explicit `drop` diagnostics
-- unsupported construct diagnostics before backend lowering
+- deferred source-form diagnostics that do not require target/runtime buildability
+  facts
 
 The backend must not infer language semantics that are missing from typechecking.
 If a source construct is not represented in the v0 typed facts, it must either
 be added to this contract or rejected before lowering.
+
+## Buildability Contract
+
+`build` and `run` perform a v0 buildability validation step after typechecking
+and ownership checking, before IR or backend lowering. This step consumes typed
+facts and reports source diagnostics for constructs that are valid enough for
+`check` but not yet supported by v0 runtime lowering.
+
+Rules:
+
+- Buildability diagnostics are source diagnostics, not backend crashes.
+- Buildability validation must run before target lowering, register allocation,
+  code generation, or executable writing.
+- The backend must receive only constructs that passed buildability validation.
+- `check` accepts explicitly check-only constructs so tools can validate source
+  syntax, imports, names, types, ownership, and diagnostics before runtime
+  lowering is implemented.
+- `build` and `run` must reject check-only constructs instead of silently choosing
+  placeholder runtime behavior.
+
+Initial check-only or not-yet-buildable surfaces:
+
+- payload-carrying enum values in runtime positions, including payload enum
+  construction, `match`, and `if is` lowering
+- string interpolation lowering until the explicit standard-library formatting
+  construction path is complete
+- `std/process.env(name)` useful runtime behavior until nested
+  fallible/optional return lowering and process-context environment storage are
+  promoted
+- `Vec<T>` storage paths outside the runtime-supported scalar, `&str`, and
+  explicitly promoted copy-aggregate element subset
 
 ## Aggregate Type Contract
 

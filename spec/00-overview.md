@@ -73,6 +73,13 @@ func main(): void {
 ```
 
 ```nct
+func main(): void! {
+    run()?
+    return
+}
+```
+
+```nct
 func main(): i32 {
     return 0
 }
@@ -87,13 +94,14 @@ Rules:
 - Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.
 - `func main(): i32!` is the standard executable entry form.
 - If `func main(): i32!` or `func main(): usize!` succeeds, the returned value is used as the process exit status.
-- If `func main(): i32!` or `func main(): usize!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
+- If `func main(): void!` succeeds, the process exits with status code `0`.
+- If `func main(): i32!`, `func main(): usize!`, or `func main(): void!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
 - The generated failure report should include `error.code` and `error.message` when both fields are available.
 - If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code `1`.
 - The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
 - `func main(): void` exits with status code `0`.
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
-- `func main(): void`, `func main(): i32`, and `func main(): usize` are accepted for simple infallible entry points in v0, but `func main(): i32!` is the preferred form for applications.
+- `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms in v0, but `func main(): i32!` is the preferred form for applications that need a numeric success code.
 - Entry function type parameters and value parameters are not part of v0.
 - Entry functions with type parameters, such as `func main<T>(): i32!`, are not part of v0.
 - Entry functions with value parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.

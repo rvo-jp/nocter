@@ -289,6 +289,12 @@ Required v0 diagnostic families:
 - `if is` enum pattern whose enum or variant does not match the target enum type.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
+- Check-only construct used with `build` or `run`, such as string interpolation
+  before interpolation lowering is implemented, `std/process.env(name)` before
+  environment runtime support is promoted, or payload-carrying enum values before
+  payload enum ABI is promoted.
+- Standard-library runtime subset violation during buildability validation, such
+  as an unsupported `Vec<T>` element storage path.
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
