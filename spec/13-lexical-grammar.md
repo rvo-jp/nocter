@@ -85,6 +85,47 @@ Rules:
 - A single `_` is reserved for a future discard or wildcard design and is not a valid binding, declaration, field, variant, type parameter, or import alias name in v0.
 - Identifiers beginning with `_` are otherwise valid.
 
+Reserved keyword tokens in v0:
+
+```text
+as
+break
+catch
+continue
+else
+enum
+false
+for
+func
+if
+impl
+in
+interface
+is
+let
+loop
+match
+method
+move
+none
+otherwise
+primitive
+pub
+region
+return
+struct
+true
+type
+use
+using
+var
+while
+```
+
+Built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`,
+`void`, and `never` are reserved type syntax, not importable user names. The
+special `error` type spelling is contextual as described above.
+
 Module file and directory names use snake_case identifiers:
 
 ```text
@@ -184,14 +225,27 @@ Examples of single lexical tokens:
 *=
 /=
 %=
+#
 ```
 
 Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
 - `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
+- `#` is punctuation. In v0 it is used only by the `#target("target-name")`
+  directive form. The lexer does not treat `target` as a reserved keyword.
 - `@` is reserved for possible future attribute-like syntax and is invalid in v0 outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.
+
+`#target("target-name")` is tokenized as ordinary punctuation, identifier, and
+string tokens:
+
+```text
+# target ( "target-name" )
+```
+
+The parser recognizes that exact token pattern only before eligible top-level
+declarations. A `#` token in any other source position is a syntax error in v0.
 
 ## Integer Literals
 

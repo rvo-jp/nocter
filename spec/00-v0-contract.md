@@ -60,20 +60,44 @@ The v0 parser accepts these top-level item forms:
 - `use path.{name_a, name_b}`
 - `pub use path.name`
 - `pub use path.{name_a, name_b}`
+- `#target("target-name")` immediately before one eligible top-level declaration
 - `primitive name<T>(...): Type`
+- `pub primitive name<T>(...): Type`
+- `pub(nocter) primitive name<T>(...): Type`
 - `func name<T>(...): Type { ... }`
+- `pub func name<T>(...): Type { ... }`
+- `pub(nocter) func name<T>(...): Type { ... }`
 - `func Type.name<T>(...): Type { ... }`
+- `pub func Type.name<T>(...): Type { ... }`
+- `pub(nocter) func Type.name<T>(...): Type { ... }`
 - `type Name<T> = Type`
+- `pub type Name<T> = Type`
+- `pub(nocter) type Name<T> = Type`
 - `copy struct Name<T> { ... }`
+- `pub copy struct Name<T> { ... }`
+- `pub(nocter) copy struct Name<T> { ... }`
 - `struct Name<T> { ... }`
+- `pub struct Name<T> { ... }`
+- `pub(nocter) struct Name<T> { ... }`
 - `enum Name<T> { ... }`
+- `pub enum Name<T> { ... }`
+- `pub(nocter) enum Name<T> { ... }`
 - `interface Name<T> { pub method ... }`
+- `pub interface Name<T> { pub method ... }`
+- `pub(nocter) interface Name<T> { pub method ... }`
 - `impl Type { method ...; drop ... }`
 - `impl Interface for Type`
 - `impl Interface for Type {}`
 
 Top-level `use` and `pub use` forms are accepted only at the start of a source
 file before non-`use` declarations.
+
+`#target("target-name")` is a directive, not an attribute. It applies only to the
+single top-level declaration that immediately follows it. In v0 that following
+declaration must be a function, primitive, struct, enum, interface, or type alias.
+The parser recognizes the directive form everywhere so it can produce useful
+diagnostics, but target validation rejects `#target` outside the active Nocter
+home or before an ineligible declaration.
 
 The v0 parser also accepts the non-`pub` `use` forms above at the start of any
 block scope. Block-scope `use` declarations are lexical declarations. They are
