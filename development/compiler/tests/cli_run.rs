@@ -597,6 +597,46 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_value_control_with_imported_alias_context_exit_code() {
+    let project = TempProject::new("cli-run-imported-alias-value-control-context");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub type Count = i32
+
+pub func zero(): Count {
+    return 0
+}
+
+pub func choose(value: Count): Count {
+    return value
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_alias_value_control_context.nct",
+        r#"use std/math.{choose, zero}
+
+func main(): i32 {
+    var value = zero()
+    value = if true { 40 } else { 1 }
+    return choose(if value == 40 { value + 2 } else { 1 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_direct_aggregate_call_exit_code() {
     let project = TempProject::new("cli-run-imported-direct-aggregate-call");
     project.write_nocter_home_file(

@@ -1751,6 +1751,7 @@ fn collect_void_effect_block_diagnostics(
 fn binding_initializer_may_use_value_control_expression(
     statement: &crate::ast::BindingStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -1763,12 +1764,13 @@ fn binding_initializer_may_use_value_control_expression(
         return false;
     };
     let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
-    type_expr_is_buildable_scalar_or_view(&ty, resolved)
+    type_expr_is_buildable_scalar_or_view_for_sources(&ty, resolved, resolved_sources)
 }
 
 fn assignment_value_may_use_value_control_expression(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -1780,7 +1782,13 @@ fn assignment_value_may_use_value_control_expression(
             typecheck_facts
                 .binding_type_expr(symbol.name_span)
                 .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
-                .is_some_and(|ty| type_expr_is_buildable_scalar_or_view(&ty, resolved))
+                .is_some_and(|ty| {
+                    type_expr_is_buildable_scalar_or_view_for_sources(
+                        &ty,
+                        resolved,
+                        resolved_sources,
+                    )
+                })
         }
         Expr::Member(member) => typecheck_facts
             .field_scalar_view_kind(member.member_span)
@@ -1793,6 +1801,7 @@ fn call_argument_may_use_value_control_expression(
     call: &CallExpr,
     index: usize,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -1803,7 +1812,9 @@ fn call_argument_may_use_value_control_expression(
         typecheck_facts,
         generic_substitutions,
     )
-    .is_some_and(|ty| type_expr_is_buildable_scalar_or_view(&ty, resolved))
+    .is_some_and(|ty| {
+        type_expr_is_buildable_scalar_or_view_for_sources(&ty, resolved, resolved_sources)
+    })
 }
 
 fn call_argument_parameter_type(
@@ -2061,6 +2072,15 @@ where
 
 fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, resolved, &|_| Some(resolved))
+}
+
+fn type_expr_is_buildable_scalar_or_view_for_sources(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, &source_resolver)
 }
 
 fn type_expr_is_buildable_scalar_or_view_with_resolver<'a, F>(
@@ -2906,6 +2926,7 @@ fn collect_statement_diagnostics(
             let binding_is_scalar_or_view = binding_initializer_may_use_value_control_expression(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             );
@@ -3000,6 +3021,7 @@ fn collect_statement_diagnostics(
             if assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -5819,6 +5841,7 @@ fn collect_expression_diagnostics(
                     expression,
                     index,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                 ) {

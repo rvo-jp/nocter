@@ -2860,6 +2860,43 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_value_control_with_imported_alias_context() {
+    let project = TempProject::new("cli-build-imported-alias-value-control-context");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub type Count = i32
+
+pub func zero(): Count {
+    return 0
+}
+
+pub func choose(value: Count): Count {
+    return value
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_alias_value_control_context.nct",
+        r#"use std/math.{choose, zero}
+
+func main(): i32 {
+    var value = zero()
+    value = if true { 40 } else { 1 }
+    return choose(if value == 40 { value + 2 } else { 1 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
 fn build_command_lowers_fallible_aggregate_binding_and_borrow_argument() {
     let project = TempProject::new("cli-build-fallible-aggregate-binding-borrow");
     let source = project.write_source(
