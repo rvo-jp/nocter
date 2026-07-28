@@ -125,6 +125,10 @@ fn collect_reachable_call_targets(
             | Instruction::StoreAggregateU32 { .. }
             | Instruction::StoreAggregateU8 { .. }
             | Instruction::StoreAggregateBool { .. }
+            | Instruction::StoreAggregateUsizeIndexed { .. }
+            | Instruction::StoreAggregateI32Indexed { .. }
+            | Instruction::StoreAggregateU8Indexed { .. }
+            | Instruction::StoreAggregateBoolIndexed { .. }
             | Instruction::LoadAggregateUsize { .. }
             | Instruction::LoadAggregateI32 { .. }
             | Instruction::LoadAggregateU8 { .. }

@@ -465,6 +465,10 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
+        | Instruction::StoreAggregateUsizeIndexed { .. }
+        | Instruction::StoreAggregateI32Indexed { .. }
+        | Instruction::StoreAggregateU8Indexed { .. }
+        | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
@@ -593,7 +597,11 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreAggregateU16 { destination, .. }
         | Instruction::StoreAggregateU32 { destination, .. }
         | Instruction::StoreAggregateU8 { destination, .. }
-        | Instruction::StoreAggregateBool { destination, .. } => {
+        | Instruction::StoreAggregateBool { destination, .. }
+        | Instruction::StoreAggregateUsizeIndexed { destination, .. }
+        | Instruction::StoreAggregateI32Indexed { destination, .. }
+        | Instruction::StoreAggregateU8Indexed { destination, .. }
+        | Instruction::StoreAggregateBoolIndexed { destination, .. } => {
             matches!(destination, AggregateLocation::Slot(_))
         }
         Instruction::LoadAggregateUsize { source, .. }
@@ -794,6 +802,10 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
+        | Instruction::StoreAggregateUsizeIndexed { .. }
+        | Instruction::StoreAggregateI32Indexed { .. }
+        | Instruction::StoreAggregateU8Indexed { .. }
+        | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
@@ -963,6 +975,10 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
+        | Instruction::StoreAggregateUsizeIndexed { .. }
+        | Instruction::StoreAggregateI32Indexed { .. }
+        | Instruction::StoreAggregateU8Indexed { .. }
+        | Instruction::StoreAggregateBoolIndexed { .. }
         | Instruction::LoadAggregateUsize { .. }
         | Instruction::LoadAggregateI32 { .. }
         | Instruction::LoadAggregateU8 { .. }
@@ -1540,6 +1556,78 @@ fn record_instruction_parameter_spill_requests(
                 record_bool_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::StoreAggregateUsizeIndexed {
+            destination,
+            base_offset,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *base_offset,
+                    8,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateI32Indexed {
+            destination,
+            base_offset,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *base_offset,
+                    4,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_i32_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateU8Indexed {
+            destination,
+            base_offset,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *base_offset,
+                    1,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_u8_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateBoolIndexed {
+            destination,
+            base_offset,
+            index,
+            value,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *base_offset,
+                    1,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_bool_value_parameter_spill_requests(value, requests);
+            }
+        }
         Instruction::LoadAggregateUsize { source, offset, .. }
         | Instruction::LoadAggregateI32 { source, offset, .. }
         | Instruction::LoadAggregateU8 { source, offset, .. }
@@ -2051,7 +2139,15 @@ fn record_instruction_scalar_locals(
         Instruction::StoreAggregateUsize { value, .. } => {
             record_usize_value(value, highest_local_index);
         }
+        Instruction::StoreAggregateUsizeIndexed { index, value, .. } => {
+            record_usize_value(index, highest_local_index);
+            record_usize_value(value, highest_local_index);
+        }
         Instruction::StoreAggregateI32 { value, .. } => {
+            record_i32_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateI32Indexed { index, value, .. } => {
+            record_usize_value(index, highest_local_index);
             record_i32_value(value, highest_local_index);
         }
         Instruction::StoreAggregateU16 { .. } => {}
@@ -2059,7 +2155,15 @@ fn record_instruction_scalar_locals(
         Instruction::StoreAggregateU8 { value, .. } => {
             record_u8_value(value, highest_local_index);
         }
+        Instruction::StoreAggregateU8Indexed { index, value, .. } => {
+            record_usize_value(index, highest_local_index);
+            record_u8_value(value, highest_local_index);
+        }
         Instruction::StoreAggregateBool { value, .. } => {
+            record_bool_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateBoolIndexed { index, value, .. } => {
+            record_usize_value(index, highest_local_index);
             record_bool_value(value, highest_local_index);
         }
         Instruction::LoadAggregateUsize { destination, .. } => {

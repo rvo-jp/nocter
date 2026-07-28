@@ -480,6 +480,108 @@ impl EntryEmitter {
         self.emit_store_aggregate_byte(destination, offset, frame)
     }
 
+    pub(super) fn emit_store_aggregate_usize_indexed(
+        &mut self,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_usize_field_offset(base_offset)?;
+        self.emit_usize_value_to_x(value, XReg::X2)?;
+        self.emit_checked_aggregate_index_address_to_x(
+            destination,
+            base_offset,
+            index,
+            length,
+            stride,
+            AGGREGATE_USIZE_STORE_BYTES,
+            XReg::X0,
+            frame,
+        )?;
+        self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0);
+        Ok(())
+    }
+
+    pub(super) fn emit_store_aggregate_i32_indexed(
+        &mut self,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        value: &I32Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_i32_field_offset(base_offset)?;
+        self.emit_i32_value_to_w(value, WReg::W2)?;
+        self.emit_checked_aggregate_index_address_to_x(
+            destination,
+            base_offset,
+            index,
+            length,
+            stride,
+            AGGREGATE_I32_STORE_BYTES,
+            XReg::X0,
+            frame,
+        )?;
+        self.encoder.emit_str_w_imm(WReg::W2, XReg::X0, 0);
+        Ok(())
+    }
+
+    pub(super) fn emit_store_aggregate_u8_indexed(
+        &mut self,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        value: &U8Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_u8_value_to_w(value, WReg::W2)?;
+        self.emit_checked_aggregate_index_address_to_x(
+            destination,
+            base_offset,
+            index,
+            length,
+            stride,
+            AGGREGATE_U8_STORE_BYTES,
+            XReg::X0,
+            frame,
+        )?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        Ok(())
+    }
+
+    pub(super) fn emit_store_aggregate_bool_indexed(
+        &mut self,
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: &UsizeValue,
+        length: u64,
+        stride: u32,
+        value: &BoolValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_bool_value_to_w(value, WReg::W2)?;
+        self.emit_checked_aggregate_index_address_to_x(
+            destination,
+            base_offset,
+            index,
+            length,
+            stride,
+            AGGREGATE_U8_STORE_BYTES,
+            XReg::X0,
+            frame,
+        )?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        Ok(())
+    }
+
     fn emit_store_aggregate_byte(
         &mut self,
         destination: AggregateLocation,
@@ -805,35 +907,35 @@ impl EntryEmitter {
 
     fn emit_checked_aggregate_index_address_to_x(
         &mut self,
-        source: AggregateLocation,
+        location: AggregateLocation,
         base_offset: u32,
         index: &UsizeValue,
         length: u64,
         stride: u32,
-        load_bytes: u32,
+        access_bytes: u32,
         destination: XReg,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         if length == 0 || stride == 0 {
             return Err(aggregate_load_diagnostic(
-                "indexed aggregate load requires non-empty fixed array metadata",
+                "indexed aggregate access requires non-empty fixed array metadata",
             ));
         }
-        let AggregateLocation::Slot(slot_index) = source else {
+        let AggregateLocation::Slot(slot_index) = location else {
             return Err(aggregate_load_diagnostic(
-                "indexed aggregate loads can currently read only from aggregate slots",
+                "indexed aggregate accesses can currently use only aggregate slots",
             ));
         };
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
                 "E9005",
-                "indexed aggregate load emission requires a stack frame",
+                "indexed aggregate access emission requires a stack frame",
             )]);
         };
         let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
             vec![Diagnostic::error(
                 "E9005",
-                format!("indexed aggregate load source slot {slot_index} is not reserved"),
+                format!("indexed aggregate access slot {slot_index} is not reserved"),
             )]
         })?;
         Self::validate_aggregate_indexed_access_range(
@@ -841,7 +943,7 @@ impl EntryEmitter {
             base_offset,
             length,
             stride,
-            load_bytes,
+            access_bytes,
         )?;
 
         self.emit_usize_value_to_x(index, XReg::X16)?;
@@ -885,19 +987,19 @@ impl EntryEmitter {
         base_offset: u32,
         length: u64,
         stride: u32,
-        load_bytes: u32,
+        access_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
-        let last_index = length
-            .checked_sub(1)
-            .ok_or_else(|| aggregate_load_diagnostic("indexed aggregate load length underflows"))?;
+        let last_index = length.checked_sub(1).ok_or_else(|| {
+            aggregate_load_diagnostic("indexed aggregate access length underflows")
+        })?;
         let last_offset = last_index
             .checked_mul(u64::from(stride))
             .and_then(|offset| offset.checked_add(u64::from(base_offset)))
-            .and_then(|offset| offset.checked_add(u64::from(load_bytes)))
-            .ok_or_else(|| aggregate_load_diagnostic("indexed aggregate load range overflows"))?;
+            .and_then(|offset| offset.checked_add(u64::from(access_bytes)))
+            .ok_or_else(|| aggregate_load_diagnostic("indexed aggregate access range overflows"))?;
         if last_offset > u64::from(slot.size()) {
             return Err(aggregate_load_diagnostic(
-                "indexed aggregate load range exceeds aggregate slot size",
+                "indexed aggregate access range exceeds aggregate slot size",
             ));
         }
         Ok(())

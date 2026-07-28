@@ -4612,14 +4612,14 @@ pub(super) struct FixedArrayElementAccess {
     pub(super) out_of_bounds: bool,
 }
 
-struct FixedArrayElementIndexedAccess {
-    source: AggregateLocation,
-    base_offset: u32,
-    index: UsizeValue,
-    index_instructions: Vec<Instruction>,
-    length: u64,
-    stride: u32,
-    element: AbiType,
+pub(super) struct FixedArrayElementIndexedAccess {
+    pub(super) source: AggregateLocation,
+    pub(super) base_offset: u32,
+    pub(super) index: UsizeValue,
+    pub(super) index_instructions: Vec<Instruction>,
+    pub(super) length: u64,
+    pub(super) stride: u32,
+    pub(super) element: AbiType,
 }
 
 struct FixedArrayAccessMetadata {
@@ -4663,7 +4663,7 @@ pub(super) fn fixed_array_element_access(
     }))
 }
 
-fn fixed_array_element_indexed_access(
+pub(super) fn fixed_array_element_indexed_access(
     expression: &IndexExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,

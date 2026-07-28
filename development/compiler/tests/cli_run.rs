@@ -7278,6 +7278,62 @@ fn run_command_writes_fixed_array_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_writes_fixed_array_variable_indices() {
+    let project = TempProject::new("cli-run-fixed-array-variable-index-writes");
+    let source = project.write_source(
+        "fixed_array_variable_index_writes.nct",
+        r#"func main(): i32 {
+    var scores: [i32; 3] = [0, 0, 0]
+    var bytes: [u8; 2] = [0, 0]
+    var sizes: [usize; 2] = [0, 0]
+    var flags: [bool; 2] = [false, false]
+    var words: [&str; 2] = ["bad", "bad"]
+    let a: usize = 0
+    let b: usize = 1
+    let c: usize = 2
+    scores[a] = 10
+    scores[b] = 20
+    scores[c] = 12
+    bytes[a] = 3
+    bytes[b] = 4
+    sizes[a] = 5
+    sizes[b] = 6
+    flags[b] = true
+    words[b] = "Nocter"
+    let score: i32 = scores[a] + scores[b] + scores[c]
+    let byte: u8 = bytes[b]
+    let size: usize = sizes[a] + sizes[b]
+    let flag: bool = flags[b]
+    let word: &str = words[b]
+    if score == 42 {
+        if byte == 4 {
+            if size == 11 {
+                if flag {
+                    if word.len() == 6 {
+                        return 42
+                    }
+                }
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_applies_fixed_array_constant_index_compound_assignments() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-compound");
     let source = project.write_source(
@@ -7357,6 +7413,31 @@ fn run_command_traps_fixed_array_variable_index_read_out_of_bounds() {
     let values: [i32; 2] = [1, 2]
     let index: usize = 2
     return values[index]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_fixed_array_variable_index_write_out_of_bounds() {
+    let project = TempProject::new("cli-run-fixed-array-variable-index-write-oob");
+    let source = project.write_source(
+        "fixed_array_variable_index_write_oob.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    let index: usize = 2
+    values[index] = 3
+    return values[0]
 }
 "#,
     );

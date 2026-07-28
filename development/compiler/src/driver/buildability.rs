@@ -6013,8 +6013,8 @@ fn unsupported_index_assignment_target_diagnostic(
         return Some(unsupported_v0_build_diagnostic(
             sources,
             index.span,
-            "fixed array index assignment targets outside constant scalar/view element locals",
-            "assign through a constant index into a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until general fixed array mutation is promoted",
+            "fixed array index assignment targets outside scalar/view element locals",
+            "assign through an index into a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until broader fixed array mutation is promoted",
         ));
     }
     if matches!(
@@ -6051,11 +6051,7 @@ fn fixed_array_index_assignment_target_is_buildable(
         generic_substitutions,
         resolved_sources,
     )?;
-    Some(
-        fixed_array_constant_index_value(&expression.index).is_some()
-            && layout.size > 0
-            && fixed_array_element_abi_is_buildable(&element),
-    )
+    Some(layout.size > 0 && fixed_array_element_abi_is_buildable(&element))
 }
 
 fn slice_index_assignment_target_is_buildable(
@@ -8757,7 +8753,7 @@ impl Resource {
     drop &+self {
         var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        bytes[index] = 3
+        bytes[index] += 1
         return
     }
 }
@@ -8775,7 +8771,7 @@ func main(): i32 {
         assert!(
             diagnostics[0]
                 .message
-                .contains("fixed array index assignment")
+                .contains("compound assignment statements")
         );
     }
 
@@ -8790,7 +8786,7 @@ impl<T> Box<T> {
     drop &+self {
         var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        bytes[index] = 3
+        bytes[index] += 1
         return
     }
 }
@@ -8808,7 +8804,7 @@ func main(): i32 {
         assert!(
             diagnostics[0]
                 .message
-                .contains("fixed array index assignment")
+                .contains("compound assignment statements")
         );
     }
 
@@ -8823,7 +8819,7 @@ impl Resource {
     drop &+self {
         var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        bytes[index] = 3
+        bytes[index] += 1
         return
     }
 }
@@ -8846,7 +8842,7 @@ func main(): i32 {
         assert!(
             diagnostics[0]
                 .message
-                .contains("fixed array index assignment")
+                .contains("compound assignment statements")
         );
     }
 
@@ -8861,7 +8857,7 @@ impl Resource {
     drop &+self {
         var bytes: [u8; 2] = [1, 2]
         let index: usize = 1
-        bytes[index] = 3
+        bytes[index] += 1
         return
     }
 }
@@ -8884,7 +8880,7 @@ func main(): i32 {
         assert!(
             diagnostics[0]
                 .message
-                .contains("fixed array index assignment")
+                .contains("compound assignment statements")
         );
     }
 

@@ -13,9 +13,10 @@ use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    fixed_array_element_access, lower_aggregate_member_field_access,
-    lower_bool_expression_to_location, lower_bool_expression_to_value,
-    lower_bool_expression_to_value_with_temporaries, lower_call_arguments_to_scalar_arguments,
+    fixed_array_element_access, fixed_array_element_indexed_access,
+    lower_aggregate_member_field_access, lower_bool_expression_to_location,
+    lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
+    lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
@@ -51,7 +52,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
     I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
-    SliceValue, StrLocation, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -2043,6 +2044,9 @@ fn lower_index_assignment(
     if let Some(instructions) = lower_fixed_array_index_assignment(target, value, context)? {
         return Ok(instructions);
     }
+    if let Some(instructions) = lower_fixed_array_indexed_assignment(target, value, context)? {
+        return Ok(instructions);
+    }
     lower_slice_index_assignment(target, value, context)
 }
 
@@ -2137,6 +2141,152 @@ fn lower_fixed_array_index_assignment(
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn lower_fixed_array_indexed_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some(access) = fixed_array_element_indexed_access(
+        target,
+        context,
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?
+    else {
+        return Ok(None);
+    };
+    let mut instructions = access.index_instructions;
+    let index = materialize_slice_index_assignment_index(
+        &mut instructions,
+        access.index,
+        &mut temporaries,
+    )?;
+
+    match access.element {
+        AbiType::I32 => {
+            let (value_instructions, value) =
+                lower_i32_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreAggregateI32Indexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value,
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::U8 => {
+            let (value_instructions, value) =
+                lower_u8_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreAggregateU8Indexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value,
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::Usize => {
+            let (value_instructions, value) =
+                lower_usize_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreAggregateUsizeIndexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value,
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::Bool => {
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                value,
+                context,
+                "E8008",
+                &mut temporaries,
+            )?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreAggregateBoolIndexed {
+                destination: access.source,
+                base_offset: access.base_offset,
+                index,
+                length: access.length,
+                stride: access.stride,
+                value: lowered.value,
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::StrView => {
+            let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
+            instructions.append(&mut lowered.instructions);
+            push_store_str_view_to_fixed_array_indexed_element(
+                &mut instructions,
+                access.source,
+                access.base_offset,
+                index,
+                access.length,
+                access.stride,
+                lowered.value,
+                &mut temporaries,
+            )?;
+            Ok(Some(instructions))
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn push_store_str_view_to_fixed_array_indexed_element(
+    instructions: &mut Vec<Instruction>,
+    destination: AggregateLocation,
+    base_offset: u32,
+    index: UsizeValue,
+    length: u64,
+    stride: u32,
+    value: StrValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(), Vec<Diagnostic>> {
+    let temporary = temporaries.next_str()?;
+    let StrLocation::Local(local_index) = temporary else {
+        unreachable!("temporary str locations are local pairs");
+    };
+    let len_index = local_index
+        .checked_add(1)
+        .ok_or_else(unsupported_assignment_diagnostic)?;
+    let len_base_offset = base_offset
+        .checked_add(8)
+        .ok_or_else(unsupported_assignment_diagnostic)?;
+
+    instructions.push(Instruction::SetStr {
+        destination: temporary,
+        value,
+    });
+    instructions.push(Instruction::StoreAggregateUsizeIndexed {
+        destination,
+        base_offset,
+        index: index.clone(),
+        length,
+        stride,
+        value: UsizeValue::Location(UsizeLocation::Local(local_index)),
+    });
+    instructions.push(Instruction::StoreAggregateUsizeIndexed {
+        destination,
+        base_offset: len_base_offset,
+        index,
+        length,
+        stride,
+        value: UsizeValue::Location(UsizeLocation::Local(len_index)),
+    });
+    Ok(())
 }
 
 fn lower_slice_index_assignment(

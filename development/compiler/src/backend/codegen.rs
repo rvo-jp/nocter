@@ -253,12 +253,48 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_usize(*destination, *offset, value, frame)?;
             }
+            Instruction::StoreAggregateUsizeIndexed {
+                destination,
+                base_offset,
+                index,
+                length,
+                stride,
+                value,
+            } => {
+                self.emit_store_aggregate_usize_indexed(
+                    *destination,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    value,
+                    frame,
+                )?;
+            }
             Instruction::StoreAggregateI32 {
                 destination,
                 offset,
                 value,
             } => {
                 self.emit_store_aggregate_i32(*destination, *offset, value, frame)?;
+            }
+            Instruction::StoreAggregateI32Indexed {
+                destination,
+                base_offset,
+                index,
+                length,
+                stride,
+                value,
+            } => {
+                self.emit_store_aggregate_i32_indexed(
+                    *destination,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    value,
+                    frame,
+                )?;
             }
             Instruction::StoreAggregateU16 {
                 destination,
@@ -281,12 +317,48 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_u8(*destination, *offset, value, frame)?;
             }
+            Instruction::StoreAggregateU8Indexed {
+                destination,
+                base_offset,
+                index,
+                length,
+                stride,
+                value,
+            } => {
+                self.emit_store_aggregate_u8_indexed(
+                    *destination,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    value,
+                    frame,
+                )?;
+            }
             Instruction::StoreAggregateBool {
                 destination,
                 offset,
                 value,
             } => {
                 self.emit_store_aggregate_bool(*destination, *offset, value, frame)?;
+            }
+            Instruction::StoreAggregateBoolIndexed {
+                destination,
+                base_offset,
+                index,
+                length,
+                stride,
+                value,
+            } => {
+                self.emit_store_aggregate_bool_indexed(
+                    *destination,
+                    *base_offset,
+                    index,
+                    *length,
+                    *stride,
+                    value,
+                    frame,
+                )?;
             }
             Instruction::LoadAggregateUsize {
                 destination,
@@ -2533,10 +2605,22 @@ fn instruction_uses_process_arguments(instruction: &Instruction) -> bool {
             usize_value_uses_process_arguments(index)
         }
         Instruction::StoreAggregateUsize { value, .. } => usize_value_uses_process_arguments(value),
+        Instruction::StoreAggregateUsizeIndexed { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || usize_value_uses_process_arguments(value)
+        }
         Instruction::StoreAggregateI32 { value, .. } => i32_value_uses_process_arguments(value),
+        Instruction::StoreAggregateI32Indexed { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || i32_value_uses_process_arguments(value)
+        }
         Instruction::StoreAggregateU16 { .. } | Instruction::StoreAggregateU32 { .. } => false,
         Instruction::StoreAggregateU8 { value, .. } => u8_value_uses_process_arguments(value),
+        Instruction::StoreAggregateU8Indexed { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || u8_value_uses_process_arguments(value)
+        }
         Instruction::StoreAggregateBool { value, .. } => bool_value_uses_process_arguments(value),
+        Instruction::StoreAggregateBoolIndexed { index, value, .. } => {
+            usize_value_uses_process_arguments(index) || bool_value_uses_process_arguments(value)
+        }
         Instruction::DarwinSyscall {
             number, arguments, ..
         } => {

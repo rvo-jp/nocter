@@ -112,10 +112,26 @@ pub(crate) enum Instruction {
         offset: u32,
         value: UsizeValue,
     },
+    StoreAggregateUsizeIndexed {
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+        value: UsizeValue,
+    },
     #[allow(dead_code)]
     StoreAggregateI32 {
         destination: AggregateLocation,
         offset: u32,
+        value: I32Value,
+    },
+    StoreAggregateI32Indexed {
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
         value: I32Value,
     },
     #[allow(dead_code)]
@@ -136,10 +152,26 @@ pub(crate) enum Instruction {
         offset: u32,
         value: U8Value,
     },
+    StoreAggregateU8Indexed {
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
+        value: U8Value,
+    },
     #[allow(dead_code)]
     StoreAggregateBool {
         destination: AggregateLocation,
         offset: u32,
+        value: BoolValue,
+    },
+    StoreAggregateBoolIndexed {
+        destination: AggregateLocation,
+        base_offset: u32,
+        index: UsizeValue,
+        length: u64,
+        stride: u32,
         value: BoolValue,
     },
     #[allow(dead_code)]
