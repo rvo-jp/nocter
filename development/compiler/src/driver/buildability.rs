@@ -2088,6 +2088,52 @@ fn fixed_array_copy_binding_is_buildable(
         && fixed_array_element_abi_is_buildable(&source_element)
 }
 
+fn fixed_array_literal_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
+        return false;
+    };
+    let Some((element, length, layout)) = fixed_array_assignment_target_abi(
+        &statement.target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    layout.size > 0
+        && u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
+fn fixed_array_assignment_target_abi(
+    target: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
+    let Expr::Identifier(identifier) = unwrap_group_expr(target) else {
+        return None;
+    };
+    let ty = local_identifier_type_expr_with_substitutions(
+        identifier,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+}
+
 fn fixed_array_binding_type_abi(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
@@ -3315,6 +3361,13 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            let assignment_is_fixed_array_literal = fixed_array_literal_assignment_is_buildable(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            );
             if assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,
@@ -3324,6 +3377,20 @@ fn collect_statement_diagnostics(
             ) {
                 collect_value_expression_diagnostics(
                     &statement.value,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else if assignment_is_fixed_array_literal {
+                collect_fixed_array_literal_elements_diagnostics(
+                    unwrap_group_expr(&statement.value),
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6569,9 +6636,37 @@ fn collect_fixed_array_literal_binding_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
+    collect_fixed_array_literal_elements_diagnostics(
+        unwrap_group_expr(&statement.initializer),
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn collect_fixed_array_literal_elements_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Expr::ArrayLiteral(literal) = expression else {
         collect_expression_diagnostics(
-            &statement.initializer,
+            expression,
             sources,
             resolved,
             typecheck_facts,

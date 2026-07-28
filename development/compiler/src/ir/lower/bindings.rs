@@ -1907,7 +1907,14 @@ fn lower_identifier_assignment(
     }
 
     if let Some((slot_index, layout)) = context.aggregate_slot(&identifier.name) {
-        return lower_aggregate_assignment(slot_index, layout, value, context);
+        let target_type = context.local_binding_type_expr_for_identifier(identifier);
+        return lower_aggregate_assignment(
+            slot_index,
+            layout,
+            target_type.as_ref(),
+            value,
+            context,
+        );
     }
 
     Err(unsupported_assignment_diagnostic())
@@ -2655,6 +2662,7 @@ fn aggregate_assignment_root_and_path(expression: &Expr) -> Option<(&str, Vec<&s
 fn lower_aggregate_assignment(
     slot_index: usize,
     layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -2664,7 +2672,13 @@ fn lower_aggregate_assignment(
 
     let replacement_drop = replacement_drop_for_aggregate_slot(slot_index, context)?;
     if replacement_drop.is_empty() {
-        return lower_aggregate_assignment_to_slot(slot_index, layout, expression, context);
+        return lower_aggregate_assignment_to_slot(
+            slot_index,
+            layout,
+            target_type,
+            expression,
+            context,
+        );
     }
 
     let mut temporaries = TemporaryAllocator::new(context)?;
@@ -2676,6 +2690,7 @@ fn lower_aggregate_assignment(
     instructions.extend(lower_aggregate_assignment_to_slot(
         replacement_slot,
         layout,
+        target_type,
         expression,
         context,
     )?);
@@ -2710,10 +2725,18 @@ fn aggregate_assignment_moves_from_slot(
 fn lower_aggregate_assignment_to_slot(
     slot_index: usize,
     layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match unwrap_group(expression) {
+        Expr::ArrayLiteral(literal) => lower_aggregate_array_literal_assignment(
+            slot_index,
+            layout,
+            target_type,
+            literal,
+            context,
+        ),
         Expr::StructLiteral(literal) => {
             lower_aggregate_struct_literal_assignment(slot_index, layout, literal, context)
         }
@@ -2832,6 +2855,39 @@ fn lower_aggregate_struct_literal_assignment(
 
     lower_aggregate_struct_literal_to_location(
         literal,
+        layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "assignments",
+        resolved,
+        context,
+    )
+}
+
+fn lower_aggregate_array_literal_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
+    literal: &crate::ast::ArrayLiteralExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(ty) = target_type else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let value = abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| unsupported_assignment_diagnostic())?;
+    if !matches!(value.ty, AbiType::Array { .. }) || value.layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    lower_aggregate_array_literal_to_location(
+        literal,
+        &value.ty,
         layout,
         AggregateLocation::Slot(slot_index),
         "E8008",

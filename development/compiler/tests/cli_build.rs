@@ -5313,6 +5313,28 @@ fn build_command_lowers_fixed_array_copy_binding() {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_whole_assignments() {
+    let project = TempProject::new("cli-build-fixed-array-whole-assignments");
+    let source = project.write_source(
+        "fixed_array_whole_assignments.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    let replacement: [i32; 2] = [3, 4]
+    values = [5, 6]
+    values = replacement
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(

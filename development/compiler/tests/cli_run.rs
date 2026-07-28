@@ -7025,11 +7025,17 @@ fn run_command_reads_fixed_array_literal_constant_indices() {
     let words: [&str; 2] = ["bad", "Nocter"]
     let copied_scores: [i32; 3] = scores
     let copied_words: [&str; 2] = words
-    let score: i32 = copied_scores[0] + copied_scores[1] + copied_scores[2]
-    let byte: u8 = bytes[1]
+    var assigned_scores: [i32; 3] = [0, 0, 0]
+    var assigned_bytes: [u8; 2] = [0, 0]
+    var assigned_words: [&str; 2] = ["bad", "bad"]
+    assigned_scores = copied_scores
+    assigned_bytes = [3, 4]
+    assigned_words = copied_words
+    let score: i32 = assigned_scores[0] + assigned_scores[1] + assigned_scores[2]
+    let byte: u8 = assigned_bytes[1]
     let size: usize = sizes[0] + sizes[1]
     let flag: bool = flags[1]
-    let word: &str = copied_words[1]
+    let word: &str = assigned_words[1]
     if score == 42 {
         if byte == 4 {
             if size == 11 {
