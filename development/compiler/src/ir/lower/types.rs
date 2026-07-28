@@ -7,7 +7,7 @@ use crate::ast::{
     ArrayType, BorrowType, FallibleType, GenericType, OptionalType, PointerType, TypeExpr, ViewType,
 };
 use crate::ir::Type;
-use crate::resolve::ResolveOutput;
+use crate::resolve::{ResolveOutput, TypeSymbol};
 use crate::source::SourceId;
 use std::collections::HashSet;
 
@@ -96,7 +96,7 @@ where
         TypeExpr::Optional(_) => true,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             let Some(target) = &symbol.alias_target else {
@@ -143,7 +143,7 @@ where
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
                     .or_else(|| {
                         aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)
@@ -208,7 +208,7 @@ where
 {
     if let TypeExpr::Reference(reference) = ty {
         let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-        if let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name)
+        if let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name)
             && let Some(target) = &symbol.alias_target
         {
             if !resolving_names.insert(symbol.canonical_name.clone()) {
@@ -325,7 +325,7 @@ where
         }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
             };
@@ -418,7 +418,7 @@ fn borrow_type_from_type_expr_inner<'a>(
     match ty {
         TypeExpr::Borrow(borrow) => Some(borrow),
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
             };
@@ -458,7 +458,7 @@ where
         }
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
             };
@@ -486,5 +486,41 @@ fn resolved_for_type_expr<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    resolver(ty.span().source).unwrap_or(fallback_resolved)
+    let source_resolved = resolver(ty.span().source);
+    let Some(name) = type_expr_symbol_name(ty) else {
+        return source_resolved.unwrap_or(fallback_resolved);
+    };
+
+    if let Some(resolved) = source_resolved
+        && type_symbol_by_reference_name(resolved, name).is_some()
+    {
+        return resolved;
+    }
+    if type_symbol_by_reference_name(fallback_resolved, name).is_some() {
+        return fallback_resolved;
+    }
+
+    source_resolved.unwrap_or(fallback_resolved)
+}
+
+fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        _ => None,
+    }
+}
+
+fn type_symbol_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<&'a TypeSymbol> {
+    resolved.type_symbol_by_reference_name(name).or_else(|| {
+        short_qualified_type_name(name)
+            .and_then(|short| resolved.type_symbol_by_reference_name(short))
+    })
+}
+
+fn short_qualified_type_name(name: &str) -> Option<&str> {
+    name.rsplit_once('.').map(|(_module, short)| short)
 }

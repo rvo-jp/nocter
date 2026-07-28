@@ -7,7 +7,7 @@ use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation,
 };
-use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
+use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind, TypecheckSliceElementKind};
 use std::cell::Cell;
@@ -1551,11 +1551,11 @@ where
         _ => {}
     }
 
-    let resolved = resolver(ty.span().source).unwrap_or(fallback_resolved);
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
-            let type_symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
             if type_symbol.generic_arity != generic.arguments.len() {
                 return None;
             }
@@ -1569,7 +1569,7 @@ where
         }
         _ => return None,
     };
-    let (symbol, type_symbol) = resolved.type_symbol_definition_by_reference_name(type_name)?;
+    let (symbol, type_symbol) = type_symbol_definition_by_reference_name(resolved, type_name)?;
     if type_symbol.kind == TypeSymbolKind::Alias {
         let target = type_symbol.alias_target.as_ref()?;
         if !resolving_names.insert(type_symbol.canonical_name.clone()) {
@@ -1599,6 +1599,65 @@ where
         CallTarget::imported(symbol.declaration_span.source, target_name)
     };
     Some(DropGlue { target })
+}
+
+fn resolved_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> &'a ResolveOutput
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let source_resolved = resolver(ty.span().source);
+    let Some(name) = type_expr_symbol_name(ty) else {
+        return source_resolved.unwrap_or(fallback_resolved);
+    };
+
+    if let Some(resolved) = source_resolved
+        && type_symbol_by_reference_name(resolved, name).is_some()
+    {
+        return resolved;
+    }
+    if type_symbol_by_reference_name(fallback_resolved, name).is_some() {
+        return fallback_resolved;
+    }
+
+    source_resolved.unwrap_or(fallback_resolved)
+}
+
+fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        _ => None,
+    }
+}
+
+fn type_symbol_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<&'a TypeSymbol> {
+    resolved.type_symbol_by_reference_name(name).or_else(|| {
+        short_qualified_type_name(name)
+            .and_then(|short| resolved.type_symbol_by_reference_name(short))
+    })
+}
+
+fn type_symbol_definition_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<(&'a Symbol, &'a TypeSymbol)> {
+    resolved
+        .type_symbol_definition_by_reference_name(name)
+        .or_else(|| {
+            short_qualified_type_name(name)
+                .and_then(|short| resolved.type_symbol_definition_by_reference_name(short))
+        })
+}
+
+fn short_qualified_type_name(name: &str) -> Option<&str> {
+    name.rsplit_once('.').map(|(_module, short)| short)
 }
 
 fn drop_target_name_from_base_and_type_expr(base_target_name: &str, ty: &TypeExpr) -> String {

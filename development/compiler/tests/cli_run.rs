@@ -1407,6 +1407,64 @@ func value(): Value {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_imported_ignored_aggregate_call_result() {
+    let project = TempProject::new("cli-run-imported-ignored-aggregate-drop");
+    project.write_nocter_home_file(
+        "std/resource.nct",
+        r#"use std/io.write_text_raw
+
+pub struct Handle {
+    fd: i32
+}
+
+impl Handle {
+    drop &+self {
+        write_text_raw(1, "drop\n")!
+        return
+    }
+}
+
+pub func make(): Handle {
+    return Handle{ fd: 1 }
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "imported_ignored_aggregate_drop.nct",
+        r#"use std/resource.make
+
+func main(): i32 {
+    make()
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(
+        output.stdout,
+        b"drop\n",
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_aggregate_literal_expression_statement() {
     let project = TempProject::new("cli-run-ignored-aggregate-literal-statement");
     let source = project.write_source(
