@@ -1921,9 +1921,36 @@ fn unsupported_local_binding_type_diagnostic(
     sources: &SourceMap,
     statement: &BindingStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
+    if fixed_array_literal_binding_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+
+    if !matches!(
+        unwrap_group_expr(&statement.initializer),
+        Expr::ArrayLiteral(_)
+    ) && binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+        .is_some_and(|ty| {
+            fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
+        })
+    {
+        return Some(unsupported_v0_build_diagnostic(
+            sources,
+            statement.name_span,
+            "fixed array local bindings outside supported literal initialization",
+            "initialize fixed array locals directly from a supported array literal until fixed array copy, call-result, and move lowering is promoted",
+        ));
+    }
+
     if local_binding_type_is_buildable(statement, resolved, typecheck_facts, generic_substitutions)
     {
         return None;
@@ -1933,7 +1960,7 @@ fn unsupported_local_binding_type_diagnostic(
         sources,
         statement.name_span,
         "local bindings with unsupported value types",
-        "bind `i32`, `u8`, `usize`, `bool`, `&str`, slice views, payloadless enums, errors, or aggregate values until broader scalar local lowering is promoted",
+        "bind `i32`, `u8`, `usize`, `bool`, `&str`, slice views, payloadless enums, errors, aggregate values, or supported fixed array literals until broader scalar local lowering is promoted",
     ))
 }
 
@@ -1976,6 +2003,69 @@ fn local_binding_type_expr_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput)
     type_expr_is_buildable_scalar_or_view(ty, resolved)
         || type_expr_is_error_parameter(ty, resolved)
         || type_expr_is_supported_aggregate_value(ty, resolved)
+}
+
+fn fixed_array_literal_binding_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    let Some(ty) =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+    else {
+        return false;
+    };
+    let Some((element, length, layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    layout.size > 0
+        && u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
+fn binding_type_expr_with_substitutions(
+    statement: &BindingStmt,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    statement
+        .ty
+        .clone()
+        .or_else(|| {
+            typecheck_facts
+                .binding_type_expr(statement.name_span)
+                .cloned()
+        })
+        .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
+}
+
+fn fixed_array_type_abi_for_sources(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    let value =
+        abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver).ok()?;
+    let layout = value.layout;
+    match value.ty {
+        AbiType::Array { element, length } => Some((*element, length, layout)),
+        _ => None,
+    }
+}
+
+fn fixed_array_element_abi_is_buildable(element: &AbiType) -> bool {
+    matches!(
+        element,
+        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
+    )
 }
 
 fn type_expr_is_known_unsupported_scalar_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
@@ -3020,11 +3110,19 @@ fn collect_statement_diagnostics(
                 sources,
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
             }
+            let binding_is_fixed_array_literal = fixed_array_literal_binding_is_buildable(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            );
             let binding_is_scalar_or_view = binding_initializer_may_use_value_control_expression(
                 statement,
                 resolved,
@@ -3036,6 +3134,20 @@ fn collect_statement_diagnostics(
                 collect_otherwise_binding_initializer_diagnostics(
                     expression,
                     binding_is_scalar_or_view,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else if binding_is_fixed_array_literal {
+                collect_fixed_array_literal_binding_diagnostics(
+                    statement,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -6130,6 +6242,7 @@ fn collect_expression_diagnostics(
                 resolved,
                 typecheck_facts,
                 generic_substitutions,
+                resolved_sources,
                 nocter_home,
             ) {
                 diagnostics.push(diagnostic);
@@ -6360,6 +6473,53 @@ fn collect_expression_diagnostics(
     }
 }
 
+fn collect_fixed_array_literal_binding_diagnostics(
+    statement: &BindingStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
+        collect_expression_diagnostics(
+            &statement.initializer,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+        return;
+    };
+
+    for element in &literal.elements {
+        collect_value_expression_diagnostics(
+            element,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
 fn unsupported_field_member_value_diagnostic(
     sources: &SourceMap,
     expression: &MemberExpr,
@@ -6476,12 +6636,31 @@ fn unsupported_slice_index_diagnostic(
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
     nocter_home: Option<&Path>,
 ) -> Option<Diagnostic> {
     // `std/vec` generic bodies keep parameter element facts as `Other`; user
     // call sites are preflighted before those bodies are lowered.
     if source_is_std_vec(sources, expression.span.source, nocter_home) {
         return None;
+    }
+
+    if let Some(is_buildable) = fixed_array_index_expression_is_buildable(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+    ) {
+        if is_buildable {
+            return None;
+        }
+        return Some(unsupported_v0_build_diagnostic(
+            sources,
+            expression.span,
+            "fixed array indexing outside constant scalar/view element reads",
+            "use a constant index into `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until general fixed array indexing is promoted",
+        ));
     }
 
     if slice_index_expression_is_buildable(
@@ -6499,6 +6678,58 @@ fn unsupported_slice_index_diagnostic(
         "slice indexing outside scalar, `&str`, and copy aggregate elements",
         "use `&[i32]`, `&[u8]`, `&[usize]`, `&[bool]`, `&[&str]`, or a non-empty `copy struct` element until broader slice element lowering is promoted",
     ))
+}
+
+fn fixed_array_index_expression_is_buildable(
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<bool> {
+    let ty = fixed_array_index_target_type_expr(
+        &expression.object,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let (element, _length, layout) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
+    if fixed_array_constant_index_value(&expression.index).is_none() {
+        return Some(false);
+    }
+    Some(layout.size > 0 && fixed_array_element_abi_is_buildable(&element))
+}
+
+fn fixed_array_index_target_type_expr(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(identifier) => {
+            let symbol = resolved.local_symbol_for_identifier(identifier)?;
+            typecheck_facts
+                .binding_type_expr(symbol.name_span)
+                .cloned()
+                .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
+        }
+        Expr::Group(group) => fixed_array_index_target_type_expr(
+            &group.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => None,
+    }
+}
+
+fn fixed_array_constant_index_value(expression: &Expr) -> Option<u128> {
+    match unwrap_group_expr(expression) {
+        Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value),
+        _ => None,
+    }
 }
 
 fn slice_index_expression_is_buildable(
@@ -7973,6 +8204,8 @@ func main(): i32 {
 impl Resource {
     drop &+self {
         let bytes: [u8; 2] = [1, 2]
+        let index: usize = 1
+        let byte: u8 = bytes[index]
         return
     }
 }
@@ -7987,7 +8220,7 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("array literals"));
+        assert!(diagnostics[0].message.contains("fixed array indexing"));
     }
 
     #[test]
@@ -8000,6 +8233,8 @@ func main(): i32 {
 impl<T> Box<T> {
     drop &+self {
         let bytes: [u8; 2] = [1, 2]
+        let index: usize = 1
+        let byte: u8 = bytes[index]
         return
     }
 }
@@ -8014,7 +8249,7 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("array literals"));
+        assert!(diagnostics[0].message.contains("fixed array indexing"));
     }
 
     #[test]
@@ -8027,6 +8262,8 @@ func main(): i32 {
 impl Resource {
     drop &+self {
         let bytes: [u8; 2] = [1, 2]
+        let index: usize = 1
+        let byte: u8 = bytes[index]
         return
     }
 }
@@ -8046,7 +8283,7 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("array literals"));
+        assert!(diagnostics[0].message.contains("fixed array indexing"));
     }
 
     #[test]
@@ -8059,6 +8296,8 @@ func main(): i32 {
 impl Resource {
     drop &+self {
         let bytes: [u8; 2] = [1, 2]
+        let index: usize = 1
+        let byte: u8 = bytes[index]
         return
     }
 }
@@ -8078,7 +8317,7 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].message.contains("array literals"));
+        assert!(diagnostics[0].message.contains("fixed array indexing"));
     }
 
     #[test]

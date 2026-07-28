@@ -27,18 +27,19 @@ outside the runtime subset should fail through buildability diagnostics before
 IR or backend emission. Reachable callable signatures, local bindings, and field
 member value uses that mention storage-only scalar types such as `u16` or `u32`
 are rejected at this boundary instead of surfacing as IR lowering errors.
-Reachable array literals, bare string interpolation, unsupported explicit
+Bare string interpolation, unsupported fixed-array forms, unsupported explicit
 aggregate moves in control-flow conditions, and unsupported outer aggregate
 moves/drops inside non-terminal control-flow branches/bodies are also rejected
-at the same boundary. Unreachable body tails after proven terminal statements
-are ignored by return/reachability checking, buildability, and IR lowering.
-Buildability and IR lowering consume structured typechecker facts for binding
-types and method receiver kinds, and buildability resolves imported type aliases
-by their declaring source when deciding whether value-producing control
-expressions or discardable expression statements are in scalar/view runtime
-positions. IR type normalization and drop glue resolution also handle
-source-qualified imported type names when lowering imported call signatures.
-Hover labels remain editor presentation data.
+at the same boundary. Non-empty fixed array literal local bindings and constant
+index reads are buildable for the current scalar/view element subset. Unreachable
+body tails after proven terminal statements are ignored by return/reachability
+checking, buildability, and IR lowering. Buildability and IR lowering consume
+structured typechecker facts for binding types and method receiver kinds, and
+buildability resolves imported type aliases by their declaring source when
+deciding whether value-producing control expressions or discardable expression
+statements are in scalar/view runtime positions. IR type normalization and drop
+glue resolution also handle source-qualified imported type names when lowering
+imported call signatures. Hover labels remain editor presentation data.
 
 ## Implemented Capability
 
@@ -56,7 +57,7 @@ Hover labels remain editor presentation data.
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
-| Slices and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
+| Slices, fixed arrays, and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. Non-empty fixed array literal local bindings and constant index reads build and run for `i32`, `u8`, `usize`, `bool`, and `&str` elements. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
 | Standard library | Tracked `development/std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
 | LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. |
@@ -88,7 +89,9 @@ that will not be dereferenced.
 - targets other than `arm64-darwin`
 - broad control-flow lowering outside the documented subset
 - payload-carrying enum `if is` and `match` runtime lowering
-- array literal storage and general array runtime behavior
+- broader fixed-array behavior: parameters, returns, mutation/index assignment,
+  variable index reads, zero-sized local arrays, move-only element arrays, and
+  general array runtime behavior
 - broad pointer dereference and user memory mutation APIs
 - broad view iteration
 - bare string interpolation lowering without an explicit allocator source

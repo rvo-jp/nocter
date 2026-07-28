@@ -7013,6 +7013,50 @@ func length(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reads_fixed_array_literal_constant_indices() {
+    let project = TempProject::new("cli-run-fixed-array-literal-constant-index");
+    let source = project.write_source(
+        "fixed_array_literal_constant_index.nct",
+        r#"func main(): i32 {
+    let scores: [i32; 3] = [10, 20, 12]
+    let bytes: [u8; 2] = [3, 4]
+    let sizes: [usize; 2] = [5, 6]
+    let flags: [bool; 2] = [false, true]
+    let words: [&str; 2] = ["bad", "Nocter"]
+    let score: i32 = scores[0] + scores[1] + scores[2]
+    let byte: u8 = bytes[1]
+    let size: usize = sizes[0] + sizes[1]
+    let flag: bool = flags[1]
+    let word: &str = words[1]
+    if score == 42 {
+        if byte == 4 {
+            if size == 11 {
+                if flag {
+                    if word.len() == 6 {
+                        return 42
+                    }
+                }
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_str_is_empty_exit_code() {
     let project = TempProject::new("cli-run-str-is-empty");
     let source = project.write_source(

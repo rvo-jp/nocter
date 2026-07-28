@@ -24,7 +24,10 @@ mod calls;
 mod predicates;
 mod temporaries;
 
-use crate::abi::{ValueLayout, abi_value_from_type_expr};
+use crate::abi::{
+    AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
+    array_element_stride,
+};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfStmt, IndexExpr, Stmt,
     SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
@@ -36,6 +39,7 @@ use crate::ir::{
     I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
     U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use crate::literals::decode_integer_literal_value;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;
@@ -145,8 +149,7 @@ pub(super) fn lower_i32_expression_to_location(
         }
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            let lowered =
-                lower_i32_slice_index_expression_to_value(index, context, &mut temporaries)?;
+            let lowered = lower_i32_index_expression_to_value(index, context, &mut temporaries)?;
             let mut instructions = lowered.instructions;
             instructions.push(Instruction::SetI32 {
                 destination,
@@ -367,8 +370,7 @@ pub(super) fn lower_usize_expression_to_location(
         }
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            let lowered =
-                lower_usize_slice_index_expression_to_value(index, context, &mut temporaries)?;
+            let lowered = lower_usize_index_expression_to_value(index, context, &mut temporaries)?;
             let mut instructions = lowered.instructions;
             instructions.push(Instruction::SetUsize {
                 destination,
@@ -2022,9 +2024,7 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
-        Expr::Index(index) => {
-            lower_i32_slice_index_expression_to_value(index, context, temporaries)
-        }
+        Expr::Index(index) => lower_i32_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::I32) =>
         {
@@ -2451,9 +2451,7 @@ fn lower_usize_expression_to_value(
                 value: UsizeValue::Location(temporary),
             })
         }
-        Expr::Index(index) => {
-            lower_usize_slice_index_expression_to_value(index, context, temporaries)
-        }
+        Expr::Index(index) => lower_usize_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::Usize) =>
         {
@@ -2562,9 +2560,7 @@ pub(super) fn lower_str_expression_to_value(
             lower_str_if_expression_to_value(&if_statement, context, temporaries)
         }
         Expr::Member(_) => lower_aggregate_str_field_to_value(expression, context, temporaries),
-        Expr::Index(index) => {
-            lower_str_slice_index_expression_to_value(index, context, temporaries)
-        }
+        Expr::Index(index) => lower_str_index_expression_to_value(index, context, temporaries),
         Expr::Group(group) => {
             lower_str_expression_to_value(&group.expression, context, temporaries)
         }
@@ -3297,7 +3293,7 @@ pub(super) fn lower_bool_expression_to_location(
         }
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            let lowered = lower_bool_slice_index_expression_to_value(
+            let lowered = lower_bool_index_expression_to_value(
                 index,
                 context,
                 diagnostic_code,
@@ -4311,7 +4307,7 @@ pub(super) fn lower_bool_expression_to_value_with_temporaries(
             })
         }
         Expr::Index(index) => {
-            lower_bool_slice_index_expression_to_value(index, context, diagnostic_code, temporaries)
+            lower_bool_index_expression_to_value(index, context, diagnostic_code, temporaries)
         }
         Expr::Member(_) => {
             let temporary = temporaries.next_bool()?;
@@ -4609,11 +4605,128 @@ pub(super) fn lower_usize_value(
     }
 }
 
+struct FixedArrayElementAccess {
+    source: AggregateLocation,
+    offset: u32,
+    element: AbiType,
+    out_of_bounds: bool,
+}
+
+fn fixed_array_element_access(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    unsupported_diagnostic: impl Fn() -> Vec<Diagnostic>,
+) -> Result<Option<FixedArrayElementAccess>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = unwrap_group(&expression.object) else {
+        return Ok(None);
+    };
+    let Some(local) = context.aggregate_local(&identifier.name) else {
+        return Ok(None);
+    };
+    let Some(ty) = context.local_binding_type_expr_for_identifier(identifier) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_diagnostic());
+    };
+    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| unsupported_diagnostic())?;
+    let AbiType::Array { element, length } = &value.ty else {
+        return Ok(None);
+    };
+    if value.layout != local.layout {
+        return Err(unsupported_diagnostic());
+    }
+    let Some(index) = fixed_array_constant_index_value(&expression.index) else {
+        return Err(unsupported_diagnostic());
+    };
+    if index >= u128::from(*length) {
+        return Ok(Some(FixedArrayElementAccess {
+            source: AggregateLocation::Slot(local.slot_index),
+            offset: 0,
+            element: element.as_ref().clone(),
+            out_of_bounds: true,
+        }));
+    }
+
+    let stride = array_element_stride(element).map_err(|_error| unsupported_diagnostic())?;
+    let offset = u64::try_from(index)
+        .ok()
+        .and_then(|index| index.checked_mul(stride))
+        .and_then(|offset| u32::try_from(offset).ok())
+        .ok_or_else(unsupported_diagnostic)?;
+    Ok(Some(FixedArrayElementAccess {
+        source: AggregateLocation::Slot(local.slot_index),
+        offset,
+        element: element.as_ref().clone(),
+        out_of_bounds: false,
+    }))
+}
+
+fn fixed_array_constant_index_value(expression: &Expr) -> Option<u128> {
+    match unwrap_group(expression) {
+        Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value),
+        _ => None,
+    }
+}
+
+fn lower_i32_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if let Some(lowered) =
+        lower_fixed_array_i32_index_expression_to_value(expression, context, temporaries)?
+    {
+        return Ok(lowered);
+    }
+    lower_i32_slice_index_expression_to_value(expression, context, temporaries)
+}
+
+fn lower_fixed_array_i32_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredI32Value>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(expression, context, unsupported_i32_expression_diagnostic)?
+    else {
+        return Ok(None);
+    };
+    if access.element != AbiType::I32 {
+        return Ok(None);
+    }
+    if access.out_of_bounds {
+        return Ok(Some(LoweredI32Value {
+            instructions: vec![Instruction::Trap],
+            value: I32Value::Const(0),
+        }));
+    }
+
+    let temporary = temporaries.next_i32()?;
+    Ok(Some(LoweredI32Value {
+        instructions: vec![Instruction::LoadAggregateI32 {
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        }],
+        value: I32Value::Location(temporary),
+    }))
+}
+
 fn lower_u8_index_expression_to_value(
     expression: &IndexExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    if let Some(lowered) =
+        lower_fixed_array_u8_index_expression_to_value(expression, context, temporaries)?
+    {
+        return Ok(lowered);
+    }
+
     let source =
         lower_byte_collection_expression_to_value(&expression.object, context, temporaries)?;
     let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
@@ -4686,6 +4799,81 @@ fn lower_u8_index_expression_to_value(
     }
 }
 
+fn lower_fixed_array_u8_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredU8Value>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(expression, context, unsupported_u8_expression_diagnostic)?
+    else {
+        return Ok(None);
+    };
+    if access.element != AbiType::U8 {
+        return Ok(None);
+    }
+    if access.out_of_bounds {
+        return Ok(Some(LoweredU8Value {
+            instructions: vec![Instruction::Trap],
+            value: U8Value::Const(0),
+        }));
+    }
+
+    let temporary = temporaries.next_u8()?;
+    Ok(Some(LoweredU8Value {
+        instructions: vec![Instruction::LoadAggregateU8 {
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        }],
+        value: U8Value::Location(temporary),
+    }))
+}
+
+fn lower_usize_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if let Some(lowered) =
+        lower_fixed_array_usize_index_expression_to_value(expression, context, temporaries)?
+    {
+        return Ok(lowered);
+    }
+    lower_usize_slice_index_expression_to_value(expression, context, temporaries)
+}
+
+fn lower_fixed_array_usize_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredUsizeValue>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(expression, context, unsupported_usize_expression_diagnostic)?
+    else {
+        return Ok(None);
+    };
+    if access.element != AbiType::Usize {
+        return Ok(None);
+    }
+    if access.out_of_bounds {
+        return Ok(Some(LoweredUsizeValue {
+            instructions: vec![Instruction::Trap],
+            value: UsizeValue::Const(0),
+        }));
+    }
+
+    let temporary = temporaries.next_usize()?;
+    Ok(Some(LoweredUsizeValue {
+        instructions: vec![Instruction::LoadAggregateUsize {
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        }],
+        value: UsizeValue::Location(temporary),
+    }))
+}
+
 fn lower_usize_slice_index_expression_to_value(
     expression: &IndexExpr,
     context: &LoweringContext,
@@ -4732,6 +4920,56 @@ fn lower_i32_slice_index_expression_to_value(
     })
 }
 
+fn lower_bool_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    if let Some(lowered) = lower_fixed_array_bool_index_expression_to_value(
+        expression,
+        context,
+        diagnostic_code,
+        temporaries,
+    )? {
+        return Ok(lowered);
+    }
+    lower_bool_slice_index_expression_to_value(expression, context, diagnostic_code, temporaries)
+}
+
+fn lower_fixed_array_bool_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredBoolValue>, Vec<Diagnostic>> {
+    let Some(access) = fixed_array_element_access(expression, context, || {
+        unsupported_bool_expression_diagnostic(diagnostic_code)
+    })?
+    else {
+        return Ok(None);
+    };
+    if access.element != AbiType::Bool {
+        return Ok(None);
+    }
+    if access.out_of_bounds {
+        return Ok(Some(LoweredBoolValue {
+            instructions: vec![Instruction::Trap],
+            value: BoolValue::Const(false),
+        }));
+    }
+
+    let temporary = temporaries.next_bool()?;
+    Ok(Some(LoweredBoolValue {
+        instructions: vec![Instruction::LoadAggregateBool {
+            destination: temporary,
+            source: access.source,
+            offset: access.offset,
+        }],
+        value: BoolValue::Location(temporary),
+    }))
+}
+
 fn lower_bool_slice_index_expression_to_value(
     expression: &IndexExpr,
     context: &LoweringContext,
@@ -4754,6 +4992,67 @@ fn lower_bool_slice_index_expression_to_value(
             index: index.value,
         },
     })
+}
+
+fn lower_str_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    if let Some(lowered) =
+        lower_fixed_array_str_index_expression_to_value(expression, context, temporaries)?
+    {
+        return Ok(lowered);
+    }
+    lower_str_slice_index_expression_to_value(expression, context, temporaries)
+}
+
+fn lower_fixed_array_str_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredStrValue>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(expression, context, unsupported_str_expression_diagnostic)?
+    else {
+        return Ok(None);
+    };
+    if access.element != AbiType::StrView {
+        return Ok(None);
+    }
+    if access.out_of_bounds {
+        return Ok(Some(LoweredStrValue {
+            instructions: vec![Instruction::Trap],
+            value: StrValue::StaticBytes(Vec::new()),
+        }));
+    }
+
+    let temporary = temporaries.next_str()?;
+    let StrLocation::Local(index) = temporary else {
+        unreachable!("temporary str locations are local pairs");
+    };
+    let len_index = index
+        .checked_add(1)
+        .ok_or_else(unsupported_str_expression_diagnostic)?;
+    let len_offset = access
+        .offset
+        .checked_add(8)
+        .ok_or_else(unsupported_str_expression_diagnostic)?;
+    Ok(Some(LoweredStrValue {
+        instructions: vec![
+            Instruction::LoadAggregateUsize {
+                destination: UsizeLocation::Local(index),
+                source: access.source,
+                offset: access.offset,
+            },
+            Instruction::LoadAggregateUsize {
+                destination: UsizeLocation::Local(len_index),
+                source: access.source,
+                offset: len_offset,
+            },
+        ],
+        value: StrValue::Location(temporary),
+    }))
 }
 
 fn lower_str_slice_index_expression_to_value(

@@ -1,6 +1,7 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::ast::{
-    CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy,
+    CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -387,6 +388,36 @@ impl<'a> LoweringContext<'a> {
         }
         Some(substitute_type_expr_parameters(
             &return_type,
+            &self.generic_substitutions,
+        ))
+    }
+
+    pub(super) fn local_binding_type_expr_for_identifier(
+        &self,
+        identifier: &IdentifierExpr,
+    ) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let symbol = resolution
+            .resolved
+            .local_symbol_for_identifier(identifier)?;
+        let ty = resolution
+            .typecheck_facts
+            .binding_type_expr(symbol.name_span)?
+            .clone();
+        Some(substitute_type_expr_parameters(
+            &ty,
+            &self.generic_substitutions,
+        ))
+    }
+
+    pub(super) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let ty = resolution
+            .typecheck_facts
+            .binding_type_expr(name_span)?
+            .clone();
+        Some(substitute_type_expr_parameters(
+            &ty,
             &self.generic_substitutions,
         ))
     }

@@ -1,6 +1,7 @@
 //! Nocter ABI lowering and layout rules.
 
 use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
+use crate::literals::decode_integer_literal_value;
 use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceId;
 use std::collections::{HashMap, HashSet};
@@ -26,6 +27,7 @@ pub enum AbiType {
     Borrow,
     StrView,
     SliceView,
+    Array { element: Box<AbiType>, length: u64 },
     Struct(Vec<AbiField>),
 }
 
@@ -232,11 +234,26 @@ pub fn layout_of(ty: &AbiType) -> Result<ValueLayout, LayoutError> {
         | AbiType::Pointer
         | AbiType::Borrow => Ok(ValueLayout::new(8, 8)),
         AbiType::StrView | AbiType::SliceView => Ok(ValueLayout::new(16, 8)),
+        AbiType::Array { element, length } => layout_array(element, *length),
         AbiType::Struct(fields) => {
             let layout = layout_struct(fields)?;
             Ok(ValueLayout::new(layout.size, layout.align))
         }
     }
+}
+
+pub fn array_element_stride(element: &AbiType) -> Result<u64, LayoutError> {
+    let layout = layout_of(element)?;
+    align_to(layout.size, layout.align)
+}
+
+pub fn layout_array(element: &AbiType, length: u64) -> Result<ValueLayout, LayoutError> {
+    let layout = layout_of(element)?;
+    let stride = align_to(layout.size, layout.align)?;
+    let size = stride
+        .checked_mul(length)
+        .ok_or(LayoutError::SizeOverflow)?;
+    Ok(ValueLayout::new(size, layout.align))
 }
 
 pub fn layout_struct(fields: &[AbiField]) -> Result<StructLayout, LayoutError> {
@@ -759,11 +776,38 @@ where
             }
         }
         TypeExpr::View(_) => Ok(AbiTypeKind::UnsizedArray),
-        TypeExpr::Array(array) => Err(AbiTypeError::UnsupportedType(format!(
-            "[{}; {}]",
-            type_expr_display_lossy(&array.element),
-            array.length.value
-        ))),
+        TypeExpr::Array(array) => {
+            let element = match abi_type_kind_from_type_expr(
+                &array.element,
+                fallback_resolved,
+                resolver,
+                substitutions,
+                resolving_names,
+            )? {
+                AbiTypeKind::Value(ty) => ty,
+                AbiTypeKind::UnsizedStr => {
+                    return Err(AbiTypeError::UnsizedValue("str".to_string()));
+                }
+                AbiTypeKind::UnsizedArray => {
+                    return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                        &array.element,
+                    )));
+                }
+            };
+            let Some(length) = decode_integer_literal_value(&array.length.value)
+                .and_then(|value| u64::try_from(value).ok())
+            else {
+                return Err(AbiTypeError::UnsupportedType(format!(
+                    "[{}; {}]",
+                    type_expr_display_lossy(&array.element),
+                    array.length.value
+                )));
+            };
+            Ok(AbiTypeKind::Value(AbiType::Array {
+                element: Box::new(element),
+                length,
+            }))
+        }
         TypeExpr::Optional(optional) => Err(AbiTypeError::UnsupportedType(format!(
             "{}?",
             type_expr_display_lossy(&optional.inner)
@@ -888,6 +932,34 @@ mod tests {
     }
 
     #[test]
+    fn lays_out_fixed_array_values() {
+        assert_eq!(
+            layout_of(&AbiType::Array {
+                element: Box::new(AbiType::U8),
+                length: 4,
+            })
+            .unwrap(),
+            ValueLayout::new(4, 1)
+        );
+        assert_eq!(
+            layout_of(&AbiType::Array {
+                element: Box::new(AbiType::I32),
+                length: 3,
+            })
+            .unwrap(),
+            ValueLayout::new(12, 4)
+        );
+        assert_eq!(
+            layout_of(&AbiType::Array {
+                element: Box::new(AbiType::StrView),
+                length: 2,
+            })
+            .unwrap(),
+            ValueLayout::new(32, 8)
+        );
+    }
+
+    #[test]
     fn lays_out_struct_fields_in_declaration_order_with_padding() {
         let layout = layout_struct(&[
             AbiField::new("tag", AbiType::U8),
@@ -913,6 +985,22 @@ mod tests {
             classify_value(&AbiType::StrView).unwrap(),
             ValueClassification::Direct { words: 2 }
         );
+        assert_eq!(
+            classify_value(&AbiType::Array {
+                element: Box::new(AbiType::U8),
+                length: 16,
+            })
+            .unwrap(),
+            ValueClassification::Direct { words: 2 }
+        );
+        assert_eq!(
+            classify_value(&AbiType::Array {
+                element: Box::new(AbiType::U8),
+                length: 17,
+            })
+            .unwrap(),
+            ValueClassification::Indirect
+        );
 
         let string_like = AbiType::Struct(vec![
             AbiField::new("ptr", AbiType::Pointer),
@@ -923,6 +1011,40 @@ mod tests {
         assert_eq!(
             classify_value(&string_like).unwrap(),
             ValueClassification::Indirect
+        );
+    }
+
+    #[test]
+    fn maps_fixed_array_type_expr_to_abi_array_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"func load(): [u8; 4] {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "load" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected load function");
+
+        let value =
+            abi_value_from_type_expr_with_resolver(return_type, &resolved, |_| Some(&resolved))
+                .unwrap();
+
+        assert_eq!(
+            value.ty,
+            AbiType::Array {
+                element: Box::new(AbiType::U8),
+                length: 4,
+            }
+        );
+        assert_eq!(value.layout, ValueLayout::new(4, 1));
+        assert_eq!(
+            value.classification,
+            ValueClassification::Direct { words: 1 }
         );
     }
 

@@ -15,10 +15,11 @@ use super::literals::{lower_u16_literal, lower_u32_literal};
 use super::types::view_element_type_from_type_expr_with_resolver;
 use crate::abi::{
     AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
-    layout_of, layout_struct,
+    array_element_stride, layout_of, layout_struct,
 };
 use crate::ast::{
-    CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
+    ArrayLiteralExpr, CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -260,6 +261,94 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
         resolved,
         context,
     )
+}
+
+pub(super) fn lower_aggregate_array_literal_to_location(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_aggregate_array_literal_to_location_at_offset_with_temporaries(
+        literal,
+        expected_type,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        &mut temporaries,
+    )
+}
+
+fn lower_aggregate_array_literal_to_location_at_offset_with_temporaries(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let actual_layout = layout_of(expected_type).map_err(|_error| {
+        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+    })?;
+    if actual_layout != expected_layout {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let AbiType::Array { element, length } = expected_type else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    if u64::try_from(literal.elements.len()).ok() != Some(*length) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let stride = array_element_stride(element).map_err(|_error| {
+        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+    })?;
+    let mut instructions = Vec::new();
+    for (index, element_expr) in literal.elements.iter().enumerate() {
+        let element_offset = u64::try_from(index)
+            .ok()
+            .and_then(|index| index.checked_mul(stride))
+            .and_then(|offset| u64::from(base_offset).checked_add(offset))
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        instructions.extend(lower_aggregate_field_to_location(
+            element,
+            element_expr,
+            destination,
+            element_offset,
+            diagnostic_code,
+            subject,
+            resolved,
+            context,
+            temporaries,
+        )?);
+    }
+    Ok(instructions)
 }
 
 pub(super) fn lower_aggregate_struct_literal_to_location_with_temporaries(
@@ -755,6 +844,43 @@ fn lower_aggregate_field_to_location(
                 value,
             });
             Ok(instructions)
+        }
+        AbiType::Array { .. } => {
+            let expected_layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+
+            match expression {
+                Expr::ArrayLiteral(literal) => {
+                    lower_aggregate_array_literal_to_location_at_offset_with_temporaries(
+                        literal,
+                        field_type,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        resolved,
+                        context,
+                        temporaries,
+                    )
+                }
+                Expr::Group(group) => lower_aggregate_field_to_location(
+                    field_type,
+                    &group.expression,
+                    destination,
+                    offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                ),
+                _ => Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                )),
+            }
         }
         AbiType::Struct(fields) => {
             let expected_layout = layout_of(field_type).map_err(|_error| {

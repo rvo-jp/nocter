@@ -1,7 +1,7 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
     aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
-    lower_aggregate_struct_literal_to_location,
+    lower_aggregate_array_literal_to_location, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
@@ -86,6 +86,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_aggregate_struct_literal_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_aggregate_array_literal_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -632,6 +636,62 @@ fn lower_aggregate_struct_literal_binding(
     }];
     instructions.extend(lower_aggregate_struct_literal_to_location(
         literal,
+        value.layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "local bindings",
+        resolved,
+        context,
+    )?);
+    Ok(Some(instructions))
+}
+
+fn lower_aggregate_array_literal_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::ArrayLiteral(literal) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower fixed array literal bindings without resolved type information",
+        ));
+    };
+    let Some(ty) = context
+        .binding_type_expr(statement.name_span)
+        .or_else(|| statement.ty.clone())
+    else {
+        return Ok(None);
+    };
+
+    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| {
+        unsupported_binding_diagnostic(
+            "IR v0 can only lower fixed array literal bindings whose type has an ABI layout",
+        )
+    })?;
+    if !matches!(value.ty, AbiType::Array { .. }) {
+        return Ok(None);
+    }
+    validate_aggregate_binding_layout(value.layout)?;
+
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        value.layout,
+        true,
+        None,
+        Vec::new(),
+    );
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    }];
+    instructions.extend(lower_aggregate_array_literal_to_location(
+        literal,
+        &value.ty,
         value.layout,
         AggregateLocation::Slot(slot_index),
         "E8008",
