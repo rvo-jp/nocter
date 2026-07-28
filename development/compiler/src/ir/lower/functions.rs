@@ -829,9 +829,7 @@ fn lower_aggregate_parameter_kind(
     resolved_sources: &ResolvedSources<'_>,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    if !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
-        || !supported_aggregate_copy_layout(value.layout)
-    {
+    if !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. }) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
     let fields = aggregate_fields_from_type_expr_with_resolver(
@@ -858,7 +856,7 @@ fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<Diagnostic>
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters with non-empty ABI layouts for function `{function_name}`"
+            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, scalar borrow parameters, aggregate borrow parameters, and supported aggregate value parameters for function `{function_name}`"
         ),
     )]
 }
@@ -3448,7 +3446,6 @@ fn lower_aggregate_local_return_to_location(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
     if local.layout != expected_layout
-        || !supported_aggregate_copy_layout(local.layout)
         || (value_use == AggregateValueUse::ImplicitCopy && !local.is_copy)
     {
         return Err(unsupported_aggregate_return_diagnostic(function_name));

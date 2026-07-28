@@ -553,7 +553,6 @@ fn lower_otherwise_aggregate_binding(
     let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
         return Ok(None);
     };
-    validate_aggregate_binding_layout(layout)?;
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
@@ -791,7 +790,6 @@ fn lower_aggregate_normal_call_binding(
     let Some(layout) = aggregate_type_layout(&return_type) else {
         return Ok(None);
     };
-    validate_aggregate_binding_layout(layout)?;
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
@@ -828,7 +826,6 @@ fn lower_aggregate_fallible_call_binding(
     let Some(layout) = aggregate_type_layout(success.as_ref()) else {
         return Ok(None);
     };
-    validate_aggregate_binding_layout(layout)?;
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
     let drop_glue = call_success_drop_glue(call, context);
@@ -1389,7 +1386,7 @@ fn validate_aggregate_binding_layout(
 ) -> Result<(), Vec<Diagnostic>> {
     if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate call bindings with non-empty ABI layouts",
+            "IR v0 can only lower this aggregate binding with a non-empty ABI layout",
         ));
     }
     Ok(())

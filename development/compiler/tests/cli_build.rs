@@ -5423,6 +5423,63 @@ fn build_command_lowers_zero_length_fixed_array_copy_and_assignment() {
 }
 
 #[test]
+fn build_command_lowers_zero_length_fixed_array_parameters_calls_and_returns() {
+    let project = TempProject::new("cli-build-zero-length-fixed-array-parameters-calls-returns");
+    let source = project.write_source(
+        "zero_length_fixed_array_parameters_calls_returns.nct",
+        r#"func main(): i32 {
+    let empty: [u8; 0] = []
+    let copied: [u8; 0] = identity(empty)
+    let made: [u8; 0] = make_empty()
+    return consume(copied, made)
+}
+
+func identity(values: [u8; 0]): [u8; 0] {
+    return values
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func consume(left: [u8; 0], right: [u8; 0]): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_fallible_zero_length_fixed_array_call_result() {
+    let project = TempProject::new("cli-build-fallible-zero-length-fixed-array-call-result");
+    let source = project.write_source(
+        "fallible_zero_length_fixed_array_call_result.nct",
+        r#"func main(): i32 {
+    let empty: [u8; 0] = make_empty()!
+    let copied: [u8; 0] = empty
+    return 0
+}
+
+func make_empty(): [u8; 0]! {
+    return []
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_constant_index_compound_assignment() {
     let project = TempProject::new("cli-build-fixed-array-constant-index-compound-assignment");
     let source = project.write_source(

@@ -404,7 +404,7 @@ fn callable_function_signature_issues(
         issues.push(BuildabilityIssue {
             span: function.return_type.span(),
             construct: "function return types outside the v0 runtime ABI subset",
-            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, an aggregate with a non-empty ABI layout, or a fallible form of one of those types",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, a supported aggregate, or a fallible form of one of those types",
         });
     }
     issues
@@ -434,7 +434,7 @@ fn callable_method_signature_issues(
         issues.push(BuildabilityIssue {
             span: method.return_type.span(),
             construct: "method return types outside the v0 runtime ABI subset",
-            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, an aggregate with a non-empty ABI layout, or a fallible form of one of those types",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, a supported aggregate, or a fallible form of one of those types",
         });
     }
     issues
@@ -457,7 +457,7 @@ fn callable_parameter_issues(
             Some(BuildabilityIssue {
                 span: parameter.span,
                 construct: "function or method parameters outside the v0 runtime ABI subset",
-                help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or aggregate value parameters with non-empty ABI layouts",
+                help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or supported aggregate value parameters",
             })
         })
         .collect()
@@ -2111,13 +2111,12 @@ fn fixed_array_literal_return_is_buildable(
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
         return false;
     };
-    let Some((element, length, layout)) =
+    let Some((element, length, _layout)) =
         return_type.and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
     else {
         return false;
     };
-    layout.size > 0
-        && u64::try_from(literal.elements.len()).ok() == Some(length)
+    u64::try_from(literal.elements.len()).ok() == Some(length)
         && fixed_array_element_abi_is_buildable(&element)
 }
 
@@ -2204,7 +2203,7 @@ fn fixed_array_call_binding_is_buildable(
     ) else {
         return false;
     };
-    if target_layout.size == 0 || !fixed_array_element_abi_is_buildable(&target_element) {
+    if !fixed_array_element_abi_is_buildable(&target_element) {
         return false;
     }
 
@@ -3153,9 +3152,7 @@ where
 fn abi_value_is_supported_aggregate_value(value: &AbiValue) -> bool {
     match &value.ty {
         AbiType::Struct(_) => value.layout.size > 0,
-        AbiType::Array { element, .. } => {
-            value.layout.size > 0 && fixed_array_element_abi_is_buildable(element)
-        }
+        AbiType::Array { element, .. } => fixed_array_element_abi_is_buildable(element),
         _ => false,
     }
 }

@@ -1157,6 +1157,7 @@ impl EntryEmitter {
             }
             Type::Aggregate { .. } => {}
             Type::DirectAggregate { words, .. } => match words {
+                0 => {}
                 1 => {
                     self.encoder.emit_mov_x(XReg::X1, XReg::X0);
                 }

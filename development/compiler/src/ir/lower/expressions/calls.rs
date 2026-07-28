@@ -834,13 +834,6 @@ fn lower_aggregate_argument_source(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
     };
-    if !supported_aggregate_copy_layout(expected_layout) {
-        return Err(unsupported_aggregate_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    }
-
     match unwrap_group(argument) {
         Expr::Identifier(identifier) => lower_aggregate_local_argument_source(
             &identifier.name,
@@ -1105,13 +1098,6 @@ fn lower_aggregate_call_argument_source(
             parameter_type,
         ));
     };
-    if !supported_aggregate_copy_layout(layout) {
-        return Err(unsupported_aggregate_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    }
-
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (call_instructions, arguments) =
@@ -1160,13 +1146,6 @@ fn lower_aggregate_fallible_call_argument_source(
             parameter_type,
         ));
     };
-    if !supported_aggregate_copy_layout(layout) {
-        return Err(unsupported_aggregate_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    }
-
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (call_instructions, arguments) =

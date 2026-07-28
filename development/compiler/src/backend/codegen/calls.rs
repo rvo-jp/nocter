@@ -424,6 +424,9 @@ impl EntryEmitter {
 
         match destination {
             AggregateLocation::DirectReturn => {
+                if layout.size == 0 {
+                    return Ok(());
+                }
                 self.encoder.emit_mov_x(XReg::X0, XReg::X1);
                 if layout.size > 8 {
                     self.encoder.emit_mov_x(XReg::X1, XReg::X2);

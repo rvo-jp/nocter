@@ -17060,6 +17060,127 @@ fn lowers_zero_length_fixed_array_copy_binding_and_assignment() {
 }
 
 #[test]
+fn lowers_zero_length_fixed_array_parameters_calls_and_returns() {
+    let source = r#"func main(): i32 {
+    let empty: [u8; 0] = []
+    let copied: [u8; 0] = identity(empty)
+    let made: [u8; 0] = make_empty()
+    let answer: i32 = consume(copied, made)
+    return answer
+}
+
+func identity(values: [u8; 0]): [u8; 0] {
+    return values
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func consume(left: [u8; 0], right: [u8; 0]): i32 {
+    return 42
+}
+"#;
+    let layout = ValueLayout::new(0, 1);
+    let aggregate_type = Type::DirectAggregate { layout, words: 0 };
+
+    let identity = lower_named_function(source, "identity");
+    assert_eq!(
+        identity,
+        Function {
+            name: "identity".to_string(),
+            target: crate::ir::CallTarget::same_file("identity".to_string()),
+            return_type: aggregate_type.clone(),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    layout,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+
+    let make_empty = lower_named_function(source, "make_empty");
+    assert_eq!(
+        make_empty,
+        Function {
+            name: "make_empty".to_string(),
+            target: crate::ir::CallTarget::same_file("make_empty".to_string()),
+            return_type: aggregate_type.clone(),
+            instructions: vec![Instruction::Return],
+        }
+    );
+
+    let main = lower_named_function_with_signatures(
+        source,
+        "main",
+        function_signatures(vec![
+            (
+                "identity",
+                aggregate_type.clone(),
+                vec![aggregate_type.clone()],
+            ),
+            ("make_empty", aggregate_type.clone(), vec![]),
+            (
+                "consume",
+                Type::I32,
+                vec![aggregate_type.clone(), aggregate_type.clone()],
+            ),
+        ]),
+    )
+    .unwrap();
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("identity"),
+                arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout,
+                    words: 0,
+                })],
+                layout,
+            })
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(2),
+                target: CallTarget::same_file("make_empty"),
+                arguments: vec![],
+                layout,
+            })
+    );
+    assert!(main.instructions.contains(&Instruction::CallI32 {
+        destination: I32Location::Local(0),
+        target: CallTarget::same_file("consume"),
+        arguments: vec![
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(1),
+                layout,
+                words: 0,
+            }),
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(2),
+                layout,
+                words: 0,
+            }),
+        ],
+    }));
+}
+
+#[test]
 fn lowers_readwrite_usize_slice_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

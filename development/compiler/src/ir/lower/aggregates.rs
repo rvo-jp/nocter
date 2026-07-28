@@ -130,11 +130,10 @@ fn fixed_array_element_abi_is_runtime_copy(element: &AbiType) -> bool {
 }
 
 fn fixed_array_value_is_runtime_copy(value: AbiValue) -> bool {
-    value.layout.size > 0
-        && matches!(
-            value.ty,
-            AbiType::Array { ref element, .. } if fixed_array_element_abi_is_runtime_copy(element)
-        )
+    matches!(
+        value.ty,
+        AbiType::Array { ref element, .. } if fixed_array_element_abi_is_runtime_copy(element)
+    )
 }
 
 fn type_expr_is_copy_struct_inner<'a, F>(

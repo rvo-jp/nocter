@@ -32,12 +32,13 @@ aggregate moves in control-flow conditions, and unsupported outer aggregate
 moves/drops inside non-terminal control-flow branches/bodies are also rejected
 at the same boundary. Fixed array literal local bindings, including
 zero-length literal bindings, fixed array local copy bindings including
-zero-length copies, matching fixed array call-result bindings, fixed array value
-parameters, direct literal/local/call-result fixed array returns, whole-local
-fixed array assignment including zero-length literal/copy assignment, constant
-and variable index reads and simple writes are buildable for the current
-scalar/view element subset, with constant and variable numeric index compound
-assignment for `i32`, `u8`, and `usize`.
+zero-length copies, matching fixed array call-result bindings including
+zero-length results, fixed array value parameters including zero-length values,
+direct literal/local/call-result fixed array returns including zero-length
+returns, whole-local fixed array assignment including zero-length literal/copy
+assignment, constant and variable index reads and simple writes are buildable
+for the current scalar/view element subset, with constant and variable numeric
+index compound assignment for `i32`, `u8`, and `usize`.
 Unreachable body tails after proven terminal statements are ignored by return/reachability
 checking, buildability, and IR lowering. Buildability and IR lowering consume
 structured typechecker facts for binding types and method receiver kinds, and
@@ -63,7 +64,7 @@ imported call signatures. Hover labels remain editor presentation data.
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
-| Slices, fixed arrays, and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. Fixed array literal local bindings, including zero-length literal bindings, local copy bindings including zero-length copies, matching call-result bindings, value parameters, direct literal/local/call-result returns, whole-local assignment including zero-length literal/copy assignment, constant and variable index reads and simple writes for `i32`, `u8`, `usize`, `bool`, and `&str`, and constant and variable numeric index compound assignment for `i32`, `u8`, and `usize` build and run. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
+| Slices, fixed arrays, and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. Fixed array literal local bindings, including zero-length literal bindings, local copy bindings including zero-length copies, matching call-result bindings including zero-length results, value parameters including zero-length values, direct literal/local/call-result returns including zero-length returns, whole-local assignment including zero-length literal/copy assignment, constant and variable index reads and simple writes for `i32`, `u8`, `usize`, `bool`, and `&str`, and constant and variable numeric index compound assignment for `i32`, `u8`, and `usize` build and run. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths. |
 | Standard library | Tracked `development/std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
 | LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware basic completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. |
@@ -95,8 +96,8 @@ that will not be dereferenced.
 - targets other than `arm64-darwin`
 - broad control-flow lowering outside the documented subset
 - payload-carrying enum `if is` and `match` runtime lowering
-- broader fixed-array behavior: zero-sized fixed array call/return paths,
-  move-only element arrays, and general array runtime behavior
+- broader fixed-array behavior: move-only element arrays and general array
+  runtime behavior
 - broad pointer dereference and user memory mutation APIs
 - broad view iteration
 - bare string interpolation lowering without an explicit allocator source

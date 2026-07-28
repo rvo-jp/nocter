@@ -7278,6 +7278,35 @@ fn run_command_writes_fixed_array_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_binds_fallible_zero_length_fixed_array_call_result() {
+    let project = TempProject::new("cli-run-fallible-zero-length-fixed-array-call-result");
+    let source = project.write_source(
+        "fallible_zero_length_fixed_array_call_result.nct",
+        r#"func main(): i32 {
+    let empty: [u8; 0] = make_empty()!
+    let copied: [u8; 0] = empty
+    return 42
+}
+
+func make_empty(): [u8; 0]! {
+    return []
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_binds_zero_length_fixed_array_literal() {
     let project = TempProject::new("cli-run-zero-length-fixed-array-literal-binding");
     let source = project.write_source(
@@ -7311,6 +7340,44 @@ fn run_command_copies_and_assigns_zero_length_fixed_arrays() {
     let copied: [u8; 0] = empty
     empty = []
     empty = copied
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_passes_and_returns_zero_length_fixed_arrays() {
+    let project = TempProject::new("cli-run-zero-length-fixed-array-parameters-calls-returns");
+    let source = project.write_source(
+        "zero_length_fixed_array_parameters_calls_returns.nct",
+        r#"func main(): i32 {
+    let empty: [u8; 0] = []
+    let copied: [u8; 0] = identity(empty)
+    let made: [u8; 0] = make_empty()
+    return consume(copied, made)
+}
+
+func identity(values: [u8; 0]): [u8; 0] {
+    return values
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func consume(left: [u8; 0], right: [u8; 0]): i32 {
     return 42
 }
 "#,
