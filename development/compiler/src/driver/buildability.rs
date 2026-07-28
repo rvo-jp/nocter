@@ -3329,6 +3329,7 @@ fn collect_statement_diagnostics(
             if !assignment_operator_is_buildable(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -5623,6 +5624,7 @@ fn range_for_binding_type_is_buildable(
 fn assignment_operator_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -5646,14 +5648,43 @@ fn assignment_operator_is_buildable(
         Expr::Member(member) => {
             aggregate_field_compound_assignment_is_buildable(member.member_span, typecheck_facts)
         }
-        Expr::Index(index) => slice_index_compound_assignment_is_buildable(
-            &index.object,
-            resolved,
-            typecheck_facts,
-            generic_substitutions,
-        ),
+        Expr::Index(index) => {
+            fixed_array_index_compound_assignment_is_buildable(
+                index,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) || slice_index_compound_assignment_is_buildable(
+                &index.object,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )
+        }
         _ => false,
     }
+}
+
+fn fixed_array_index_compound_assignment_is_buildable(
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some((element, layout)) = fixed_array_index_target_abi(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+    ) else {
+        return false;
+    };
+    fixed_array_constant_index_value(&expression.index).is_some()
+        && layout.size > 0
+        && matches!(element, AbiType::I32 | AbiType::U8 | AbiType::Usize)
 }
 
 fn slice_index_compound_assignment_is_buildable(
@@ -6900,6 +6931,26 @@ fn fixed_array_index_expression_is_buildable(
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<bool> {
+    let (element, layout) = fixed_array_index_target_abi(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+    )?;
+    if fixed_array_constant_index_value(&expression.index).is_none() {
+        return Some(false);
+    }
+    Some(layout.size > 0 && fixed_array_element_abi_is_buildable(&element))
+}
+
+fn fixed_array_index_target_abi(
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<(AbiType, crate::abi::ValueLayout)> {
     let ty = fixed_array_index_target_type_expr(
         &expression.object,
         resolved,
@@ -6908,10 +6959,7 @@ fn fixed_array_index_expression_is_buildable(
     )?;
     let (element, _length, layout) =
         fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
-    if fixed_array_constant_index_value(&expression.index).is_none() {
-        return Some(false);
-    }
-    Some(layout.size > 0 && fixed_array_element_abi_is_buildable(&element))
+    Some((element, layout))
 }
 
 fn fixed_array_index_target_type_expr(

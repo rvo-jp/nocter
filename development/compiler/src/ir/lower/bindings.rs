@@ -1441,7 +1441,7 @@ fn lower_compound_assignment(
         Expr::Member(member) => {
             lower_compound_aggregate_field_assignment(statement, member, context)
         }
-        Expr::Index(index) => lower_compound_slice_index_assignment(statement, index, context),
+        Expr::Index(index) => lower_compound_index_assignment(statement, index, context),
         _ => Err(unsupported_assignment_diagnostic()),
     }
 }
@@ -1582,6 +1582,120 @@ fn lower_compound_aggregate_field_assignment(
                 value: U8Value::Location(current),
             });
             Ok(instructions)
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_compound_index_assignment(
+    statement: &AssignmentStmt,
+    target: &IndexExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) =
+        lower_fixed_array_index_compound_assignment(statement, target, context)?
+    {
+        return Ok(instructions);
+    }
+    lower_compound_slice_index_assignment(statement, target, context)
+}
+
+fn lower_fixed_array_index_compound_assignment(
+    statement: &AssignmentStmt,
+    target: &IndexExpr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(access) =
+        fixed_array_element_access(target, context, unsupported_assignment_diagnostic)?
+    else {
+        return Ok(None);
+    };
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    match access.element {
+        AbiType::I32 => {
+            let (mut instructions, right) = lower_i32_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+                return Ok(Some(instructions));
+            }
+            let current = temporaries.next_i32()?;
+            instructions.push(Instruction::LoadAggregateI32 {
+                destination: current,
+                source: access.source,
+                offset: access.offset,
+            });
+            instructions.push(i32_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateI32 {
+                destination: access.source,
+                offset: access.offset,
+                value: I32Value::Location(current),
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::U8 => {
+            let (mut instructions, right) = lower_u8_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+                return Ok(Some(instructions));
+            }
+            let current = temporaries.next_u8()?;
+            instructions.push(Instruction::LoadAggregateU8 {
+                destination: current,
+                source: access.source,
+                offset: access.offset,
+            });
+            instructions.push(u8_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateU8 {
+                destination: access.source,
+                offset: access.offset,
+                value: U8Value::Location(current),
+            });
+            Ok(Some(instructions))
+        }
+        AbiType::Usize => {
+            let (mut instructions, right) = lower_usize_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            if access.out_of_bounds {
+                instructions.push(Instruction::Trap);
+                return Ok(Some(instructions));
+            }
+            let current = temporaries.next_usize()?;
+            instructions.push(Instruction::LoadAggregateUsize {
+                destination: current,
+                source: access.source,
+                offset: access.offset,
+            });
+            instructions.push(usize_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: access.source,
+                offset: access.offset,
+                value: UsizeValue::Location(current),
+            });
+            Ok(Some(instructions))
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }

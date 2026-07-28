@@ -5355,6 +5355,30 @@ fn build_command_lowers_fixed_array_constant_index_assignment() {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_constant_index_compound_assignment() {
+    let project = TempProject::new("cli-build-fixed-array-constant-index-compound-assignment");
+    let source = project.write_source(
+        "fixed_array_constant_index_compound_assignment.nct",
+        r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    var bytes: [u8; 1] = [5]
+    var sizes: [usize; 1] = [9]
+    values[0] += 6
+    bytes[0] -= 1
+    sizes[0] %= 5
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_fixed_array_variable_index_assignment_before_ir_lowering() {
     let project = TempProject::new("cli-build-fixed-array-variable-index-assignment-boundary");
     let source = project.write_source(

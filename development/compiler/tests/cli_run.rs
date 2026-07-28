@@ -7118,6 +7118,49 @@ fn run_command_writes_fixed_array_constant_indices() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_applies_fixed_array_constant_index_compound_assignments() {
+    let project = TempProject::new("cli-run-fixed-array-constant-index-compound");
+    let source = project.write_source(
+        "fixed_array_constant_index_compound.nct",
+        r#"func main(): i32 {
+    var scores: [i32; 3] = [10, 10, 10]
+    var bytes: [u8; 2] = [8, 2]
+    var sizes: [usize; 2] = [9, 7]
+    scores[0] += 5
+    scores[1] *= 2
+    scores[2] -= 3
+    bytes[0] -= 4
+    bytes[1] *= 2
+    sizes[0] /= 3
+    sizes[1] %= 5
+    let score: i32 = scores[0] + scores[1] + scores[2]
+    let byte: u8 = bytes[1]
+    let size: usize = sizes[0] + sizes[1]
+    if score == 42 {
+        if byte == 4 {
+            if size == 5 {
+                return 42
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_fixed_array_constant_index_assignment_out_of_bounds() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-assignment-oob");
     let source = project.write_source(
