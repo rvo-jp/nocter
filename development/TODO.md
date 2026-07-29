@@ -199,6 +199,9 @@ Recommended order:
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
   not silently skipped by static payload extraction.
+- Imported direct `error` constructors are treated as payload constructors only
+  when their ABI is `(&str, &str) -> error`, including source-resolved aliases
+  such as `ErrorCode`.
 
 ## Session Start
 

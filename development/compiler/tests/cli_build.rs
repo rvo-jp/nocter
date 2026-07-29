@@ -8089,6 +8089,67 @@ func dynamic_message(): &str {
 }
 
 #[test]
+fn build_command_reports_imported_error_constructor_with_non_str_payload_before_ir_lowering() {
+    let project = TempProject::new("cli-build-imported-error-constructor-non-str-boundary");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_source(
+        "bad_error.nct",
+        r#"use std/error.Error
+
+pub func app_failed(code: i32, message: i32): error {
+    return Error.new("app.failed", "failed")
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_error_constructor_non_str_boundary.nct",
+        r#"use ./bad_error.app_failed
+
+func main(): i32! {
+    return app_failed(1, 2)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        "expected return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("3 | pub func app_failed(code: i32, message: i32): error {"),
+        "expected source line from imported helper, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_error_return_method_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-error-return-method-helper-boundary");
     project.write_nocter_home_file(
