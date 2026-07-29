@@ -132,10 +132,10 @@ Recommended order:
   `if` inside a catch block, before IR lowering with E0435.
 - Runtime `otherwise` is now explicitly gated to direct optional-returning calls
   in supported scalar/view value, binding, scalar/view assignment, and return
-  positions, and supported aggregate/fixed-array binding, argument,
-  aggregate-field initializer, assignment, and return positions. Nested/general
-  expression positions and broader fallback terminal-control shapes reject
-  before IR lowering with E0435.
+  positions, and supported aggregate/fixed-array member-root projection,
+  binding, argument, aggregate-field initializer, assignment, and return
+  positions. Nested/general expression positions and broader fallback
+  terminal-control shapes reject before IR lowering with E0435.
 - i32 unary negation now lowers as checked `0 - value` for non-literal operands;
   negative integer literals still use the existing constant-literal path.
 - Public `std/ptr.from_ref_mut` address conversion is now covered by CLI build,

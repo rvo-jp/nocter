@@ -7559,6 +7559,73 @@ func maybe_triple(flag: bool): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_aggregate_optional_otherwise_member_roots() {
+    let project = TempProject::new("cli-run-aggregate-optional-otherwise-member-roots");
+    let source = project.write_source(
+        "aggregate_optional_otherwise_member_roots.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: i32
+    second: i32
+    third: i32
+    fourth: i32
+    fifth: i32
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+}
+
+func main(): i32 {
+    let fallback = Packet{
+        prefix: 5,
+        header: Header{ tag: 1, ok: false, code: 7, len: 2 },
+        triple: Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
+    }
+    let code = (maybe_packet(false) otherwise { fallback }).header.code
+    let triple = (maybe_packet(true) otherwise { fallback }).triple
+    return code + triple.second + member_return_fallback()
+}
+
+func member_return_fallback(): i32 {
+    let code = (maybe_packet(false) otherwise { return 11 }).header.code
+    return code
+}
+
+func maybe_packet(flag: bool): Packet? {
+    if flag {
+        return Packet{
+            prefix: 6,
+            header: Header{ tag: 4, ok: true, code: 10, len: 4 },
+            triple: Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 },
+        }
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(48),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_constant_indices() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
     let source = project.write_source(

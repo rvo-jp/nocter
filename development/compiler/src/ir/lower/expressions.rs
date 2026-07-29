@@ -5,10 +5,11 @@ use super::aggregates::{
     supported_aggregate_copy_layout,
 };
 use super::bindings::{
-    lower_assignment, lower_bool_optional_otherwise_to_location,
-    lower_i32_optional_otherwise_to_location, lower_local_binding,
-    lower_slice_optional_otherwise_to_location, lower_str_optional_otherwise_to_location,
-    lower_u8_optional_otherwise_to_location, lower_usize_optional_otherwise_to_location,
+    lower_aggregate_optional_otherwise_to_location, lower_assignment,
+    lower_bool_optional_otherwise_to_location, lower_i32_optional_otherwise_to_location,
+    lower_local_binding, lower_slice_optional_otherwise_to_location,
+    lower_str_optional_otherwise_to_location, lower_u8_optional_otherwise_to_location,
+    lower_usize_optional_otherwise_to_location,
 };
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -24,7 +25,10 @@ use super::functions::{
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
-use super::types::scalar_or_view_type_from_type_expr;
+use super::types::{
+    return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
+    top_level_optional_success_abi_value_with_resolver,
+};
 mod calls;
 mod predicates;
 mod temporaries;
@@ -3938,6 +3942,14 @@ pub(super) fn lower_aggregate_member_field_access(
                 failure_mode,
             )
         }
+        AggregateMemberRoot::OptionalCall(otherwise) => {
+            lower_aggregate_optional_otherwise_member_field_access(
+                otherwise,
+                &access.field_path,
+                context,
+                temporaries,
+            )
+        }
     }
 }
 
@@ -3950,6 +3962,7 @@ enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
     FallibleCall(&'a CallExpr, FallibleFailureMode),
+    OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
 fn aggregate_member_access<'a>(
@@ -4009,6 +4022,10 @@ fn aggregate_member_root_and_path<'a>(
                 Vec::new(),
             )))
         }
+        Expr::Otherwise(otherwise) => Ok(Some((
+            AggregateMemberRoot::OptionalCall(otherwise),
+            Vec::new(),
+        ))),
         Expr::Member(member) => {
             let Some((root, mut fields)) = aggregate_member_root_and_path(&member.object, context)?
             else {
@@ -4050,6 +4067,9 @@ pub(super) fn aggregate_member_field_kind_from_member(
         AggregateMemberRoot::FallibleCall(call, _) => {
             aggregate_fallible_call_member_field_kind(call, &field_path, context)
         }
+        AggregateMemberRoot::OptionalCall(otherwise) => {
+            aggregate_optional_otherwise_member_field_kind(otherwise, &field_path, context)
+        }
     })
 }
 
@@ -4080,6 +4100,32 @@ fn aggregate_fallible_call_member_field_kind(
     member_name: &str,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
+    let (target, _) = context.direct_call_target_and_name(call)?;
+    let Type::Fallible(success_type) = context.call_return_type(&target)? else {
+        return None;
+    };
+    let layout = aggregate_type_layout(success_type.as_ref())?;
+    if !supported_aggregate_copy_layout(layout) {
+        return None;
+    }
+    aggregate_call_field(call, member_name, context).map(|field| field.kind)
+}
+
+fn aggregate_optional_otherwise_member_field_kind(
+    otherwise: &crate::ast::OtherwiseExpr,
+    member_name: &str,
+    context: &LoweringContext,
+) -> Option<AggregateFieldKind> {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return None;
+    };
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let return_type = context.call_return_type_expr(call)?;
+    if !return_type_expr_is_top_level_optional_with_resolver(&return_type, resolved, |source| {
+        context.resolved_source(source)
+    }) {
+        return None;
+    }
     let (target, _) = context.direct_call_target_and_name(call)?;
     let Type::Fallible(success_type) = context.call_return_type(&target)? else {
         return None;
@@ -4160,6 +4206,62 @@ fn lower_aggregate_call_member_field_access(
         arguments,
         layout,
     );
+
+    Ok(Some(LoweredAggregateFieldAccess {
+        instructions,
+        source: AggregateLocation::Slot(slot_index),
+        offset: field.offset,
+        kind: field.kind,
+        is_readwrite: false,
+        is_copy: true,
+    }))
+}
+
+fn lower_aggregate_optional_otherwise_member_field_access(
+    otherwise: &crate::ast::OtherwiseExpr,
+    member_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    let Some(expected_abi) =
+        top_level_optional_success_abi_value_with_resolver(&return_type, resolved, |source| {
+            context.resolved_source(source)
+        })
+    else {
+        return Ok(None);
+    };
+    if !matches!(expected_abi.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        || !supported_aggregate_copy_layout(expected_abi.layout)
+    {
+        return Ok(None);
+    }
+    let Some(field) = aggregate_call_field(call, member_name, context) else {
+        return Ok(None);
+    };
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_abi.layout,
+    }];
+    instructions.extend(lower_aggregate_optional_otherwise_to_location(
+        AggregateLocation::Slot(slot_index),
+        0,
+        expected_abi.layout,
+        Some(&expected_abi.ty),
+        otherwise,
+        context,
+        unsupported_aggregate_member_field_access_diagnostic,
+    )?);
 
     Ok(Some(LoweredAggregateFieldAccess {
         instructions,
@@ -5987,6 +6089,13 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
         "IR v0 can only lower i32 literals, parameters, arithmetic or shift expressions, and direct tail calls",
+    )]
+}
+
+fn unsupported_aggregate_member_field_access_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8008",
+        "IR v0 cannot lower this aggregate member field access",
     )]
 }
 

@@ -2186,6 +2186,41 @@ fn otherwise_aggregate_struct_field_type(
         .then_some(ty)
 }
 
+fn otherwise_aggregate_member_root_type(
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let otherwise = aggregate_member_root_otherwise(&member.object)?;
+    let Expr::Call(call) = unwrap_group_expr(&otherwise.value) else {
+        return None;
+    };
+    let return_type = call_return_type_expr_with_substitutions(
+        call,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    let ty = type_expr_top_level_optional_success_with_resolver(
+        &return_type,
+        resolved,
+        &source_resolver,
+    )?;
+    type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
+        .then_some(ty)
+}
+
+fn aggregate_member_root_otherwise(expression: &Expr) -> Option<&OtherwiseExpr> {
+    match unwrap_group_expr(expression) {
+        Expr::Otherwise(otherwise) => Some(otherwise),
+        Expr::Member(member) => aggregate_member_root_otherwise(&member.object),
+        _ => None,
+    }
+}
+
 fn call_argument_parameter_type(
     call: &CallExpr,
     index: usize,
@@ -3297,6 +3332,48 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_top_level_optional_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_top_level_optional_success_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_top_level_optional_success_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
+}
+
+fn type_expr_top_level_optional_success_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Optional(optional) => Some(optional.inner.as_ref().clone()),
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = type_expr_top_level_optional_success_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
 }
 
 fn type_expr_is_top_level_optional_inner<'a, F>(
@@ -7596,19 +7673,44 @@ fn collect_expression_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
-            collect_expression_diagnostics(
-                &expression.object,
-                sources,
+            if let Some(root_type) = otherwise_aggregate_member_root_type(
+                expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
-                root_source,
-                names,
-                resolved_sources,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
+            ) {
+                let otherwise = aggregate_member_root_otherwise(&expression.object)
+                    .expect("aggregate otherwise member helper checked expression shape");
+                collect_otherwise_aggregate_value_expression_diagnostics(
+                    otherwise,
+                    &root_type,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else {
+                collect_expression_diagnostics(
+                    &expression.object,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
         }
         Expr::Index(expression) => {
             if let Some(diagnostic) = unsupported_slice_index_diagnostic(
@@ -7666,8 +7768,8 @@ fn collect_expression_diagnostics(
             diagnostics.push(unsupported_v0_build_diagnostic(
                 sources,
                 expression.span,
-                "`otherwise` expressions outside direct scalar/view value, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
-                "use `otherwise` directly as a scalar/view value, aggregate argument, aggregate field initializer, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
+                "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
+                "use `otherwise` directly as a scalar/view value, aggregate member access root, aggregate argument, aggregate field initializer, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
             ));
             collect_expression_diagnostics(
                 &expression.value,
@@ -9952,6 +10054,64 @@ func maybe_triple(flag: bool): Triple? {
     }
 
     #[test]
+    fn accepts_reachable_aggregate_optional_otherwise_member_root_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: i32
+    second: i32
+    third: i32
+    fourth: i32
+    fifth: i32
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+}
+
+func main(): i32 {
+    let fallback = Packet{
+        prefix: 5,
+        header: Header{ tag: 1, ok: false, code: 7, len: 2 },
+        triple: Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
+    }
+    let code = (maybe_packet(false) otherwise { fallback }).header.code
+    let triple = (maybe_packet(true) otherwise { fallback }).triple
+    return code + triple.second + member_return_fallback()
+}
+
+func member_return_fallback(): i32 {
+    let code = (maybe_packet(false) otherwise { return 11 }).header.code
+    return code
+}
+
+func maybe_packet(flag: bool): Packet? {
+    if flag {
+        return Packet{
+            prefix: 6,
+            header: Header{ tag: 4, ok: true, code: 10, len: 4 },
+            triple: Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 },
+        }
+    }
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn accepts_reachable_generic_fixed_array_aggregate_field_boundary() {
         let (sources, analysis) = analyze_text(
             r#"copy struct Box<T> {
@@ -10278,7 +10438,7 @@ func source(): i32? {
         assert_eq!(diagnostics[0].code, "E0435");
         assert_eq!(
             diagnostics[0].message,
-            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate argument, aggregate field initializer, binding, assignment, or return positions yet"
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions yet"
         );
     }
 

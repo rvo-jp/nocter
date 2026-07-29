@@ -24491,6 +24491,121 @@ func maybe_triple(flag: bool): Triple? {
 }
 
 #[test]
+fn lowers_optional_aggregate_otherwise_member_roots() {
+    let packet_layout = ValueLayout::new(48, 8);
+    let triple_layout = ValueLayout::new(20, 4);
+    let packet_type = Type::Aggregate {
+        layout: packet_layout,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: i32
+    second: i32
+    third: i32
+    fourth: i32
+    fifth: i32
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+}
+
+func main(): i32 {
+    let fallback = Packet{
+        prefix: 5,
+        header: Header{ tag: 1, ok: false, code: 7, len: 2 },
+        triple: Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
+    }
+    let code = (maybe_packet(false) otherwise { fallback }).header.code
+    let triple = (maybe_packet(true) otherwise { fallback }).triple
+    return code + triple.second
+}
+
+func maybe_packet(flag: bool): Packet? {
+    return none
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "maybe_packet",
+            Type::Fallible(Box::new(packet_type.clone())),
+            vec![Type::Bool],
+        )]),
+    )
+    .unwrap();
+
+    let scalar_member_call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            arguments,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("maybe_packet")
+            && arguments.as_slice() == [ScalarArgument::Bool(BoolValue::Const(false))])
+        .then_some((*destination, instructions))
+    });
+    let Some((scalar_source, scalar_fallback)) = scalar_member_call else {
+        panic!("{function:?}");
+    };
+    assert!(scalar_fallback.contains(&Instruction::CopyAggregateRange {
+        destination: scalar_source,
+        destination_offset: 0,
+        source: AggregateLocation::Slot(0),
+        source_offset: 0,
+        layout: packet_layout,
+    }));
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::LoadAggregateI32 {
+            source,
+            offset: 12,
+            ..
+        } if *source == scalar_source
+    )));
+
+    let aggregate_member_call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            arguments,
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("maybe_packet")
+            && arguments.as_slice() == [ScalarArgument::Bool(BoolValue::Const(true))])
+        .then_some(*destination)
+    });
+    let Some(aggregate_source) = aggregate_member_call else {
+        panic!("{function:?}");
+    };
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CopyAggregateRange {
+            destination_offset: 0,
+            source,
+            source_offset: 24,
+            layout,
+            ..
+        } if *source == aggregate_source && *layout == triple_layout
+    )));
+}
+
+#[test]
 fn lowers_fallible_aggregate_force_unwrap_member_binding_as_trapping_fallible_call() {
     let packet_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),

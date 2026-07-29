@@ -994,6 +994,14 @@ fn lower_aggregate_member_binding(
                 context,
             )
         }
+        Some((AggregateMemberBindingRoot::OptionalCall(otherwise), field_path)) => {
+            lower_aggregate_optional_otherwise_member_binding(
+                statement,
+                otherwise,
+                &field_path,
+                context,
+            )
+        }
         None => Ok(None),
     }
 }
@@ -1175,6 +1183,81 @@ fn lower_aggregate_fallible_call_member_binding(
     Ok(Some(instructions))
 }
 
+fn lower_aggregate_optional_otherwise_member_binding(
+    statement: &BindingStmt,
+    otherwise: &crate::ast::OtherwiseExpr,
+    field_path: &str,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    let Some(expected_abi) =
+        top_level_optional_success_abi_value_with_resolver(&return_type, resolved, |source| {
+            context.resolved_source(source)
+        })
+    else {
+        return Ok(None);
+    };
+    if !matches!(expected_abi.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        || !supported_aggregate_copy_layout(expected_abi.layout)
+    {
+        return Ok(None);
+    }
+    let Some(field) = aggregate_call_field(call, field_path, context) else {
+        return Ok(None);
+    };
+    let source_offset = field.offset;
+    let is_copy = field.is_copy;
+    let Some((layout, fields)) = field.kind.copy_aggregate_layout_and_fields() else {
+        return Ok(None);
+    };
+    if !is_copy || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate member bindings from copy optional aggregate fields",
+        ));
+    }
+
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![
+        Instruction::ReserveAggregateSlot { slot_index, layout },
+        Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: expected_abi.layout,
+        },
+    ];
+    instructions.extend(lower_aggregate_optional_otherwise_to_location(
+        AggregateLocation::Slot(source_slot),
+        0,
+        expected_abi.layout,
+        Some(&expected_abi.ty),
+        otherwise,
+        context,
+        || {
+            unsupported_binding_diagnostic(
+                "IR v0 can only lower aggregate member bindings from copy optional aggregate fields",
+            )
+        },
+    )?);
+    instructions.push(Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(slot_index),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset,
+        layout,
+    });
+    Ok(Some(instructions))
+}
+
 fn lower_aggregate_slice_index_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
@@ -1224,6 +1307,7 @@ enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
     FallibleCall(&'a CallExpr, FallibleFailureMode),
+    OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
 struct CopyAggregateSliceElement {
@@ -1401,6 +1485,10 @@ fn aggregate_member_binding_root_and_path<'a>(
                 Vec::new(),
             )))
         }
+        Expr::Otherwise(otherwise) => Ok(Some((
+            AggregateMemberBindingRoot::OptionalCall(otherwise),
+            Vec::new(),
+        ))),
         Expr::Member(member) => {
             let Some((root, mut fields)) =
                 aggregate_member_binding_root_and_path(&member.object, context)?
