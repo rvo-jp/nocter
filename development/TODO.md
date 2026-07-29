@@ -192,6 +192,9 @@ Recommended order:
   decides whether value-producing control expressions are in scalar/view
   binding, assignment, or call-argument positions, and when it classifies
   discardable scalar/view/aggregate expression statements.
+- Buildability also resolves imported borrow aliases by declaring source when it
+  gates read-write borrow call arguments, so unsupported writable fixed-array
+  element borrows reject before IR lowering.
 - IR type normalization and drop glue resolution now resolve source-qualified
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.

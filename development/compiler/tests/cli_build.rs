@@ -2992,6 +2992,92 @@ func choose(value: IntRef, fallback: i32): i32 {
 }
 
 #[test]
+fn build_command_lowers_imported_readwrite_borrow_alias_argument() {
+    let project = TempProject::new("cli-build-imported-readwrite-borrow-alias-argument");
+    project.write_source(
+        "borrow_api.nct",
+        r#"pub type IntMut = &+i32
+
+pub func choose(value: IntMut, fallback: i32): i32 {
+    return fallback
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_readwrite_borrow_alias_argument.nct",
+        r#"use ./borrow_api.choose
+
+func main(): i32 {
+    var value = 1
+    return choose(&+value, 42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_imported_readwrite_borrow_alias_unsupported_argument_before_ir_lowering() {
+    let project =
+        TempProject::new("cli-build-imported-readwrite-borrow-alias-unsupported-argument");
+    project.write_source(
+        "borrow_api.nct",
+        r#"pub type IntMut = &+i32
+
+pub func touch(value: IntMut): void {
+    return
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_readwrite_borrow_alias_unsupported_argument.nct",
+        r#"use ./borrow_api.touch
+
+copy struct Pair {
+    values: [i32; 2]
+}
+
+func main(): void {
+    var pair = Pair{ values: [1, 2] }
+    touch(&+pair.values[0])
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("read-write borrow call arguments from unsupported expressions"),
+        "expected read-write borrow argument diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     touch(&+pair.values[0])"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_readonly_temporary_scalar_borrow_argument() {
     let project = TempProject::new("cli-build-readonly-temporary-scalar-borrow-argument");
     let source = project.write_source(

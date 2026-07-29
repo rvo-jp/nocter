@@ -7748,6 +7748,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -9447,9 +9448,11 @@ fn unsupported_borrow_call_argument_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
     let argument = call
         .arguments
         .iter()
@@ -9462,7 +9465,11 @@ fn unsupported_borrow_call_argument_diagnostic(
                 typecheck_facts,
                 generic_substitutions,
             )?;
-            if !type_expr_resolves_to_borrow(&parameter_ty, resolved) {
+            if !type_expr_resolves_to_borrow_with_resolver(
+                &parameter_ty,
+                resolved,
+                &source_resolver,
+            ) {
                 return None;
             }
             match unwrap_group_expr(argument) {
@@ -9621,18 +9628,30 @@ fn aggregate_member_root_is_identifier(expression: &Expr) -> bool {
     }
 }
 
-fn type_expr_resolves_to_borrow(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_resolves_to_borrow_inner(ty, resolved, &mut HashSet::new())
+fn type_expr_resolves_to_borrow_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_resolves_to_borrow_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
 }
 
-fn type_expr_resolves_to_borrow_inner(
+fn type_expr_resolves_to_borrow_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(_) => true,
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
@@ -9642,7 +9661,12 @@ fn type_expr_resolves_to_borrow_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return false;
             }
-            let resolves = type_expr_resolves_to_borrow_inner(target, resolved, resolving_names);
+            let resolves = type_expr_resolves_to_borrow_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             resolves
         }
