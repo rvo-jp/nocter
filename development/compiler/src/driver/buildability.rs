@@ -2671,57 +2671,6 @@ fn fixed_array_literal_assignment_is_buildable(
         && fixed_array_element_abi_is_buildable(&element)
 }
 
-fn fixed_array_literal_field_assignment_is_buildable(
-    statement: &AssignmentStmt,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> bool {
-    if statement.operator != AssignmentOperator::Assign {
-        return false;
-    }
-    let Expr::Member(member) = unwrap_group_expr(&statement.target) else {
-        return false;
-    };
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
-        return false;
-    };
-    let Some(ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
-        return false;
-    };
-    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    let Some((element, length, _layout)) =
-        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
-}
-
-fn fixed_array_literal_assignment_value_is_buildable(
-    statement: &AssignmentStmt,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> bool {
-    fixed_array_literal_assignment_is_buildable(
-        statement,
-        resolved,
-        resolved_sources,
-        typecheck_facts,
-        generic_substitutions,
-    ) || fixed_array_literal_field_assignment_is_buildable(
-        statement,
-        resolved,
-        resolved_sources,
-        typecheck_facts,
-        generic_substitutions,
-    )
-}
-
 fn unsupported_fixed_array_assignment_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,
@@ -2774,7 +2723,7 @@ fn unsupported_fixed_array_assignment_diagnostic(
     Some(unsupported_v0_build_diagnostic(
         sources,
         statement.target.span(),
-        "fixed array whole-local assignments outside supported replacement values",
+        "fixed array assignments outside supported replacement values",
         "assign a matching fixed array literal, copy another matching local or aggregate-field fixed array, or assign a matching fixed array call result until broader fixed array expression lowering is promoted",
     ))
 }
@@ -2786,15 +2735,19 @@ fn fixed_array_assignment_target_abi(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
-    let Expr::Identifier(identifier) = unwrap_group_expr(target) else {
-        return None;
+    let ty = match unwrap_group_expr(target) {
+        Expr::Identifier(identifier) => local_identifier_type_expr_with_substitutions(
+            identifier,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )?,
+        Expr::Member(member) => {
+            let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
+            substitute_type_expr_parameters(ty, generic_substitutions)
+        }
+        _ => return None,
     };
-    let ty = local_identifier_type_expr_with_substitutions(
-        identifier,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )?;
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
 }
 
@@ -4074,14 +4027,13 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            let assignment_is_fixed_array_literal =
-                fixed_array_literal_assignment_value_is_buildable(
-                    statement,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                );
+            let assignment_is_fixed_array_literal = fixed_array_literal_assignment_is_buildable(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            );
             if assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,
@@ -9403,6 +9355,73 @@ func unused(): bool {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_fixed_array_aggregate_field_assignment_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Bag {
+    values: [i32; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{ values: [1, 2] }
+    let replacement: [i32; 2] = [3, 4]
+    let other = Bag{ values: [5, 6] }
+    bag.values = [7, 8]
+    bag.values = replacement
+    bag.values = make_pair()
+    bag.values = make_fallible_pair()!
+    bag.values = other.values
+    return bag.values[0]
+}
+
+func make_pair(): [i32; 2] {
+    return [9, 10]
+}
+
+func make_fallible_pair(): [i32; 2]! {
+    return [11, 12]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_fixed_array_aggregate_field_control_assignment_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Bag {
+    values: [i32; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{ values: [1, 2] }
+    let replacement: [i32; 2] = [3, 4]
+    let other = Bag{ values: [5, 6] }
+    bag.values = if true {
+        replacement
+    } else {
+        other.values
+    }
+    return bag.values[0]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "E0435"
+                    && diagnostic.message
+                        == "Nocter v0 build cannot lower fixed array assignments outside supported replacement values yet"
+            }),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]
