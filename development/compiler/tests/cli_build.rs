@@ -5283,6 +5283,57 @@ func make<T>(item: T): T! {
 }
 
 #[test]
+fn build_command_reports_specialized_nested_fallible_type_parameter_return_before_ir_lowering() {
+    let project =
+        TempProject::new("cli-build-specialized-nested-fallible-type-parameter-return-boundary");
+    let source = project.write_source(
+        "specialized_nested_fallible_type_parameter_return_boundary.nct",
+        r#"func main(): i32 {
+    return consume(identity(make_value())!)
+}
+
+func consume(item: i32?): i32 {
+    return 0
+}
+
+func make_value(): (i32?)! {
+    return none
+}
+
+func identity<T>(item: T): T {
+    return item
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("nested fallible or optional return types"),
+        "expected specialized nested fallible return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("13 | func identity<T>(item: T): T {"),
+        "expected source line on generic return declaration, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_reachable_nested_fallible_method_return_before_ir_lowering() {
     let project = TempProject::new("cli-build-nested-fallible-method-return-boundary");
     let source = project.write_source(

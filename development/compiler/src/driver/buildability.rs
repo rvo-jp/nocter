@@ -351,6 +351,7 @@ impl<'a> IndexedCallable<'a> {
             substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
         issues.extend(nested_fallible_return_type_issue(
             &return_type,
+            method.return_type.span(),
             &file.resolved,
             resolved_sources,
         ));
@@ -9562,11 +9563,17 @@ fn nested_fallible_return_issue(
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
     let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
-    nested_fallible_return_type_issue(&return_type, resolved, resolved_sources)
+    nested_fallible_return_type_issue(
+        &return_type,
+        function.return_type.span(),
+        resolved,
+        resolved_sources,
+    )
 }
 
 fn nested_fallible_return_type_issue(
     return_type: &TypeExpr,
+    diagnostic_span: ByteSpan,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
@@ -9575,7 +9582,7 @@ fn nested_fallible_return_type_issue(
     }
 
     Some(BuildabilityIssue {
-        span: return_type.span(),
+        span: diagnostic_span,
         construct: "nested fallible or optional return types",
         help: "flatten the return boundary to a single optional or fallible layer until nested fallible lowering is promoted",
     })
