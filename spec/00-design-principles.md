@@ -29,9 +29,9 @@ Nocter treats simplicity as a product rule, not only as a syntax rule.
 
 The distribution model should be understandable at a glance. A normal user
 installs one `.nocter/` directory containing the compiler, metadata, and the
-standard library. Removing Nocter should mean deleting that directory and
-removing the `PATH` entry. This matters because easy removal makes the first
-trial lower risk.
+standard library, then exposes the compiler through one symlink in a directory
+already on `PATH`. Removing Nocter should mean deleting that symlink and that
+directory. This matters because easy removal makes the first trial lower risk.
 
 The compiler should be self-contained for normal use. Nocter should not ask
 users to install LLVM, `clang`, `as`, `ld`, a platform SDK, a language-specific

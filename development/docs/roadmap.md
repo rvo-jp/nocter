@@ -40,8 +40,9 @@ end to end:
   LLVM or an external linker.
 - Keep safety checks always enabled. Optimizers may remove checks only when they
   prove the trap condition impossible.
-- Keep Nocter home deterministic: use `NOCTER_HOME` or the compiler executable's
-  parent; do not silently search unrelated directories.
+- Keep Nocter home deterministic: use `NOCTER_HOME` or the resolved compiler
+  executable's parent, including normal `PATH` symlinks to `.nocter/nocter`;
+  do not silently search unrelated directories.
 - Keep target-dependent std declarations inside stable std files behind
   `#target(...)`.
 - Keep `interface` contract-only in v0. Do not introduce interface dispatch,

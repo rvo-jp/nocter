@@ -14,6 +14,7 @@ The specification entry point is [README.md](README.md).
 - Default entry function: `main`
 - User Nocter home: `~/.nocter/`
 - Initial archive root: `.nocter/`
+- Normal command exposure: `nocter` symlink in an existing `PATH` directory
 - Release metadata: `VERSION` and `MANIFEST.json`
 - Compiler command: `nocter`
 

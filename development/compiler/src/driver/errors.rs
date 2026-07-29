@@ -32,7 +32,7 @@ pub(super) fn filesystem_diagnostic(message: impl Into<String>) -> Diagnostic {
 pub(super) fn nocter_home_diagnostic(message: impl Into<String>) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(NOCTER_HOME_ERROR, message);
     diagnostic.help = Some(
-        "set `NOCTER_HOME` to the active Nocter home, or run the installed `nocter` binary"
+        "set `NOCTER_HOME` to the active Nocter home, or run `nocter` through a symlink to the installed `.nocter/nocter` binary"
             .to_string(),
     );
     diagnostic

@@ -83,7 +83,7 @@ nocter-v<version>-arm64-darwin.tar.gz
     std/
 ```
 
-The archive root is always `.nocter/`. Users install Nocter by extracting the archive so that `.nocter/` becomes `~/.nocter/`, or by moving the extracted `.nocter/` to another chosen Nocter home.
+The archive root is always `.nocter/`. Users install Nocter by extracting the archive so that `.nocter/` becomes `~/.nocter/`, or by moving the extracted `.nocter/` to another chosen Nocter home, then linking the installed `nocter` binary into a directory already on `PATH`.
 
 The installed layout is:
 
@@ -186,8 +186,8 @@ Rules:
 - The executable path resolution should resolve symlinks when the host can provide the real executable path.
 - `cwd/.nocter` is not searched automatically.
 - `~/.nocter` is not searched automatically.
-- The parent directory of the running `nocter` binary works naturally when the user runs `~/.nocter/nocter` through `PATH`.
-- If the user copies or symlinks `nocter` outside Nocter home and executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
+- A symlink such as `/usr/local/bin/nocter -> ~/.nocter/nocter` works naturally because the resolved real executable path still points inside Nocter home.
+- Copying `nocter` outside Nocter home is not a normal installation method. If executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
 - The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 
@@ -237,16 +237,18 @@ Build profile direction:
 - Profile options must not disable the safety checks specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
 - A release build may be faster because the optimizer proves checks unnecessary, not because checks are globally removed.
 
-Users install Nocter by placing the extracted `.nocter/` directory at `~/.nocter` or another location, then adding that directory to `PATH`.
+Users install Nocter by placing the extracted `.nocter/` directory at `~/.nocter` or another location, then creating a symlink named `nocter` in a directory already on `PATH`.
 
 Example shell setup:
 
 ```sh
-export PATH="$HOME/.nocter:$PATH"
+ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 ```
 
-`NOCTER_HOME` may point to the active Nocter home if the user does not want to
-rely on the location of the `nocter` executable.
+If the target bin directory requires elevated permissions, the user may use
+`sudo ln -s ...` or a user-owned directory that is already on `PATH`.
+`NOCTER_HOME` may point to the active Nocter home when symlink-based executable
+resolution is unavailable or intentionally bypassed.
 
 The repository keeps the canonical standard-library source in
 `development/std/` and release metadata templates in `development/packaging/`.

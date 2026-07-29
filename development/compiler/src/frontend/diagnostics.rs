@@ -93,7 +93,7 @@ pub(super) fn nocter_home_import_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(
-        "set `NOCTER_HOME` to the active Nocter home, or run the `nocter` binary from inside its installed `.nocter/` directory"
+        "set `NOCTER_HOME` to the active Nocter home, or run `nocter` through a symlink to the installed `.nocter/nocter` binary"
             .to_string(),
     );
     diagnostic

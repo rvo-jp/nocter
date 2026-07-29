@@ -437,7 +437,7 @@ Rules:
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
 - Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.
-- The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory.
+- The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory. This supports normal installs where a `PATH` directory contains a symlink to `~/.nocter/nocter`.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
 - The repository local release image `dist/.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
 

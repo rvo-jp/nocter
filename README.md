@@ -22,8 +22,8 @@ an external runtime library from the user.
 A language should be easy to try and easy to leave. The intended Nocter release
 shape is one `.nocter/` directory containing the compiler, metadata, and the
 standard library. Installing Nocter should mean unpacking that directory and
-adding it to `PATH`. Uninstalling Nocter should mean deleting that directory and
-removing the `PATH` entry.
+placing a `nocter` symlink in a directory already on `PATH`. Uninstalling
+Nocter should mean deleting the symlink and that one `.nocter/` directory.
 
 Nocter also comes from frustration with APIs that require users to inspect
 private implementation details before they can use the public surface safely.
@@ -86,30 +86,31 @@ directory:
 ```
 
 Install by placing `.nocter/` somewhere stable, for example under your home
-directory:
+directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
 tar -xzf nocter-v0-arm64-darwin.tar.gz -C "$HOME"
-export PATH="$HOME/.nocter:$PATH"
+ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
 
-To make the `PATH` change persistent on zsh:
+If `/usr/local/bin` requires elevated permissions, use `sudo ln -s ...` or
+choose a user-owned directory that is already on `PATH`, such as `~/.local/bin`
+when your shell already includes it.
+
+Do not copy the `nocter` binary out of `.nocter/`; the compiler locates its
+standard library from the real installed binary path. If symlinks are not
+available in your environment, set `NOCTER_HOME` explicitly:
 
 ```sh
-printf '\nexport PATH="$HOME/.nocter:$PATH"\n' >> ~/.zshrc
+export NOCTER_HOME="$HOME/.nocter"
 ```
 
 Uninstalling a `.nocter/` installation is intentionally plain:
 
 ```sh
+rm /usr/local/bin/nocter
 rm -rf "$HOME/.nocter"
-```
-
-Then remove this line from your shell configuration:
-
-```sh
-export PATH="$HOME/.nocter:$PATH"
 ```
 
 The current repository is pre-v0, so source builds are still the main way to

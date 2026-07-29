@@ -82,6 +82,49 @@ fn installed_nocter_uses_executable_parent_as_home_without_env() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn installed_nocter_symlink_uses_target_parent_as_home_without_env() {
+    let install = TempProject::new("distributed-home-symlink-installed-layout");
+    let home = install.root().join(".nocter");
+    write_minimal_nocter_home(&home);
+
+    let installed = home.join("nocter");
+    fs::copy(NOCTER, &installed).unwrap();
+    fs::set_permissions(&installed, fs::metadata(NOCTER).unwrap().permissions()).unwrap();
+
+    let bin = install.root().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    let linked = bin.join("nocter");
+    std::os::unix::fs::symlink(&installed, &linked).unwrap();
+
+    let output = Command::new(&linked)
+        .arg("doctor")
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let stdout = text(&output.stdout);
+    let expected_home = home.canonicalize().unwrap();
+    assert!(
+        stdout.contains(&format!("Nocter home: {}", expected_home.display()))
+            && stdout.contains("ok"),
+        "doctor stdout should report symlink target parent as home and ok:\n{stdout}"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
     let install = TempProject::new("distributed-home-lsp-installed-layout");
