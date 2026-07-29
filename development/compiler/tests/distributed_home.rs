@@ -2709,72 +2709,36 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_ptr_store_u8_helper_is_not_public_api() {
-    let project = TempProject::new("distributed-home-ptr-store-u8-private");
-    let source = project.write_source(
-        "ptr_store_u8_private.nct",
-        r#"use std/ptr.store_u8_to_ptr
+fn distributed_ptr_raw_helpers_are_not_public_api() {
+    for helper in [
+        "from_addr",
+        "pointee_size",
+        "copy_str_to_ptr",
+        "copy_ptr_to_ptr",
+        "store_u8_to_ptr",
+        "store_value_to_ptr",
+        "str_from_raw_parts",
+        "slice_from_raw_parts",
+        "slice_from_raw_parts_mut",
+        "slice_from_raw_parts_value",
+        "slice_from_raw_parts_value_mut",
+    ] {
+        let project = TempProject::new(&format!("distributed-home-ptr-{helper}-private"));
+        let source = project.write_source(
+            &format!("ptr_{helper}_private.nct"),
+            &format!(
+                r#"use std/ptr.{helper}
 
-func main(): i32 {
+func main(): i32 {{
     return 0
-}
-"#,
-    );
+}}
+"#
+            ),
+        );
 
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
-    );
-}
-
-#[test]
-fn distributed_ptr_slice_raw_parts_helpers_are_not_public_api() {
-    let project = TempProject::new("distributed-home-ptr-slice-raw-parts-private");
-    let source = project.write_source(
-        "ptr_slice_raw_parts_private.nct",
-        r#"use std/ptr.slice_from_raw_parts
-use std/ptr.slice_from_raw_parts_mut
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    let output = nocter_check(&project, &source);
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
-    assert!(
-        output.stdout.is_empty(),
-        "expected empty stdout, got:\n{}",
-        text(&output.stdout)
-    );
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
-        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
-    );
+        let output = nocter_check(&project, &source);
+        assert_pub_nocter_visibility_rejected(&output, helper);
+    }
 }
 
 #[test]
@@ -3897,6 +3861,28 @@ fn assert_success(output: &Output) {
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",
         text(&output.stderr)
+    );
+}
+
+fn assert_pub_nocter_visibility_rejected(output: &Output, imported_name: &str) {
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412")
+            && stderr.contains("pub(nocter)")
+            && stderr.contains(imported_name),
+        "expected pub(nocter) visibility diagnostic for `{imported_name}`, got:\n{stderr}"
     );
 }
 

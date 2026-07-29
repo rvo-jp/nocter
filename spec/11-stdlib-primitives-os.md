@@ -627,7 +627,7 @@ Initial primitive declaration modules:
 
 `std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
 
-`std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion, borrow-to-pointer conversion, and std-internal construction of string and byte views from raw storage.
+`std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion, borrow-to-pointer conversion, and std-internal construction and copying of string, byte, and typed views over raw storage.
 
 `std/string.nct` contains the target-independent `bytes_from_str` primitive used to expose `&str` storage as a byte slice inside the standard library.
 
@@ -650,18 +650,23 @@ pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
 pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive pointee_size<T>(pointer: *T): usize
 pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
+pub(nocter) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
 pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
 pub(nocter) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 ```
 
-`from_addr` and raw-storage view construction helpers are `pub(nocter)` and
-therefore restricted to trusted modules inside the active Nocter home. User
-project modules must not call them. Calls to `from_addr` with an address
-expression statically known to be zero are rejected because v0 raw pointers are
-non-null.
+`from_addr`, pointee sizing, raw-storage copy/store helpers, and raw-storage
+view construction helpers are `pub(nocter)` and therefore restricted to trusted
+modules inside the active Nocter home. User project modules must not call them.
+Calls to `from_addr` with an address expression statically known to be zero are
+rejected because v0 raw pointers are non-null.
 
 Initial core string primitive set:
 
