@@ -1014,6 +1014,82 @@ impl Raw {
 }
 
 #[test]
+fn check_reports_nocter_associated_function_call_from_user_project() {
+    let root = make_temp_project("nocter-associated-user-call");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/mem.Raw
+
+func main(): i32 {
+    return Raw.secret()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/mem.nct"),
+        r#"pub struct Raw {
+    value: i32
+}
+
+pub(nocter) func Raw.secret(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0388");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("has no associated function `secret`")
+    );
+}
+
+#[test]
+fn check_allows_nocter_associated_function_call_inside_nocter_home() {
+    let root = make_temp_project("nocter-associated-home-call");
+    let home = make_nocter_home(&root);
+    fs::write(
+        home.join("std/io.nct"),
+        r#"use std/mem.Raw
+
+func main(): i32 {
+    return Raw.secret()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/mem.nct"),
+        r#"pub struct Raw {
+    value: i32
+}
+
+pub(nocter) func Raw.secret(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(home.join("std/io.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_rejects_primitive_declaration_outside_nocter_home_std() {
     let root = make_temp_project("user-primitive");
     let home = make_nocter_home(&root);
