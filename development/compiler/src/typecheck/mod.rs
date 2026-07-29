@@ -26,6 +26,7 @@ mod strings;
 mod structs;
 mod type_expr;
 mod variants;
+mod visibility;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;

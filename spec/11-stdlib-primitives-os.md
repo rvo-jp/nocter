@@ -207,9 +207,9 @@ pub copy struct Layout {
 }
 
 pub struct RawBuffer {
-    pub ptr: *u8
-    pub len: usize
-    pub align: usize
+    pub(nocter) ptr: *u8
+    pub(nocter) len: usize
+    pub(nocter) align: usize
 }
 
 pub struct Allocator {
@@ -244,6 +244,10 @@ Rules:
 - Allocation failure is recoverable and returns the built-in `error` payload.
 - The initial allocator is page-backed. General allocator families are deferred.
 - `RawBuffer` owns raw byte storage and is not a typed collection.
+- `RawBuffer`'s representation fields are `pub(nocter)`: trusted std modules
+  may inspect and pass the raw storage boundary onward, but user project modules
+  must obtain views through the public `bytes`, `bytes_mut`, `prefix`,
+  `prefix_mut`, and method APIs.
 - User-facing collection APIs should be built on ordinary std types such as
   `Vec<T>`, not by exposing unchecked raw buffer mutation.
 - Target-dependent allocation helpers are std-internal and target-gated.

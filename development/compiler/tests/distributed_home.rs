@@ -2190,6 +2190,84 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_mem_raw_buffer_literal_is_not_public_api() {
+    let project = TempProject::new("distributed-home-raw-buffer-literal-private");
+    let source = project.write_source(
+        "raw_buffer_literal_private.nct",
+        r#"use std/mem.RawBuffer
+use std/ptr.from_ref
+
+func main(): i32 {
+    let byte: u8 = 0
+    let buffer = RawBuffer {
+        ptr: from_ref(&byte),
+        len: 1,
+        align: 1,
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0377") && stderr.contains("not visible here"),
+        "expected private RawBuffer field diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_std_mem_raw_buffer_fields_are_not_public_api() {
+    let project = TempProject::new("distributed-home-raw-buffer-fields-private");
+    let source = project.write_source(
+        "raw_buffer_fields_private.nct",
+        r#"use std/mem.{alloc, page_allocator}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 1, 1)?
+    let length = buffer.len
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0377") && stderr.contains("not visible here"),
+        "expected private RawBuffer field diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn distributed_io_file_methods_pass_check() {
     let project = TempProject::new("distributed-home-io-file-methods");
     let source = project.write_source(

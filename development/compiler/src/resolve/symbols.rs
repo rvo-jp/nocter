@@ -19,6 +19,7 @@ impl SymbolId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolveOutput {
     pub symbols: SymbolTable,
+    pub access: ImportAccess,
     pub diagnostics: Vec<Diagnostic>,
     pub(super) identifier_targets: HashMap<ByteSpan, SymbolId>,
     pub(super) call_targets: HashMap<ByteSpan, SymbolId>,
@@ -223,9 +224,10 @@ impl ResolveOutput {
             })
     }
 
-    pub(super) fn new() -> Self {
+    pub(super) fn new(access: ImportAccess) -> Self {
         Self {
             symbols: SymbolTable::new(),
+            access,
             diagnostics: Vec::new(),
             identifier_targets: HashMap::new(),
             call_targets: HashMap::new(),

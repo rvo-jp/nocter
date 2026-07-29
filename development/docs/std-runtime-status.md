@@ -50,7 +50,7 @@ The distribution must not require target-specific source file names such as
 | `std/error` | Runtime-shipped `ErrorCode`, `Error`, and `Error.new`. `new_error` is `pub(nocter)`. |
 | `std/string` | Runtime-shipped owned `String` with private representation, explicit allocation, copy from `&str`, view, len/capacity/is_empty, reserve, clear, push_str, bytes, and drop. |
 | `std/fmt` | Runtime-shipped append helpers for `&str`, `String`, `i32`, `usize`, and `bool`. Formatting APIs append into caller-owned `String` and do not choose an allocator. |
-| `std/mem` | Runtime-shipped narrow page allocator, `Layout`, `RawBuffer`, `Allocator`, alloc/free, bytes views, prefix views, and standard memory errors. |
+| `std/mem` | Runtime-shipped narrow page allocator, `Layout`, opaque `RawBuffer`, `Allocator`, alloc/free, bytes views, prefix views, and standard memory errors. `RawBuffer` storage fields are std-internal through `pub(nocter)`. |
 | `std/io` | Runtime-shipped narrow `File`, `open`, `read`, `write`, `write_text`, stdout/stderr, `print`, close-on-drop state, and raw fd helpers behind `pub(nocter)`. |
 | `std/process` | Runtime-shipped `exit`, `abort`, `cwd`, and `args` on `arm64-darwin`. `env(name): &str?!` is check-only. |
 | `std/vec` | Runtime-shipped narrow `Vec<T>` construction, capacity, len, is_empty, reserve, push, from_slice, clear, readonly/readwrite views, and storage release for scalar, `&str`, and current copy-aggregate element paths. |

@@ -12,6 +12,7 @@ use super::type_expr::{
     simple_type_from_display_name, type_expr_to_type_in_environment,
     type_expr_to_type_with_substitutions,
 };
+use super::visibility::member_visibility_is_accessible;
 use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
@@ -27,6 +28,7 @@ pub(super) fn struct_member_type(
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     Some(
         struct_field_for_member(member, struct_symbol)
+            .filter(|field| struct_field_is_accessible(field, member.member_span.source, resolved))
             .map(|field| {
                 struct_field_type_for_owner(
                     field,
@@ -48,6 +50,9 @@ pub(super) fn resolved_struct_field_for_member<'a>(
     let target_type = expression_type(&member.object, resolved, environment);
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     let field = struct_field_for_member(member, struct_symbol)?;
+    if !struct_field_is_accessible(field, member.member_span.source, resolved) {
+        return None;
+    }
     Some((struct_symbol, field))
 }
 
@@ -60,6 +65,9 @@ pub(super) fn resolved_struct_field_for_literal_field<'a>(
     let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     let field = struct_field_for_literal_field(field, struct_symbol)?;
+    if !struct_field_is_accessible(field, literal.ty.span().source, resolved) {
+        return None;
+    }
     Some((struct_symbol, field))
 }
 
@@ -84,11 +92,21 @@ pub(super) fn check_struct_member_expression(
         return;
     };
 
-    if struct_field_for_member(member, struct_symbol).is_none() {
+    let Some(field) = struct_field_for_member(member, struct_symbol) else {
         diagnostics.push(struct_field_unknown_diagnostic(
             sources,
             member,
             struct_symbol,
+        ));
+        return;
+    };
+
+    if !struct_field_is_accessible(field, member.member_span.source, resolved) {
+        diagnostics.push(struct_literal_inaccessible_field_diagnostic(
+            sources,
+            member.member_span,
+            struct_symbol,
+            field,
         ));
     }
 }
@@ -115,6 +133,9 @@ pub(super) fn struct_literal_field_type(
     let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     let expected_field = struct_field_for_literal_field(field, struct_symbol)?;
+    if !struct_field_is_accessible(expected_field, literal.ty.span().source, resolved) {
+        return None;
+    }
     Some(struct_field_type_for_owner(
         expected_field,
         struct_symbol,
@@ -168,7 +189,7 @@ pub(super) fn check_struct_literal_expression(
             continue;
         };
 
-        if !expected_field.is_accessible {
+        if !struct_field_is_accessible(expected_field, field.name_span.source, resolved) {
             diagnostics.push(struct_literal_inaccessible_field_diagnostic(
                 sources,
                 field.name_span,
@@ -207,7 +228,7 @@ pub(super) fn check_struct_literal_expression(
             continue;
         }
 
-        if expected_field.is_accessible {
+        if struct_field_is_accessible(expected_field, literal.ty.span().source, resolved) {
             diagnostics.push(struct_literal_missing_field_diagnostic(
                 sources,
                 literal,
@@ -378,4 +399,13 @@ fn struct_field_for_literal_field<'a>(
         .fields
         .iter()
         .find(|expected| expected.name == field.name)
+}
+
+fn struct_field_is_accessible(
+    field: &StructFieldSignature,
+    use_source: crate::source::SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    field.is_accessible
+        && member_visibility_is_accessible(field.visibility, field.name_span, use_source, resolved)
 }

@@ -87,7 +87,8 @@ The current distributed std supports:
 - `std/string`: owned `String`, explicit allocation, views, metadata, reserve,
   clear, append support, bytes view, and drop
 - `std/fmt`: append helpers for `&str`, `String`, `i32`, `usize`, and `bool`
-- `std/mem`: page allocator, raw buffers, and byte-slice views
+- `std/mem`: page allocator, opaque raw buffers with std-internal
+  representation fields, and byte-slice views
 - `std/io`: `File`, open/read/write/write_text, stdout/stderr, and `print`
 - `std/process`: `exit`, `abort`, `cwd`, and `args`
 - `std/vec`: construction, capacity, push, from-slice, views, mutation through

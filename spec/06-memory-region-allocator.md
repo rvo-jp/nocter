@@ -68,9 +68,9 @@ pub copy struct Layout {
 }
 
 pub struct RawBuffer {
-    pub ptr: *u8
-    pub len: usize
-    pub align: usize
+    pub(nocter) ptr: *u8
+    pub(nocter) len: usize
+    pub(nocter) align: usize
 }
 
 pub struct Allocator {
@@ -94,7 +94,11 @@ Rules:
 - Out-of-memory is reported as `"std.mem.out_of_memory"`.
 - Invalid size / alignment requests are reported as `"std.mem.invalid_argument"`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
-- `RawBuffer` is a low-level standard-library type for untyped bytes.
+- `RawBuffer` is a low-level standard-library type for owned untyped bytes.
+- `RawBuffer`'s representation fields are `pub(nocter)`. User code cannot
+  construct a `RawBuffer` literal or inspect its pointer, length, and alignment
+  fields directly; it must use `std/mem` functions and methods such as `bytes`,
+  `bytes_mut`, `prefix`, `prefix_mut`, and `free`.
 - General application code should prefer owning wrappers such as `String` and `Buffer<T>`.
 - `RawBuffer` values allocated from a region allocator are region-owned and cannot escape that region.
 - `Allocator` values derived from a region handle cannot escape that region.

@@ -12,6 +12,7 @@ use super::type_expr::{
     infer_type_expr_substitutions, simple_type_from_display_name,
     type_expr_to_type_with_substitutions,
 };
+use super::visibility::member_visibility_is_accessible;
 use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{
@@ -179,7 +180,7 @@ pub(super) fn resolved_method_for_call<'a>(
     let self_type = method_self_type_for_receiver(&receiver_type);
     let owner = inherent_method_owner_for_type(&self_type, resolved)?;
     let method = owner.methods.iter().find(|method| {
-        method.is_accessible
+        method_is_accessible(method, member.member_span.source, resolved)
             && method.name == member.member
             && method_applies_to_receiver(method, &self_type, resolved)
     })?;
@@ -337,11 +338,10 @@ pub(super) fn check_unresolved_member_call(
         return;
     };
 
-    if let Some(field) = owner
-        .fields
-        .iter()
-        .find(|field| field.is_accessible && field.name == member.member)
-    {
+    if let Some(field) = owner.fields.iter().find(|field| {
+        field_is_accessible(field, member.member_span.source, resolved)
+            && field.name == member.member
+    }) {
         diagnostics.push(field_called_as_method_diagnostic(
             sources, member, owner, field,
         ));
@@ -425,6 +425,29 @@ fn inherent_method_owner_for_type<'a>(
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
+}
+
+fn method_is_accessible(
+    method: &MethodSignature,
+    use_source: crate::source::SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    method.is_accessible
+        && member_visibility_is_accessible(
+            method.visibility,
+            method.name_span,
+            use_source,
+            resolved,
+        )
+}
+
+fn field_is_accessible(
+    field: &crate::resolve::StructFieldSignature,
+    use_source: crate::source::SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    field.is_accessible
+        && member_visibility_is_accessible(field.visibility, field.name_span, use_source, resolved)
 }
 
 pub(super) fn method_self_type_for_receiver(receiver_type: &Type) -> Type {

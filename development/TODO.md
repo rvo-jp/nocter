@@ -48,6 +48,10 @@ Recommended order:
   runtime-shipped address conversions. `from_addr` and raw storage helpers
   remain trusted `pub(nocter)` boundaries; pointer dereference is still
   deferred.
+- `std/mem.RawBuffer` is a public owning byte-buffer handle, but its
+  `ptr`/`len`/`align` representation fields are `pub(nocter)`. User code must
+  use `std/mem` functions and methods instead of forging or inspecting raw
+  buffers directly.
 - `Vec<T>` supports scalar, `&str`, and current copy-aggregate element storage
   paths. Non-copy aggregate element drop glue, insertion/removal APIs, and
   iteration helpers remain deferred.
