@@ -8339,6 +8339,51 @@ func check(pair: Pair): i32 {
 }
 
 #[test]
+fn build_command_rejects_implicit_non_copy_generic_copy_struct_argument() {
+    let project =
+        TempProject::new("cli-build-reject-implicit-non-copy-generic-copy-struct-argument");
+    let source = project.write_source(
+        "implicit_non_copy_generic_copy_struct_argument.nct",
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<Text>{ value: Text{ len: 42 } }
+    return read(box)
+}
+
+func read(box: Box<Text>): i32 {
+    return box.value.len
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0392]"),
+        "expected aggregate argument typecheck diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(
+            "cannot implicitly copy move-only copy-struct instantiation `Box<Text>` from `box`"
+        ),
+        "expected generic copy struct argument diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("|     return read(box)"),
+        "expected source line for generic copy struct argument diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn build_command_rejects_implicit_non_copy_aggregate_return() {
     let project = TempProject::new("cli-build-reject-implicit-non-copy-aggregate-return");
     let source = project.write_source(

@@ -395,6 +395,55 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_binding_from_copy_struct_instantiation_with_copy_type_argument() {
+    let diagnostics = check_text(
+        r#"copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let source = Box<i32>{ value: 21 }
+    let target = source
+    return source.value + target.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_binding_from_copy_struct_instantiation_with_non_copy_type_argument() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let source = Box<Text>{ value: Text{ len: 42 } }
+    let target = source
+    return target.value.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("move-only copy-struct instantiation")
+    );
+    assert!(diagnostics[0].message.contains("Box<Text>"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
 fn diagnoses_binding_from_move_only_fixed_array_binding() {
     let diagnostics = check_text(
         r#"struct Text {

@@ -344,6 +344,11 @@ Rules:
 - Types are move-only by default.
 - `copy struct` types are implicitly copyable.
 - Every field of a `copy struct` must be copyable.
+- A generic `copy struct` is copyable per concrete instantiation. After
+  substituting type arguments into the fields, every concrete field type must
+  be copyable. For example, `copy struct Box<T> { value: T }` is copyable as
+  `Box<i32>` but move-only as `Box<String>`, while a field such as `&T` remains
+  copyable for any `T`.
 - A `copy struct` cannot define `drop`.
 - A `copy struct` must not own resources that require destruction.
 - Primitive numeric types, `bool`, and raw pointers are copyable.

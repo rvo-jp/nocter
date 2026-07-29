@@ -2,11 +2,12 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use crate::ast::{Expr, TypeExpr};
 use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NonCopyOwnedValueKind {
     Struct,
+    CopyStructInstantiation,
     Enum,
     FixedArray,
     Optional,
@@ -17,6 +18,7 @@ impl NonCopyOwnedValueKind {
     pub(super) fn noun(self) -> &'static str {
         match self {
             NonCopyOwnedValueKind::Struct => "non-copy struct",
+            NonCopyOwnedValueKind::CopyStructInstantiation => "move-only copy-struct instantiation",
             NonCopyOwnedValueKind::Enum => "move-only enum",
             NonCopyOwnedValueKind::FixedArray => "move-only fixed array",
             NonCopyOwnedValueKind::Optional => "move-only optional value",
@@ -28,6 +30,9 @@ impl NonCopyOwnedValueKind {
         match self {
             NonCopyOwnedValueKind::Struct => format!(
                 "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
+            ),
+            NonCopyOwnedValueKind::CopyStructInstantiation => format!(
+                "use copyable type arguments for `{type_name}` or write `move {source_name}` to transfer ownership"
             ),
             NonCopyOwnedValueKind::Enum => format!(
                 "payload-carrying enums are move-only in v0; write `move {source_name}` to transfer ownership"
@@ -53,7 +58,7 @@ pub(super) struct NonCopyOwnedValueSource {
 }
 
 pub(super) fn type_expr_is_copy(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
-    type_expr_is_copy_inner(ty, resolved, &mut HashSet::new())
+    type_expr_is_copy_inner(ty, resolved, &HashMap::new(), &mut HashSet::new())
 }
 
 pub(super) fn implicit_non_copy_owned_value_source(
@@ -140,31 +145,14 @@ fn non_copy_owned_type_kind_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<NonCopyOwnedValueKind> {
     match ty {
-        Type::Named(name) | Type::Generic { name, .. } => {
+        Type::Named(name) => {
             let symbol = resolved.type_symbol_by_canonical_name(name)?;
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return None;
-            }
-
-            let kind = match symbol.kind {
-                TypeSymbolKind::Struct if !symbol.is_copy => Some(NonCopyOwnedValueKind::Struct),
-                TypeSymbolKind::Enum
-                    if symbol
-                        .variants
-                        .iter()
-                        .any(|variant| !variant.payload.is_empty()) =>
-                {
-                    Some(NonCopyOwnedValueKind::Enum)
-                }
-                TypeSymbolKind::Alias => symbol.alias_target.as_ref().and_then(|target| {
-                    let target_type = super::type_expr::type_expr_to_type(target, resolved);
-                    non_copy_owned_type_kind_inner(&target_type, resolved, resolving_names)
-                }),
-                TypeSymbolKind::Struct | TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
-            };
-
-            resolving_names.remove(&symbol.canonical_name);
-            kind
+            non_copy_owned_type_symbol_kind(symbol, resolved, &HashMap::new(), resolving_names)
+        }
+        Type::Generic { name, arguments } => {
+            let symbol = resolved.type_symbol_by_canonical_name(name)?;
+            let substitutions = type_argument_substitutions(symbol, arguments)?;
+            non_copy_owned_type_symbol_kind(symbol, resolved, &substitutions, resolving_names)
         }
         Type::Array { element, .. }
             if !type_is_copy_inner(element, resolved, &mut HashSet::new()) =>
@@ -184,6 +172,44 @@ fn non_copy_owned_type_kind_inner(
     }
 }
 
+fn non_copy_owned_type_symbol_kind(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> Option<NonCopyOwnedValueKind> {
+    match symbol.kind {
+        TypeSymbolKind::Struct if !symbol.is_copy => Some(NonCopyOwnedValueKind::Struct),
+        TypeSymbolKind::Struct => {
+            (!type_symbol_is_copy_maybe(symbol, resolved, substitutions, resolving_names)
+                .unwrap_or(false))
+            .then_some(NonCopyOwnedValueKind::CopyStructInstantiation)
+        }
+        TypeSymbolKind::Enum => symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+            .then_some(NonCopyOwnedValueKind::Enum),
+        TypeSymbolKind::Alias => {
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let kind = symbol.alias_target.as_ref().and_then(|target| {
+                let target_type = super::type_expr::type_expr_to_type_with_substitutions(
+                    target,
+                    resolved,
+                    None,
+                    substitutions,
+                );
+                non_copy_owned_type_kind_inner(&target_type, resolved, resolving_names)
+            });
+            resolving_names.remove(&symbol.canonical_name);
+            kind
+        }
+        TypeSymbolKind::Interface => None,
+    }
+}
+
 fn non_copy_struct_symbol<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {
     let canonical_name = ty.nominal_name()?;
     resolved
@@ -194,6 +220,7 @@ fn non_copy_struct_symbol<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<
 fn type_expr_is_copy_inner(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
@@ -201,24 +228,62 @@ fn type_expr_is_copy_inner(
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => Some(true),
             "str" | "void" | "never" | "Self" => Some(false),
-            name => resolved
-                .type_symbol_by_reference_name(name)
-                .map(|symbol| type_symbol_is_copy(symbol, resolved, resolving_names)),
+            name => {
+                if let Some(ty) = substitutions.get(name) {
+                    return type_is_copy_maybe_inner(ty, resolved, resolving_names);
+                }
+                resolved
+                    .type_symbol_by_reference_name(name)
+                    .and_then(|symbol| {
+                        type_symbol_is_copy_maybe(
+                            symbol,
+                            resolved,
+                            &HashMap::new(),
+                            resolving_names,
+                        )
+                    })
+            }
         },
         TypeExpr::Borrow(borrow) => Some(!borrow.is_readwrite),
         TypeExpr::Pointer(_) => Some(true),
         TypeExpr::Array(array) => {
-            type_expr_is_copy_inner(&array.element, resolved, resolving_names)
+            type_expr_is_copy_inner(&array.element, resolved, substitutions, resolving_names)
         }
         TypeExpr::Optional(optional) => {
-            type_expr_is_copy_inner(&optional.inner, resolved, resolving_names)
+            type_expr_is_copy_inner(&optional.inner, resolved, substitutions, resolving_names)
         }
         TypeExpr::Fallible(fallible) => {
-            let success = type_expr_is_copy_inner(&fallible.success, resolved, resolving_names)?;
-            let error = type_expr_is_copy_inner(&fallible.error, resolved, resolving_names)?;
+            let success = type_expr_is_copy_inner(
+                &fallible.success,
+                resolved,
+                substitutions,
+                resolving_names,
+            )?;
+            let error =
+                type_expr_is_copy_inner(&fallible.error, resolved, substitutions, resolving_names)?;
             Some(success && error)
         }
-        TypeExpr::Generic(_) | TypeExpr::View(_) => None,
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            if symbol.generic_parameters.len() != generic.arguments.len() {
+                return None;
+            }
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(|argument| {
+                    super::type_expr::type_expr_to_type_with_substitutions(
+                        argument,
+                        resolved,
+                        None,
+                        substitutions,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let nested_substitutions = type_argument_substitutions(symbol, &arguments)?;
+            type_symbol_is_copy_maybe(symbol, resolved, &nested_substitutions, resolving_names)
+        }
+        TypeExpr::View(_) => None,
     }
 }
 
@@ -227,22 +292,38 @@ fn type_is_copy_inner(
     resolved: &ResolveOutput,
     resolving_names: &mut HashSet<String>,
 ) -> bool {
+    type_is_copy_maybe_inner(ty, resolved, resolving_names).unwrap_or(false)
+}
+
+fn type_is_copy_maybe_inner(
+    ty: &Type,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<bool> {
     match ty {
-        Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => true,
+        Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => Some(true),
         Type::View {
             is_readwrite: false,
             ..
-        } => true,
+        } => Some(true),
         Type::Array { element, .. } | Type::Optional(element) => {
-            type_is_copy_inner(element, resolved, resolving_names)
+            type_is_copy_maybe_inner(element, resolved, resolving_names)
         }
         Type::Fallible { success, error } => {
-            type_is_copy_inner(success, resolved, resolving_names)
-                && type_is_copy_inner(error, resolved, resolving_names)
+            let success = type_is_copy_maybe_inner(success, resolved, resolving_names)?;
+            let error = type_is_copy_maybe_inner(error, resolved, resolving_names)?;
+            Some(success && error)
         }
-        Type::Named(name) | Type::Generic { name, .. } => resolved
+        Type::Named(name) => resolved
             .type_symbol_by_canonical_name(name)
-            .is_some_and(|symbol| type_symbol_is_copy(symbol, resolved, resolving_names)),
+            .and_then(|symbol| {
+                type_symbol_is_copy_maybe(symbol, resolved, &HashMap::new(), resolving_names)
+            }),
+        Type::Generic { name, arguments } => {
+            let symbol = resolved.type_symbol_by_canonical_name(name)?;
+            let substitutions = type_argument_substitutions(symbol, arguments)?;
+            type_symbol_is_copy_maybe(symbol, resolved, &substitutions, resolving_names)
+        }
         Type::StrData
         | Type::Void
         | Type::Never
@@ -250,37 +331,82 @@ fn type_is_copy_inner(
         | Type::ArrayData { .. }
         | Type::View {
             is_readwrite: true, ..
-        }
-        | Type::Parameter(_)
-        | Type::Unresolved(_)
-        | Type::Unknown => false,
+        } => Some(false),
+        Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => None,
     }
 }
 
-fn type_symbol_is_copy(
+fn type_symbol_is_copy_maybe(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> Option<bool> {
     if !resolving_names.insert(symbol.canonical_name.clone()) {
-        return false;
+        return Some(false);
     }
 
     let is_copy = match symbol.kind {
-        TypeSymbolKind::Struct => symbol.is_copy,
-        TypeSymbolKind::Enum => symbol
-            .variants
-            .iter()
-            .all(|variant| variant.payload.is_empty()),
-        TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
-            type_expr_is_copy_inner(target, resolved, resolving_names).unwrap_or_else(|| {
-                let target_type = super::type_expr::type_expr_to_type(target, resolved);
-                type_is_copy_inner(&target_type, resolved, resolving_names)
-            })
+        TypeSymbolKind::Struct if !symbol.is_copy => Some(false),
+        TypeSymbolKind::Struct => {
+            copy_struct_fields_are_copy_maybe(symbol, resolved, substitutions, resolving_names)
+        }
+        TypeSymbolKind::Enum => Some(
+            symbol
+                .variants
+                .iter()
+                .all(|variant| variant.payload.is_empty()),
+        ),
+        TypeSymbolKind::Alias => symbol.alias_target.as_ref().and_then(|target| {
+            type_expr_is_copy_inner(target, resolved, substitutions, resolving_names).or_else(
+                || {
+                    let target_type = super::type_expr::type_expr_to_type_with_substitutions(
+                        target,
+                        resolved,
+                        None,
+                        substitutions,
+                    );
+                    type_is_copy_maybe_inner(&target_type, resolved, resolving_names)
+                },
+            )
         }),
-        TypeSymbolKind::Interface => false,
+        TypeSymbolKind::Interface => Some(false),
     };
 
     resolving_names.remove(&symbol.canonical_name);
     is_copy
+}
+
+fn copy_struct_fields_are_copy_maybe(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> Option<bool> {
+    let mut has_unknown_field = false;
+    for field in &symbol.fields {
+        match type_expr_is_copy_inner(&field.ty, resolved, substitutions, resolving_names) {
+            Some(true) => {}
+            Some(false) => return Some(false),
+            None => has_unknown_field = true,
+        }
+    }
+    if has_unknown_field { None } else { Some(true) }
+}
+
+fn type_argument_substitutions(
+    symbol: &TypeSymbol,
+    arguments: &[Type],
+) -> Option<HashMap<String, Type>> {
+    if symbol.generic_parameters.len() != arguments.len() {
+        return None;
+    }
+    Some(
+        symbol
+            .generic_parameters
+            .iter()
+            .cloned()
+            .zip(arguments.iter().cloned())
+            .collect(),
+    )
 }

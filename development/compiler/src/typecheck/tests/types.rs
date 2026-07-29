@@ -207,6 +207,34 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_copy_struct_field_with_non_copy_generic_instantiation() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+copy struct Wrapper {
+    box: Box<Text>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0390");
+    assert!(diagnostics[0].message.contains("Wrapper"));
+    assert!(diagnostics[0].message.contains("box"));
+    assert!(diagnostics[0].message.contains("Box<Text>"));
+}
+
+#[test]
 fn diagnoses_copy_struct_field_with_readwrite_borrow_type() {
     let diagnostics = check_text(
         r#"copy struct Handle {
@@ -222,6 +250,26 @@ func main(): i32 {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0390");
     assert!(diagnostics[0].message.contains("&+i32"));
+}
+
+#[test]
+fn accepts_copy_struct_field_with_generic_instantiation_that_does_not_store_type_argument() {
+    let diagnostics = check_text(
+        r#"copy struct Marker<T> {
+    code: i32
+}
+
+copy struct Wrapper<T> {
+    marker: Marker<T>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

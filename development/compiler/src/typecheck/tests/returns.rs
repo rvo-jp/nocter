@@ -800,6 +800,39 @@ func make(): Text {
 }
 
 #[test]
+fn diagnoses_implicit_copy_struct_instantiation_return_with_non_copy_type_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return make().value.len
+}
+
+struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func make(): Box<Text> {
+    let box = Box<Text>{ value: Text{ len: 42 } }
+    return box
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0393");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("move-only copy-struct instantiation")
+    );
+    assert!(diagnostics[0].message.contains("Box<Text>"));
+    assert!(diagnostics[0].message.contains("box"));
+}
+
+#[test]
 fn diagnoses_implicit_move_only_fixed_array_return() {
     let diagnostics = check_text(
         r#"struct Text {

@@ -114,6 +114,39 @@ func length(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_implicit_copy_struct_instantiation_argument_with_non_copy_type_argument() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<Text>{ value: Text{ len: 42 } }
+    return length(box)
+}
+
+func length(box: Box<Text>): i32 {
+    return box.value.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0392");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("move-only copy-struct instantiation")
+    );
+    assert!(diagnostics[0].message.contains("Box<Text>"));
+    assert!(diagnostics[0].message.contains("box"));
+}
+
+#[test]
 fn diagnoses_implicit_move_only_fixed_array_argument() {
     let diagnostics = check_text(
         r#"struct Text {
