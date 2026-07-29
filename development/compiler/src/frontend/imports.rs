@@ -238,7 +238,9 @@ pub(super) fn resolve_import_path(
     }
 
     let mut searched = Vec::new();
-    if let Some(root) = source_root {
+    if !source_is_inside_current_nocter_home(sources, source, options, resolved_nocter_home)
+        && let Some(root) = source_root
+    {
         match resolve_module_candidate(root.join(&path.value)) {
             Ok(path) => return Ok(path),
             Err(ImportResolutionError::Missing { candidates, .. }) => {
@@ -317,6 +319,26 @@ pub(super) fn import_access_for_source(
     } else {
         ImportAccess::Public
     }
+}
+
+fn source_is_inside_current_nocter_home(
+    sources: &SourceMap,
+    source: SourceId,
+    options: &FrontendOptions,
+    resolved_nocter_home: &Option<Result<PathBuf, String>>,
+) -> bool {
+    let Some(home) = current_nocter_home(options, resolved_nocter_home) else {
+        return false;
+    };
+    let Some(source_path) = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return false;
+    };
+
+    source_path.starts_with(home)
 }
 
 pub(super) fn canonicalize_existing(path: &Path) -> PathBuf {

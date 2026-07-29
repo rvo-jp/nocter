@@ -100,7 +100,7 @@ pub(crate) fn load_compile_unit(
                 source,
                 &path,
                 options,
-                source_root.as_deref(),
+                None,
                 &mut resolved_nocter_home,
             ) {
                 Ok(canonical) => {

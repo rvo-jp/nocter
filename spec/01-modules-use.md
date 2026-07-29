@@ -215,6 +215,8 @@ Initial rules:
 - The synthetic prelude is not applied to files inside the active Nocter home.
 - The synthetic prelude is not applied to common standard-library files under `std/`.
 - The synthetic prelude is not applied to `std/prelude.nct` itself.
+- The synthetic prelude path is resolved directly under the active Nocter home;
+  a user project file such as `std/prelude.nct` does not shadow it.
 - A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid in v0.
 - The prelude imports all public exported names from `std/prelude.nct` into the current file.
 - Source-level `use path` does not import every public exported name from `path`; it imports only the module namespace.
@@ -396,7 +398,14 @@ Absolute import paths start with `/` and are resolved from the filesystem root.
 use /opt/nocter/shared.Config
 ```
 
-Non-relative paths are resolved from the source root first and the active Nocter home second. This means a user project can intentionally shadow standard-library paths such as `std/io`.
+Non-relative paths from user project files are resolved from the source root
+first and the active Nocter home second. This means a user project can
+intentionally shadow standard-library paths such as `std/io` for its own source
+imports.
+
+Non-relative paths from files inside the active Nocter home are resolved from
+the active Nocter home. They do not search the user source root. Distributed
+standard-library internals must not bind to user project shadow modules.
 
 For an entry file at `/work/app/main.nct` and active Nocter home `/opt/nocter`, import path `std/io` searches:
 
@@ -419,6 +428,8 @@ Rules:
 
 - Local project imports may use `./` or `../` from the importing file, or a non-relative path from the source root.
 - `use config.Config` does not search next to the current file; it searches the source root first and the active Nocter home second.
+- Inside the active Nocter home, `use config.Config` searches from the active
+  Nocter home and does not search the user source root.
 - `/absolute/path` imports are resolved from the filesystem root.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.

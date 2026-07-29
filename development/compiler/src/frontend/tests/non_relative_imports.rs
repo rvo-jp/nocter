@@ -241,6 +241,56 @@ func main(): i32 {
 }
 
 #[test]
+fn check_nocter_home_imports_ignore_source_root_shadow() {
+    let root = make_temp_project("nocter-home-import-shadow");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("std")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/io.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("std/internal.nct"),
+        r#"pub func internal_answer(): &str {
+    return "wrong source root"
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/io.nct"),
+        r#"use std/internal.internal_answer
+
+pub func answer(): i32 {
+    return internal_answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/internal.nct"),
+        r#"pub func internal_answer(): i32 {
+    return 7
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_loads_directory_index_module() {
     let root = make_temp_project("directory-index-import");
     let home = make_nocter_home(&root);

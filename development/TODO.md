@@ -60,6 +60,10 @@ Recommended order:
 
 ## Recent Notes
 
+- Synthetic prelude loading now resolves `std/prelude.nct` directly from the
+  active Nocter home, and non-relative imports inside active Nocter home files
+  no longer search the user source root. User source imports still keep the
+  source-root-before-Nocter-home shadowing rule.
 - Frontend validation now rejects non-primitive `pub(nocter)` declarations
   outside the active Nocter home across top-level definitions, struct fields,
   and impl methods. `pub(nocter) primitive` declarations still report through
