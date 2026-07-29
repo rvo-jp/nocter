@@ -462,7 +462,7 @@ fn callable_method_signature_issues(
         issues.push(BuildabilityIssue {
             span: method.return_type.span(),
             construct: "method return types outside the v0 runtime ABI subset",
-            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, a supported aggregate, or a fallible form of one of those types",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, or a fallible form with a non-`error` success type",
         });
     }
     issues
@@ -506,7 +506,8 @@ where
     }
 
     non_root_error_constructor_signature(function, root_source, resolved, resolver)
-        || static_error_payload_function_body_is_buildable(function, root_source, resolved)
+        || (function.parameters.parameters.is_empty()
+            && static_error_payload_body_is_buildable(&function.body, root_source, resolved))
 }
 
 fn non_root_error_constructor_signature<'a, F>(
@@ -523,13 +524,12 @@ where
         && type_expr_is_error_parameter_with_resolver(&function.return_type, resolved, resolver)
 }
 
-fn static_error_payload_function_body_is_buildable(
-    function: &FunctionDecl,
+fn static_error_payload_body_is_buildable(
+    body: &Block,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> bool {
-    let mut runtime_statements = function
-        .body
+    let mut runtime_statements = body
         .statements
         .iter()
         .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));

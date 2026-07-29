@@ -195,6 +195,10 @@ Recommended order:
 - IR type normalization and drop glue resolution now resolve source-qualified
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.
+- Static `error` payload helpers are now limited to input-free function or
+  associated-function wrappers. Helpers with parameters and methods returning
+  `error` reject before IR lowering so runtime input or receiver evaluation is
+  not silently skipped by static payload extraction.
 
 ## Session Start
 

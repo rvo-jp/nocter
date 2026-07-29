@@ -8029,6 +8029,129 @@ func app_failed(): error {
 }
 
 #[test]
+fn build_command_reports_static_error_payload_helper_with_argument_before_ir_lowering() {
+    let project = TempProject::new("cli-build-static-error-payload-helper-argument-boundary");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "static_error_payload_helper_argument_boundary.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return app_failed(dynamic_message())
+}
+
+func app_failed(message: &str): error {
+    return Error.new("app.failed", "failed")
+}
+
+func dynamic_message(): &str {
+    return "ignored"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        "expected return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 | func app_failed(message: &str): error {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_error_return_method_helper_before_ir_lowering() {
+    let project = TempProject::new("cli-build-error-return-method-helper-boundary");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "error_return_method_helper_boundary.nct",
+        r#"use std/error.Error
+
+copy struct Holder {
+    value: i32
+}
+
+impl Holder {
+    method &self.app_failed(): error {
+        return Error.new("app.failed", "failed")
+    }
+}
+
+func main(): i32! {
+    let holder = Holder { value: 0 }
+    return holder.app_failed()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("method return types outside the v0 runtime ABI subset"),
+        "expected method return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("8 |     method &self.app_failed(): error {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
     let project = TempProject::new("cli-build-dynamic-error-return-helper-boundary");
     project.write_nocter_home_file(

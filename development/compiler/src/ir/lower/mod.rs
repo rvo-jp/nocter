@@ -515,6 +515,9 @@ impl<'a> IndexedCallable<'a> {
         else {
             return None;
         };
+        if !function.parameters.parameters.is_empty() {
+            return None;
+        }
         let mut runtime_statements = function
             .body
             .statements

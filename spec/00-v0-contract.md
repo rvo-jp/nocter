@@ -210,9 +210,9 @@ Initial check-only or not-yet-buildable surfaces:
   construction, `match`, and `if is` lowering
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
-- ordinary dynamic `error` success-return helper calls outside direct
-  `Error.new(...)`-style failure payload construction and static payload
-  wrappers
+- ordinary input-dependent `error` success-return helper calls outside direct
+  `Error.new(...)`-style failure payload construction and input-free static
+  payload wrappers; this includes helper parameters and method receivers
 - `std/process.env(name)` useful runtime behavior until nested
   fallible/optional return lowering and process-context environment storage are
   promoted
