@@ -167,6 +167,39 @@ func run(error: error): error! {
 }
 
 #[test]
+fn diagnoses_optional_error_success_type_in_fallible_function() {
+    for source in [
+        r#"func main(): i32 {
+    return 0
+}
+
+func run(): error?! {
+    return none
+}
+"#,
+        r#"type ErrorAlias = error
+
+func main(): i32 {
+    return 0
+}
+
+func run(): ErrorAlias?! {
+    return none
+}
+"#,
+    ] {
+        let diagnostics = check_text(source);
+
+        assert_eq!(diagnostics.len(), 1, "{source}\n{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0334");
+        assert!(
+            diagnostics[0].message.contains("error?!"),
+            "{source}\n{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn diagnoses_error_type_mismatch_in_fallible_function() {
     let diagnostics = check_text(
         r#"func main(): i32 {

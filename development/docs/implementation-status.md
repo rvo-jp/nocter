@@ -66,6 +66,9 @@ positions receive a source-backed diagnostic instead of normal name lookup.
 Resolver diagnostics reject built-in type spellings as introduced value names,
 and reject reserved type-position spellings such as `i32`, `str`, and
 contextual `error` as type declaration or generic parameter names.
+Typechecking rejects fallible return success types that are `error` directly or
+through optional success layers such as `error?!`, including alias-expanded
+forms.
 
 ## Implemented Capability
 

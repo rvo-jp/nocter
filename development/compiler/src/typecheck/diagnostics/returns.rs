@@ -174,8 +174,9 @@ pub(in crate::typecheck) fn fallible_success_error_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0334",
         format!(
-            "{} returns `error!`, but a fallible success type cannot be `error`",
-            context.subject()
+            "{} returns `{}`, but a fallible success type cannot be or contain `error`",
+            context.subject(),
+            context.declared_type.display()
         ),
     );
     diagnostic.primary_span = sources

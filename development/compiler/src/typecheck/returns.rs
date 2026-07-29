@@ -177,8 +177,16 @@ fn check_fallible_success_type(
         return;
     };
 
-    if success.as_ref() == &Type::Error {
+    if success_type_accepts_bare_error(success) {
         diagnostics.push(fallible_success_error_diagnostic(sources, context));
+    }
+}
+
+fn success_type_accepts_bare_error(ty: &Type) -> bool {
+    match ty {
+        Type::Error => true,
+        Type::Optional(inner) => success_type_accepts_bare_error(inner),
+        _ => false,
     }
 }
 

@@ -51,7 +51,7 @@ Rules:
   provenance from its `&str` fields. Returning or storing an `error` follows the
   same escape rules as other aggregates containing borrow-like values.
 - The ABI layout of `error` is specified in [ABI and Layout](09-abi-layout.md#built-in-error-layout).
-- `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity.
+- `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity. This rule is checked after type aliases and through optional success layers such as `error?!`.
 
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
@@ -258,6 +258,7 @@ Rules:
 - In a function returning `T?!`, a compatible function body result or `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
+- `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
 - Other mixed forms must use parentheses in v0.
 - `(T!)?` means an optional fallible value.
 
