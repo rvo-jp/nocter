@@ -10599,6 +10599,58 @@ func same(value: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_imported_alias_payloadless_wildcard_only_match_exit_code() {
+    let project = TempProject::new("cli-run-imported-alias-payloadless-wildcard-only-match");
+    fs::create_dir_all(project.root().join("std")).unwrap();
+    project.write_source(
+        "std/choices.nct",
+        r#"pub enum Choice {
+    yes
+    no
+}
+
+pub type PublicChoice = Choice
+
+pub func choose(): PublicChoice {
+    return Choice.no
+}
+"#,
+    );
+    let source = project.write_source(
+        "payloadless_wildcard_imported_alias.nct",
+        r#"use std/choices.{PublicChoice, choose}
+
+func main(): i32 {
+    let first = describe(choose())
+    let second = match choose() {
+        _ { 5 }
+    }
+    return first + second
+}
+
+func describe(choice: PublicChoice): i32 {
+    match choice {
+        _ {
+            return 7
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(12),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_terminal_control_return_expression_exit_code() {
     let project = TempProject::new("cli-run-terminal-control-return-expression");
     let source = project.write_source(
