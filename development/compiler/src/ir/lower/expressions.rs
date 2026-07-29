@@ -4,7 +4,12 @@ use super::aggregates::{
     push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
     supported_aggregate_copy_layout,
 };
-use super::bindings::{lower_assignment, lower_local_binding};
+use super::bindings::{
+    lower_assignment, lower_bool_optional_otherwise_to_location,
+    lower_i32_optional_otherwise_to_location, lower_local_binding,
+    lower_slice_optional_otherwise_to_location, lower_str_optional_otherwise_to_location,
+    lower_u8_optional_otherwise_to_location, lower_usize_optional_otherwise_to_location,
+};
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
@@ -124,6 +129,10 @@ pub(super) fn lower_i32_expression_to_location(
                 i32_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_i32_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(unsupported_i32_expression_diagnostic)
+        }
         Expr::If(statement) => lower_i32_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
@@ -219,6 +228,10 @@ pub(super) fn lower_u8_expression_to_location(
                 u8_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_u8_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(unsupported_u8_expression_diagnostic)
+        }
         Expr::If(statement) => lower_u8_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
@@ -352,6 +365,10 @@ pub(super) fn lower_usize_expression_to_location(
                 usize_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_usize_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(unsupported_usize_expression_diagnostic)
+        }
         Expr::If(statement) => {
             lower_usize_if_expression_to_location(statement, destination, context)
         }
@@ -454,6 +471,10 @@ pub(super) fn lower_str_expression_to_location(
                 str_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_str_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(unsupported_str_expression_diagnostic)
+        }
         Expr::If(statement) => lower_str_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
@@ -529,6 +550,10 @@ pub(super) fn lower_slice_expression_to_location(
                 slice_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_slice_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(unsupported_slice_expression_diagnostic)
+        }
         Expr::If(statement) => {
             lower_slice_if_expression_to_location(statement, destination, context)
         }
@@ -1992,6 +2017,20 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_i32()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredI32Value {
+                instructions: lower_i32_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(unsupported_i32_expression_diagnostic)?,
+                value: I32Value::Location(temporary),
+            })
+        }
         Expr::If(statement) => lower_i32_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
@@ -2148,6 +2187,20 @@ fn lower_u8_expression_to_value(
                         u8_destination_reserved_abi_words(temporary),
                     )?,
                 )?,
+                value: U8Value::Location(temporary),
+            })
+        }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_u8()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredU8Value {
+                instructions: lower_u8_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(unsupported_u8_expression_diagnostic)?,
                 value: U8Value::Location(temporary),
             })
         }
@@ -2431,6 +2484,20 @@ fn lower_usize_expression_to_value(
                 value: UsizeValue::Location(temporary),
             })
         }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_usize()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredUsizeValue {
+                instructions: lower_usize_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(unsupported_usize_expression_diagnostic)?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
         Expr::If(statement) => lower_usize_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
             let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
@@ -2551,6 +2618,20 @@ pub(super) fn lower_str_expression_to_value(
                 value: StrValue::Location(temporary),
             })
         }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_str()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredStrValue {
+                instructions: lower_str_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(unsupported_str_expression_diagnostic)?,
+                value: StrValue::Location(temporary),
+            })
+        }
         Expr::Match(statement) => {
             lower_str_match_expression_to_value(statement, context, temporaries)
         }
@@ -2642,6 +2723,20 @@ pub(super) fn lower_slice_expression_to_value(
                         slice_destination_reserved_abi_words(temporary),
                     )?,
                 )?,
+                value: SliceValue::Location(temporary),
+            })
+        }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_slice()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredSliceValue {
+                instructions: lower_slice_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(unsupported_slice_expression_diagnostic)?,
                 value: SliceValue::Location(temporary),
             })
         }
@@ -3256,6 +3351,10 @@ pub(super) fn lower_bool_expression_to_location(
                 bool_destination_reserved_abi_words(destination),
             )?,
         ),
+        Expr::Otherwise(_) => {
+            lower_bool_optional_otherwise_to_location(expression, destination, context)?
+                .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code))
+        }
         Expr::If(statement) => {
             lower_bool_if_expression_to_location(statement, destination, context, diagnostic_code)
         }
@@ -4280,6 +4379,20 @@ pub(super) fn lower_bool_expression_to_value_with_temporaries(
                         bool_destination_reserved_abi_words(temporary),
                     )?,
                 )?,
+                value: BoolValue::Location(temporary),
+            })
+        }
+        Expr::Otherwise(_) => {
+            let temporary = temporaries.next_bool()?;
+            let expression_context = context
+                .with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+            Ok(LoweredBoolValue {
+                instructions: lower_bool_optional_otherwise_to_location(
+                    expression,
+                    temporary,
+                    &expression_context,
+                )?
+                .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code))?,
                 value: BoolValue::Location(temporary),
             })
         }

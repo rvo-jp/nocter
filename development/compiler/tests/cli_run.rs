@@ -11599,6 +11599,114 @@ func maybe_data(flag: bool): &[u8]? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_scalar_and_view_optional_otherwise_value_positions() {
+    let project = TempProject::new("cli-run-scalar-view-optional-otherwise-values");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "scalar_view_optional_otherwise_values.nct",
+        r#"use std/string.bytes
+
+copy struct Inputs {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+    text: &str
+    data: &[u8]
+}
+
+func main(): i32 {
+    let inputs = Inputs{
+        count: maybe_i32(false) otherwise { 2 },
+        byte: maybe_u8(true) otherwise { 1 },
+        size: maybe_usize(false) otherwise { 9 },
+        ok: maybe_bool(true) otherwise { false },
+        text: maybe_text(false) otherwise { "Nocter" },
+        data: maybe_data(false) otherwise { bytes("*") },
+    }
+    let subtotal = combine(
+        maybe_i32(true) otherwise { 1 },
+        maybe_u8(false) otherwise { 3 },
+        maybe_usize(true) otherwise { 1 },
+        maybe_bool(false) otherwise { true },
+        maybe_text(true) otherwise { "bad" },
+        maybe_data(true) otherwise { bytes("bad") },
+    )
+    let returned = return_fallback_argument()
+    if inputs.ok && inputs.count == 2 && inputs.byte == 7 && inputs.size == 9 && inputs.text.len() == 6 && inputs.data.len() == 1 && inputs.data[0] == b'*' && subtotal == 33 && returned == 7 {
+        return 42
+    }
+    return 1
+}
+
+func combine(count: i32, byte: u8, size: usize, ok: bool, text: &str, data: &[u8]): i32 {
+    if ok && size == 8 && text.len() == 4 && data.len() == 2 {
+        return count + (byte as i32) + 20
+    }
+    return 1
+}
+
+func return_fallback_argument(): i32 {
+    return consume_i32(maybe_i32(false) otherwise { return 7 })
+}
+
+func consume_i32(value: i32): i32 {
+    return value
+}
+
+func maybe_i32(flag: bool): i32? {
+    if flag { return 10 }
+    return none
+}
+
+func maybe_u8(flag: bool): u8? {
+    if flag { return 7 }
+    return none
+}
+
+func maybe_usize(flag: bool): usize? {
+    if flag { return 8 }
+    return none
+}
+
+func maybe_bool(flag: bool): bool? {
+    if flag { return true }
+    return none
+}
+
+func maybe_text(flag: bool): &str? {
+    if flag { return "lang" }
+    return none
+}
+
+func maybe_data(flag: bool): &[u8]? {
+    if flag { return bytes("OK") }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_scalar_otherwise_bindings_exit_code() {
     let project = TempProject::new("cli-run-optional-scalar-otherwise-bindings");
     let source = project.write_source(

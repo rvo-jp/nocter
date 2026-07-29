@@ -1117,6 +1117,22 @@ fn collect_value_expression_diagnostics(
                 );
             }
         }
+        Expr::Otherwise(expression) => {
+            collect_otherwise_scalar_view_value_expression_diagnostics(
+                expression,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         _ => collect_expression_diagnostics(
             expression,
             sources,
@@ -1377,6 +1393,75 @@ fn collect_otherwise_assignment_value_diagnostics(
         &expression.fallback,
         assignment_fixed_array_type,
         assignment_is_scalar_or_view,
+        return_type,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn collect_otherwise_scalar_view_value_expression_diagnostics(
+    expression: &OtherwiseExpr,
+    return_type: Option<&TypeExpr>,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_otherwise_runtime_value_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+        diagnostics,
+    );
+    if !otherwise_return_fallback_runtime_shape_is_buildable(
+        &expression.fallback,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.fallback.span,
+            "`otherwise` fallback blocks outside the v0 scalar/view value subset",
+            "end runtime-shipped scalar/view `otherwise` value fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
+        ));
+    }
+
+    collect_expression_diagnostics(
+        &expression.value,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_otherwise_value_fallback_block_diagnostics(
+        &expression.fallback,
+        None,
+        true,
         return_type,
         sources,
         resolved,
@@ -7397,8 +7482,8 @@ fn collect_expression_diagnostics(
             diagnostics.push(unsupported_v0_build_diagnostic(
                 sources,
                 expression.span,
-                "`otherwise` expressions outside direct binding, assignment, or return positions",
-                "bind, assign, or return the `otherwise` expression directly until general optional expression lowering is promoted",
+                "`otherwise` expressions outside direct scalar/view value, binding, assignment, or return positions",
+                "use `otherwise` directly as a scalar/view value, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
             ));
             collect_expression_diagnostics(
                 &expression.value,
@@ -9913,10 +9998,10 @@ func source(): i32! {
     }
 
     #[test]
-    fn reports_otherwise_call_argument_before_ir_lowering() {
+    fn reports_nested_otherwise_value_expression_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
             r#"func main(): i32 {
-    return use_value(source() otherwise { 1 })
+    return use_value((source() otherwise { 1 }) + 2)
 }
 
 func use_value(value: i32): i32 {
@@ -9935,8 +10020,75 @@ func source(): i32? {
         assert_eq!(diagnostics[0].code, "E0435");
         assert_eq!(
             diagnostics[0].message,
-            "Nocter v0 build cannot lower `otherwise` expressions outside direct binding, assignment, or return positions yet"
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, binding, assignment, or return positions yet"
         );
+    }
+
+    #[test]
+    fn accepts_reachable_scalar_otherwise_direct_value_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct State {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+    text: &str
+}
+
+func main(): i32 {
+    let state = State{
+        count: maybe_i32(false) otherwise { 2 },
+        byte: maybe_u8(true) otherwise { 1 },
+        size: maybe_usize(false) otherwise { 9 },
+        ok: maybe_bool(true) otherwise { false },
+        text: maybe_text(false) otherwise { "Nocter" },
+    }
+    return combine(
+        maybe_i32(true) otherwise { 1 },
+        maybe_u8(false) otherwise { 3 },
+        maybe_usize(true) otherwise { 1 },
+        maybe_bool(false) otherwise { true },
+        maybe_text(true) otherwise { "bad" },
+    ) + state.count + state.byte as i32
+}
+
+func combine(count: i32, byte: u8, size: usize, ok: bool, text: &str): i32 {
+    if ok && size == 8 && text.len() == 4 {
+        return count + byte as i32
+    }
+    return 0
+}
+
+func maybe_i32(flag: bool): i32? {
+    if flag { return 10 }
+    return none
+}
+
+func maybe_u8(flag: bool): u8? {
+    if flag { return 7 }
+    return none
+}
+
+func maybe_usize(flag: bool): usize? {
+    if flag { return 8 }
+    return none
+}
+
+func maybe_bool(flag: bool): bool? {
+    if flag { return true }
+    return none
+}
+
+func maybe_text(flag: bool): &str? {
+    if flag { return "lang" }
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

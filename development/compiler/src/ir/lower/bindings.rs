@@ -2151,7 +2151,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_i32_otherwise_assignment_to_location(value, destination, context)?
+            lower_i32_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2163,7 +2163,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_u8_otherwise_assignment_to_location(value, destination, context)?
+            lower_u8_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2175,7 +2175,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_usize_otherwise_assignment_to_location(value, destination, context)?
+            lower_usize_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2187,7 +2187,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_bool_otherwise_assignment_to_location(value, destination, context)?
+            lower_bool_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2199,7 +2199,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_str_otherwise_assignment_to_location(value, destination, context)?
+            lower_str_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2211,7 +2211,7 @@ fn lower_identifier_assignment(
             return Err(unsupported_assignment_diagnostic());
         };
         if let Some(instructions) =
-            lower_slice_otherwise_assignment_to_location(value, destination, context)?
+            lower_slice_optional_otherwise_to_location(value, destination, context)?
         {
             return Ok(instructions);
         }
@@ -2254,7 +2254,7 @@ fn direct_optional_otherwise_call<'a>(
     Ok(Some((call, &otherwise.fallback)))
 }
 
-fn lower_i32_otherwise_assignment_to_location(
+pub(super) fn lower_i32_optional_otherwise_to_location(
     value: &Expr,
     destination: I32Location,
     context: &LoweringContext,
@@ -2277,7 +2277,7 @@ fn lower_i32_otherwise_assignment_to_location(
         .map(Some)
 }
 
-fn lower_u8_otherwise_assignment_to_location(
+pub(super) fn lower_u8_optional_otherwise_to_location(
     value: &Expr,
     destination: U8Location,
     context: &LoweringContext,
@@ -2299,7 +2299,7 @@ fn lower_u8_otherwise_assignment_to_location(
         .map(Some)
 }
 
-fn lower_usize_otherwise_assignment_to_location(
+pub(super) fn lower_usize_optional_otherwise_to_location(
     value: &Expr,
     destination: UsizeLocation,
     context: &LoweringContext,
@@ -2321,7 +2321,7 @@ fn lower_usize_otherwise_assignment_to_location(
         .map(Some)
 }
 
-fn lower_bool_otherwise_assignment_to_location(
+pub(super) fn lower_bool_optional_otherwise_to_location(
     value: &Expr,
     destination: BoolLocation,
     context: &LoweringContext,
@@ -2343,7 +2343,7 @@ fn lower_bool_otherwise_assignment_to_location(
         .map(Some)
 }
 
-fn lower_str_otherwise_assignment_to_location(
+pub(super) fn lower_str_optional_otherwise_to_location(
     value: &Expr,
     destination: StrLocation,
     context: &LoweringContext,
@@ -2365,7 +2365,7 @@ fn lower_str_otherwise_assignment_to_location(
         .map(Some)
 }
 
-fn lower_slice_otherwise_assignment_to_location(
+pub(super) fn lower_slice_optional_otherwise_to_location(
     value: &Expr,
     destination: SliceLocation,
     context: &LoweringContext,
@@ -2396,7 +2396,7 @@ fn lower_i32_otherwise_aggregate_field_assignment(
     let temporary = context.next_i32_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(1);
     let Some(mut instructions) =
-        lower_i32_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_i32_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
@@ -2417,7 +2417,7 @@ fn lower_u8_otherwise_aggregate_field_assignment(
     let temporary = context.next_u8_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(1);
     let Some(mut instructions) =
-        lower_u8_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_u8_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
@@ -2438,7 +2438,7 @@ fn lower_usize_otherwise_aggregate_field_assignment(
     let temporary = context.next_usize_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(1);
     let Some(mut instructions) =
-        lower_usize_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_usize_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
@@ -2459,7 +2459,7 @@ fn lower_bool_otherwise_aggregate_field_assignment(
     let temporary = context.next_bool_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(1);
     let Some(mut instructions) =
-        lower_bool_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_bool_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
@@ -2480,7 +2480,7 @@ fn lower_str_otherwise_aggregate_field_assignment(
     let temporary = context.next_str_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(2);
     let Some(mut instructions) =
-        lower_str_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_str_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
@@ -2505,7 +2505,7 @@ fn lower_slice_otherwise_aggregate_field_assignment(
     let temporary = context.next_slice_local_location()?;
     let expression_context = context.with_reserved_local_abi_words(2);
     let Some(mut instructions) =
-        lower_slice_otherwise_assignment_to_location(value, temporary, &expression_context)?
+        lower_slice_optional_otherwise_to_location(value, temporary, &expression_context)?
     else {
         return Ok(None);
     };
