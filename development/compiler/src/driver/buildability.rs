@@ -1015,6 +1015,7 @@ fn collect_terminal_return_expression_diagnostics(
                 &expression.condition,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -1191,6 +1192,7 @@ fn collect_value_expression_diagnostics(
                 &expression.condition,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -2083,6 +2085,7 @@ fn collect_void_effect_if_expression_diagnostics(
         &expression.condition,
         sources,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         diagnostics,
@@ -2648,8 +2651,13 @@ fn unsupported_local_binding_type_diagnostic(
         ));
     }
 
-    if local_binding_type_is_buildable(statement, resolved, typecheck_facts, generic_substitutions)
-    {
+    if local_binding_type_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
         return None;
     }
 
@@ -2664,13 +2672,18 @@ fn unsupported_local_binding_type_diagnostic(
 fn local_binding_type_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     if let Some(ty) = &statement.ty {
         let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-        return local_binding_type_expr_is_buildable(&ty, resolved)
-            || !type_expr_is_known_unsupported_scalar_value(&ty, resolved);
+        return local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+            || !type_expr_is_known_unsupported_scalar_value_for_sources(
+                &ty,
+                resolved,
+                resolved_sources,
+            );
     }
 
     if typecheck_facts
@@ -2684,8 +2697,12 @@ fn local_binding_type_is_buildable(
         .binding_type_expr(statement.name_span)
         .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
         .is_none_or(|ty| {
-            local_binding_type_expr_is_buildable(&ty, resolved)
-                || !type_expr_is_known_unsupported_scalar_value(&ty, resolved)
+            local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+                || !type_expr_is_known_unsupported_scalar_value_for_sources(
+                    &ty,
+                    resolved,
+                    resolved_sources,
+                )
         })
 }
 
@@ -2696,10 +2713,14 @@ fn unsupported_scalar_type_label(label: &str) -> bool {
     )
 }
 
-fn local_binding_type_expr_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_buildable_scalar_or_view(ty, resolved)
-        || type_expr_is_error_parameter(ty, resolved)
-        || type_expr_is_supported_aggregate_value(ty, resolved)
+fn local_binding_type_expr_is_buildable(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    type_expr_is_buildable_scalar_or_view_for_sources(ty, resolved, resolved_sources)
+        || type_expr_is_error_parameter_for_sources(ty, resolved, resolved_sources)
+        || type_expr_is_supported_aggregate_value_for_sources(ty, resolved, resolved_sources)
 }
 
 fn fixed_array_literal_return_is_buildable(
@@ -3441,18 +3462,48 @@ fn fixed_array_element_abi_is_buildable(element: &AbiType) -> bool {
     )
 }
 
-fn type_expr_is_known_unsupported_scalar_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_known_unsupported_scalar_value_inner(ty, resolved, &mut HashSet::new())
+fn type_expr_is_known_unsupported_scalar_value_for_sources(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_known_unsupported_scalar_value_with_resolver(
+        ty,
+        fallback_resolved,
+        &source_resolver,
+    )
 }
 
-fn type_expr_is_known_unsupported_scalar_value_inner(
+fn type_expr_is_known_unsupported_scalar_value_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_is_known_unsupported_scalar_value_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn type_expr_is_known_unsupported_scalar_value_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> bool {
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) if unsupported_scalar_type_label(&reference.name) => true,
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
@@ -3464,24 +3515,27 @@ fn type_expr_is_known_unsupported_scalar_value_inner(
             }
             let result = type_expr_is_known_unsupported_scalar_value_inner(
                 target,
-                resolved,
+                fallback_resolved,
+                resolver,
                 resolving_names,
             );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
-        _ => abi_value_from_type_expr(ty, resolved).is_ok_and(|value| {
-            matches!(
-                value.ty,
-                AbiType::I8
-                    | AbiType::I16
-                    | AbiType::I64
-                    | AbiType::Isize
-                    | AbiType::U16
-                    | AbiType::U32
-                    | AbiType::U64
-            )
-        }),
+        _ => abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok_and(
+            |value| {
+                matches!(
+                    value.ty,
+                    AbiType::I8
+                        | AbiType::I16
+                        | AbiType::I64
+                        | AbiType::Isize
+                        | AbiType::U16
+                        | AbiType::U32
+                        | AbiType::U64
+                )
+            },
+        ),
     }
 }
 
@@ -3623,10 +3677,6 @@ where
         }
         _ => false,
     }
-}
-
-fn type_expr_is_buildable_scalar_or_view(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_buildable_scalar_or_view_with_resolver(ty, resolved, &|_| Some(resolved))
 }
 
 fn type_expr_is_buildable_scalar_or_view_for_sources(
@@ -4088,8 +4138,13 @@ where
         || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
 }
 
-fn type_expr_is_error_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_error_parameter_with_resolver(ty, resolved, &|_| Some(resolved))
+fn type_expr_is_error_parameter_for_sources(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, &source_resolver)
 }
 
 fn type_expr_is_error_parameter_with_resolver<'a, F>(
@@ -4173,8 +4228,13 @@ where
     })
 }
 
-fn type_expr_is_supported_aggregate_value(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_supported_aggregate_value_with_resolver(ty, resolved, &|_| Some(resolved))
+fn type_expr_is_supported_aggregate_value_for_sources(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, &source_resolver)
 }
 
 fn type_expr_is_supported_aggregate_value_with_resolver<'a, F>(
@@ -4782,6 +4842,7 @@ fn collect_statement_diagnostics(
                     &statement.condition,
                     sources,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     diagnostics,
@@ -4791,6 +4852,7 @@ fn collect_statement_diagnostics(
                     &statement.then_block,
                     sources,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     diagnostics,
@@ -4800,6 +4862,7 @@ fn collect_statement_diagnostics(
                         block,
                         sources,
                         resolved,
+                        resolved_sources,
                         typecheck_facts,
                         generic_substitutions,
                         diagnostics,
@@ -4809,6 +4872,7 @@ fn collect_statement_diagnostics(
                     &statement.condition,
                     sources,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     diagnostics,
@@ -4894,6 +4958,7 @@ fn collect_statement_diagnostics(
                         .map(|payload| payload.name.as_str()),
                     sources,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     diagnostics,
@@ -4903,6 +4968,7 @@ fn collect_statement_diagnostics(
                         block,
                         sources,
                         resolved,
+                        resolved_sources,
                         typecheck_facts,
                         generic_substitutions,
                         diagnostics,
@@ -4913,6 +4979,7 @@ fn collect_statement_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -4982,6 +5049,7 @@ fn collect_statement_diagnostics(
                         arm.payload.as_ref().map(|payload| payload.name.as_str()),
                         sources,
                         resolved,
+                        resolved_sources,
                         typecheck_facts,
                         generic_substitutions,
                         diagnostics,
@@ -4992,6 +5060,7 @@ fn collect_statement_diagnostics(
                         &arm.body,
                         sources,
                         resolved,
+                        resolved_sources,
                         typecheck_facts,
                         generic_substitutions,
                         diagnostics,
@@ -5002,6 +5071,7 @@ fn collect_statement_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -5078,6 +5148,7 @@ fn collect_statement_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -5102,6 +5173,7 @@ fn collect_statement_diagnostics(
                 &statement.condition,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -5123,6 +5195,7 @@ fn collect_statement_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -5147,6 +5220,7 @@ fn collect_statement_diagnostics(
                 &statement.body,
                 sources,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 diagnostics,
@@ -5199,6 +5273,7 @@ fn collect_control_condition_move_diagnostics(
     expression: &Expr,
     sources: &SourceMap,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -5206,6 +5281,7 @@ fn collect_control_condition_move_diagnostics(
     let Some(span) = expression_explicit_aggregate_move_span(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) else {
@@ -5224,6 +5300,7 @@ fn collect_terminal_control_condition_move_diagnostics(
     expression: &Expr,
     sources: &SourceMap,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -5231,6 +5308,7 @@ fn collect_terminal_control_condition_move_diagnostics(
     let Some(span) = expression_explicit_aggregate_move_span(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) else {
@@ -5273,6 +5351,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics(
     block: &Block,
     sources: &SourceMap,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -5281,6 +5360,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics(
         block,
         sources,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         HashSet::new(),
@@ -5293,6 +5373,7 @@ fn collect_nonterminal_control_payload_block_aggregate_diagnostics(
     payload_name: Option<&str>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -5305,6 +5386,7 @@ fn collect_nonterminal_control_payload_block_aggregate_diagnostics(
         block,
         sources,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5316,6 +5398,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
     block: &Block,
     sources: &SourceMap,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     mut local_bindings: HashSet<String>,
@@ -5338,6 +5421,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
                     index,
                     result,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     &local_bindings,
@@ -5358,6 +5442,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
                     index,
                     result,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     &local_bindings,
@@ -5374,6 +5459,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
                 if let Some(span) = expression_explicit_outer_aggregate_move_span(
                     &statement.expression,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     &local_bindings,
@@ -5411,6 +5497,7 @@ fn collect_nonterminal_control_block_aggregate_diagnostics_with_locals(
         && let Some(span) = expression_explicit_outer_aggregate_move_span(
             result,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             &local_bindings,
@@ -5431,6 +5518,7 @@ fn unsupported_outer_aggregate_move_binding_span(
     index: usize,
     result: Option<&Expr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -5438,6 +5526,7 @@ fn unsupported_outer_aggregate_move_binding_span(
     let span = expression_explicit_outer_aggregate_move_span(
         &statement.initializer,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5445,6 +5534,7 @@ fn unsupported_outer_aggregate_move_binding_span(
     if direct_outer_aggregate_move_for_buildability(
         &statement.initializer,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5467,6 +5557,7 @@ fn unsupported_outer_aggregate_move_assignment_span(
     index: usize,
     result: Option<&Expr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -5474,6 +5565,7 @@ fn unsupported_outer_aggregate_move_assignment_span(
     let span = expression_explicit_outer_aggregate_move_span(
         &statement.value,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5484,6 +5576,7 @@ fn unsupported_outer_aggregate_move_assignment_span(
         index,
         result,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5499,6 +5592,7 @@ fn assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability
     index: usize,
     result: Option<&Expr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -5506,12 +5600,14 @@ fn assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability
     direct_outer_aggregate_move_for_buildability(
         &statement.value,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
     ) && assignment_target_root_is_aggregate_binding_for_buildability(
         &statement.target,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) && statement_suffix_exits_function_for_buildability(
@@ -5527,6 +5623,7 @@ fn assignment_outer_aggregate_move_before_function_exit_allowed_for_buildability
 fn direct_outer_aggregate_move_for_buildability(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -5543,6 +5640,7 @@ fn direct_outer_aggregate_move_for_buildability(
     identifier_is_outer_aggregate_for_buildability(
         identifier,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         local_bindings,
@@ -5558,12 +5656,14 @@ enum ExplicitAggregateMoveScope<'a> {
 fn expression_explicit_aggregate_move_span(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<ByteSpan> {
     explicit_aggregate_move_span_in_expression(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         ExplicitAggregateMoveScope::Any,
@@ -5573,6 +5673,7 @@ fn expression_explicit_aggregate_move_span(
 fn expression_explicit_outer_aggregate_move_span(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -5580,6 +5681,7 @@ fn expression_explicit_outer_aggregate_move_span(
     explicit_aggregate_move_span_in_expression(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
         ExplicitAggregateMoveScope::OutsideLocals(local_bindings),
@@ -5589,6 +5691,7 @@ fn expression_explicit_outer_aggregate_move_span(
 fn explicit_aggregate_move_span_in_expression(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -5599,6 +5702,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_matches_identifier(
                     identifier,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5608,6 +5712,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_expression(
                     &unary.operand,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5618,6 +5723,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_expression(
                 element,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5627,6 +5733,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_expression(
                 &field.value,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5635,6 +5742,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Propagate(propagation) => explicit_aggregate_move_span_in_expression(
             &propagation.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5642,6 +5750,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Force(force) => explicit_aggregate_move_span_in_expression(
             &force.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5649,6 +5758,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Catch(catch) => explicit_aggregate_move_span_in_expression(
             &catch.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5656,6 +5766,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Borrow(borrow) => explicit_aggregate_move_span_in_expression(
             &borrow.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5663,6 +5774,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Unary(unary) => explicit_aggregate_move_span_in_expression(
             &unary.operand,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5670,6 +5782,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Binary(binary) => explicit_aggregate_move_span_in_expression(
             &binary.left,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5678,6 +5791,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_expression(
                 &binary.right,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5686,6 +5800,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::TypeConversion(conversion) => explicit_aggregate_move_span_in_expression(
             &conversion.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5693,6 +5808,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Call(call) => explicit_aggregate_move_span_in_expression(
             &call.callee,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5702,6 +5818,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_expression(
                     argument,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5711,6 +5828,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Member(member) => explicit_aggregate_move_span_in_expression(
             &member.object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5718,6 +5836,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Index(index) => explicit_aggregate_move_span_in_expression(
             &index.object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5726,6 +5845,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_expression(
                 &index.index,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5734,6 +5854,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Group(group) => explicit_aggregate_move_span_in_expression(
             &group.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5741,6 +5862,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Otherwise(expression) => explicit_aggregate_move_span_in_expression(
             &expression.value,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5749,6 +5871,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_block(
                 &expression.fallback,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5757,6 +5880,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::If(statement) => explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5765,6 +5889,7 @@ fn explicit_aggregate_move_span_in_expression(
             explicit_aggregate_move_span_in_block(
                 &statement.then_block,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5775,6 +5900,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_block(
                     block,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5784,6 +5910,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::IfIs(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5796,6 +5923,7 @@ fn explicit_aggregate_move_span_in_expression(
                     .as_ref()
                     .map(|payload| payload.name.as_str()),
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5806,6 +5934,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_block(
                     block,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5815,6 +5944,7 @@ fn explicit_aggregate_move_span_in_expression(
         Expr::Match(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5825,6 +5955,7 @@ fn explicit_aggregate_move_span_in_expression(
                     &arm.body,
                     arm.payload.as_ref().map(|payload| payload.name.as_str()),
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5836,6 +5967,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_block(
                     &arm.body,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5847,6 +5979,7 @@ fn explicit_aggregate_move_span_in_expression(
                 explicit_aggregate_move_span_in_expression(
                     &part.expression,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5867,6 +6000,7 @@ fn explicit_aggregate_move_span_in_expression(
 fn explicit_aggregate_move_span_in_block(
     block: &Block,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -5879,6 +6013,7 @@ fn explicit_aggregate_move_span_in_block(
                 explicit_aggregate_move_span_in_statement(
                     statement,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -5889,6 +6024,7 @@ fn explicit_aggregate_move_span_in_block(
                     explicit_aggregate_move_span_in_expression(
                         result,
                         resolved,
+                        resolved_sources,
                         typecheck_facts,
                         generic_substitutions,
                         scope,
@@ -5901,6 +6037,7 @@ fn explicit_aggregate_move_span_in_block(
                 let span = explicit_aggregate_move_span_in_statement(
                     statement,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
@@ -5916,6 +6053,7 @@ fn explicit_aggregate_move_span_in_block(
                 explicit_aggregate_move_span_in_expression(
                     result,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
@@ -5928,6 +6066,7 @@ fn explicit_aggregate_move_span_in_block(
 fn explicit_aggregate_move_span_in_statement(
     statement: &Stmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -5942,6 +6081,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_expression(
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5950,6 +6090,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::Binding(statement) => explicit_aggregate_move_span_in_expression(
             &statement.initializer,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5957,6 +6098,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::Assignment(statement) => explicit_aggregate_move_span_in_expression(
             &statement.target,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5965,6 +6107,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_expression(
                 &statement.value,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5973,6 +6116,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::If(statement) => explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -5981,6 +6125,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_block(
                 &statement.then_block,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -5991,6 +6136,7 @@ fn explicit_aggregate_move_span_in_statement(
                 explicit_aggregate_move_span_in_block(
                     block,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -6000,6 +6146,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::IfIs(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6012,6 +6159,7 @@ fn explicit_aggregate_move_span_in_statement(
                     .as_ref()
                     .map(|payload| payload.name.as_str()),
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -6022,6 +6170,7 @@ fn explicit_aggregate_move_span_in_statement(
                 explicit_aggregate_move_span_in_block(
                     block,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -6031,6 +6180,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::Switch(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6041,6 +6191,7 @@ fn explicit_aggregate_move_span_in_statement(
                     &arm.body,
                     arm.payload.as_ref().map(|payload| payload.name.as_str()),
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -6052,6 +6203,7 @@ fn explicit_aggregate_move_span_in_statement(
                 explicit_aggregate_move_span_in_block(
                     &arm.body,
                     resolved,
+                    resolved_sources,
                     typecheck_facts,
                     generic_substitutions,
                     scope,
@@ -6061,6 +6213,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::ForRange(statement) => explicit_aggregate_move_span_in_expression(
             &statement.start,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6069,6 +6222,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_expression(
                 &statement.end,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -6078,6 +6232,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_for_range_body(
                 statement,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -6086,6 +6241,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::While(statement) => explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6094,6 +6250,7 @@ fn explicit_aggregate_move_span_in_statement(
             explicit_aggregate_move_span_in_block(
                 &statement.body,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 scope,
@@ -6102,6 +6259,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::Loop(statement) => explicit_aggregate_move_span_in_block(
             &statement.body,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6109,6 +6267,7 @@ fn explicit_aggregate_move_span_in_statement(
         Stmt::Expression(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6119,6 +6278,7 @@ fn explicit_aggregate_move_span_in_statement(
 fn explicit_aggregate_move_span_in_for_range_body(
     statement: &ForRangeStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -6127,6 +6287,7 @@ fn explicit_aggregate_move_span_in_for_range_body(
         ExplicitAggregateMoveScope::Any => explicit_aggregate_move_span_in_block(
             &statement.body,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6137,6 +6298,7 @@ fn explicit_aggregate_move_span_in_for_range_body(
             explicit_aggregate_move_span_in_block(
                 &statement.body,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 ExplicitAggregateMoveScope::OutsideLocals(&body_locals),
@@ -6149,6 +6311,7 @@ fn explicit_aggregate_move_span_in_payload_block(
     block: &Block,
     payload_name: Option<&str>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -6160,6 +6323,7 @@ fn explicit_aggregate_move_span_in_payload_block(
             explicit_aggregate_move_span_in_block(
                 block,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 ExplicitAggregateMoveScope::OutsideLocals(&nested_locals),
@@ -6168,6 +6332,7 @@ fn explicit_aggregate_move_span_in_payload_block(
         _ => explicit_aggregate_move_span_in_block(
             block,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
             scope,
@@ -6178,6 +6343,7 @@ fn explicit_aggregate_move_span_in_payload_block(
 fn explicit_aggregate_move_matches_identifier(
     identifier: &IdentifierExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     scope: ExplicitAggregateMoveScope<'_>,
@@ -6186,6 +6352,7 @@ fn explicit_aggregate_move_matches_identifier(
         ExplicitAggregateMoveScope::Any => identifier_is_aggregate_for_buildability(
             identifier,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -6193,6 +6360,7 @@ fn explicit_aggregate_move_matches_identifier(
             identifier_is_outer_aggregate_for_buildability(
                 identifier,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
                 local_bindings,
@@ -6204,6 +6372,7 @@ fn explicit_aggregate_move_matches_identifier(
 fn assignment_target_root_is_aggregate_binding_for_buildability(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -6211,12 +6380,14 @@ fn assignment_target_root_is_aggregate_binding_for_buildability(
         Expr::Identifier(identifier) => identifier_is_aggregate_for_buildability(
             identifier,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Member(member) => assignment_target_root_is_aggregate_binding_for_buildability(
             &member.object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -6227,6 +6398,7 @@ fn assignment_target_root_is_aggregate_binding_for_buildability(
 fn identifier_is_outer_aggregate_for_buildability(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
     local_bindings: &HashSet<String>,
@@ -6235,6 +6407,7 @@ fn identifier_is_outer_aggregate_for_buildability(
         && identifier_is_aggregate_for_buildability(
             identifier,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
@@ -6243,6 +6416,7 @@ fn identifier_is_outer_aggregate_for_buildability(
 fn identifier_is_aggregate_for_buildability(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -6253,7 +6427,7 @@ fn identifier_is_aggregate_for_buildability(
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    type_expr_is_supported_aggregate_value(&ty, resolved)
+    type_expr_is_supported_aggregate_value_for_sources(&ty, resolved, resolved_sources)
 }
 
 fn statement_suffix_exits_function_for_buildability(
@@ -7925,6 +8099,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -8294,6 +8469,7 @@ fn unsupported_field_member_value_diagnostic(
     sources: &SourceMap,
     expression: &MemberExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
@@ -8306,7 +8482,7 @@ fn unsupported_field_member_value_diagnostic(
 
     let field_ty = field_type_expr_for_member(expression, resolved, typecheck_facts)?;
     let field_ty = substitute_type_expr_parameters(&field_ty, generic_substitutions);
-    match member_field_value_type_is_buildable(&field_ty, resolved)? {
+    match member_field_value_type_is_buildable(&field_ty, resolved, resolved_sources)? {
         true => None,
         false => Some(unsupported_v0_build_diagnostic(
             sources,
@@ -8346,46 +8522,91 @@ fn field_type_expr_for_span(
     })
 }
 
-fn member_field_value_type_is_buildable(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
-    if type_expr_contains_unresolved_type_parameter(ty, resolved) {
+fn member_field_value_type_is_buildable(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> Option<bool> {
+    if type_expr_contains_unresolved_type_parameter(ty, resolved, resolved_sources) {
         return None;
     }
-    if type_expr_is_buildable_scalar_or_view(ty, resolved)
-        || type_expr_is_supported_aggregate_value(ty, resolved)
+    if type_expr_is_buildable_scalar_or_view_for_sources(ty, resolved, resolved_sources)
+        || type_expr_is_supported_aggregate_value_for_sources(ty, resolved, resolved_sources)
     {
         return Some(true);
     }
     Some(false)
 }
 
-fn type_expr_contains_unresolved_type_parameter(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+fn type_expr_contains_unresolved_type_parameter(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_contains_unresolved_type_parameter_with_resolver(
+        ty,
+        fallback_resolved,
+        &source_resolver,
+    )
+}
+
+fn type_expr_contains_unresolved_type_parameter_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             !known_builtin_type_name(&reference.name)
                 && type_symbol_by_reference_name(resolved, &reference.name).is_none()
         }
-        TypeExpr::Generic(generic) => generic
-            .arguments
-            .iter()
-            .any(|argument| type_expr_contains_unresolved_type_parameter(argument, resolved)),
-        TypeExpr::Pointer(pointer) => {
-            type_expr_contains_unresolved_type_parameter(&pointer.inner, resolved)
-        }
-        TypeExpr::Borrow(borrow) => {
-            type_expr_contains_unresolved_type_parameter(&borrow.inner, resolved)
-        }
-        TypeExpr::View(view) => {
-            type_expr_contains_unresolved_type_parameter(&view.element, resolved)
-        }
-        TypeExpr::Array(array) => {
-            type_expr_contains_unresolved_type_parameter(&array.element, resolved)
-        }
-        TypeExpr::Optional(optional) => {
-            type_expr_contains_unresolved_type_parameter(&optional.inner, resolved)
-        }
+        TypeExpr::Generic(generic) => generic.arguments.iter().any(|argument| {
+            type_expr_contains_unresolved_type_parameter_with_resolver(
+                argument,
+                fallback_resolved,
+                resolver,
+            )
+        }),
+        TypeExpr::Pointer(pointer) => type_expr_contains_unresolved_type_parameter_with_resolver(
+            &pointer.inner,
+            fallback_resolved,
+            resolver,
+        ),
+        TypeExpr::Borrow(borrow) => type_expr_contains_unresolved_type_parameter_with_resolver(
+            &borrow.inner,
+            fallback_resolved,
+            resolver,
+        ),
+        TypeExpr::View(view) => type_expr_contains_unresolved_type_parameter_with_resolver(
+            &view.element,
+            fallback_resolved,
+            resolver,
+        ),
+        TypeExpr::Array(array) => type_expr_contains_unresolved_type_parameter_with_resolver(
+            &array.element,
+            fallback_resolved,
+            resolver,
+        ),
+        TypeExpr::Optional(optional) => type_expr_contains_unresolved_type_parameter_with_resolver(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+        ),
         TypeExpr::Fallible(fallible) => {
-            type_expr_contains_unresolved_type_parameter(&fallible.success, resolved)
-                || type_expr_contains_unresolved_type_parameter(&fallible.error, resolved)
+            type_expr_contains_unresolved_type_parameter_with_resolver(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+            ) || type_expr_contains_unresolved_type_parameter_with_resolver(
+                &fallible.error,
+                fallback_resolved,
+                resolver,
+            )
         }
     }
 }

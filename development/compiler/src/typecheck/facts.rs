@@ -832,6 +832,11 @@ impl TypecheckFactCollector<'_> {
             continuing_binding_type(statement, initializer_type, self.resolved, environment);
         let is_mutable = binding_kind_is_mutable(statement.kind);
         self.record_binding(statement.name_span, &binding_type, is_mutable);
+        if let Some(ty) = &statement.ty {
+            self.facts
+                .binding_type_exprs
+                .insert(statement.name_span, ty.clone());
+        }
         environment.define_binding(statement.name.clone(), binding_type, is_mutable);
     }
 

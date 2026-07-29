@@ -198,6 +198,9 @@ Rules:
 - Buildability validation must run before target lowering, register allocation,
   code generation, or executable writing.
 - The backend must receive only constructs that passed buildability validation.
+- Buildability validation must resolve imported type aliases by their declaring
+  source when classifying runtime-supported local values, field/member values,
+  borrow arguments, slice element operations, and aggregate move/drop boundaries.
 - `check` accepts explicitly check-only constructs so tools can validate source
   syntax, imports, names, types, ownership, and diagnostics before runtime
   lowering is implemented.

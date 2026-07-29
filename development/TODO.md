@@ -197,6 +197,10 @@ Recommended order:
   element borrows reject before IR lowering.
 - Slice element kind checks used by compound assignment and read-write element
   borrows now resolve imported call-result aliases by declaring source.
+- Local binding, field-member value, and explicit control-flow aggregate move
+  preflights now resolve imported nested aliases by declaring source, so
+  storage-only scalar locals and unsupported aggregate moves reject before IR
+  lowering even when a public alias hides a private alias hop.
 - IR type normalization and drop glue resolution now resolve source-qualified
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.

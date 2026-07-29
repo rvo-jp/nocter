@@ -55,7 +55,9 @@ structured typechecker facts for binding types and method receiver kinds, and
 buildability resolves imported type aliases by their declaring source when
 deciding whether value-producing control expressions or discardable expression
 statements are in scalar/view runtime positions, and when it gates read-write
-borrow call arguments and call-result slice element mutation/borrow positions.
+borrow call arguments, local binding and field-member value types, explicit
+aggregate moves in control-flow positions, and call-result slice element
+mutation/borrow positions.
 Non-copy aggregate slice indexing and slice index assignment now reject at the
 same buildability boundary instead of leaking into IR diagnostics. IR type
 normalization and drop glue resolution also handle source-qualified imported

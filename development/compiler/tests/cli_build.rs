@@ -4853,6 +4853,71 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_rejects_imported_nested_alias_condition_aggregate_move_before_ir_lowering() {
+    let project = TempProject::new("cli-build-imported-nested-alias-condition-aggregate-move");
+    project.write_source(
+        "slot_api.nct",
+        r#"pub struct Slot {
+    pub value: i32
+}
+
+type PrivateSlot = Slot
+pub type PublicSlot = PrivateSlot
+
+pub func make(): PublicSlot {
+    return Slot{ value: 1 }
+}
+
+pub func consume(slot: PublicSlot): bool {
+    return true
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_nested_alias_condition_aggregate_move.nct",
+        r#"use ./slot_api.PublicSlot
+use ./slot_api.make
+use ./slot_api.consume
+
+func main(): i32 {
+    var slot: PublicSlot = make()
+    if consume(move slot) {
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "stderr missing E0435:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit aggregate moves in control-flow conditions"),
+        "stderr missing unsupported construct:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     if consume(move slot) {"),
+        "stderr missing condition span:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "stderr leaked IR diagnostic:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "unexpected executable at {}",
+        executable.display()
+    );
+}
+
+#[test]
 fn build_command_lowers_reachable_i32_range_for() {
     let project = TempProject::new("cli-build-range-for");
     let source = project.write_source(
@@ -5032,6 +5097,54 @@ fn build_command_reports_unsupported_scalar_local_binding_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_imported_nested_alias_unsupported_scalar_local_binding_before_ir_lowering()
+{
+    let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-local");
+    project.write_source(
+        "scalar_aliases.nct",
+        r#"type PrivateWide = u16
+pub type Wide = PrivateWide
+"#,
+    );
+    let source = project.write_source(
+        "imported_nested_alias_unsupported_scalar_local.nct",
+        r#"use ./scalar_aliases.Wide
+
+func main(): i32 {
+    let explicit: Wide = 1
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("local bindings with unsupported value types"),
+        "expected local binding diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let explicit: Wide = 1"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_scalar_function_signature_before_ir_lowering() {
     let project = TempProject::new("cli-build-unsupported-scalar-signature-boundary");
     let source = project.write_source(
@@ -5116,6 +5229,58 @@ func main(): i32 {
     );
     assert!(
         stderr.contains("7 |     return header.code as i32"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_imported_nested_alias_unsupported_scalar_field_member_before_ir_lowering()
+{
+    let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-field");
+    project.write_source(
+        "header_api.nct",
+        r#"type PrivateCode = u16
+pub type Code = PrivateCode
+
+pub struct Header {
+    pub code: Code
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_nested_alias_unsupported_scalar_field.nct",
+        r#"use ./header_api.Header
+
+func main(): i32 {
+    let header = Header{ code: 42 }
+    return header.code as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("field member values outside supported scalar/view or aggregate types"),
+        "expected field member diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("5 |     return header.code as i32"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
