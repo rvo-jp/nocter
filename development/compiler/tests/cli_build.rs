@@ -1427,6 +1427,70 @@ func buffer(): &+[u8] {
 }
 
 #[test]
+fn build_command_lowers_imported_alias_slice_call_result_compound_assignment() {
+    let project = TempProject::new("cli-build-imported-alias-slice-call-result-compound");
+    project.write_source(
+        "slice_api.nct",
+        r#"pub type MutBytes = &+[u8]
+
+pub func buffer(): MutBytes {
+    return buffer()
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_alias_slice_call_result_compound.nct",
+        r#"use ./slice_api.buffer
+
+func main(): i32 {
+    buffer()[0] += 1
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_imported_alias_slice_call_result_borrow_argument() {
+    let project = TempProject::new("cli-build-imported-alias-slice-call-result-borrow");
+    project.write_source(
+        "slice_api.nct",
+        r#"pub type MutBytes = &+[u8]
+
+pub func buffer(): MutBytes {
+    return buffer()
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_alias_slice_call_result_borrow.nct",
+        r#"use ./slice_api.buffer
+
+func main(): i32 {
+    touch(&+buffer()[0])
+    return 0
+}
+
+func touch(byte: &+u8): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_nonterminal_while_body_scope_drop() {
     let project = TempProject::new("cli-build-nonterminal-while-body-scope-drop");
     let source = project.write_source(

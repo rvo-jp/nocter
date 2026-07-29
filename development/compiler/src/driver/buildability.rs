@@ -3736,10 +3736,6 @@ where
     })
 }
 
-fn type_expr_resolves_to_str(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_resolves_to_str_with_resolver(ty, resolved, &|_| Some(resolved))
-}
-
 fn type_expr_resolves_to_str_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -3891,28 +3887,45 @@ where
     }
 }
 
-fn type_expr_resolved_view_element_kind(
+fn type_expr_resolved_view_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<TypecheckSliceElementKind> {
-    type_expr_resolved_view_element_kind_inner(ty, resolved, &mut HashSet::new())
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<TypecheckSliceElementKind>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    type_expr_resolved_view_element_kind_inner(ty, fallback_resolved, resolver, &mut HashSet::new())
 }
 
-fn type_expr_resolved_view_element_kind_inner(
+fn type_expr_resolved_view_element_kind_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<TypecheckSliceElementKind> {
+) -> Option<TypecheckSliceElementKind>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
-        TypeExpr::View(view) => Some(type_expr_slice_element_kind(&view.element, resolved)),
+        TypeExpr::View(view) => Some(type_expr_slice_element_kind_with_resolver(
+            &view.element,
+            fallback_resolved,
+            resolver,
+        )),
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result =
-                type_expr_resolved_view_element_kind_inner(target, resolved, resolving_names);
+            let result = type_expr_resolved_view_element_kind_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -7004,6 +7017,7 @@ fn assignment_operator_is_buildable(
             ) || slice_index_compound_assignment_is_buildable(
                 &index.object,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             )
@@ -7034,6 +7048,7 @@ fn fixed_array_index_compound_assignment_is_buildable(
 fn slice_index_compound_assignment_is_buildable(
     object: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -7041,6 +7056,7 @@ fn slice_index_compound_assignment_is_buildable(
         slice_index_assignment_element_kind(
             object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions
         ),
@@ -7758,6 +7774,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 resolved,
+                resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             ) {
@@ -8627,9 +8644,11 @@ where
 fn slice_index_assignment_element_kind(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypecheckSliceElementKind> {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
     match unwrap_group_expr(expression) {
         Expr::Identifier(identifier) => {
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
@@ -8649,7 +8668,11 @@ fn slice_index_assignment_element_kind(
                 typecheck_facts,
                 generic_substitutions,
             )?;
-            slice_index_target_type_expr_element_kind(&return_type, resolved)
+            slice_index_target_type_expr_element_kind_with_resolver(
+                &return_type,
+                resolved,
+                &source_resolver,
+            )
         }
         Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Slice(element) => Some(element),
@@ -8662,24 +8685,28 @@ fn slice_index_assignment_element_kind(
         Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(
             &propagation.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Force(force) => slice_index_assignment_fallible_element_kind(
             &force.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Catch(catch) => slice_index_assignment_fallible_element_kind(
             &catch.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Group(group) => slice_index_assignment_element_kind(
             &group.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -8690,6 +8717,7 @@ fn slice_index_assignment_element_kind(
 fn slice_index_assignment_fallible_element_kind(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypecheckSliceElementKind> {
@@ -8705,7 +8733,12 @@ fn slice_index_assignment_fallible_element_kind(
     let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
-    slice_index_target_type_expr_element_kind(&fallible.success, resolved)
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    slice_index_target_type_expr_element_kind_with_resolver(
+        &fallible.success,
+        resolved,
+        &source_resolver,
+    )
 }
 
 fn call_return_type_expr_with_substitutions(
@@ -8837,33 +8870,61 @@ where
     }
 }
 
-fn slice_index_target_type_expr_element_kind(
+fn slice_index_target_type_expr_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<TypecheckSliceElementKind> {
-    slice_index_target_type_expr_element_kind_inner(ty, resolved, &mut HashSet::new())
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<TypecheckSliceElementKind>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    slice_index_target_type_expr_element_kind_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
 }
 
-fn slice_index_target_type_expr_element_kind_inner(
+fn slice_index_target_type_expr_element_kind_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<TypecheckSliceElementKind> {
+) -> Option<TypecheckSliceElementKind>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(borrow) => {
-            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) {
+            if !borrow.is_readwrite
+                && type_expr_resolves_to_str_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                )
+            {
                 return Some(TypecheckSliceElementKind::Str);
             }
-            type_expr_resolved_view_element_kind(&borrow.inner, resolved)
+            type_expr_resolved_view_element_kind_with_resolver(
+                &borrow.inner,
+                fallback_resolved,
+                resolver,
+            )
         }
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result =
-                slice_index_target_type_expr_element_kind_inner(target, resolved, resolving_names);
+            let result = slice_index_target_type_expr_element_kind_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
@@ -9245,13 +9306,6 @@ where
     }
 }
 
-fn type_expr_slice_element_kind(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> TypecheckSliceElementKind {
-    type_expr_slice_element_kind_with_resolver(ty, resolved, &|_| Some(resolved))
-}
-
 fn type_expr_slice_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -9478,6 +9532,7 @@ fn unsupported_borrow_call_argument_diagnostic(
                         && !readwrite_borrow_argument_source_is_buildable(
                             &borrow.expression,
                             resolved,
+                            resolved_sources,
                             typecheck_facts,
                             generic_substitutions,
                         ) =>
@@ -9500,6 +9555,7 @@ fn unsupported_method_borrow_receiver_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
@@ -9513,6 +9569,7 @@ fn unsupported_method_borrow_receiver_diagnostic(
     if readwrite_borrow_argument_source_is_buildable(
         &member.object,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     ) {
@@ -9603,6 +9660,7 @@ fn method_call_receiver_is_readwrite_borrow(
 fn readwrite_borrow_argument_source_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
@@ -9612,6 +9670,7 @@ fn readwrite_borrow_argument_source_is_buildable(
         Expr::Index(index) => slice_index_assignment_element_kind(
             &index.object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )

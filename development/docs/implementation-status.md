@@ -55,11 +55,12 @@ structured typechecker facts for binding types and method receiver kinds, and
 buildability resolves imported type aliases by their declaring source when
 deciding whether value-producing control expressions or discardable expression
 statements are in scalar/view runtime positions, and when it gates read-write
-borrow call arguments. Non-copy aggregate slice indexing and slice index
-assignment now reject at the same buildability boundary instead of leaking into
-IR diagnostics. IR type normalization and drop glue resolution also handle
-source-qualified imported type names when lowering imported call signatures.
-Hover labels remain editor presentation data.
+borrow call arguments and call-result slice element mutation/borrow positions.
+Non-copy aggregate slice indexing and slice index assignment now reject at the
+same buildability boundary instead of leaking into IR diagnostics. IR type
+normalization and drop glue resolution also handle source-qualified imported
+type names when lowering imported call signatures. Hover labels remain editor
+presentation data.
 Parser diagnostics reserve the `_` and `Self` spellings across v0
 name-introducing syntax, including declarations, parameters, local bindings,
 payload bindings, import introduced names, and import aliases.

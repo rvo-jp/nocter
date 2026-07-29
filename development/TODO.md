@@ -195,6 +195,8 @@ Recommended order:
 - Buildability also resolves imported borrow aliases by declaring source when it
   gates read-write borrow call arguments, so unsupported writable fixed-array
   element borrows reject before IR lowering.
+- Slice element kind checks used by compound assignment and read-write element
+  borrows now resolve imported call-result aliases by declaring source.
 - IR type normalization and drop glue resolution now resolve source-qualified
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.
