@@ -10043,13 +10043,18 @@ func main(): i32 {
         ok: maybe_bool(true) otherwise { false },
         text: maybe_text(false) otherwise { "Nocter" },
     }
+    let branch = if false {
+        maybe_i32(true) otherwise { 1 }
+    } else {
+        maybe_i32(false) otherwise { 4 }
+    }
     return combine(
         maybe_i32(true) otherwise { 1 },
         maybe_u8(false) otherwise { 3 },
         maybe_usize(true) otherwise { 1 },
         maybe_bool(false) otherwise { true },
         maybe_text(true) otherwise { "bad" },
-    ) + state.count + state.byte as i32
+    ) + state.count + state.byte as i32 + branch
 }
 
 func combine(count: i32, byte: u8, size: usize, ok: bool, text: &str): i32 {

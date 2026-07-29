@@ -11640,8 +11640,13 @@ func main(): i32 {
         maybe_text(true) otherwise { "bad" },
         maybe_data(true) otherwise { bytes("bad") },
     )
+    let branched = if false {
+        maybe_i32(true) otherwise { 1 }
+    } else {
+        maybe_i32(false) otherwise { 4 }
+    }
     let returned = return_fallback_argument()
-    if inputs.ok && inputs.count == 2 && inputs.byte == 7 && inputs.size == 9 && inputs.text.len() == 6 && inputs.data.len() == 1 && inputs.data[0] == b'*' && subtotal == 33 && returned == 7 {
+    if inputs.ok && inputs.count == 2 && inputs.byte == 7 && inputs.size == 9 && inputs.text.len() == 6 && inputs.data.len() == 1 && inputs.data[0] == b'*' && subtotal == 33 && branched == 4 && returned == 7 {
         return 42
     }
     return 1
