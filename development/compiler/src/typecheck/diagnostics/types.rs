@@ -91,3 +91,18 @@ pub(in crate::typecheck) fn unresolved_type_reference_diagnostic(
         Some("import or define the type, or use a built-in type such as `i32`".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn self_type_outside_context_diagnostic(
+    sources: &SourceMap,
+    name_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0436",
+        "`Self` has no meaning outside inherent member or interface method type positions",
+    );
+    diagnostic.primary_span = sources.span_to_json(name_span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "use `Self` only inside an inherent `impl`, a qualified associated function declaration, or an interface method signature".to_string(),
+    );
+    diagnostic
+}

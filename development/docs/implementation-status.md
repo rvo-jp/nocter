@@ -60,6 +60,9 @@ imported call signatures. Hover labels remain editor presentation data.
 Parser diagnostics reserve the `_` and `Self` spellings across v0
 name-introducing syntax, including declarations, parameters, local bindings,
 payload bindings, import introduced names, and import aliases.
+Typechecking accepts `Self` type syntax only in inherent member, qualified
+associated-function, and interface method signature contexts; other type
+positions receive a source-backed diagnostic instead of normal name lookup.
 
 ## Implemented Capability
 

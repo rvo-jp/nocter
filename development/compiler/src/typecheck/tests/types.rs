@@ -290,6 +290,79 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_self_type_outside_member_type_positions() {
+    for source in [
+        r#"func main(): i32 {
+    return 0
+}
+
+func consume(value: Self): i32 {
+    return 0
+}
+"#,
+        r#"type Alias = Self
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"struct Box {
+    value: Self
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"impl Self {
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    ] {
+        let diagnostics = check_text(source);
+        assert_eq!(diagnostics.len(), 1, "{source}\n{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0436");
+        assert!(
+            diagnostics[0].message.contains("outside inherent member"),
+            "{source}\n{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn accepts_self_type_in_inherent_member_type_positions() {
+    let diagnostics = check_text(
+        r#"struct Point {
+    x: i32
+}
+
+pub func Point.origin(): Self {
+    return Self{ x: 1 }
+}
+
+impl Point {
+    method self.same(): Self {
+        return move self
+    }
+
+    method &self.borrow(): &Self {
+        return self
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_alias_to_unsized_str_in_value_position() {
     let diagnostics = check_text(
         r#"type Text = str

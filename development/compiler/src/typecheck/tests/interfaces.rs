@@ -57,6 +57,34 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_self_type_in_interface_method_signature() {
+    let diagnostics = check_text(
+        r#"interface Cloneable {
+    pub method &self.clone(): Self
+}
+
+struct User {
+    id: i32
+}
+
+impl User {
+    pub method &self.clone(): User {
+        return User{ id: self.id }
+    }
+}
+
+impl Cloneable for User
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_interface_parameter_value_type() {
     let diagnostics = check_text(
         r#"interface Printable {

@@ -1,5 +1,6 @@
 use super::diagnostics::{
-    generic_type_argument_count_diagnostic, unresolved_type_reference_diagnostic,
+    generic_type_argument_count_diagnostic, self_type_outside_context_diagnostic,
+    unresolved_type_reference_diagnostic,
 };
 use crate::ast::{
     AstFile, Block, Expr, GenericParamList, ImplMember, InterpolatedStringPart, Item, MethodDecl,
@@ -19,7 +20,11 @@ pub(super) fn check_generic_type_arities(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                let scope = GenericScope::new(&function.generics);
+                let scope = if function.owner.is_some() {
+                    GenericScope::new(&function.generics).with_self_type()
+                } else {
+                    GenericScope::new(&function.generics)
+                };
                 check_parameters(
                     sources,
                     &function.parameters.parameters,
@@ -70,7 +75,7 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Interface(interface) => {
-                let scope = GenericScope::new(&interface.generics);
+                let scope = GenericScope::new(&interface.generics).with_self_type();
                 for method in &interface.methods {
                     check_method_signature(sources, method, resolved, &scope, diagnostics);
                 }
@@ -81,12 +86,19 @@ pub(super) fn check_generic_type_arities(
                     check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
                 }
                 check_type_expr(sources, &impl_.target_ty, resolved, &scope, diagnostics);
+                let member_scope = scope.clone().with_self_type();
                 for member in &impl_.members {
                     match member {
                         ImplMember::Method(method) => {
-                            check_method_signature(sources, method, resolved, &scope, diagnostics);
+                            check_method_signature(
+                                sources,
+                                method,
+                                resolved,
+                                &member_scope,
+                                diagnostics,
+                            );
                             if let Some(body) = &method.body {
-                                check_block(sources, body, resolved, &scope, diagnostics);
+                                check_block(sources, body, resolved, &member_scope, diagnostics);
                             }
                         }
                         ImplMember::Drop(drop_) => {
@@ -94,10 +106,10 @@ pub(super) fn check_generic_type_arities(
                                 sources,
                                 &drop_.binding.ty,
                                 resolved,
-                                &scope,
+                                &member_scope,
                                 diagnostics,
                             );
-                            check_block(sources, &drop_.body, resolved, &scope, diagnostics);
+                            check_block(sources, &drop_.body, resolved, &member_scope, diagnostics);
                         }
                     }
                 }
@@ -110,6 +122,7 @@ pub(super) fn check_generic_type_arities(
 #[derive(Debug, Clone)]
 struct GenericScope<'a> {
     parameters: HashMap<&'a str, ByteSpan>,
+    allows_self_type: bool,
 }
 
 impl<'a> GenericScope<'a> {
@@ -120,7 +133,17 @@ impl<'a> GenericScope<'a> {
                 .iter()
                 .map(|parameter| (parameter.name.as_str(), parameter.span))
                 .collect(),
+            allows_self_type: false,
         }
+    }
+
+    fn with_self_type(mut self) -> Self {
+        self.allows_self_type = true;
+        self
+    }
+
+    fn allows_self_type(&self) -> bool {
+        self.allows_self_type
     }
 
     fn contains(&self, name: &str) -> bool {
@@ -171,7 +194,16 @@ fn check_type_expr(
 ) {
     match ty {
         TypeExpr::Reference(reference) => {
-            if reference.name == "Self" || scope.contains(&reference.name) {
+            if reference.name == "Self" {
+                if !scope.allows_self_type() {
+                    diagnostics.push(self_type_outside_context_diagnostic(
+                        sources,
+                        reference.span,
+                    ));
+                }
+                return;
+            }
+            if scope.contains(&reference.name) {
                 return;
             }
             if builtin_type_argument_arity(&reference.name).is_some() {
@@ -199,7 +231,23 @@ fn check_type_expr(
             }
         }
         TypeExpr::Generic(generic) => {
-            if generic.name == "Self" || builtin_type_argument_arity(&generic.name).is_some() {
+            if generic.name == "Self" {
+                if scope.allows_self_type() {
+                    diagnostics.push(generic_type_argument_count_diagnostic(
+                        sources,
+                        &generic.name,
+                        generic.name_span,
+                        None,
+                        0,
+                        generic.arguments.len(),
+                    ));
+                } else {
+                    diagnostics.push(self_type_outside_context_diagnostic(
+                        sources,
+                        generic.name_span,
+                    ));
+                }
+            } else if builtin_type_argument_arity(&generic.name).is_some() {
                 diagnostics.push(generic_type_argument_count_diagnostic(
                     sources,
                     &generic.name,
