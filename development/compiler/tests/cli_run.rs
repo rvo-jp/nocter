@@ -7706,6 +7706,85 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_fixed_array_aggregate_field_values() {
+    let project = TempProject::new("cli-run-fixed-array-aggregate-field-values");
+    let source = project.write_source(
+        "fixed_array_aggregate_field_values.nct",
+        r#"copy struct Bag {
+    values: [i32; 3]
+    flags: [bool; 1]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{
+        values: [1, 2, 3],
+        flags: [true],
+        words: ["lang", "Nocter"]
+    }
+    let copied: [i32; 3] = bag.values
+    var assigned: [i32; 3] = [0, 0, 0]
+    assigned = bag.values
+    let clone = Bag{
+        values: bag.values,
+        flags: bag.flags,
+        words: bag.words
+    }
+    let made = Bag{
+        values: make_values(),
+        flags: [true],
+        words: make_words()
+    }
+    let extracted: [i32; 3] = extract_values(clone)
+    let word: &str = made.words[1]
+    let made_value: i32 = made.values[1]
+    if take(bag.values) == 6 {
+        if take(copied) == 6 {
+            if take(assigned) == 6 {
+                if take(extracted) == 6 {
+                    if made_value == 8 {
+                        if word.len() == 6 {
+                            return 42
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 1
+}
+
+func take(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
+}
+
+func extract_values(bag: Bag): [i32; 3] {
+    return bag.values
+}
+
+func make_values(): [i32; 3] {
+    return [7, 8, 9]
+}
+
+func make_words(): [&str; 2] {
+    return ["lang", "Nocter"]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_fixed_array_constant_index_assignment_out_of_bounds() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-assignment-oob");
     let source = project.write_source(

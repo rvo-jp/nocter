@@ -782,6 +782,7 @@ where
         {
             let stride = array_element_stride(element).ok()?;
             Some(AggregateFieldKind::Array {
+                layout: layout_of(ty).ok()?,
                 element: element.as_ref().clone(),
                 length: *length,
                 stride: u32::try_from(stride).ok()?,
@@ -962,6 +963,104 @@ fn lower_aggregate_field_to_location(
                         temporaries,
                     )
                 }
+                Expr::Identifier(identifier) => {
+                    let Some(source) = context.aggregate_local(&identifier.name) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    if source.layout != expected_layout || !source.is_copy {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    }
+                    Ok(vec![Instruction::CopyAggregateRange {
+                        destination,
+                        destination_offset: offset,
+                        source: AggregateLocation::Slot(source.slot_index),
+                        source_offset: 0,
+                        layout: expected_layout,
+                    }])
+                }
+                Expr::Call(call) => lower_aggregate_call_field_value_to_location(
+                    call,
+                    expected_layout,
+                    destination,
+                    offset,
+                    diagnostic_code,
+                    subject,
+                    context,
+                    temporaries,
+                ),
+                Expr::Propagate(propagation) => {
+                    let Some(call) = call_expression(&propagation.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                        propagating_failure_mode(context)?,
+                    )
+                }
+                Expr::Force(force) => {
+                    let Some(call) = call_expression(&force.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                        FallibleFailureMode::Trap,
+                    )
+                }
+                Expr::Catch(catch) => {
+                    let Some(call) = call_expression(&catch.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                        lower_catch_failure_mode(catch, context, 0)?,
+                    )
+                }
+                Expr::Member(_) => lower_aggregate_member_field_value_to_location(
+                    expression,
+                    expected_layout,
+                    destination,
+                    offset,
+                    diagnostic_code,
+                    subject,
+                    context,
+                    temporaries,
+                ),
                 Expr::Group(group) => lower_aggregate_field_to_location(
                     field_type,
                     &group.expression,
@@ -1458,7 +1557,7 @@ fn lower_aggregate_member_field_value_to_location(
             subject,
         ));
     };
-    let AggregateFieldKind::Aggregate { layout, .. } = access.kind else {
+    let Some(layout) = access.kind.copy_aggregate_layout() else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,

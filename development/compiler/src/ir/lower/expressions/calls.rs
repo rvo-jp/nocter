@@ -1098,7 +1098,7 @@ fn lower_aggregate_member_argument_source(
     let source = access.source;
     let source_offset = access.offset;
     let is_copy = access.is_copy;
-    let AggregateFieldKind::Aggregate { layout, .. } = access.kind else {
+    let Some(layout) = access.kind.copy_aggregate_layout() else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -1773,6 +1773,13 @@ fn aggregate_field_matches_borrow_inner(kind: &AggregateFieldKind, inner: &Type)
         | (AggregateFieldKind::Bool, Type::Bool) => true,
         (AggregateFieldKind::Str, Type::Str)
         | (AggregateFieldKind::Slice(_), Type::Slice { .. }) => true,
+        (AggregateFieldKind::Array { layout, .. }, Type::Aggregate { layout: expected })
+        | (
+            AggregateFieldKind::Array { layout, .. },
+            Type::DirectAggregate {
+                layout: expected, ..
+            },
+        ) => layout == expected,
         (AggregateFieldKind::Aggregate { layout, .. }, Type::Aggregate { layout: expected })
         | (
             AggregateFieldKind::Aggregate { layout, .. },

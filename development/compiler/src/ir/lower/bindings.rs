@@ -981,7 +981,7 @@ fn lower_aggregate_local_member_binding(
     let source = field.source;
     let source_offset = field.offset;
     let is_copy = field.is_copy;
-    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+    let Some((layout, fields)) = field.kind.copy_aggregate_layout_and_fields() else {
         return Ok(None);
     };
     if !is_copy || !supported_aggregate_copy_layout(layout) {
@@ -1024,7 +1024,7 @@ fn lower_aggregate_call_member_binding(
     };
     let source_offset = field.offset;
     let is_copy = field.is_copy;
-    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+    let Some((layout, fields)) = field.kind.copy_aggregate_layout_and_fields() else {
         return Ok(None);
     };
     if !is_copy
@@ -1095,7 +1095,7 @@ fn lower_aggregate_fallible_call_member_binding(
     };
     let source_offset = field.offset;
     let is_copy = field.is_copy;
-    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+    let Some((layout, fields)) = field.kind.copy_aggregate_layout_and_fields() else {
         return Ok(None);
     };
     if !is_copy
@@ -2599,6 +2599,13 @@ fn lower_copy_aggregate_value_to_slot_with_temporaries(
         Expr::Identifier(identifier) => {
             lower_aggregate_copy_assignment(slot_index, layout, &identifier.name, context)
         }
+        Expr::Member(_) => lower_aggregate_member_value_assignment(
+            AggregateLocation::Slot(slot_index),
+            0,
+            layout,
+            value,
+            context,
+        ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
                 return Err(unsupported_assignment_diagnostic());
@@ -2929,11 +2936,7 @@ fn lower_aggregate_member_value_assignment(
             let source_location = access.source;
             let source_offset = access.offset;
             let source_is_copy = access.is_copy;
-            let AggregateFieldKind::Aggregate {
-                layout: source_layout,
-                ..
-            } = access.kind
-            else {
+            let Some(source_layout) = access.kind.copy_aggregate_layout() else {
                 return Err(unsupported_assignment_diagnostic());
             };
             if source_layout != layout || !source_is_copy {
@@ -3275,6 +3278,13 @@ fn lower_aggregate_assignment_to_slot(
         Expr::Identifier(identifier) => {
             lower_aggregate_copy_assignment(slot_index, layout, &identifier.name, context)
         }
+        Expr::Member(_) => lower_aggregate_member_value_assignment(
+            AggregateLocation::Slot(slot_index),
+            0,
+            layout,
+            expression,
+            context,
+        ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
                 return Err(unsupported_assignment_diagnostic());

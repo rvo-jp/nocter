@@ -2080,6 +2080,16 @@ fn unsupported_local_binding_type_diagnostic(
         return None;
     }
 
+    if fixed_array_member_binding_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+
     if fixed_array_binding_type_abi(
         statement,
         resolved,
@@ -2097,7 +2107,7 @@ fn unsupported_local_binding_type_diagnostic(
             sources,
             statement.name_span,
             "fixed array local bindings outside supported initialization",
-            "initialize fixed array locals directly from a supported array literal, copy another supported fixed array local, or bind a matching fixed array call result until broader fixed array move lowering is promoted",
+            "initialize fixed array locals directly from a supported array literal, copy another supported fixed array local or aggregate field, or bind a matching fixed array call result until broader fixed array move lowering is promoted",
         ));
     }
 
@@ -2288,6 +2298,46 @@ fn fixed_array_call_binding_is_buildable(
     )
 }
 
+fn fixed_array_member_binding_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::Member(member) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    let Some((target_element, target_length, target_layout)) = fixed_array_binding_type_abi(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+
+    let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
+        return false;
+    };
+    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    fixed_array_abi_matches_buildable_element(
+        &target_element,
+        target_length,
+        target_layout,
+        &source_element,
+        source_length,
+        source_layout,
+    )
+}
+
 fn fixed_array_copy_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
@@ -2369,6 +2419,49 @@ fn fixed_array_call_assignment_is_buildable(
     ) else {
         return false;
     };
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    fixed_array_abi_matches_buildable_element(
+        &target_element,
+        target_length,
+        target_layout,
+        &source_element,
+        source_length,
+        source_layout,
+    )
+}
+
+fn fixed_array_member_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Member(member) = unwrap_group_expr(&statement.value) else {
+        return false;
+    };
+    let Some((target_element, target_length, target_layout)) = fixed_array_assignment_target_abi(
+        &statement.target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+
+    let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
+        return false;
+    };
+    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
     let Some((source_element, source_length, source_layout)) =
         fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
     else {
@@ -2577,6 +2670,12 @@ fn unsupported_fixed_array_assignment_diagnostic(
         resolved_sources,
         typecheck_facts,
         generic_substitutions,
+    ) || fixed_array_member_assignment_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
     ) {
         return None;
     }
@@ -2585,7 +2684,7 @@ fn unsupported_fixed_array_assignment_diagnostic(
         sources,
         statement.target.span(),
         "fixed array whole-local assignments outside supported replacement values",
-        "assign a matching fixed array literal, copy another matching local fixed array, or assign a matching fixed array call result until broader fixed array expression lowering is promoted",
+        "assign a matching fixed array literal, copy another matching local or aggregate-field fixed array, or assign a matching fixed array call result until broader fixed array expression lowering is promoted",
     ))
 }
 

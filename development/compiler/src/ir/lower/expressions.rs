@@ -4757,6 +4757,7 @@ fn fixed_array_access_metadata(
                 element,
                 length,
                 stride,
+                ..
             } = access.kind
             else {
                 return Ok(None);

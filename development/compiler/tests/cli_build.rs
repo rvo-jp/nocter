@@ -5658,6 +5658,65 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_aggregate_field_values() {
+    let project = TempProject::new("cli-build-fixed-array-aggregate-field-values");
+    let source = project.write_source(
+        "fixed_array_aggregate_field_values.nct",
+        r#"copy struct Bag {
+    values: [i32; 3]
+    flags: [bool; 1]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{
+        values: [1, 2, 3],
+        flags: [true],
+        words: ["lang", "Nocter"]
+    }
+    let copied: [i32; 3] = bag.values
+    var assigned: [i32; 3] = [0, 0, 0]
+    assigned = bag.values
+    let clone = Bag{
+        values: bag.values,
+        flags: bag.flags,
+        words: bag.words
+    }
+    let made = Bag{
+        values: make_values(),
+        flags: [true],
+        words: make_words()
+    }
+    let extracted: [i32; 3] = extract_values(clone)
+    return take(bag.values) + take(copied) + take(assigned) + take(extracted) + made.values[1]
+}
+
+func take(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
+}
+
+func extract_values(bag: Bag): [i32; 3] {
+    return bag.values
+}
+
+func make_values(): [i32; 3] {
+    return [7, 8, 9]
+}
+
+func make_words(): [&str; 2] {
+    return ["lang", "Nocter"]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(

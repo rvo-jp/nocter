@@ -1570,6 +1570,7 @@ pub(super) enum AggregateFieldKind {
     Str,
     Slice(SliceTypeInfo),
     Array {
+        layout: ValueLayout,
         element: crate::abi::AbiType,
         length: u64,
         stride: u32,
@@ -1578,6 +1579,26 @@ pub(super) enum AggregateFieldKind {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
     },
+}
+
+impl AggregateFieldKind {
+    pub(super) fn copy_aggregate_layout(&self) -> Option<ValueLayout> {
+        match self {
+            AggregateFieldKind::Array { layout, .. }
+            | AggregateFieldKind::Aggregate { layout, .. } => Some(*layout),
+            _ => None,
+        }
+    }
+
+    pub(super) fn copy_aggregate_layout_and_fields(
+        &self,
+    ) -> Option<(ValueLayout, Vec<AggregateField>)> {
+        match self {
+            AggregateFieldKind::Array { layout, .. } => Some((*layout, Vec::new())),
+            AggregateFieldKind::Aggregate { layout, fields } => Some((*layout, fields.clone())),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

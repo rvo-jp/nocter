@@ -8,8 +8,8 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, BorrowParameter,
-    ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
+    AggregateBorrowParameter, AggregateParameterSource, BorrowParameter, ErrorPayloads,
+    FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
     LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
     drop_glue_for_type_expr_with_resolver,
 };
@@ -3472,7 +3472,7 @@ fn lower_aggregate_member_return_to_location(
     let source = access.source;
     let source_offset = access.offset;
     let is_copy = access.is_copy;
-    let AggregateFieldKind::Aggregate { layout, .. } = access.kind else {
+    let Some(layout) = access.kind.copy_aggregate_layout() else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
     if layout != expected_layout || !is_copy || !supported_aggregate_copy_layout(layout) {
