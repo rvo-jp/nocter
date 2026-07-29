@@ -573,6 +573,7 @@ fn lower_otherwise_aggregate_binding(
         resolved,
         context,
         loop_control,
+        &unsupported_assignment_diagnostic,
     )?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
@@ -598,6 +599,7 @@ fn lower_otherwise_aggregate_failure_mode(
     resolved: &ResolveOutput,
     context: &LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
+    unsupported_diagnostic: &impl Fn() -> Vec<Diagnostic>,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
     lower_otherwise_recover_or_handle_failure_mode(
         fallback,
@@ -606,7 +608,7 @@ fn lower_otherwise_aggregate_failure_mode(
         |expression, context| {
             if let Expr::ArrayLiteral(literal) = unwrap_group(expression) {
                 let Some(expected_abi_type) = expected_abi_type else {
-                    return Err(unsupported_assignment_diagnostic());
+                    return Err(unsupported_diagnostic());
                 };
                 return lower_aggregate_array_literal_to_location(
                     literal,
@@ -617,9 +619,11 @@ fn lower_otherwise_aggregate_failure_mode(
                     "`otherwise` binding fallbacks",
                     resolved,
                     context,
-                );
+                )
+                .map_err(|_| unsupported_diagnostic());
             }
             lower_aggregate_member_value_assignment(destination, 0, layout, expression, context)
+                .map_err(|_| unsupported_diagnostic())
         },
         "IR v0 can only lower aggregate `otherwise` fallback blocks with supported aggregate values or exits",
     )
@@ -3218,6 +3222,7 @@ fn lower_aggregate_array_field_assignment(
             Some(&expected_type),
             otherwise,
             context,
+            unsupported_assignment_diagnostic,
         );
     }
 
@@ -3375,6 +3380,7 @@ fn lower_aggregate_member_value_assignment(
             None,
             otherwise,
             context,
+            unsupported_assignment_diagnostic,
         ),
         Expr::Member(_) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -3784,6 +3790,7 @@ fn lower_aggregate_assignment_to_slot(
                 expected_abi_type.as_ref(),
                 otherwise,
                 context,
+                unsupported_assignment_diagnostic,
             )
         }
         _ => Err(unsupported_assignment_diagnostic()),
@@ -3810,30 +3817,31 @@ pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
     expected_abi_type: Option<&AbiType>,
     otherwise: &crate::ast::OtherwiseExpr,
     context: &LoweringContext,
+    unsupported_diagnostic: impl Fn() -> Vec<Diagnostic>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     let Expr::Call(call) = unwrap_group(&otherwise.value) else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     let Some(return_type) = context.call_return_type_expr(call) else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     if !return_type_expr_is_top_level_optional(&return_type, resolved) {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     }
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     let Some(callee_layout) = aggregate_type_layout(success_type.as_ref()) else {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     };
     if callee_layout != layout {
-        return Err(unsupported_assignment_diagnostic());
+        return Err(unsupported_diagnostic());
     }
 
     if destination_offset == 0 {
@@ -3845,6 +3853,7 @@ pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
             resolved,
             context,
             None,
+            &unsupported_diagnostic,
         )?;
         let (mut argument_instructions, arguments) =
             lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
@@ -3873,6 +3882,7 @@ pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
         resolved,
         context,
         None,
+        &unsupported_diagnostic,
     )?;
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index: source_slot,

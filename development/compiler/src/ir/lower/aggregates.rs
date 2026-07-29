@@ -1085,10 +1085,8 @@ fn lower_aggregate_field_to_location(
                     Some(field_type),
                     otherwise,
                     context,
-                )
-                .map_err(|_| {
-                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-                }),
+                    || unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject),
+                ),
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(
                     expression,
                     expected_layout,
@@ -1275,10 +1273,8 @@ fn lower_aggregate_field_to_location(
                     Some(field_type),
                     otherwise,
                     context,
-                )
-                .map_err(|_| {
-                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-                }),
+                    || unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject),
+                ),
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(
                     expression,
                     expected_layout,

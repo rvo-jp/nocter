@@ -1027,6 +1027,7 @@ fn lower_aggregate_argument_source(
                 expected_abi_type.as_ref(),
                 otherwise,
                 context,
+                || unsupported_aggregate_argument_diagnostic(callee_name, parameter_type),
             )?);
             Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
         }
