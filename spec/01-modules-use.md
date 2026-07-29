@@ -268,7 +268,10 @@ Rules:
 - The source root is the canonical parent directory of the entry file.
 - Relative imports are resolved from the directory containing the importing file, not from the root file directory.
 - Absolute imports are resolved from the filesystem root.
-- Non-relative imports are resolved from the source root first, then the active Nocter home, as specified in [Import Path Resolution](#import-path-resolution).
+- Non-relative imports from user project files are resolved from the source
+  root first, then the active Nocter home, as specified in
+  [Import Path Resolution](#import-path-resolution). Files inside the active
+  Nocter home resolve non-relative imports from that home.
 - Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.
 
 Example:
@@ -559,7 +562,9 @@ Import roots:
 
 1. The current file directory for `./` and `../` paths.
 2. The filesystem root for `/...` paths.
-3. The source root, then the active Nocter home, for non-relative paths.
+3. The source root, then the active Nocter home, for non-relative paths from
+   user project files.
+4. The active Nocter home for non-relative paths from files inside that home.
 
 The compiler locates Nocter home in this order:
 
