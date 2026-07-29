@@ -1,7 +1,8 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
     aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
-    lower_aggregate_array_literal_to_location, lower_aggregate_struct_literal_to_location,
+    lower_aggregate_array_literal_to_location, lower_aggregate_array_literal_to_location_at_offset,
+    lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
@@ -2791,7 +2792,20 @@ fn lower_aggregate_field_assignment(
         AggregateFieldKind::Slice(_) => {
             lower_slice_aggregate_field_assignment(value, destination, offset, context)
         }
-        AggregateFieldKind::Array { .. } => Err(unsupported_assignment_diagnostic()),
+        AggregateFieldKind::Array {
+            layout,
+            element,
+            length,
+            ..
+        } => lower_aggregate_array_field_assignment(
+            destination,
+            offset,
+            layout,
+            element,
+            length,
+            value,
+            context,
+        ),
         AggregateFieldKind::Aggregate { layout, .. } => {
             if field_is_copy {
                 lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
@@ -2807,6 +2821,39 @@ fn lower_aggregate_field_assignment(
             }
         }
     }
+}
+
+fn lower_aggregate_array_field_assignment(
+    destination: AggregateLocation,
+    offset: u32,
+    layout: ValueLayout,
+    element: AbiType,
+    length: u64,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::ArrayLiteral(literal) = unwrap_group(value) {
+        let expected_type = AbiType::Array {
+            element: Box::new(element),
+            length,
+        };
+        let Some((_root_source, resolved)) = context.resolved_calls() else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_aggregate_array_literal_to_location_at_offset(
+            literal,
+            &expected_type,
+            layout,
+            destination,
+            offset,
+            "E8008",
+            "assignments",
+            resolved,
+            context,
+        );
+    }
+
+    lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
 }
 
 fn lower_str_aggregate_field_assignment(

@@ -2671,6 +2671,57 @@ fn fixed_array_literal_assignment_is_buildable(
         && fixed_array_element_abi_is_buildable(&element)
 }
 
+fn fixed_array_literal_field_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Member(member) = unwrap_group_expr(&statement.target) else {
+        return false;
+    };
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
+        return false;
+    };
+    let Some(ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
+fn fixed_array_literal_assignment_value_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    fixed_array_literal_assignment_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) || fixed_array_literal_field_assignment_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
 fn unsupported_fixed_array_assignment_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,
@@ -4023,13 +4074,14 @@ fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
-            let assignment_is_fixed_array_literal = fixed_array_literal_assignment_is_buildable(
-                statement,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-            );
+            let assignment_is_fixed_array_literal =
+                fixed_array_literal_assignment_value_is_buildable(
+                    statement,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                );
             if assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,

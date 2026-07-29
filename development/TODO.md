@@ -60,8 +60,9 @@ Recommended order:
   local fixed array literals, including zero-length literal bindings,
   aggregate-field fixed array literals, local copy bindings including
   zero-length copies, aggregate-field fixed array value copies in supported
-  binding, whole-local assignment, argument, return, and aggregate-field
-  initializer positions, whole-local assignment including zero-length
+  binding, whole-local assignment, aggregate-field assignment, argument,
+  return, and aggregate-field initializer positions, whole-local assignment
+  including zero-length
   literal/copy/call-result assignment, fixed array value parameters including
   zero-length values, direct fixed array literal value arguments including
   zero-length literal arguments, matching fixed array call-result bindings

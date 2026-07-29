@@ -17119,6 +17119,60 @@ func extract(): [i32; 2] {
 }
 
 #[test]
+fn lowers_fixed_array_aggregate_field_assignments() {
+    let function = lower_named_function(
+        r#"copy struct Bag {
+    tag: i32
+    values: [i32; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{ tag: 7, values: [1, 2] }
+    let replacement: [i32; 2] = [20, 22]
+    let other = Bag{ tag: 8, values: [3, 4] }
+    bag.values = [5, 6]
+    bag.values = replacement
+    bag.values = other.values
+    return bag.values[0] + bag.values[1]
+}
+"#,
+        "main",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 8,
+                value: i32_const(6),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(8, 4),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(2),
+                source_offset: 4,
+                layout: ValueLayout::new(8, 4),
+            })
+    );
+}
+
+#[test]
 fn lowers_zero_length_fixed_array_literal_binding() {
     let function = lower_named_function(
         r#"func main(): i32 {

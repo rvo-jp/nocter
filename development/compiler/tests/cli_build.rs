@@ -5758,6 +5758,60 @@ func make_words(): [&str; 2] {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_aggregate_field_assignments() {
+    let project = TempProject::new("cli-build-fixed-array-aggregate-field-assignments");
+    let source = project.write_source(
+        "fixed_array_aggregate_field_assignments.nct",
+        r#"copy struct Bag {
+    values: [i32; 3]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{ values: [0, 0, 0], words: ["bad", "bad"] }
+    let replacement: [i32; 3] = [4, 5, 6]
+    let other = Bag{ values: [20, 21, 1], words: ["lang", "Nocter"] }
+    bag.values = [1, 2, 3]
+    bag.values = replacement
+    bag.values = make_values()
+    bag.values = make_fallible_values()!
+    bag.values = other.values
+    bag.words = ["bad", "still"]
+    bag.words = other.words
+    bag.words = make_words()
+    let word: &str = bag.words[1]
+    if word.len() == 6 {
+        return take(bag.values)
+    }
+    return 1
+}
+
+func take(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
+}
+
+func make_values(): [i32; 3] {
+    return [7, 8, 9]
+}
+
+func make_fallible_values(): [i32; 3]! {
+    return [10, 11, 12]
+}
+
+func make_words(): [&str; 2] {
+    return ["lang", "Nocter"]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(
