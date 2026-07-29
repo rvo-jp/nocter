@@ -16985,6 +16985,101 @@ func addend(): i32 {
 }
 
 #[test]
+fn lowers_fixed_array_aggregate_field_indexing() {
+    let function = lower_named_function(
+        r#"struct Bag {
+    values: [i32; 3]
+    flags: [bool; 1]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{
+        values: [1, 2, 3],
+        flags: [false],
+        words: ["bad", "bad"]
+    }
+    let index: usize = 1
+    bag.values[0] = 20
+    bag.values[index] += 20
+    bag.flags[0] = true
+    bag.words[index] = "Nocter"
+    let total: i32 = bag.values[0] + bag.values[index]
+    let flag: bool = bag.flags[0]
+    let word: &str = bag.words[index]
+    if total == 42 {
+        if flag {
+            if word.len() == 6 {
+                return 42
+            }
+        }
+    }
+    return 1
+}
+"#,
+        "main",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(48, 8),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(20),
+            })
+    );
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateI32Indexed {
+            destination: AggregateLocation::Slot(0),
+            base_offset: 0,
+            index,
+            length: 3,
+            stride: 4,
+            ..
+        } if index == &usize_local(0)
+    )));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateBool {
+                destination: AggregateLocation::Slot(0),
+                offset: 12,
+                value: BoolValue::Const(true),
+            })
+    );
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateUsizeIndexed {
+            destination: AggregateLocation::Slot(0),
+            base_offset: 16,
+            length: 2,
+            stride: 16,
+            ..
+        }
+    )));
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::LoadAggregateUsizeIndexed {
+            source: AggregateLocation::Slot(0),
+            base_offset: 16,
+            length: 2,
+            stride: 16,
+            ..
+        }
+    )));
+}
+
+#[test]
 fn lowers_zero_length_fixed_array_literal_binding() {
     let function = lower_named_function(
         r#"func main(): i32 {

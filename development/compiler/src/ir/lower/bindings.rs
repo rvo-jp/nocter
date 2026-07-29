@@ -1612,20 +1612,29 @@ fn lower_fixed_array_index_compound_assignment(
     target: &IndexExpr,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(target, context, unsupported_assignment_diagnostic)?
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some(access) = fixed_array_element_access(
+        target,
+        context,
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?
     else {
         return Ok(None);
     };
+    if !access.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
 
-    let mut temporaries = TemporaryAllocator::new(context)?;
     match access.element {
         AbiType::I32 => {
-            let (mut instructions, right) = lower_i32_expression_to_word_with_temporaries(
+            let (value_instructions, right) = lower_i32_expression_to_word_with_temporaries(
                 &statement.value,
                 context,
                 &mut temporaries,
             )?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
                 return Ok(Some(instructions));
@@ -1649,11 +1658,13 @@ fn lower_fixed_array_index_compound_assignment(
             Ok(Some(instructions))
         }
         AbiType::U8 => {
-            let (mut instructions, right) = lower_u8_expression_to_word_with_temporaries(
+            let (value_instructions, right) = lower_u8_expression_to_word_with_temporaries(
                 &statement.value,
                 context,
                 &mut temporaries,
             )?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
                 return Ok(Some(instructions));
@@ -1677,11 +1688,13 @@ fn lower_fixed_array_index_compound_assignment(
             Ok(Some(instructions))
         }
         AbiType::Usize => {
-            let (mut instructions, right) = lower_usize_expression_to_word_with_temporaries(
+            let (value_instructions, right) = lower_usize_expression_to_word_with_temporaries(
                 &statement.value,
                 context,
                 &mut temporaries,
             )?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
                 return Ok(Some(instructions));
@@ -1723,6 +1736,9 @@ fn lower_fixed_array_indexed_compound_assignment(
     else {
         return Ok(None);
     };
+    if !access.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
     let mut instructions = access.index_instructions;
     let index = materialize_slice_index_assignment_index(
         &mut instructions,
@@ -2180,17 +2196,26 @@ fn lower_fixed_array_index_assignment(
     value: &Expr,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(target, context, unsupported_assignment_diagnostic)?
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some(access) = fixed_array_element_access(
+        target,
+        context,
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?
     else {
         return Ok(None);
     };
+    if !access.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
 
-    let mut temporaries = TemporaryAllocator::new(context)?;
     match access.element {
         AbiType::I32 => {
-            let (mut instructions, value) =
+            let (value_instructions, value) =
                 lower_i32_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
             } else {
@@ -2203,8 +2228,10 @@ fn lower_fixed_array_index_assignment(
             Ok(Some(instructions))
         }
         AbiType::U8 => {
-            let (mut instructions, value) =
+            let (value_instructions, value) =
                 lower_u8_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
             } else {
@@ -2217,8 +2244,10 @@ fn lower_fixed_array_index_assignment(
             Ok(Some(instructions))
         }
         AbiType::Usize => {
-            let (mut instructions, value) =
+            let (value_instructions, value) =
                 lower_usize_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            let mut instructions = access.instructions;
+            instructions.extend(value_instructions);
             if access.out_of_bounds {
                 instructions.push(Instruction::Trap);
             } else {
@@ -2237,24 +2266,28 @@ fn lower_fixed_array_index_assignment(
                 "E8008",
                 &mut temporaries,
             )?;
+            let mut instructions = access.instructions;
+            instructions.append(&mut lowered.instructions);
             if access.out_of_bounds {
-                lowered.instructions.push(Instruction::Trap);
+                instructions.push(Instruction::Trap);
             } else {
-                lowered.instructions.push(Instruction::StoreAggregateBool {
+                instructions.push(Instruction::StoreAggregateBool {
                     destination: access.source,
                     offset: access.offset,
                     value: lowered.value,
                 });
             }
-            Ok(Some(lowered.instructions))
+            Ok(Some(instructions))
         }
         AbiType::StrView => {
             let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
+            let mut instructions = access.instructions;
+            instructions.append(&mut lowered.instructions);
             if access.out_of_bounds {
-                lowered.instructions.push(Instruction::Trap);
+                instructions.push(Instruction::Trap);
             } else {
                 push_store_str_view_to_aggregate_field(
-                    &mut lowered.instructions,
+                    &mut instructions,
                     access.source,
                     access.offset,
                     lowered.value,
@@ -2262,7 +2295,7 @@ fn lower_fixed_array_index_assignment(
                     unsupported_assignment_diagnostic,
                 )?;
             }
-            Ok(Some(lowered.instructions))
+            Ok(Some(instructions))
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }
@@ -2283,6 +2316,9 @@ fn lower_fixed_array_indexed_assignment(
     else {
         return Ok(None);
     };
+    if !access.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
     let mut instructions = access.index_instructions;
     let index = materialize_slice_index_assignment_index(
         &mut instructions,
@@ -2724,6 +2760,7 @@ fn lower_aggregate_field_assignment(
         AggregateFieldKind::Slice(_) => {
             lower_slice_aggregate_field_assignment(value, destination, offset, context)
         }
+        AggregateFieldKind::Array { .. } => Err(unsupported_assignment_diagnostic()),
         AggregateFieldKind::Aggregate { layout, .. } => {
             if field_is_copy {
                 lower_aggregate_member_value_assignment(destination, offset, layout, value, context)

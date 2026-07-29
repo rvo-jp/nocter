@@ -5614,6 +5614,50 @@ fn build_command_lowers_fixed_array_variable_index_compound_assignment() {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_aggregate_field_indexing() {
+    let project = TempProject::new("cli-build-fixed-array-aggregate-field-indexing");
+    let source = project.write_source(
+        "fixed_array_aggregate_field_indexing.nct",
+        r#"struct Bag {
+    values: [i32; 3]
+    flags: [bool; 1]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{
+        values: [1, 2, 3],
+        flags: [false],
+        words: ["bad", "bad"]
+    }
+    let index: usize = 1
+    bag.values[0] = 20
+    bag.values[index] += 20
+    bag.flags[0] = true
+    bag.words[index] = "Nocter"
+    let total: i32 = bag.values[0] + bag.values[index]
+    let flag: bool = bag.flags[0]
+    let word: &str = bag.words[index]
+    if total == 42 {
+        if flag {
+            if word.len() == 6 {
+                return 42
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(

@@ -8,7 +8,7 @@ use crate::analysis::{
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
     FunctionDecl, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item, MemberExpr,
-    MethodDecl, OtherwiseExpr, Parameter, Stmt, TypeExpr, UnaryOperator,
+    MethodDecl, OtherwiseExpr, Parameter, Stmt, StructLiteralField, TypeExpr, UnaryOperator,
     substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
@@ -2019,6 +2019,29 @@ fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) ->
     }
 }
 
+fn fixed_array_literal_struct_field_is_buildable(
+    field: &StructLiteralField,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&field.value) else {
+        return false;
+    };
+    let Some(ty) = field_type_expr_for_span(field.name_span, resolved, typecheck_facts) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
 fn unsupported_local_binding_type_diagnostic(
     sources: &SourceMap,
     statement: &BindingStmt,
@@ -3816,7 +3839,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, read-write slice element, or local fixed-array element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use `i32`, `usize`, or `u8` whole-binding, aggregate-field, read-write slice element, or local/aggregate-field fixed-array element compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             if let Some(diagnostic) = unsupported_index_assignment_target_diagnostic(
@@ -6232,8 +6255,8 @@ fn unsupported_index_assignment_target_diagnostic(
         return Some(unsupported_v0_build_diagnostic(
             sources,
             index.span,
-            "fixed array index assignment targets outside scalar/view element locals",
-            "assign through an index into a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until broader fixed array mutation is promoted",
+            "fixed array index assignment targets outside scalar/view element locals or aggregate fields",
+            "assign through an index into a local or aggregate-field `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` until broader fixed array mutation is promoted",
         ));
     }
     if matches!(
@@ -6614,7 +6637,27 @@ fn collect_expression_diagnostics(
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                if struct_literal_field_may_use_value_control_expression(
+                if fixed_array_literal_struct_field_is_buildable(
+                    field,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    collect_fixed_array_literal_elements_diagnostics(
+                        unwrap_group_expr(&field.value),
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        resolved_sources,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                } else if struct_literal_field_may_use_value_control_expression(
                     field.name_span,
                     typecheck_facts,
                 ) {
@@ -7327,7 +7370,15 @@ fn field_type_expr_for_member<'a>(
     resolved: &'a ResolveOutput,
     typecheck_facts: &TypecheckFacts,
 ) -> Option<&'a TypeExpr> {
-    let target_span = typecheck_facts.field_target(expression.member_span)?;
+    field_type_expr_for_span(expression.member_span, resolved, typecheck_facts)
+}
+
+fn field_type_expr_for_span<'a>(
+    field_span: ByteSpan,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<&'a TypeExpr> {
+    let target_span = typecheck_facts.field_target(field_span)?;
     resolved.symbols.symbols().find_map(|symbol| {
         let SymbolKind::Type(type_symbol) = &symbol.kind else {
             return None;
@@ -7433,8 +7484,8 @@ fn unsupported_slice_index_diagnostic(
         return Some(unsupported_v0_build_diagnostic(
             sources,
             expression.span,
-            "fixed array indexing outside scalar/view element local reads",
-            "index a local `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` value until broader fixed array indexing is promoted",
+            "fixed array indexing outside scalar/view element local or aggregate-field reads",
+            "index a local or aggregate-field `[i32; N]`, `[u8; N]`, `[usize; N]`, `[bool; N]`, or `[&str; N]` value until broader fixed array indexing is promoted",
         ));
     }
 
@@ -7504,6 +7555,8 @@ fn fixed_array_index_target_type_expr(
                 .cloned()
                 .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
         }
+        Expr::Member(member) => field_type_expr_for_member(member, resolved, typecheck_facts)
+            .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions)),
         Expr::Group(group) => fixed_array_index_target_type_expr(
             &group.expression,
             resolved,

@@ -4606,10 +4606,12 @@ pub(super) fn lower_usize_value(
 }
 
 pub(super) struct FixedArrayElementAccess {
+    pub(super) instructions: Vec<Instruction>,
     pub(super) source: AggregateLocation,
     pub(super) offset: u32,
     pub(super) element: AbiType,
     pub(super) out_of_bounds: bool,
+    pub(super) is_readwrite: bool,
 }
 
 pub(super) struct FixedArrayElementIndexedAccess {
@@ -4620,21 +4622,27 @@ pub(super) struct FixedArrayElementIndexedAccess {
     pub(super) length: u64,
     pub(super) stride: u32,
     pub(super) element: AbiType,
+    pub(super) is_readwrite: bool,
 }
 
 struct FixedArrayAccessMetadata {
+    instructions: Vec<Instruction>,
     source: AggregateLocation,
+    base_offset: u32,
     length: u64,
     stride: u32,
     element: AbiType,
+    is_readwrite: bool,
 }
 
 pub(super) fn fixed_array_element_access(
     expression: &IndexExpr,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
     unsupported_diagnostic: impl Fn() -> Vec<Diagnostic> + Copy,
 ) -> Result<Option<FixedArrayElementAccess>, Vec<Diagnostic>> {
-    let Some(metadata) = fixed_array_access_metadata(expression, context, unsupported_diagnostic)?
+    let Some(metadata) =
+        fixed_array_access_metadata(expression, context, temporaries, unsupported_diagnostic)?
     else {
         return Ok(None);
     };
@@ -4643,23 +4651,30 @@ pub(super) fn fixed_array_element_access(
     };
     if index >= u128::from(metadata.length) {
         return Ok(Some(FixedArrayElementAccess {
+            instructions: metadata.instructions,
             source: metadata.source,
             offset: 0,
             element: metadata.element,
             out_of_bounds: true,
+            is_readwrite: metadata.is_readwrite,
         }));
     }
 
-    let offset = u64::try_from(index)
+    let element_offset = u64::try_from(index)
         .ok()
         .and_then(|index| index.checked_mul(u64::from(metadata.stride)))
+        .ok_or_else(unsupported_diagnostic)?;
+    let offset = u64::from(metadata.base_offset)
+        .checked_add(element_offset)
         .and_then(|offset| u32::try_from(offset).ok())
         .ok_or_else(unsupported_diagnostic)?;
     Ok(Some(FixedArrayElementAccess {
+        instructions: metadata.instructions,
         source: metadata.source,
         offset,
         element: metadata.element,
         out_of_bounds: false,
+        is_readwrite: metadata.is_readwrite,
     }))
 }
 
@@ -4672,57 +4687,92 @@ pub(super) fn fixed_array_element_indexed_access(
     if fixed_array_constant_index_value(&expression.index).is_some() {
         return Ok(None);
     }
-    let Some(metadata) = fixed_array_access_metadata(expression, context, unsupported_diagnostic)?
+    let Some(metadata) =
+        fixed_array_access_metadata(expression, context, temporaries, unsupported_diagnostic)?
     else {
         return Ok(None);
     };
     let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut index_instructions = metadata.instructions;
+    index_instructions.extend(index.instructions);
     Ok(Some(FixedArrayElementIndexedAccess {
         source: metadata.source,
-        base_offset: 0,
+        base_offset: metadata.base_offset,
         index: index.value,
-        index_instructions: index.instructions,
+        index_instructions,
         length: metadata.length,
         stride: metadata.stride,
         element: metadata.element,
+        is_readwrite: metadata.is_readwrite,
     }))
 }
 
 fn fixed_array_access_metadata(
     expression: &IndexExpr,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
     unsupported_diagnostic: impl Fn() -> Vec<Diagnostic> + Copy,
 ) -> Result<Option<FixedArrayAccessMetadata>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = unwrap_group(&expression.object) else {
-        return Ok(None);
-    };
-    let Some(local) = context.aggregate_local(&identifier.name) else {
-        return Ok(None);
-    };
-    let Some(ty) = context.local_binding_type_expr_for_identifier(identifier) else {
-        return Ok(None);
-    };
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return Err(unsupported_diagnostic());
-    };
-    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
-        context.resolved_source(source)
-    })
-    .map_err(|_error| unsupported_diagnostic())?;
-    let AbiType::Array { element, length } = &value.ty else {
-        return Ok(None);
-    };
-    if value.layout != local.layout {
-        return Err(unsupported_diagnostic());
+    match unwrap_group(&expression.object) {
+        Expr::Identifier(identifier) => {
+            let Some(local) = context.aggregate_local(&identifier.name) else {
+                return Ok(None);
+            };
+            let Some(ty) = context.local_binding_type_expr_for_identifier(identifier) else {
+                return Ok(None);
+            };
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_diagnostic());
+            };
+            let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            })
+            .map_err(|_error| unsupported_diagnostic())?;
+            let AbiType::Array { element, length } = &value.ty else {
+                return Ok(None);
+            };
+            if value.layout != local.layout {
+                return Err(unsupported_diagnostic());
+            }
+            let stride =
+                array_element_stride(element).map_err(|_error| unsupported_diagnostic())?;
+            let stride = u32::try_from(stride).map_err(|_error| unsupported_diagnostic())?;
+            Ok(Some(FixedArrayAccessMetadata {
+                instructions: Vec::new(),
+                source: AggregateLocation::Slot(local.slot_index),
+                base_offset: 0,
+                length: *length,
+                stride,
+                element: element.as_ref().clone(),
+                is_readwrite: true,
+            }))
+        }
+        Expr::Member(_) => {
+            let Some(access) =
+                lower_aggregate_member_field_access(&expression.object, context, temporaries)?
+            else {
+                return Ok(None);
+            };
+            let AggregateFieldKind::Array {
+                element,
+                length,
+                stride,
+            } = access.kind
+            else {
+                return Ok(None);
+            };
+            Ok(Some(FixedArrayAccessMetadata {
+                instructions: access.instructions,
+                source: access.source,
+                base_offset: access.offset,
+                length,
+                stride,
+                element,
+                is_readwrite: access.is_readwrite,
+            }))
+        }
+        _ => Ok(None),
     }
-    let stride = array_element_stride(element).map_err(|_error| unsupported_diagnostic())?;
-    let stride = u32::try_from(stride).map_err(|_error| unsupported_diagnostic())?;
-    Ok(Some(FixedArrayAccessMetadata {
-        source: AggregateLocation::Slot(local.slot_index),
-        length: *length,
-        stride,
-        element: element.as_ref().clone(),
-    }))
 }
 
 fn fixed_array_constant_index_value(expression: &Expr) -> Option<u128> {
@@ -4755,28 +4805,35 @@ fn lower_fixed_array_i32_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredI32Value>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(expression, context, unsupported_i32_expression_diagnostic)?
+    let Some(access) = fixed_array_element_access(
+        expression,
+        context,
+        temporaries,
+        unsupported_i32_expression_diagnostic,
+    )?
     else {
         return Ok(None);
     };
     if access.element != AbiType::I32 {
         return Ok(None);
     }
+    let mut instructions = access.instructions;
     if access.out_of_bounds {
+        instructions.push(Instruction::Trap);
         return Ok(Some(LoweredI32Value {
-            instructions: vec![Instruction::Trap],
+            instructions,
             value: I32Value::Const(0),
         }));
     }
 
     let temporary = temporaries.next_i32()?;
+    instructions.push(Instruction::LoadAggregateI32 {
+        destination: temporary,
+        source: access.source,
+        offset: access.offset,
+    });
     Ok(Some(LoweredI32Value {
-        instructions: vec![Instruction::LoadAggregateI32 {
-            destination: temporary,
-            source: access.source,
-            offset: access.offset,
-        }],
+        instructions,
         value: I32Value::Location(temporary),
     }))
 }
@@ -4908,28 +4965,35 @@ fn lower_fixed_array_u8_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredU8Value>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(expression, context, unsupported_u8_expression_diagnostic)?
+    let Some(access) = fixed_array_element_access(
+        expression,
+        context,
+        temporaries,
+        unsupported_u8_expression_diagnostic,
+    )?
     else {
         return Ok(None);
     };
     if access.element != AbiType::U8 {
         return Ok(None);
     }
+    let mut instructions = access.instructions;
     if access.out_of_bounds {
+        instructions.push(Instruction::Trap);
         return Ok(Some(LoweredU8Value {
-            instructions: vec![Instruction::Trap],
+            instructions,
             value: U8Value::Const(0),
         }));
     }
 
     let temporary = temporaries.next_u8()?;
+    instructions.push(Instruction::LoadAggregateU8 {
+        destination: temporary,
+        source: access.source,
+        offset: access.offset,
+    });
     Ok(Some(LoweredU8Value {
-        instructions: vec![Instruction::LoadAggregateU8 {
-            destination: temporary,
-            source: access.source,
-            offset: access.offset,
-        }],
+        instructions,
         value: U8Value::Location(temporary),
     }))
 }
@@ -4991,28 +5055,35 @@ fn lower_fixed_array_usize_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredUsizeValue>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(expression, context, unsupported_usize_expression_diagnostic)?
+    let Some(access) = fixed_array_element_access(
+        expression,
+        context,
+        temporaries,
+        unsupported_usize_expression_diagnostic,
+    )?
     else {
         return Ok(None);
     };
     if access.element != AbiType::Usize {
         return Ok(None);
     }
+    let mut instructions = access.instructions;
     if access.out_of_bounds {
+        instructions.push(Instruction::Trap);
         return Ok(Some(LoweredUsizeValue {
-            instructions: vec![Instruction::Trap],
+            instructions,
             value: UsizeValue::Const(0),
         }));
     }
 
     let temporary = temporaries.next_usize()?;
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: temporary,
+        source: access.source,
+        offset: access.offset,
+    });
     Ok(Some(LoweredUsizeValue {
-        instructions: vec![Instruction::LoadAggregateUsize {
-            destination: temporary,
-            source: access.source,
-            offset: access.offset,
-        }],
+        instructions,
         value: UsizeValue::Location(temporary),
     }))
 }
@@ -5128,7 +5199,7 @@ fn lower_fixed_array_bool_index_expression_to_value(
     diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredBoolValue>, Vec<Diagnostic>> {
-    let Some(access) = fixed_array_element_access(expression, context, || {
+    let Some(access) = fixed_array_element_access(expression, context, temporaries, || {
         unsupported_bool_expression_diagnostic(diagnostic_code)
     })?
     else {
@@ -5137,20 +5208,23 @@ fn lower_fixed_array_bool_index_expression_to_value(
     if access.element != AbiType::Bool {
         return Ok(None);
     }
+    let mut instructions = access.instructions;
     if access.out_of_bounds {
+        instructions.push(Instruction::Trap);
         return Ok(Some(LoweredBoolValue {
-            instructions: vec![Instruction::Trap],
+            instructions,
             value: BoolValue::Const(false),
         }));
     }
 
     let temporary = temporaries.next_bool()?;
+    instructions.push(Instruction::LoadAggregateBool {
+        destination: temporary,
+        source: access.source,
+        offset: access.offset,
+    });
     Ok(Some(LoweredBoolValue {
-        instructions: vec![Instruction::LoadAggregateBool {
-            destination: temporary,
-            source: access.source,
-            offset: access.offset,
-        }],
+        instructions,
         value: BoolValue::Location(temporary),
     }))
 }
@@ -5235,17 +5309,23 @@ fn lower_fixed_array_str_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredStrValue>, Vec<Diagnostic>> {
-    let Some(access) =
-        fixed_array_element_access(expression, context, unsupported_str_expression_diagnostic)?
+    let Some(access) = fixed_array_element_access(
+        expression,
+        context,
+        temporaries,
+        unsupported_str_expression_diagnostic,
+    )?
     else {
         return Ok(None);
     };
     if access.element != AbiType::StrView {
         return Ok(None);
     }
+    let mut instructions = access.instructions;
     if access.out_of_bounds {
+        instructions.push(Instruction::Trap);
         return Ok(Some(LoweredStrValue {
-            instructions: vec![Instruction::Trap],
+            instructions,
             value: StrValue::StaticBytes(Vec::new()),
         }));
     }
@@ -5261,19 +5341,18 @@ fn lower_fixed_array_str_index_expression_to_value(
         .offset
         .checked_add(8)
         .ok_or_else(unsupported_str_expression_diagnostic)?;
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(index),
+        source: access.source,
+        offset: access.offset,
+    });
+    instructions.push(Instruction::LoadAggregateUsize {
+        destination: UsizeLocation::Local(len_index),
+        source: access.source,
+        offset: len_offset,
+    });
     Ok(Some(LoweredStrValue {
-        instructions: vec![
-            Instruction::LoadAggregateUsize {
-                destination: UsizeLocation::Local(index),
-                source: access.source,
-                offset: access.offset,
-            },
-            Instruction::LoadAggregateUsize {
-                destination: UsizeLocation::Local(len_index),
-                source: access.source,
-                offset: len_offset,
-            },
-        ],
+        instructions,
         value: StrValue::Location(temporary),
     }))
 }

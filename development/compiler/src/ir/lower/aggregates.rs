@@ -777,6 +777,16 @@ where
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
+        AbiType::Array { element, length }
+            if fixed_array_element_abi_is_runtime_copy(element.as_ref()) =>
+        {
+            let stride = array_element_stride(element).ok()?;
+            Some(AggregateFieldKind::Array {
+                element: element.as_ref().clone(),
+                length: *length,
+                stride: u32::try_from(stride).ok()?,
+            })
+        }
         AbiType::SliceView => {
             let element_kind = source_ty
                 .and_then(|ty| {

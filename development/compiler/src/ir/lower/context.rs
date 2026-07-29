@@ -1569,6 +1569,11 @@ pub(super) enum AggregateFieldKind {
     Bool,
     Str,
     Slice(SliceTypeInfo),
+    Array {
+        element: crate::abi::AbiType,
+        length: u64,
+        stride: u32,
+    },
     Aggregate {
         layout: ValueLayout,
         fields: Vec<AggregateField>,

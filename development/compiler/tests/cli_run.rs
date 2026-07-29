@@ -7657,6 +7657,55 @@ fn run_command_applies_fixed_array_variable_index_compound_assignments() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_indexes_fixed_array_aggregate_fields() {
+    let project = TempProject::new("cli-run-fixed-array-aggregate-field-indexing");
+    let source = project.write_source(
+        "fixed_array_aggregate_field_indexing.nct",
+        r#"struct Bag {
+    values: [i32; 3]
+    flags: [bool; 1]
+    words: [&str; 2]
+}
+
+func main(): i32 {
+    var bag = Bag{
+        values: [1, 2, 3],
+        flags: [false],
+        words: ["bad", "bad"]
+    }
+    let index: usize = 1
+    bag.values[0] = 20
+    bag.values[index] += 20
+    bag.flags[0] = true
+    bag.words[index] = "Nocter"
+    let total: i32 = bag.values[0] + bag.values[index]
+    let flag: bool = bag.flags[0]
+    let word: &str = bag.words[index]
+    if total == 42 {
+        if flag {
+            if word.len() == 6 {
+                return 42
+            }
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_fixed_array_constant_index_assignment_out_of_bounds() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-assignment-oob");
     let source = project.write_source(
