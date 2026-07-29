@@ -94,9 +94,10 @@ Recommended order:
 - CLI coverage now pins bare string interpolation as a source-backed E0435
   buildability rejection before IR lowering, and `fmt` now has coverage for
   block-scope grouped `use` declarations.
-- Buildability now rejects trusted `std/ptr.from_addr(0)` as null raw pointer
-  construction before IR lowering. The integer literal decoder is shared with
-  type checking, so decimal, hex, binary, and underscored zero spellings use the
+- Buildability now rejects trusted `std/ptr.from_addr(...)` calls whose address
+  expression is statically zero as null raw pointer construction before IR
+  lowering. The integer literal decoder is shared with type checking, so
+  decimal, hex, binary, underscored zero, and transparent cast spellings use the
   same interpretation.
 - Buildability signature and std `Vec<T>` element-storage checks now resolve
   substituted `TypeExpr` values by source file. This matters for std generic

@@ -76,7 +76,8 @@ Rules:
 - `from_ref` creates a raw pointer from a readonly borrow.
 - `from_ref_mut` creates a raw pointer from a readwrite borrow.
 - `from_addr` creates a raw pointer from a `usize` address.
-- `from_addr<T>(0)` is invalid for `*T`; use `none` for a `*T?` null-like absence.
+- `from_addr<T>(...)` is invalid when the address is statically known to be
+  zero; use `none` for a `*T?` null-like absence.
 - A raw pointer created from a borrow may outlive the borrow as a value, but using it as if it were valid is not guaranteed by the compiler.
 - Because dereference is not available in v0, general user code can carry and pass raw pointers but cannot read or write through them.
 

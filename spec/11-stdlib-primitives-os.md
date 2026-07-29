@@ -657,7 +657,11 @@ pub(nocter) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 ```
 
-`from_addr` and raw-storage view construction helpers are `pub(nocter)` and therefore restricted to trusted modules inside the active Nocter home. User project modules must not call them.
+`from_addr` and raw-storage view construction helpers are `pub(nocter)` and
+therefore restricted to trusted modules inside the active Nocter home. User
+project modules must not call them. Calls to `from_addr` with an address
+expression statically known to be zero are rejected because v0 raw pointers are
+non-null.
 
 Initial core string primitive set:
 

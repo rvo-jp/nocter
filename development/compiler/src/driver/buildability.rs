@@ -8923,7 +8923,7 @@ fn unsupported_null_from_addr_call_diagnostic(
         return None;
     }
     let argument = call.arguments.first()?;
-    if !expression_is_zero_integer_literal(argument) {
+    if !expression_is_statically_zero_integer(argument) {
         return None;
     }
 
@@ -8935,9 +8935,12 @@ fn unsupported_null_from_addr_call_diagnostic(
     ))
 }
 
-fn expression_is_zero_integer_literal(expression: &Expr) -> bool {
+fn expression_is_statically_zero_integer(expression: &Expr) -> bool {
     match unwrap_group_expr(expression) {
         Expr::IntegerLiteral(literal) => decode_integer_literal_value(&literal.value) == Some(0),
+        Expr::TypeConversion(conversion) => {
+            expression_is_statically_zero_integer(&conversion.expression)
+        }
         _ => false,
     }
 }

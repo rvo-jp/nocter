@@ -96,9 +96,9 @@ The current distributed std supports:
 
 `std/process.env` is check-only. It reserves the future `&str?!` shape but is
 not runtime-shipped.
-`std/ptr.from_addr(0)` is rejected by buildability because v0 raw pointers are
-non-null; trusted std code uses a non-zero sentinel when it needs an empty view
-that will not be dereferenced.
+`std/ptr.from_addr(...)` with a statically zero address is rejected by
+buildability because v0 raw pointers are non-null; trusted std code uses a
+non-zero sentinel when it needs an empty view that will not be dereferenced.
 
 ## Known Runtime Gaps
 
