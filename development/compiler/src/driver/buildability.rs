@@ -8731,26 +8731,13 @@ where
             if symbol.generic_arity > 0 {
                 return false;
             }
-            match symbol.kind {
-                TypeSymbolKind::Struct => symbol.is_copy,
-                TypeSymbolKind::Alias => {
-                    let Some(target) = &symbol.alias_target else {
-                        return false;
-                    };
-                    if !resolving_names.insert(symbol.canonical_name.clone()) {
-                        return false;
-                    }
-                    let is_copy = type_expr_is_copy_struct_for_vec_element_with_resolver(
-                        target,
-                        fallback_resolved,
-                        resolver,
-                        resolving_names,
-                    );
-                    resolving_names.remove(&symbol.canonical_name);
-                    is_copy
-                }
-                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
-            }
+            type_symbol_is_copy_struct_for_vec_element_with_resolver(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &HashMap::new(),
+                resolving_names,
+            )
         }
         TypeExpr::Generic(generic) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
@@ -8766,27 +8753,13 @@ where
                 .cloned()
                 .zip(generic.arguments.iter().cloned())
                 .collect();
-            match symbol.kind {
-                TypeSymbolKind::Struct => symbol.is_copy,
-                TypeSymbolKind::Alias => {
-                    let Some(target) = &symbol.alias_target else {
-                        return false;
-                    };
-                    if !resolving_names.insert(symbol.canonical_name.clone()) {
-                        return false;
-                    }
-                    let target = substitute_type_expr_parameters(target, &substitutions);
-                    let is_copy = type_expr_is_copy_struct_for_vec_element_with_resolver(
-                        &target,
-                        fallback_resolved,
-                        resolver,
-                        resolving_names,
-                    );
-                    resolving_names.remove(&symbol.canonical_name);
-                    is_copy
-                }
-                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
-            }
+            type_symbol_is_copy_struct_for_vec_element_with_resolver(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &substitutions,
+                resolving_names,
+            )
         }
         TypeExpr::Fallible(fallible) => type_expr_is_copy_struct_for_vec_element_with_resolver(
             &fallible.success,
@@ -8801,6 +8774,173 @@ where
             resolving_names,
         ),
         _ => false,
+    }
+}
+
+fn type_symbol_is_copy_struct_for_vec_element_with_resolver<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if !resolving_names.insert(symbol.canonical_name.clone()) {
+        return false;
+    }
+
+    let is_copy = match symbol.kind {
+        TypeSymbolKind::Struct if !symbol.is_copy => false,
+        TypeSymbolKind::Struct => symbol.fields.iter().all(|field| {
+            let field_ty = substitute_type_expr_parameters(&field.ty, substitutions);
+            type_expr_is_copy_value_for_vec_element_with_resolver(
+                &field_ty,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }),
+        TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
+            let target = substitute_type_expr_parameters(target, substitutions);
+            type_expr_is_copy_struct_for_vec_element_with_resolver(
+                &target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }),
+        TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+    };
+
+    resolving_names.remove(&symbol.canonical_name);
+    is_copy
+}
+
+fn type_expr_is_copy_value_for_vec_element_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Reference(reference) => match reference.name.as_str() {
+            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
+            | "isize" | "error" => true,
+            "str" | "void" | "never" | "Self" => false,
+            _ => {
+                let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+                let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
+                    return false;
+                };
+                if symbol.generic_arity > 0 {
+                    return false;
+                }
+                type_symbol_is_copy_value_for_vec_element_with_resolver(
+                    symbol,
+                    fallback_resolved,
+                    resolver,
+                    &HashMap::new(),
+                    resolving_names,
+                )
+            }
+        },
+        TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
+                return false;
+            };
+            if symbol.generic_arity != generic.arguments.len() {
+                return false;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            type_symbol_is_copy_value_for_vec_element_with_resolver(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &substitutions,
+                resolving_names,
+            )
+        }
+        TypeExpr::Borrow(borrow) => !borrow.is_readwrite,
+        TypeExpr::Pointer(_) => true,
+        TypeExpr::Array(array) => type_expr_is_copy_value_for_vec_element_with_resolver(
+            &array.element,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_is_copy_value_for_vec_element_with_resolver(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_is_copy_value_for_vec_element_with_resolver(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ) && type_expr_is_copy_value_for_vec_element_with_resolver(
+                &fallible.error,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }
+        TypeExpr::View(_) => false,
+    }
+}
+
+fn type_symbol_is_copy_value_for_vec_element_with_resolver<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match symbol.kind {
+        TypeSymbolKind::Struct => type_symbol_is_copy_struct_for_vec_element_with_resolver(
+            symbol,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        ),
+        TypeSymbolKind::Enum => symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty()),
+        TypeSymbolKind::Alias => {
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
+                let target = substitute_type_expr_parameters(target, substitutions);
+                type_expr_is_copy_value_for_vec_element_with_resolver(
+                    &target,
+                    fallback_resolved,
+                    resolver,
+                    resolving_names,
+                )
+            });
+            resolving_names.remove(&symbol.canonical_name);
+            is_copy
+        }
+        TypeSymbolKind::Interface => false,
     }
 }
 

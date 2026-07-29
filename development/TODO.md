@@ -80,6 +80,10 @@ Recommended order:
 - Generic `copy struct` copyability now substitutes concrete type arguments
   before deciding whether an instantiation is copyable, so fields that store
   `T` by value are copy only for copy concrete `T`.
+- Backend copy-aggregate classification and `Vec<T>` element-storage
+  buildability now use the same substituted `copy struct` copyability, so
+  concrete instantiations such as `Box<Text>` do not enter copy-only runtime
+  paths when `Text` is move-only.
 - Return provenance now treats built-in `error` as borrow-like, rejecting
   returned errors derived from local borrows while allowing errors derived from
   parameter borrows.

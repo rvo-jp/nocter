@@ -86,9 +86,6 @@ where
     if type_expr_is_copy_fixed_array_value_with_resolver(ty, fallback_resolved, &resolver) {
         return true;
     }
-    if type_expr_is_copy_struct(ty, fallback_resolved) {
-        return true;
-    }
     type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, resolver)
 }
 
@@ -149,60 +146,35 @@ where
     match ty {
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
             };
             if symbol.generic_arity > 0 {
                 return false;
             }
-            match symbol.kind {
-                TypeSymbolKind::Struct => symbol.is_copy,
-                TypeSymbolKind::Alias => {
-                    if !resolving_names.insert(symbol.canonical_name.clone()) {
-                        return false;
-                    }
-                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
-                        type_expr_is_copy_struct_inner(
-                            target,
-                            fallback_resolved,
-                            resolver,
-                            resolving_names,
-                        )
-                    });
-                    resolving_names.remove(&symbol.canonical_name);
-                    is_copy
-                }
-                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
-            }
+            type_symbol_is_copy_struct_inner(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &HashMap::new(),
+                resolving_names,
+            )
         }
         TypeExpr::Generic(generic) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
                 return false;
             };
             let Some(substitutions) = generic_type_expr_substitutions(symbol, ty) else {
                 return false;
             };
-            match symbol.kind {
-                TypeSymbolKind::Struct => symbol.is_copy,
-                TypeSymbolKind::Alias => {
-                    if !resolving_names.insert(symbol.canonical_name.clone()) {
-                        return false;
-                    }
-                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
-                        let target = substitute_type_expr_parameters(target, &substitutions);
-                        type_expr_is_copy_struct_inner(
-                            &target,
-                            fallback_resolved,
-                            resolver,
-                            resolving_names,
-                        )
-                    });
-                    resolving_names.remove(&symbol.canonical_name);
-                    is_copy
-                }
-                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
-            }
+            type_symbol_is_copy_struct_inner(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &substitutions,
+                resolving_names,
+            )
         }
         TypeExpr::Fallible(fallible) => type_expr_is_copy_struct_inner(
             &fallible.success,
@@ -217,6 +189,171 @@ where
             resolving_names,
         ),
         _ => false,
+    }
+}
+
+fn type_symbol_is_copy_struct_inner<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if !resolving_names.insert(symbol.canonical_name.clone()) {
+        return false;
+    }
+
+    let is_copy = match symbol.kind {
+        TypeSymbolKind::Struct if !symbol.is_copy => false,
+        TypeSymbolKind::Struct => copy_struct_fields_are_copy_values(
+            symbol,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        ),
+        TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
+            let target = substitute_type_expr_parameters(target, substitutions);
+            type_expr_is_copy_struct_inner(&target, fallback_resolved, resolver, resolving_names)
+        }),
+        TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+    };
+
+    resolving_names.remove(&symbol.canonical_name);
+    is_copy
+}
+
+fn copy_struct_fields_are_copy_values<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    symbol.fields.iter().all(|field| {
+        let field_ty = substitute_type_expr_parameters(&field.ty, substitutions);
+        type_expr_is_copy_value_inner(&field_ty, fallback_resolved, resolver, resolving_names)
+    })
+}
+
+fn type_expr_is_copy_value_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Reference(reference) => match reference.name.as_str() {
+            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
+            | "isize" | "error" => true,
+            "str" | "void" | "never" | "Self" => false,
+            _ => {
+                let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+                let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
+                    return false;
+                };
+                if symbol.generic_arity > 0 {
+                    return false;
+                }
+                type_symbol_is_copy_value_inner(
+                    symbol,
+                    fallback_resolved,
+                    resolver,
+                    &HashMap::new(),
+                    resolving_names,
+                )
+            }
+        },
+        TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
+                return false;
+            };
+            let Some(substitutions) = generic_type_expr_substitutions(symbol, ty) else {
+                return false;
+            };
+            type_symbol_is_copy_value_inner(
+                symbol,
+                fallback_resolved,
+                resolver,
+                &substitutions,
+                resolving_names,
+            )
+        }
+        TypeExpr::Borrow(borrow) => !borrow.is_readwrite,
+        TypeExpr::Pointer(_) => true,
+        TypeExpr::Array(array) => type_expr_is_copy_value_inner(
+            &array.element,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_is_copy_value_inner(
+            &optional.inner,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        ),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_is_copy_value_inner(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ) && type_expr_is_copy_value_inner(
+                &fallible.error,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }
+        TypeExpr::View(_) => false,
+    }
+}
+
+fn type_symbol_is_copy_value_inner<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match symbol.kind {
+        TypeSymbolKind::Struct => type_symbol_is_copy_struct_inner(
+            symbol,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        ),
+        TypeSymbolKind::Enum => symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty()),
+        TypeSymbolKind::Alias => {
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
+                let target = substitute_type_expr_parameters(target, substitutions);
+                type_expr_is_copy_value_inner(&target, fallback_resolved, resolver, resolving_names)
+            });
+            resolving_names.remove(&symbol.canonical_name);
+            is_copy
+        }
+        TypeSymbolKind::Interface => false,
     }
 }
 
@@ -615,7 +752,7 @@ where
     match ty {
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             if symbol.generic_arity > 0 {
                 return None;
             }
@@ -630,7 +767,7 @@ where
         }
         TypeExpr::Generic(generic) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            let symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
             let substitutions = generic_type_expr_substitutions(symbol, ty)?;
             match symbol.kind {
                 TypeSymbolKind::Struct => Some(
@@ -690,7 +827,43 @@ fn resolved_for_type_expr<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    resolver(ty.span().source).unwrap_or(fallback_resolved)
+    let source_resolved = resolver(ty.span().source);
+    let Some(name) = type_expr_symbol_name(ty) else {
+        return source_resolved.unwrap_or(fallback_resolved);
+    };
+
+    if let Some(resolved) = source_resolved
+        && type_symbol_by_reference_name(resolved, name).is_some()
+    {
+        return resolved;
+    }
+    if type_symbol_by_reference_name(fallback_resolved, name).is_some() {
+        return fallback_resolved;
+    }
+
+    source_resolved.unwrap_or(fallback_resolved)
+}
+
+fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        _ => None,
+    }
+}
+
+fn type_symbol_by_reference_name<'a>(
+    resolved: &'a ResolveOutput,
+    name: &str,
+) -> Option<&'a TypeSymbol> {
+    resolved.type_symbol_by_reference_name(name).or_else(|| {
+        short_qualified_type_name(name)
+            .and_then(|short| resolved.type_symbol_by_reference_name(short))
+    })
+}
+
+fn short_qualified_type_name(name: &str) -> Option<&str> {
+    name.rsplit_once('.').map(|(_module, short)| short)
 }
 
 fn collect_aggregate_fields<'a, F>(
@@ -850,10 +1023,11 @@ where
             Some(*view.element.clone())
         }
         TypeExpr::Reference(reference) => {
-            let symbol = fallback_resolved.type_symbol_by_reference_name(&reference.name)?;
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
-            let resolved = resolver(target.span().source).unwrap_or(fallback_resolved);
-            view_element_type_expr_from_type_expr_with_resolver(target, resolved, resolver)
+            let target_resolved = resolved_for_type_expr(target, resolved, resolver);
+            view_element_type_expr_from_type_expr_with_resolver(target, target_resolved, resolver)
         }
         _ => None,
     }

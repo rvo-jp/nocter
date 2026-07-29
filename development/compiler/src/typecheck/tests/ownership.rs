@@ -219,6 +219,50 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_explicit_drop_of_non_copy_generic_copy_struct_instantiation() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<Text>{ value: Text{ len: 42 } }
+    drop box
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_move_of_non_copy_generic_copy_struct_instantiation() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+copy struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<Text>{ value: Text{ len: 42 } }
+    let moved = move box
+    return moved.value.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_var_reinitialization_after_move() {
     let diagnostics = check_text(
         r#"struct Text {

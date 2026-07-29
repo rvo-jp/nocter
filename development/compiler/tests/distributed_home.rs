@@ -1649,6 +1649,73 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_std_vec_rejects_cross_source_non_copy_generic_copy_struct_with_capacity() {
+    let project =
+        TempProject::new("distributed-home-vec-cross-source-non-copy-generic-copy-struct-capacity");
+    project.write_source(
+        "types.nct",
+        r#"pub struct Text {
+    pub value: &str
+}
+
+pub copy struct Box<T> {
+    pub value: T
+}
+"#,
+    );
+    project.write_source(
+        "factory.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+pub func make<T>(seed: T): Vec<T>! {
+    var allocator = page_allocator()
+    return Vec.with_capacity(&+allocator, 1)?
+}
+"#,
+    );
+    let source = project.write_source(
+        "app.nct",
+        r#"use std/vec.Vec
+use ./factory.make
+use ./types.{Box, Text}
+
+func main(): i32! {
+    let values: Vec<Box<Text>> = make(Box<Text>{ value: Text{ value: "x" } })?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("app");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr
+            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
+        "expected Vec element storage diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
+        "expected factory source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn distributed_std_vec_builds_copy_aggregate_reserve() {
     let project = TempProject::new("distributed-home-vec-aggregate-reserve-boundary");
     let source = project.write_source(
