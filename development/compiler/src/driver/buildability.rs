@@ -1109,7 +1109,15 @@ fn collect_terminal_return_expression_diagnostics(
                 );
             }
         }
-        Expr::Match(expression) if terminal_match_expression_is_buildable(expression, resolved) => {
+        Expr::Match(expression)
+            if terminal_match_expression_is_buildable(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -1286,7 +1294,15 @@ fn collect_value_expression_diagnostics(
                 );
             }
         }
-        Expr::Match(expression) if value_match_expression_is_buildable(expression, resolved) => {
+        Expr::Match(expression)
+            if value_match_expression_is_buildable(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -4281,12 +4297,20 @@ fn value_if_is_expression_is_buildable(
 fn value_match_expression_is_buildable(
     expression: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    terminal_match_expression_is_buildable(expression, resolved)
-        && expression
-            .arms
-            .iter()
-            .all(|arm| value_block_is_buildable(&arm.body))
+    terminal_match_expression_is_buildable(
+        expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && expression
+        .arms
+        .iter()
+        .all(|arm| value_block_is_buildable(&arm.body))
         && expression
             .wildcard_arm
             .as_ref()
@@ -4369,25 +4393,29 @@ fn void_effect_match_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    switch_statement_is_buildable(expression, resolved)
-        && expression.arms.iter().all(|arm| {
-            void_effect_block_is_buildable(
-                &arm.body,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-            )
-        })
-        && expression.wildcard_arm.as_ref().is_none_or(|arm| {
-            void_effect_block_is_buildable(
-                &arm.body,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-            )
-        })
+    switch_statement_is_buildable(
+        expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && expression.arms.iter().all(|arm| {
+        void_effect_block_is_buildable(
+            &arm.body,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    }) && expression.wildcard_arm.as_ref().is_none_or(|arm| {
+        void_effect_block_is_buildable(
+            &arm.body,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    })
 }
 
 fn void_effect_block_is_buildable(
@@ -4462,10 +4490,18 @@ fn terminal_if_is_expression_is_buildable(
 fn terminal_match_expression_is_buildable(
     expression: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    switch_statement_is_buildable(expression, resolved)
-        && (expression.wildcard_arm.is_some()
-            || switch_statement_covers_all_payloadless_variants(expression, resolved))
+    switch_statement_is_buildable(
+        expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && (expression.wildcard_arm.is_some()
+        || switch_statement_covers_all_payloadless_variants(expression, resolved))
 }
 
 fn if_is_statement_is_buildable(
@@ -4501,9 +4537,20 @@ fn if_is_statement_is_buildable(
 fn switch_statement_is_buildable(
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     let Some(first_arm) = statement.arms.first() else {
-        return false;
+        return statement.wildcard_arm.is_some()
+            && switch_target_payloadless_enum_symbol(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
+            .is_some();
     };
     if statement.arms.iter().any(|arm| arm.payload.is_some()) {
         return false;
@@ -4531,6 +4578,93 @@ fn switch_statement_is_buildable(
                 .iter()
                 .any(|variant| variant.name == arm.variant_name)
     })
+}
+
+fn switch_target_payloadless_enum_symbol<'a>(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &'a ResolveOutput,
+    resolved_sources: &ResolvedSources<'a>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<&'a TypeSymbol> {
+    let ty = typecheck_facts.expression_type_expr(statement.expression.span())?;
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    payloadless_enum_symbol_for_type_expr(&ty, resolved, &source_resolver)
+}
+
+fn payloadless_enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    payloadless_enum_symbol_for_type_expr_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn payloadless_enum_symbol_for_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+    let (type_name, substitutions) = match ty {
+        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+        TypeExpr::Generic(generic) => {
+            let symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            (generic.name.as_str(), substitutions)
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => return None,
+    };
+    let symbol = type_symbol_by_reference_name(resolved, type_name)?;
+    if symbol.kind == TypeSymbolKind::Alias {
+        let target = symbol.alias_target.as_ref()?;
+        if !resolving_names.insert(symbol.canonical_name.clone()) {
+            return None;
+        }
+        let target = substitute_type_expr_parameters(target, &substitutions);
+        let result = payloadless_enum_symbol_for_type_expr_inner(
+            &target,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        );
+        resolving_names.remove(&symbol.canonical_name);
+        return result;
+    }
+
+    (symbol.kind == TypeSymbolKind::Enum
+        && symbol.variants.len() <= 256
+        && symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty()))
+    .then_some(symbol)
 }
 
 fn switch_statement_covers_all_payloadless_variants(
@@ -5016,7 +5150,13 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Switch(statement) => {
-            if !switch_statement_is_buildable(statement, resolved) {
+            if !switch_statement_is_buildable(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(unsupported_v0_build_diagnostic(
                     sources,
                     statement.span,
@@ -10338,6 +10478,40 @@ func main(): i32 {
             return 1
         }
     }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_payloadless_wildcard_only_match() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func choose(): Choice {
+    return Choice.no
+}
+
+func main(): i32 {
+    let value = match choose() {
+        _ { 7 }
+    }
+    match value_choice() {
+        _ {
+            return value
+        }
+    }
+}
+
+func value_choice(): Choice {
+    return Choice.yes
 }
 "#,
         );

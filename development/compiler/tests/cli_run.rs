@@ -10442,7 +10442,8 @@ func main(): i32 {
     let b = describe_exhaustive(choose())
     let c = describe_no_else_then_continue(Choice.maybe)
     let d = describe_nested_branch(Choice.maybe)
-    return a + b + c + d
+    let e = describe_wildcard_only(choose())
+    return a + b + c + d + e
 }
 
 func describe(choice: Choice): i32 {
@@ -10503,6 +10504,14 @@ func describe_nested_branch(choice: Choice): i32 {
     }
 }
 
+func describe_wildcard_only(choice: Choice): i32 {
+    match choice {
+        _ {
+            return 9
+        }
+    }
+}
+
 func choose(): Choice {
     return Choice.no
 }
@@ -10513,7 +10522,7 @@ func choose(): Choice {
 
     assert_eq!(
         output.status.code(),
-        Some(23),
+        Some(32),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
@@ -10537,8 +10546,9 @@ func main(): i32 {
     let a = describe(choice)
     let b = describe(choose())
     let c = describe_exhaustive(Choice.maybe)
+    let d = describe_wildcard_only(Choice.yes)
     if choice is Choice.no {
-        a + b + c + same(7)
+        a + b + c + d + same(7)
     } else {
         1
     }
@@ -10560,6 +10570,12 @@ func describe_exhaustive(choice: Choice): i32 {
     }
 }
 
+func describe_wildcard_only(choice: Choice): i32 {
+    match choice {
+        _ { 5 }
+    }
+}
+
 func choose(): Choice {
     Choice.maybe
 }
@@ -10574,7 +10590,7 @@ func same(value: i32): i32 {
 
     assert_eq!(
         output.status.code(),
-        Some(22),
+        Some(27),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)

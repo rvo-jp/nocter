@@ -7578,6 +7578,37 @@ func choose(): Choice {
 }
 
 #[test]
+fn build_command_accepts_payloadless_wildcard_only_match() {
+    let project = TempProject::new("cli-build-payloadless-wildcard-only-match");
+    let source = project.write_source(
+        "payloadless_wildcard_only_match.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    match choose() {
+        _ {
+            return 9
+        }
+    }
+}
+
+func choose(): Choice {
+    return Choice.no
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_rejects_nonterminal_match_arm_outer_explicit_drop() {
     let project = TempProject::new("cli-build-nonterminal-match-arm-outer-explicit-drop");
     let source = project.write_source(

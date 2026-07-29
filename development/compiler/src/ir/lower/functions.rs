@@ -48,9 +48,9 @@ use crate::abi::{
 };
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
-    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr, MethodDecl, Parameter, ReturnStmt,
-    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
-    substitute_type_expr_parameters,
+    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralExpr, MemberExpr, MethodDecl, Parameter,
+    ReturnStmt, Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference,
+    UnaryOperator, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -1511,7 +1511,9 @@ fn payloadless_switch_variant_names(
     statement: &SwitchStmt,
     context: &LoweringContext,
 ) -> Option<Vec<String>> {
-    let first_arm = statement.arms.first()?;
+    let Some(first_arm) = statement.arms.first() else {
+        return context.payloadless_enum_variant_names_for_expression(&statement.expression);
+    };
     let (_, resolved) = context.resolved_calls()?;
     let target_symbol = resolved.type_symbol_by_name(&first_arm.enum_name)?;
     if target_symbol.kind != crate::resolve::TypeSymbolKind::Enum
@@ -1553,6 +1555,10 @@ pub(super) fn payloadless_switch_is_exhaustive(
     statement: &SwitchStmt,
     context: &LoweringContext,
 ) -> bool {
+    if statement.wildcard_arm.is_some() {
+        return payloadless_switch_variant_names(statement, context).is_some();
+    }
+
     payloadless_switch_variant_names(statement, context).is_some_and(|variant_names| {
         payloadless_switch_covers_all_variants(statement, &variant_names)
     })
@@ -1569,6 +1575,18 @@ fn payloadless_switch_if_chain(
     else {
         return Err(unsupported_switch_diagnostic(diagnostic_code));
     };
+
+    if condition_arms.is_empty() {
+        return Ok(IfStmt {
+            span: statement.span,
+            condition: Expr::BoolLiteral(LiteralExpr {
+                span: statement.span,
+                value: "true".to_string(),
+            }),
+            then_block: fallback.clone(),
+            else_block: Some(fallback),
+        });
+    }
 
     let mut next_else = Some(fallback);
     let mut current = None;

@@ -42,6 +42,7 @@ use std::collections::{HashMap, HashSet};
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
     binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
+    expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     binding_readonly: HashMap<ByteSpan, bool>,
     declaration_hover_labels: HashMap<ByteSpan, String>,
@@ -73,6 +74,10 @@ impl TypecheckFacts {
 
     pub(crate) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<&TypeExpr> {
         self.binding_type_exprs.get(&name_span)
+    }
+
+    pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
+        self.expression_type_exprs.get(&expression_span)
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -1014,6 +1019,10 @@ impl TypecheckFactCollector<'_> {
         environment: &mut TypeEnvironment,
         return_type: Option<&Type>,
     ) {
+        self.record_expression_type(
+            expression.span(),
+            &expression_type(expression, self.resolved, environment),
+        );
         match expression {
             Expr::Propagate(expression) => {
                 self.collect_expression_facts_in_context(
@@ -1559,6 +1568,15 @@ impl TypecheckFactCollector<'_> {
             self.facts.binding_scalar_view_kinds.insert(name_span, kind);
         }
         self.record_drop_type_specialization(name_span, ty);
+    }
+
+    fn record_expression_type(&mut self, expression_span: ByteSpan, ty: &Type) {
+        let mut free_type_parameters = HashSet::new();
+        if let Some(ty) =
+            type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters)
+        {
+            self.facts.expression_type_exprs.insert(expression_span, ty);
+        }
     }
 
     fn record_drop_type_specialization(&mut self, span: ByteSpan, ty: &Type) {
@@ -2693,6 +2711,45 @@ func main(): i32 {
             panic!("expected inferred binding type expr for generic parameter");
         };
         assert_eq!(reference.name, "T");
+    }
+
+    #[test]
+    fn records_expression_type_expr_facts() {
+        let text = r#"enum Choice {
+    yes
+    no
+}
+
+func main(choice: Choice): i32 {
+    let code = match choice {
+        _ { 1 }
+    }
+    return code
+}
+"#;
+        let (ast, resolved) = parse_and_resolve_text(text);
+        let facts = collect_typecheck_facts(&ast, &resolved);
+        let function = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "main" => Some(function),
+                _ => None,
+            })
+            .expect("expected main function");
+        let Stmt::Binding(binding) = &function.body.statements[0] else {
+            panic!("expected match binding");
+        };
+        let Expr::Match(match_expression) = binding.initializer.without_groups() else {
+            panic!("expected match expression initializer");
+        };
+
+        let Some(TypeExpr::Reference(reference)) =
+            facts.expression_type_expr(match_expression.expression.span())
+        else {
+            panic!("expected expression type expr fact");
+        };
+        assert_eq!(reference.name, "Choice");
     }
 
     #[test]

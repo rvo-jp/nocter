@@ -219,6 +219,10 @@ Recommended order:
   payloadless `match` statements without wildcard fallback arms as proven
   terminal, so unreachable body tails after those statements are neither
   preflighted nor lowered.
+- TypecheckFacts now records expression `TypeExpr` values. Buildability and IR
+  lowering use the target expression type to accept wildcard-only payloadless
+  enum `match` forms while still keeping payload enum patterns outside the
+  runtime subset.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

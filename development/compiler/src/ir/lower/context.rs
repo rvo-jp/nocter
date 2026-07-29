@@ -463,6 +463,18 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(super) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let ty = resolution
+            .typecheck_facts
+            .expression_type_expr(expression_span)?
+            .clone();
+        Some(substitute_type_expr_parameters(
+            &ty,
+            &self.generic_substitutions,
+        ))
+    }
+
     pub(super) fn function_call_type_substitution(
         &self,
         call: &CallExpr,
@@ -645,6 +657,24 @@ impl<'a> LoweringContext<'a> {
             .iter()
             .position(|variant| variant.name == member.member)?;
         u8::try_from(index).ok()
+    }
+
+    pub(super) fn payloadless_enum_variant_names_for_expression(
+        &self,
+        expression: &Expr,
+    ) -> Option<Vec<String>> {
+        let resolution = self.call_resolution.as_ref()?;
+        let ty = self.expression_type_expr(expression.span())?;
+        let symbol = payloadless_enum_symbol_for_type_expr(&ty, resolution.resolved, &|source| {
+            self.resolved_source(source)
+        })?;
+        Some(
+            symbol
+                .variants
+                .iter()
+                .map(|variant| variant.name.clone())
+                .collect(),
+        )
     }
 
     pub(super) fn binding_scalar_view_kind(
@@ -1744,6 +1774,80 @@ where
         CallTarget::imported(symbol.declaration_span.source, target_name)
     };
     Some(DropGlue { target })
+}
+
+fn payloadless_enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    payloadless_enum_symbol_for_type_expr_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn payloadless_enum_symbol_for_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+    let (type_name, substitutions) = match ty {
+        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+        TypeExpr::Generic(generic) => {
+            let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
+            if type_symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions = type_symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            (generic.name.as_str(), substitutions)
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => return None,
+    };
+    let type_symbol = type_symbol_by_reference_name(resolved, type_name)?;
+    if type_symbol.kind == TypeSymbolKind::Alias {
+        let target = type_symbol.alias_target.as_ref()?;
+        if !resolving_names.insert(type_symbol.canonical_name.clone()) {
+            return None;
+        }
+        let target = substitute_type_expr_parameters(target, &substitutions);
+        let symbol = payloadless_enum_symbol_for_type_expr_inner(
+            &target,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        );
+        resolving_names.remove(&type_symbol.canonical_name);
+        return symbol;
+    }
+
+    (type_symbol.kind == TypeSymbolKind::Enum
+        && type_symbol.variants.len() <= 256
+        && type_symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty()))
+    .then_some(type_symbol)
 }
 
 fn resolved_for_type_expr<'a, F>(
