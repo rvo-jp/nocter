@@ -17060,6 +17060,106 @@ fn lowers_zero_length_fixed_array_copy_binding_and_assignment() {
 }
 
 #[test]
+fn lowers_fixed_array_literal_value_arguments() {
+    let source = r#"func main(): i32 {
+    let answer: i32 = consume([20, 22], ["bad", "Nocter", "lang"], [])
+    return answer
+}
+
+func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
+    return pair[0] + pair[1]
+}
+"#;
+    let pair_layout = ValueLayout::new(8, 4);
+    let words_layout = ValueLayout::new(48, 8);
+    let empty_layout = ValueLayout::new(0, 1);
+
+    let main = lower_named_function_with_signatures(
+        source,
+        "main",
+        function_signatures(vec![(
+            "consume",
+            Type::I32,
+            vec![
+                Type::DirectAggregate {
+                    layout: pair_layout,
+                    words: 1,
+                },
+                Type::DirectAggregate {
+                    layout: words_layout,
+                    words: 6,
+                },
+                Type::DirectAggregate {
+                    layout: empty_layout,
+                    words: 0,
+                },
+            ],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: pair_layout,
+            })
+    );
+    assert!(main.instructions.contains(&Instruction::StoreAggregateI32 {
+        destination: AggregateLocation::Slot(0),
+        offset: 4,
+        value: i32_const(22),
+    }));
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: words_layout,
+            })
+    );
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::SetStr { value, .. } if value == &str_static_value(b"Nocter")
+    )));
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateUsize {
+            destination: AggregateLocation::Slot(1),
+            offset: 16,
+            ..
+        }
+    )));
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 2,
+                layout: empty_layout,
+            })
+    );
+    assert!(main.instructions.contains(&Instruction::CallI32 {
+        destination: I32Location::Local(0),
+        target: CallTarget::same_file("consume"),
+        arguments: vec![
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(0),
+                layout: pair_layout,
+                words: 1,
+            }),
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(1),
+                layout: words_layout,
+                words: 6,
+            }),
+            ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(2),
+                layout: empty_layout,
+                words: 0,
+            }),
+        ],
+    }));
+}
+
+#[test]
 fn lowers_zero_length_fixed_array_parameters_calls_and_returns() {
     let source = r#"func main(): i32 {
     let empty: [u8; 0] = []

@@ -405,6 +405,34 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(super) fn call_argument_parameter_type_expr(
+        &self,
+        call: &CallExpr,
+        index: usize,
+    ) -> Option<TypeExpr> {
+        if let Some(ty) = self.method_call_argument_parameter_type_expr(call, index) {
+            return Some(ty);
+        }
+
+        let resolution = self.call_resolution.as_ref()?;
+        let signature = resolution.resolved.call_signature_for_call(call)?;
+        let parameter = signature.parameters.get(index)?;
+        let mut ty = parameter.ty.clone();
+        if let Some(specialization) = resolution
+            .typecheck_facts
+            .function_call_specialization(call.span)
+            .and_then(|specialization| {
+                specialization.with_context_substitutions(&self.generic_substitutions)
+            })
+        {
+            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+        }
+        Some(substitute_type_expr_parameters(
+            &ty,
+            &self.generic_substitutions,
+        ))
+    }
+
     pub(super) fn local_binding_type_expr_for_identifier(
         &self,
         identifier: &IdentifierExpr,
@@ -720,6 +748,53 @@ impl<'a> LoweringContext<'a> {
         }
         Some(substitute_type_expr_parameters(
             &return_type,
+            &self.generic_substitutions,
+        ))
+    }
+
+    fn method_call_argument_parameter_type_expr(
+        &self,
+        call: &CallExpr,
+        index: usize,
+    ) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return None;
+        };
+        let method_name_span = resolution
+            .typecheck_facts
+            .method_call_target(member.member_span)?;
+        let method = resolution
+            .resolved
+            .method_signature_by_name_span(method_name_span)?;
+        let parameter = method.signature.parameters.get(index)?;
+        let mut ty = parameter.ty.clone();
+        if let Some(specialization) = resolution
+            .typecheck_facts
+            .method_call_specialization(member.member_span)
+            .and_then(|specialization| {
+                specialization.with_context_substitutions(&self.generic_substitutions)
+            })
+        {
+            ty = type_expr_with_self_type(&ty, &specialization.self_ty);
+            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+            return Some(substitute_type_expr_parameters(
+                &ty,
+                &self.generic_substitutions,
+            ));
+        }
+        if resolution
+            .typecheck_facts
+            .generic_method_call_target(member.member_span)
+            .is_some()
+        {
+            return None;
+        }
+        if let Some(self_ty) = &method.impl_target_ty {
+            ty = type_expr_with_self_type(&ty, self_ty);
+        }
+        Some(substitute_type_expr_parameters(
+            &ty,
             &self.generic_substitutions,
         ))
     }

@@ -7157,6 +7157,37 @@ func identity_words(values: [&str; 3]): [&str; 3] {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_passes_fixed_array_literals_by_value() {
+    let project = TempProject::new("cli-run-fixed-array-literal-value-arguments");
+    let source = project.write_source(
+        "fixed_array_literal_value_arguments.nct",
+        r#"func main(): i32 {
+    return consume([20, 22], ["bad", "Nocter", "lang"], [])
+}
+
+func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
+    let word: &str = words[1]
+    if word.len() == 6 {
+        return pair[0] + pair[1]
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_fixed_array_literals() {
     let project = TempProject::new("cli-run-fixed-array-literal-returns");
     let source = project.write_source(

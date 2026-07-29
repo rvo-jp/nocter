@@ -1,5 +1,6 @@
 use super::super::aggregates::{
     aggregate_call_instruction, aggregate_type_layout,
+    lower_aggregate_array_literal_to_location_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct_with_resolver,
@@ -22,7 +23,7 @@ use super::{
 use crate::abi::{
     ARGUMENT_REGISTER_COUNT, AbiType, ValueLayout, abi_value_from_type_expr_with_resolver,
 };
-use crate::ast::{CallExpr, Expr, IndexExpr};
+use crate::ast::{CallExpr, Expr, IndexExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
@@ -559,9 +560,17 @@ pub(super) fn lower_call_arguments(
     let mut arguments = Vec::new();
     let call_arguments = method_receiver
         .into_iter()
-        .map(|receiver| (receiver, true))
-        .chain(call.arguments.iter().map(|argument| (argument, false)));
-    for ((argument, is_method_receiver), parameter_type) in call_arguments.zip(parameter_types) {
+        .map(|receiver| (receiver, true, None))
+        .chain(call.arguments.iter().enumerate().map(|(index, argument)| {
+            (
+                argument,
+                false,
+                context.call_argument_parameter_type_expr(call, index),
+            )
+        }));
+    for ((argument, is_method_receiver, parameter_type_expr), parameter_type) in
+        call_arguments.zip(parameter_types)
+    {
         match parameter_type {
             Type::I32 => {
                 let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
@@ -630,6 +639,7 @@ pub(super) fn lower_call_arguments(
                 let (argument_instructions, source) = lower_aggregate_argument_source(
                     argument,
                     parameter_type,
+                    parameter_type_expr.as_ref(),
                     callee_name,
                     context,
                     temporaries,
@@ -643,6 +653,7 @@ pub(super) fn lower_call_arguments(
                 let (argument_instructions, source) = lower_aggregate_argument_source(
                     argument,
                     parameter_type,
+                    parameter_type_expr.as_ref(),
                     callee_name,
                     context,
                     temporaries,
@@ -826,6 +837,7 @@ fn call_argument_abi_word_count_mismatch_diagnostic(
 fn lower_aggregate_argument_source(
     argument: &Expr,
     parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
@@ -889,6 +901,51 @@ fn lower_aggregate_argument_source(
             }];
             instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
                 literal,
+                expected_layout,
+                AggregateLocation::Slot(slot_index),
+                "E8006",
+                &format!("arguments for function `{callee_name}`"),
+                resolved,
+                context,
+                temporaries,
+            )?);
+            Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
+        }
+        Expr::ArrayLiteral(literal) => {
+            let Some(parameter_type_expr) = parameter_type_expr else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            let value =
+                abi_value_from_type_expr_with_resolver(parameter_type_expr, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .map_err(|_error| {
+                    unsupported_aggregate_argument_diagnostic(callee_name, parameter_type)
+                })?;
+            if value.layout != expected_layout || !matches!(value.ty, AbiType::Array { .. }) {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+
+            let slot_index = temporaries.next_aggregate_slot();
+            let mut instructions = vec![Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: expected_layout,
+            }];
+            instructions.extend(lower_aggregate_array_literal_to_location_with_temporaries(
+                literal,
+                &value.ty,
                 expected_layout,
                 AggregateLocation::Slot(slot_index),
                 "E8006",
@@ -1690,6 +1747,7 @@ fn lower_readonly_temporary_borrow_source(
             let (instructions, source) = lower_aggregate_argument_source(
                 expression,
                 inner,
+                None,
                 callee_name,
                 context,
                 temporaries,

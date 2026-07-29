@@ -1967,6 +1967,36 @@ fn method_call_argument_parameter_type(
     Some(substitute_type_expr_parameters(&ty, generic_substitutions))
 }
 
+fn fixed_array_literal_argument_is_buildable(
+    call: &CallExpr,
+    index: usize,
+    argument: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(argument) else {
+        return false;
+    };
+    let Some(ty) = call_argument_parameter_type(
+        call,
+        index,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
 fn struct_literal_field_may_use_value_control_expression(
     field_name_span: ByteSpan,
     typecheck_facts: &TypecheckFacts,
@@ -6655,7 +6685,29 @@ fn collect_expression_diagnostics(
                 queue.push_back(target);
             }
             for (index, argument) in expression.arguments.iter().enumerate() {
-                if call_argument_may_use_value_control_expression(
+                if fixed_array_literal_argument_is_buildable(
+                    expression,
+                    index,
+                    argument,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    collect_fixed_array_literal_elements_diagnostics(
+                        unwrap_group_expr(argument),
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        resolved_sources,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
+                } else if call_argument_may_use_value_control_expression(
                     expression,
                     index,
                     resolved,

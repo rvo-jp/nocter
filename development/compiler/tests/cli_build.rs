@@ -5317,6 +5317,32 @@ func identity(values: [i32; 3]): [i32; 3] {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_literal_value_arguments() {
+    let project = TempProject::new("cli-build-fixed-array-literal-value-arguments");
+    let source = project.write_source(
+        "fixed_array_literal_value_arguments.nct",
+        r#"func main(): i32 {
+    return consume([20, 22], ["bad", "Nocter", "lang"], [])
+}
+
+func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
+    let word: &str = words[1]
+    if word.len() == 6 {
+        return pair[0] + pair[1]
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_literal_returns() {
     let project = TempProject::new("cli-build-fixed-array-literal-returns");
     let source = project.write_source(

@@ -350,6 +350,31 @@ pub(super) fn lower_aggregate_array_literal_to_location(
     )
 }
 
+pub(super) fn lower_aggregate_array_literal_to_location_with_temporaries(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_array_literal_to_location_at_offset_with_temporaries(
+        literal,
+        expected_type,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        temporaries,
+    )
+}
+
 fn lower_aggregate_array_literal_to_location_at_offset_with_temporaries(
     literal: &ArrayLiteralExpr,
     expected_type: &AbiType,
