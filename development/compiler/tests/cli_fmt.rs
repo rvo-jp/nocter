@@ -110,6 +110,65 @@ return}
 }
 
 #[test]
+fn fmt_command_formats_wildcard_match_and_payload_discard_patterns() {
+    let project = TempProject::new("cli-fmt-wildcard-patterns");
+    let source = project.write_source(
+        "app.nct",
+        r#"enum AppError{missing_path open_failed(path:&str)}
+func main(error:AppError):i32{match error{AppError.open_failed(_){return 1}_ {return 0}}}
+func code(error:AppError):i32{if error is AppError.open_failed(_){return 2}else{return 3}}
+"#,
+    );
+
+    let output = nocter(&project, ["fmt", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "stdout:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(source).unwrap(),
+        concat!(
+            "enum AppError {\n",
+            "    missing_path,\n",
+            "    open_failed(path: &str),\n",
+            "}\n",
+            "\n",
+            "func main(error: AppError): i32 {\n",
+            "    match error {\n",
+            "        AppError.open_failed(_) {\n",
+            "            return 1\n",
+            "        }\n",
+            "        _ {\n",
+            "            return 0\n",
+            "        }\n",
+            "    }\n",
+            "}\n",
+            "\n",
+            "func code(error: AppError): i32 {\n",
+            "    if error is AppError.open_failed(_) {\n",
+            "        return 2\n",
+            "    } else {\n",
+            "        return 3\n",
+            "    }\n",
+            "}\n",
+        )
+    );
+}
+
+#[test]
 fn fmt_check_reports_unformatted_source_without_rewriting() {
     let project = TempProject::new("cli-fmt-check-fail");
     let original = "func main(  ):i32{return 0}\n";
