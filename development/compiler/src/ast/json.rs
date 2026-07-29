@@ -571,11 +571,11 @@ impl Stmt {
             Stmt::IfIs(statement) => {
                 let mut pattern_children = Vec::new();
                 if let Some(payload) = &statement.payload {
-                    pattern_children.push(JsonAstNode::with_value(
+                    pattern_children.push(payload_pattern_json(
+                        payload,
+                        sources,
                         "if_is_payload_binding",
-                        payload.name.clone(),
-                        json_span(sources, payload.span),
-                        Vec::new(),
+                        "if_is_payload_discard",
                     ));
                 }
 
@@ -603,8 +603,8 @@ impl Stmt {
             Stmt::Switch(statement) => {
                 let mut children = vec![statement.expression.to_json(sources)];
                 children.extend(statement.arms.iter().map(|arm| arm.to_json(sources)));
-                if let Some(else_arm) = &statement.else_arm {
-                    children.push(else_arm.to_json(sources));
+                if let Some(wildcard_arm) = &statement.wildcard_arm {
+                    children.push(wildcard_arm.to_json(sources));
                 }
                 JsonAstNode::new(
                     "match_statement",
@@ -691,11 +691,11 @@ impl SwitchArm {
         if let Some(payload) = &self.payload {
             children.insert(
                 1,
-                JsonAstNode::with_value(
+                payload_pattern_json(
+                    payload,
+                    sources,
                     "match_payload_binding",
-                    payload.name.clone(),
-                    json_span(sources, payload.span),
-                    Vec::new(),
+                    "match_payload_discard",
                 ),
             );
         }
@@ -709,13 +709,35 @@ impl SwitchArm {
     }
 }
 
-impl SwitchElseArm {
+impl SwitchWildcardArm {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::new(
-            "match_else_arm",
+            "match_wildcard_arm",
             json_span(sources, self.span),
             vec![self.body.to_json_with_kind(sources, "body")],
         )
+    }
+}
+
+fn payload_pattern_json(
+    payload: &SwitchPayloadPattern,
+    sources: &SourceMap,
+    binding_kind: &str,
+    discard_kind: &str,
+) -> JsonAstNode {
+    match payload {
+        SwitchPayloadPattern::Binding(binding) => JsonAstNode::with_value(
+            binding_kind,
+            binding.name.clone(),
+            json_span(sources, binding.span),
+            Vec::new(),
+        ),
+        SwitchPayloadPattern::Discard(discard) => JsonAstNode::with_value(
+            discard_kind,
+            "_",
+            json_span(sources, discard.span),
+            Vec::new(),
+        ),
     }
 }
 
@@ -934,11 +956,11 @@ impl Expr {
             Expr::IfIs(expression) => {
                 let mut pattern_children = Vec::new();
                 if let Some(payload) = &expression.payload {
-                    pattern_children.push(JsonAstNode::with_value(
+                    pattern_children.push(payload_pattern_json(
+                        payload,
+                        sources,
                         "if_is_payload_binding",
-                        payload.name.clone(),
-                        json_span(sources, payload.span),
-                        Vec::new(),
+                        "if_is_payload_discard",
                     ));
                 }
 
@@ -966,8 +988,8 @@ impl Expr {
             Expr::Match(expression) => {
                 let mut children = vec![expression.expression.to_json(sources)];
                 children.extend(expression.arms.iter().map(|arm| arm.to_json(sources)));
-                if let Some(else_arm) = &expression.else_arm {
-                    children.push(else_arm.to_json(sources));
+                if let Some(wildcard_arm) = &expression.wildcard_arm {
+                    children.push(wildcard_arm.to_json(sources));
                 }
                 JsonAstNode::new(
                     "match_expression",

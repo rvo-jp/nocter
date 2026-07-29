@@ -107,8 +107,8 @@ pub(super) fn match_expression_type(
         branch_types.push(block_result_type(&arm.body, resolved, &arm_environment));
     }
 
-    if let Some(else_arm) = &statement.else_arm {
-        branch_types.push(block_result_type(&else_arm.body, resolved, environment));
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        branch_types.push(block_result_type(&wildcard_arm.body, resolved, environment));
     } else if !switch_statement_covers_all_variants(statement, resolved, environment) {
         branch_types.push(Type::Void);
     }
@@ -169,8 +169,8 @@ fn match_expression_branches_assignable_to(
         return false;
     }
 
-    if let Some(else_arm) = &statement.else_arm {
-        block_result_is_assignable(expected, &else_arm.body, resolved, environment)
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        block_result_is_assignable(expected, &wildcard_arm.body, resolved, environment)
     } else {
         switch_statement_covers_all_variants(statement, resolved, environment)
     }
@@ -227,17 +227,17 @@ fn check_match_expression_result_types(
         ));
     }
 
-    if let Some(else_arm) = &statement.else_arm {
-        if block_result_is_assignable(expected, &else_arm.body, resolved, environment) {
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        if block_result_is_assignable(expected, &wildcard_arm.body, resolved, environment) {
             return;
         }
-        let actual = block_result_type(&else_arm.body, resolved, environment);
+        let actual = block_result_type(&wildcard_arm.body, resolved, environment);
         if actual.is_unknown_or_unresolved() || actual == Type::Never {
             return;
         }
         diagnostics.push(switch_arm_result_type_mismatch_diagnostic(
             sources,
-            &else_arm.body,
+            &wildcard_arm.body,
             expected,
             &actual,
         ));
@@ -255,8 +255,8 @@ fn match_expression_branch_types(
             environment_for_switch_arm(arm, &statement.expression, resolved, environment);
         branch_types.push(block_result_type(&arm.body, resolved, &arm_environment));
     }
-    if let Some(else_arm) = &statement.else_arm {
-        branch_types.push(block_result_type(&else_arm.body, resolved, environment));
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        branch_types.push(block_result_type(&wildcard_arm.body, resolved, environment));
     } else if !switch_statement_covers_all_variants(statement, resolved, environment) {
         branch_types.push(Type::Void);
     }
@@ -407,6 +407,10 @@ pub(super) fn switch_statement_covers_all_variants(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    if statement.wildcard_arm.is_some() {
+        return true;
+    }
+
     let target_type = expression_type(&statement.expression, resolved, environment);
     let Some(target_symbol) = enum_type_symbol_for_type(&target_type, resolved) else {
         return false;

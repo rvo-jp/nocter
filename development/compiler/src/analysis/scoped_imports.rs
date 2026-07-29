@@ -207,7 +207,7 @@ fn collect_scoped_import_name_spans_in_switch(
     for arm in &statement.arms {
         collect_scoped_import_name_spans_in_block(&arm.body, spans);
     }
-    if let Some(arm) = &statement.else_arm {
+    if let Some(arm) = &statement.wildcard_arm {
         collect_scoped_import_name_spans_in_block(&arm.body, spans);
     }
 }
@@ -463,7 +463,7 @@ fn scoped_import_spans_in_switch_at_offset(
         })
         .or_else(|| {
             statement
-                .else_arm
+                .wildcard_arm
                 .as_ref()
                 .and_then(|arm| scoped_import_spans_in_block_at_offset(&arm.body, offset, visible))
         })

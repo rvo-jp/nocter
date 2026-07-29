@@ -1,7 +1,7 @@
 use super::Formatter;
 use crate::ast::{
     AssignmentOperator, BindingKind, BindingStmt, Block, Expr, IfIsStmt, IfStmt, Stmt,
-    SwitchPayloadBinding, SwitchStmt,
+    SwitchPayloadPattern, SwitchStmt,
 };
 
 impl Formatter {
@@ -126,7 +126,7 @@ impl Formatter {
         self.format_expression(&statement.expression);
         self.write(" ");
 
-        if statement.arms.is_empty() && statement.else_arm.is_none() {
+        if statement.arms.is_empty() && statement.wildcard_arm.is_none() {
             self.write("{}");
             return;
         }
@@ -146,10 +146,10 @@ impl Formatter {
                 formatter.newline();
             }
 
-            if let Some(else_arm) = &statement.else_arm {
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
                 formatter.write_indent();
-                formatter.write("else ");
-                formatter.format_block(&else_arm.body);
+                formatter.write("_ ");
+                formatter.format_block(&wildcard_arm.body);
                 formatter.newline();
             }
         });
@@ -193,7 +193,7 @@ impl Formatter {
         self.write(&statement.variant_name);
         if let Some(payload) = &statement.payload {
             self.write("(");
-            self.write(&payload.name);
+            self.format_payload_pattern(payload);
             self.write(")");
         }
     }
@@ -202,15 +202,22 @@ impl Formatter {
         &mut self,
         enum_name: &str,
         variant_name: &str,
-        payload: Option<&SwitchPayloadBinding>,
+        payload: Option<&SwitchPayloadPattern>,
     ) {
         self.write(enum_name);
         self.write(".");
         self.write(variant_name);
         if let Some(payload) = payload {
             self.write("(");
-            self.write(&payload.name);
+            self.format_payload_pattern(payload);
             self.write(")");
+        }
+    }
+
+    fn format_payload_pattern(&mut self, payload: &SwitchPayloadPattern) {
+        match payload {
+            SwitchPayloadPattern::Binding(binding) => self.write(&binding.name),
+            SwitchPayloadPattern::Discard(_) => self.write("_"),
         }
     }
 

@@ -129,7 +129,7 @@ fn formats_control_flow_and_postfix_expressions() {
 var file=File.open(path) catch error {return 1}
 let next=move file
 for i in 0..<10{file.write("x")?}
-match error{AppError.missing_path{return 1}else{return file.size() as i32}}
+match error{AppError.missing_path{return 1}_{return file.size() as i32}}
 }
 "#,
         concat!(
@@ -143,7 +143,7 @@ match error{AppError.missing_path{return 1}else{return file.size() as i32}}
             "        AppError.missing_path {\n",
             "            return 1\n",
             "        }\n",
-            "        else {\n",
+            "        _ {\n",
             "            return file.size() as i32\n",
             "        }\n",
             "    }\n",
@@ -158,7 +158,7 @@ fn formats_match_expression() {
         r#"enum AppError{missing_path,open_failed(path:&str)}
 func code(error:AppError):i32{return match error{AppError.missing_path{1}
 AppError.open_failed(path){2}
-else{0}}}
+_{0}}}
 "#,
         concat!(
             "enum AppError {\n",
@@ -170,7 +170,7 @@ else{0}}}
             "    return match error {\n",
             "        AppError.missing_path { 1 }\n",
             "        AppError.open_failed(path) { 2 }\n",
-            "        else { 0 }\n",
+            "        _ { 0 }\n",
             "    }\n",
             "}\n",
         ),

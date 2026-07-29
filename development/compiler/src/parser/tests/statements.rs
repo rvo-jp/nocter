@@ -63,13 +63,6 @@ fn rejects_discard_name_for_statement_bindings() {
     return 0
 }
 "#,
-        r#"func main(choice: Choice): i32 {
-    return match choice {
-        Choice.some(_) { 1 }
-        else { 0 }
-    }
-}
-"#,
     ] {
         assert_rejects_discard_name(source);
     }
@@ -98,7 +91,7 @@ fn rejects_self_name_for_statement_bindings() {
         r#"func main(choice: Choice): i32 {
     return match choice {
         Choice.some(Self) { 1 }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -634,14 +627,14 @@ func code(error: AppError): i32 {
         statement.arms[1]
             .payload
             .as_ref()
-            .map(|payload| payload.name.as_str()),
+            .and_then(|payload| payload.binding_name()),
         Some("path")
     );
-    assert!(statement.else_arm.is_none());
+    assert!(statement.wildcard_arm.is_none());
 }
 
 #[test]
-fn parses_switch_else_arm() {
+fn parses_switch_wildcard_arm() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
@@ -657,7 +650,7 @@ func code(error: AppError): i32 {
             return 1
         }
 
-        else {
+        _ {
             return 0
         }
     }
@@ -675,7 +668,7 @@ func code(error: AppError): i32 {
     };
 
     assert_eq!(statement.arms.len(), 1);
-    assert!(statement.else_arm.is_some());
+    assert!(statement.wildcard_arm.is_some());
 }
 
 #[test]
@@ -717,7 +710,7 @@ func code(error: AppError): i32 {
         statement
             .payload
             .as_ref()
-            .map(|payload| payload.name.as_str()),
+            .and_then(|payload| payload.binding_name()),
         Some("path")
     );
     let Some(else_block) = &statement.else_block else {
@@ -760,7 +753,83 @@ func main(maybe: Test?, fallible: Test!): i32 {
 }
 
 #[test]
-fn rejects_switch_arm_after_else() {
+fn rejects_if_is_wildcard_pattern() {
+    let output = parse_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func main(error: AppError): i32 {
+    if error is _ {
+        return 1
+    }
+
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`if is` requires an enum variant pattern")
+    }));
+}
+
+#[test]
+fn parses_payload_discard_patterns() {
+    let output = parse_text(
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    match error {
+        AppError.open_failed(_) {
+            return 1
+        }
+
+        _ {
+            return 0
+        }
+    }
+
+    if error is AppError.open_failed(_) {
+        return 2
+    }
+
+    return 3
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[2] else {
+        panic!("expected function item");
+    };
+    let Stmt::Switch(statement) = &function.body.statements[0] else {
+        panic!("expected match statement");
+    };
+    assert!(statement.arms[0].payload.as_ref().is_some_and(|payload| {
+        payload.binding_name().is_none() && payload.span().start < payload.span().end
+    }));
+    let Stmt::IfIs(statement) = &function.body.statements[1] else {
+        panic!("expected if-is statement");
+    };
+    assert!(statement.payload.as_ref().is_some_and(|payload| {
+        payload.binding_name().is_none() && payload.span().start < payload.span().end
+    }));
+}
+
+#[test]
+fn rejects_switch_arm_after_wildcard() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
@@ -772,7 +841,7 @@ func main(): i32 {
 
 func code(error: AppError): i32 {
     match error {
-        else {
+        _ {
             return 0
         }
 
@@ -789,7 +858,7 @@ func code(error: AppError): i32 {
 }
 
 #[test]
-fn rejects_duplicate_switch_else_arm() {
+fn rejects_duplicate_switch_wildcard_arm() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
@@ -801,11 +870,11 @@ func main(): i32 {
 
 func code(error: AppError): i32 {
     match error {
-        else {
+        _ {
             return 0
         }
 
-        else {
+        _ {
             return 1
         }
     }
@@ -814,7 +883,36 @@ func code(error: AppError): i32 {
     );
 
     assert_eq!(output.diagnostics.len(), 1);
-    assert!(output.diagnostics[0].message.contains("only one"));
+    assert!(output.diagnostics[0].message.contains("last"));
+}
+
+#[test]
+fn rejects_match_else_arm_syntax() {
+    let output = parse_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    match error {
+        AppError.missing_path {
+            return 1
+        }
+
+        else {
+            return 0
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1);
+    assert!(output.diagnostics[0].message.contains("_ { ... }"));
 }
 
 #[test]

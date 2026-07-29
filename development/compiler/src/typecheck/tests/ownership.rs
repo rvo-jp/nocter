@@ -1011,7 +1011,7 @@ func main(): i32 {
             let length = take(move text)
         }
 
-        else {
+        _ {
             drop text
         }
     }
@@ -1030,7 +1030,8 @@ func take(text: Text): i32 {
 }
 
 #[test]
-fn diagnoses_uninitialized_after_exhaustive_match_without_else_branches_move_and_drop() {
+fn diagnoses_uninitialized_after_exhaustive_match_without_wildcard_fallback_branches_move_and_drop()
+{
     let diagnostics = check_text(
         r#"enum Choice {
     move_it
@@ -1070,7 +1071,7 @@ func take(text: Text): i32 {
 }
 
 #[test]
-fn diagnoses_maybe_uninitialized_after_match_without_else_moves() {
+fn diagnoses_maybe_uninitialized_after_match_without_wildcard_fallback_moves() {
     let diagnostics = check_text(
         r#"enum Choice {
     move_it
@@ -1124,7 +1125,7 @@ func main(): i32 {
     let text = Text{ start: 1, len: 42, capacity: 3 }
     let value = match choice {
         Choice.move_it { take(move text) }
-        else { 0 }
+        _ { 0 }
     }
     return text.len + value
 }

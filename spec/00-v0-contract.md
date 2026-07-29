@@ -118,6 +118,7 @@ partial language support:
 - top-level `use` after a non-`use` declaration
 - block-scope `use` after a non-`use` statement or result expression
 - block-scope `pub use`
+- legacy `match` fallback arms written as `else { ... }`
 - `struct Name { ...Type }`
 - `struct Name { pub ...Type }`
 - `literal Type [...]`

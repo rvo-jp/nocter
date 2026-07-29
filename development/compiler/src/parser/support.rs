@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOperator, SwitchPayloadBinding, TypeExpr, UnaryOperator};
+use crate::ast::{BinaryOperator, SwitchPayloadPattern, TypeExpr, UnaryOperator};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone)]
@@ -14,7 +14,7 @@ pub(super) struct ParsedEnumPattern {
     pub(super) enum_name_span: ByteSpan,
     pub(super) variant_name: String,
     pub(super) variant_name_span: ByteSpan,
-    pub(super) payload: Option<SwitchPayloadBinding>,
+    pub(super) payload: Option<SwitchPayloadPattern>,
 }
 
 #[derive(Debug, Clone)]

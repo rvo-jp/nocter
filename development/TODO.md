@@ -60,6 +60,10 @@ Recommended order:
 
 ## Recent Notes
 
+- `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
+  reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
+  both `match` and `if is`, and the discard does not introduce a local binding
+  into resolver, typecheck facts, hover, ownership, or buildability state.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
@@ -158,8 +162,8 @@ Recommended order:
   allowing branch/body-local explicit drops and outer drops on paths that
   immediately exit the function.
 - Ownership borrow liveness now uses typed terminal-control detection, including
-  exhaustive payloadless `match` without `else`, when deciding whether later
-  unreachable borrow uses keep a borrow active.
+  exhaustive payloadless `match` without wildcard fallback arms, when deciding
+  whether later unreachable borrow uses keep a borrow active.
 - Return and control-exit terminal analysis now advances a typed lookahead
   environment through block-local bindings before checking later terminal
   statements, so nested branches with local exhaustive enum `match` statements
@@ -212,9 +216,9 @@ Recommended order:
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.
 - Buildability and IR reachable-prefix handling now treat exhaustive
-  payloadless `match` statements without `else` as proven terminal, so
-  unreachable body tails after those statements are neither preflighted nor
-  lowered.
+  payloadless `match` statements without wildcard fallback arms as proven
+  terminal, so unreachable body tails after those statements are neither
+  preflighted nor lowered.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

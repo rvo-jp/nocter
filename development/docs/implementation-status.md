@@ -50,10 +50,11 @@ subset, including fixed array fields inside concrete generic structs, with
 constant and variable numeric index compound assignment for `i32`, `u8`, and
 `usize`.
 Unreachable body tails after proven terminal statements, including exhaustive
-payloadless `match` statements without `else`, are ignored by return/reachability
-checking, buildability, and IR lowering. Buildability and IR lowering consume
-structured typechecker facts for binding types and method receiver kinds, and
-buildability resolves imported type aliases by their declaring source when
+payloadless `match` statements without wildcard fallback arms, are ignored by
+return/reachability checking, buildability, and IR lowering. Buildability and
+IR lowering consume structured typechecker facts for binding types and method
+receiver kinds, and buildability resolves imported type aliases by their
+declaring source when
 deciding whether value-producing control expressions or discardable expression
 statements are in scalar/view runtime positions, and when it gates read-write
 borrow call arguments, local binding and field-member value types, explicit
@@ -64,9 +65,11 @@ same buildability boundary instead of leaking into IR diagnostics. IR type
 normalization and drop glue resolution also handle source-qualified imported
 type names when lowering imported call signatures. Hover labels remain editor
 presentation data.
-Parser diagnostics reserve the `_` and `Self` spellings across v0
-name-introducing syntax, including declarations, parameters, local bindings,
-payload bindings, import introduced names, and import aliases.
+The parser accepts `_` as the `match` fallback arm and as an enum payload
+discard pattern in `match` and `if is`. It rejects legacy `match` `else` arms
+and still reserves `_` and `Self` across v0 name-introducing syntax, including
+declarations, parameters, local bindings, import introduced names, and import
+aliases.
 Typechecking accepts `Self` type syntax only in inherent member, qualified
 associated-function, and interface method signature contexts; other type
 positions receive a source-backed diagnostic instead of normal name lookup.
@@ -100,7 +103,7 @@ derived errors can be forwarded.
 | Blocks and control expressions | Blocks can produce a value from the final expression. `if`, payloadless enum `if is`, and payloadless enum `match` can be value expressions in the supported subset, including branch-local leading bindings, assignments, and buildable expression statements before the final value. Return/terminal-control analysis tracks block-local bindings before later terminal statements, so exhaustive local-enum `match` statements are recognized inside nested blocks. Loops remain statement-oriented in v0. |
 | Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. `error` is copyable but participates in borrow-like return provenance through its borrowed fields. `catch` blocks that can fall through are rejected by typechecking. Direct `(&str, &str) -> error` constructor calls such as `Error.new(...)`, input-free static `error` helper wrappers, and `error` parameters build and run in the supported fallible subset. Ordinary `error` success-return helper calls with runtime inputs, including function parameters or method receivers, remain outside the runtime ABI subset and reject before IR lowering. Scalar/view and supported aggregate paths build and run when `catch` failure blocks use the current direct-return/effect-only terminal subset and `otherwise` is applied directly to optional-returning calls in supported scalar/view value, binding, assignment, or return positions, and supported aggregate/fixed-array member-root projection, binding, argument, aggregate-field initializer, whole-local or aggregate-field assignment, or return positions. Broader catch/otherwise control-flow endings and nested/general `otherwise` expression positions reject before IR lowering. Nested fallible/optional return shapes remain limited. |
 | Struct aggregates | Struct literals, fields including optional-call `otherwise` member roots, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, numeric field compound assignment, replacement drops, and cleanup paths are implemented for the current subset. |
-| Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
+| Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. `match` fallback uses `_ { ... }`; enum payload discard uses `Enum.variant(_)` in `match` and `if is`. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
 | Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit copies of move-only owned values such as non-copy structs, non-copy concrete generic `copy struct` instantiations, fixed arrays with non-copy elements, optionals, fallibles, and payload-carrying enums. Borrow last-use tracking stops at typed terminal control statements, including terminal `if`/`if is` and exhaustive `match`, so unreachable later uses do not extend active borrows. Lowering inserts drop glue for the documented aggregate/control-flow subset. Buildability rejects unsupported explicit aggregate moves in control-flow conditions and outer aggregate moves/drops inside non-terminal control-flow branches/bodies unless that path is one of the current immediate-function-exit forms. |
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |

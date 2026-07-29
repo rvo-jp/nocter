@@ -150,7 +150,7 @@ fn collect_switch(
     for arm in &statement.arms {
         collect_block(&arm.body, root_source, resolved, targets);
     }
-    if let Some(arm) = &statement.else_arm {
+    if let Some(arm) = &statement.wildcard_arm {
         collect_block(&arm.body, root_source, resolved, targets);
     }
 }
@@ -261,7 +261,7 @@ fn collect_expression(
             for arm in &expression.arms {
                 collect_block(&arm.body, root_source, resolved, targets);
             }
-            if let Some(arm) = &expression.else_arm {
+            if let Some(arm) = &expression.wildcard_arm {
                 collect_block(&arm.body, root_source, resolved, targets);
             }
         }

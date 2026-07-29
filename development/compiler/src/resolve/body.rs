@@ -114,7 +114,11 @@ impl Resolver<'_> {
             Stmt::IfIs(statement) => {
                 self.resolve_expression(&statement.expression, scope);
                 let mut then_scope = scope.clone();
-                if let Some(payload) = &statement.payload {
+                if let Some(payload) = statement
+                    .payload
+                    .as_ref()
+                    .and_then(|payload| payload.binding())
+                {
                     self.define_local_name(
                         payload.name.clone(),
                         payload.span,
@@ -132,7 +136,9 @@ impl Resolver<'_> {
                 self.resolve_expression(&statement.expression, scope);
                 for arm in &statement.arms {
                     let mut arm_scope = scope.clone();
-                    if let Some(payload) = &arm.payload {
+                    if let Some(payload) =
+                        arm.payload.as_ref().and_then(|payload| payload.binding())
+                    {
                         self.define_local_name(
                             payload.name.clone(),
                             payload.span,
@@ -142,9 +148,9 @@ impl Resolver<'_> {
                     }
                     self.resolve_block(&arm.body, &mut arm_scope);
                 }
-                if let Some(else_arm) = &statement.else_arm {
+                if let Some(wildcard_arm) = &statement.wildcard_arm {
                     let mut else_scope = scope.clone();
-                    self.resolve_block(&else_arm.body, &mut else_scope);
+                    self.resolve_block(&wildcard_arm.body, &mut else_scope);
                 }
             }
             Stmt::While(statement) => {
@@ -268,7 +274,11 @@ impl Resolver<'_> {
             Expr::IfIs(expression) => {
                 self.resolve_expression(&expression.expression, scope);
                 let mut then_scope = scope.clone();
-                if let Some(payload) = &expression.payload {
+                if let Some(payload) = expression
+                    .payload
+                    .as_ref()
+                    .and_then(|payload| payload.binding())
+                {
                     self.define_local_name(
                         payload.name.clone(),
                         payload.span,
@@ -286,7 +296,9 @@ impl Resolver<'_> {
                 self.resolve_expression(&expression.expression, scope);
                 for arm in &expression.arms {
                     let mut arm_scope = scope.clone();
-                    if let Some(payload) = &arm.payload {
+                    if let Some(payload) =
+                        arm.payload.as_ref().and_then(|payload| payload.binding())
+                    {
                         self.define_local_name(
                             payload.name.clone(),
                             payload.span,
@@ -296,9 +308,9 @@ impl Resolver<'_> {
                     }
                     self.resolve_block(&arm.body, &mut arm_scope);
                 }
-                if let Some(else_arm) = &expression.else_arm {
+                if let Some(wildcard_arm) = &expression.wildcard_arm {
                     let mut else_scope = scope.clone();
-                    self.resolve_block(&else_arm.body, &mut else_scope);
+                    self.resolve_block(&wildcard_arm.body, &mut else_scope);
                 }
             }
             Expr::IntegerLiteral(_)

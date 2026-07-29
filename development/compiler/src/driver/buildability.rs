@@ -1139,9 +1139,9 @@ fn collect_terminal_return_expression_diagnostics(
                     diagnostics,
                 );
             }
-            if let Some(else_arm) = &expression.else_arm {
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
                 collect_terminal_return_block_diagnostics(
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     return_type,
                     sources,
                     resolved,
@@ -1316,9 +1316,9 @@ fn collect_value_expression_diagnostics(
                     diagnostics,
                 );
             }
-            if let Some(else_arm) = &expression.else_arm {
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
                 collect_value_block_diagnostics(
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     return_type,
                     sources,
                     resolved,
@@ -2230,9 +2230,9 @@ fn collect_void_effect_match_expression_diagnostics(
             diagnostics,
         );
     }
-    if let Some(else_arm) = &expression.else_arm {
+    if let Some(wildcard_arm) = &expression.wildcard_arm {
         collect_void_effect_block_diagnostics(
-            &else_arm.body,
+            &wildcard_arm.body,
             sources,
             resolved,
             typecheck_facts,
@@ -4288,7 +4288,7 @@ fn value_match_expression_is_buildable(
             .iter()
             .all(|arm| value_block_is_buildable(&arm.body))
         && expression
-            .else_arm
+            .wildcard_arm
             .as_ref()
             .is_none_or(|arm| value_block_is_buildable(&arm.body))
 }
@@ -4379,7 +4379,7 @@ fn void_effect_match_expression_is_buildable(
                 generic_substitutions,
             )
         })
-        && expression.else_arm.as_ref().is_none_or(|arm| {
+        && expression.wildcard_arm.as_ref().is_none_or(|arm| {
             void_effect_block_is_buildable(
                 &arm.body,
                 resolved,
@@ -4464,7 +4464,7 @@ fn terminal_match_expression_is_buildable(
     resolved: &ResolveOutput,
 ) -> bool {
     switch_statement_is_buildable(expression, resolved)
-        && (expression.else_arm.is_some()
+        && (expression.wildcard_arm.is_some()
             || switch_statement_covers_all_payloadless_variants(expression, resolved))
 }
 
@@ -4955,7 +4955,7 @@ fn collect_statement_diagnostics(
                     statement
                         .payload
                         .as_ref()
-                        .map(|payload| payload.name.as_str()),
+                        .and_then(|payload| payload.binding_name()),
                     sources,
                     resolved,
                     resolved_sources,
@@ -5046,7 +5046,9 @@ fn collect_statement_diagnostics(
                 for arm in &statement.arms {
                     collect_nonterminal_control_payload_block_aggregate_diagnostics(
                         &arm.body,
-                        arm.payload.as_ref().map(|payload| payload.name.as_str()),
+                        arm.payload
+                            .as_ref()
+                            .and_then(|payload| payload.binding_name()),
                         sources,
                         resolved,
                         resolved_sources,
@@ -5055,7 +5057,7 @@ fn collect_statement_diagnostics(
                         diagnostics,
                     );
                 }
-                if let Some(arm) = &statement.else_arm {
+                if let Some(arm) = &statement.wildcard_arm {
                     collect_nonterminal_control_block_aggregate_diagnostics(
                         &arm.body,
                         sources,
@@ -5092,7 +5094,7 @@ fn collect_statement_diagnostics(
                     diagnostics,
                 );
             }
-            if let Some(arm) = &statement.else_arm {
+            if let Some(arm) = &statement.wildcard_arm {
                 collect_block_diagnostics(
                     &arm.body,
                     return_type,
@@ -5921,7 +5923,7 @@ fn explicit_aggregate_move_span_in_expression(
                 statement
                     .payload
                     .as_ref()
-                    .map(|payload| payload.name.as_str()),
+                    .and_then(|payload| payload.binding_name()),
                 resolved,
                 resolved_sources,
                 typecheck_facts,
@@ -5953,7 +5955,9 @@ fn explicit_aggregate_move_span_in_expression(
             statement.arms.iter().find_map(|arm| {
                 explicit_aggregate_move_span_in_payload_block(
                     &arm.body,
-                    arm.payload.as_ref().map(|payload| payload.name.as_str()),
+                    arm.payload
+                        .as_ref()
+                        .and_then(|payload| payload.binding_name()),
                     resolved,
                     resolved_sources,
                     typecheck_facts,
@@ -5963,7 +5967,7 @@ fn explicit_aggregate_move_span_in_expression(
             })
         })
         .or_else(|| {
-            statement.else_arm.as_ref().and_then(|arm| {
+            statement.wildcard_arm.as_ref().and_then(|arm| {
                 explicit_aggregate_move_span_in_block(
                     &arm.body,
                     resolved,
@@ -6157,7 +6161,7 @@ fn explicit_aggregate_move_span_in_statement(
                 statement
                     .payload
                     .as_ref()
-                    .map(|payload| payload.name.as_str()),
+                    .and_then(|payload| payload.binding_name()),
                 resolved,
                 resolved_sources,
                 typecheck_facts,
@@ -6189,7 +6193,9 @@ fn explicit_aggregate_move_span_in_statement(
             statement.arms.iter().find_map(|arm| {
                 explicit_aggregate_move_span_in_payload_block(
                     &arm.body,
-                    arm.payload.as_ref().map(|payload| payload.name.as_str()),
+                    arm.payload
+                        .as_ref()
+                        .and_then(|payload| payload.binding_name()),
                     resolved,
                     resolved_sources,
                     typecheck_facts,
@@ -6199,7 +6205,7 @@ fn explicit_aggregate_move_span_in_statement(
             })
         })
         .or_else(|| {
-            statement.else_arm.as_ref().and_then(|arm| {
+            statement.wildcard_arm.as_ref().and_then(|arm| {
                 explicit_aggregate_move_span_in_block(
                     &arm.body,
                     resolved,
@@ -6564,7 +6570,7 @@ fn switch_statement_exits_function_for_buildability(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if statement.else_arm.is_none()
+    if statement.wildcard_arm.is_none()
         && !switch_statement_covers_all_payloadless_variants(statement, resolved)
     {
         return false;
@@ -6577,9 +6583,9 @@ fn switch_statement_exits_function_for_buildability(
             typecheck_facts,
             generic_substitutions,
         )
-    }) && statement.else_arm.as_ref().is_none_or(|else_arm| {
+    }) && statement.wildcard_arm.as_ref().is_none_or(|wildcard_arm| {
         block_exits_function_for_buildability(
-            &else_arm.body,
+            &wildcard_arm.body,
             resolved,
             typecheck_facts,
             generic_substitutions,
@@ -6659,7 +6665,7 @@ fn statement_may_exit_current_loop_for_buildability(statement: &Stmt) -> bool {
                 .iter()
                 .any(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
         }
@@ -6701,7 +6707,7 @@ fn expression_may_exit_current_loop_for_buildability(expression: &Expr) -> bool 
                 .iter()
                 .any(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_may_exit_current_loop_for_buildability(&arm.body))
         }
@@ -8374,9 +8380,9 @@ fn collect_expression_diagnostics(
                     diagnostics,
                 );
             }
-            if let Some(else_arm) = &expression.else_arm {
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
                 collect_block_diagnostics(
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     None,
                     sources,
                     resolved,
@@ -10328,7 +10334,7 @@ func main(): i32 {
             return 0
         }
 
-        else {
+        _ {
             return 1
         }
     }
@@ -10372,7 +10378,7 @@ func main(): i32 {
     let choice = Choice.yes
     match choice {
         Choice.yes { 0 }
-        else { 1 }
+        _ { 1 }
     }
 }
 "#,
@@ -10395,7 +10401,7 @@ func main(): i32 {
     let choice = Choice.yes
     return match choice {
         Choice.yes { 0 }
-        else { 1 }
+        _ { 1 }
     }
 }
 "#,
@@ -10418,7 +10424,7 @@ func main(): i32 {
     let result = Result.ok(10)
     return match result {
         Result.ok(value) { value }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,

@@ -289,7 +289,7 @@ fn module_path_in_statement_at_offset(statement: &Stmt, offset: usize) -> Option
                 })
                 .or_else(|| {
                     statement
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| module_path_in_block_at_offset(&arm.body, offset))
                 })
@@ -389,7 +389,7 @@ fn module_path_in_expression_at_offset(expression: &Expr, offset: usize) -> Opti
                 })
                 .or_else(|| {
                     expression
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| module_path_in_block_at_offset(&arm.body, offset))
                 })
@@ -844,7 +844,11 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
         }
         Stmt::IfIs(statement) => {
             collect_expression_hover_symbols(text, &statement.expression, symbols);
-            if let Some(payload) = &statement.payload {
+            if let Some(payload) = statement
+                .payload
+                .as_ref()
+                .and_then(|payload| payload.binding())
+            {
                 push_hover_symbol(
                     text,
                     payload.span,
@@ -863,7 +867,7 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
             for arm in &statement.arms {
                 collect_block_hover_symbols(text, &arm.body, symbols);
             }
-            if let Some(arm) = &statement.else_arm {
+            if let Some(arm) = &statement.wildcard_arm {
                 collect_block_hover_symbols(text, &arm.body, symbols);
             }
         }
@@ -983,7 +987,11 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
         }
         Expr::IfIs(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
-            if let Some(payload) = &expression.payload {
+            if let Some(payload) = expression
+                .payload
+                .as_ref()
+                .and_then(|payload| payload.binding())
+            {
                 push_hover_symbol(
                     text,
                     payload.span,
@@ -1002,7 +1010,7 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
             for arm in &expression.arms {
                 collect_block_hover_symbols(text, &arm.body, symbols);
             }
-            if let Some(arm) = &expression.else_arm {
+            if let Some(arm) = &expression.wildcard_arm {
                 collect_block_hover_symbols(text, &arm.body, symbols);
             }
         }

@@ -138,7 +138,7 @@ match error {
     AppError.open_failed(path) {
         report_open_failed(path)
     }
-    else {
+    _ {
         report_unknown(error)
     }
 }
@@ -150,14 +150,14 @@ Use `match` expressions when enum pattern handling must produce a value.
 return match error {
     AppError.missing_path { missing_code() }
     AppError.open_failed(path) { code_for(path) }
-    else { unknown_code() }
+    _ { unknown_code() }
 }
 ```
 
 Rules:
 
 - Use qualified variants such as `AppError.open_failed(path)`.
-- Use `else` as the fallback arm.
+- Use `_` as the fallback arm.
 - Use `return match ...` or a body-result `match` when the branches produce values.
 - Write `match` value arms as `Pattern { result }`.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.

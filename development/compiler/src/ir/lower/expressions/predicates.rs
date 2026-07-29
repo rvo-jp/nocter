@@ -100,7 +100,7 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
                     .iter()
                     .any(|arm| block_contains_call(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_contains_call(&arm.body))
         }
@@ -151,7 +151,7 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
                     .iter()
                     .any(|arm| block_contains_call(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_contains_call(&arm.body))
         }
@@ -236,7 +236,7 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
                     .iter()
                     .any(|arm| block_contains_interpolated_string(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_contains_interpolated_string(&arm.body))
         }
@@ -292,7 +292,7 @@ fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool 
                     .iter()
                     .any(|arm| block_contains_interpolated_string(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_contains_interpolated_string(&arm.body))
         }

@@ -660,7 +660,7 @@ match error {
     AppError.open_failed(path) {
         ...
     }
-    else {
+    _ {
         ...
     }
 }
@@ -670,14 +670,14 @@ Rules:
 
 - `match` may be used as a statement or as an expression.
 - Match arms use `Pattern { ... }`.
-- `else { ... }` is the fallback arm.
-- A `match` may have at most one `else` arm.
-- `else` must be the last arm.
+- `_ { ... }` is the fallback arm and matches any remaining value.
+- A `match` may have at most one `_` fallback arm.
+- The `_` fallback arm must be the last arm.
 - When `match` is used as an expression, each selected arm body result is the expression value.
-- A `match` expression without `else` must cover all variants to avoid a `void` missing-branch type.
+- A `match` expression without `_` must cover all variants to avoid a `void` missing-branch type.
 - Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
-- `match` without `else` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
-- `match ... else` is treated as a terminating statement when every explicit arm and the `else` arm terminate.
+- `match` without `_` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
+- `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
 - In the v0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
@@ -685,7 +685,10 @@ Rules:
   buildability validation. `check` may still accept them for source-level
   typechecking.
 - Payload names in a pattern are bound only inside that arm block.
-- `_` wildcard patterns are not part of the initial design.
+- `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
+  payload to exist and discards it without introducing a binding.
+- `_` by itself is valid only as the `match` fallback arm. It is not a valid
+  `if is` pattern.
 
 Example value selection:
 
@@ -693,7 +696,7 @@ Example value selection:
 return match error {
     AppError.missing_path { missing_code() }
     AppError.open_failed(path) { code_for(path) }
-    else { unknown_code() }
+    _ { unknown_code() }
 }
 ```
 
@@ -715,6 +718,8 @@ Rules:
 
 - `if enum_expr is Pattern` uses the same enum pattern syntax as `match`.
 - Payload names are bound only inside the then body.
+- `if enum_expr is Enum.variant(_)` checks only the variant and discards the
+  payload without introducing a binding.
 - `else` may be used for the non-matching case.
 - `else` is optional.
 - `else if enum_expr is Pattern` is allowed.

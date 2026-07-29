@@ -97,7 +97,7 @@ func code(error: AppError): i32 {
     return match error {
         AppError.missing_path { 1 }
         AppError.open_failed(path) { path.len() }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -123,10 +123,10 @@ func code(error: AppError): i32 {
         expression.arms[1]
             .payload
             .as_ref()
-            .map(|payload| payload.name.as_str()),
+            .and_then(|payload| payload.binding_name()),
         Some("path")
     );
-    assert!(expression.else_arm.is_some());
+    assert!(expression.wildcard_arm.is_some());
 }
 
 #[test]

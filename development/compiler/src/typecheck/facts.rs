@@ -727,7 +727,11 @@ impl TypecheckFactCollector<'_> {
 
                 let mut then_environment =
                     environment_for_if_is_binding(statement, self.resolved, environment);
-                if let Some(payload) = &statement.payload {
+                if let Some(payload) = statement
+                    .payload
+                    .as_ref()
+                    .and_then(|payload| payload.binding())
+                {
                     self.record_payload_binding(payload, &then_environment);
                 }
                 self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
@@ -750,12 +754,14 @@ impl TypecheckFactCollector<'_> {
                         self.resolved,
                         environment,
                     );
-                    if let Some(payload) = &arm.payload {
+                    if let Some(payload) =
+                        arm.payload.as_ref().and_then(|payload| payload.binding())
+                    {
                         self.record_payload_binding(payload, &arm_environment);
                     }
                     self.collect_block_facts(&arm.body, &mut arm_environment, return_type);
                 }
-                if let Some(arm) = &statement.else_arm {
+                if let Some(arm) = &statement.wildcard_arm {
                     let mut else_environment = environment.clone();
                     self.collect_block_facts(&arm.body, &mut else_environment, return_type);
                 }
@@ -969,10 +975,10 @@ impl TypecheckFactCollector<'_> {
                         return_type,
                     );
                 }
-                if let Some(else_arm) = &expression.else_arm {
+                if let Some(wildcard_arm) = &expression.wildcard_arm {
                     let mut else_environment = environment.clone();
                     self.collect_expected_block_result_facts(
-                        &else_arm.body,
+                        &wildcard_arm.body,
                         expected,
                         &mut else_environment,
                         return_type,
@@ -1308,7 +1314,11 @@ impl TypecheckFactCollector<'_> {
 
                 let mut then_environment =
                     environment_for_if_is_binding(expression, self.resolved, environment);
-                if let Some(payload) = &expression.payload {
+                if let Some(payload) = expression
+                    .payload
+                    .as_ref()
+                    .and_then(|payload| payload.binding())
+                {
                     self.record_payload_binding(payload, &then_environment);
                 }
                 self.collect_block_facts(
@@ -1335,12 +1345,14 @@ impl TypecheckFactCollector<'_> {
                         self.resolved,
                         environment,
                     );
-                    if let Some(payload) = &arm.payload {
+                    if let Some(payload) =
+                        arm.payload.as_ref().and_then(|payload| payload.binding())
+                    {
                         self.record_payload_binding(payload, &arm_environment);
                     }
                     self.collect_block_facts(&arm.body, &mut arm_environment, return_type);
                 }
-                if let Some(arm) = &expression.else_arm {
+                if let Some(arm) = &expression.wildcard_arm {
                     let mut else_environment = environment.clone();
                     self.collect_block_facts(&arm.body, &mut else_environment, return_type);
                 }

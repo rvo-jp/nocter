@@ -154,7 +154,7 @@ Rules:
 - `catch` after a fallible expression is separated from the expression by one space.
 - Single-pattern enum checks use `if expr is Pattern { ... }`.
 - `match` arms use `Pattern { ... }`.
-- `match` fallback arms use `else { ... }` and must be written last.
+- `match` fallback arms use `_ { ... }` and must be written last.
 - Range `for` syntax is formatted as `for i in start..<end { ... }`.
 
 Examples:
@@ -171,7 +171,7 @@ match error {
     AppError.open_failed(path) {
         ...
     }
-    else {
+    _ {
         ...
     }
 }
@@ -179,7 +179,7 @@ match error {
 return match error {
     AppError.missing_path { missing_code() }
     AppError.open_failed(path) { code_for(path) }
-    else { unknown_code() }
+    _ { unknown_code() }
 }
 
 for i in 0..<bytes.len() {

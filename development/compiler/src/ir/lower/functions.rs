@@ -1600,8 +1600,8 @@ fn payloadless_switch_condition_arms_and_fallback<'a>(
     statement: &'a SwitchStmt,
     variant_names: &[String],
 ) -> Option<(&'a [SwitchArm], Block)> {
-    if let Some(else_arm) = &statement.else_arm {
-        return Some((&statement.arms, else_arm.body.clone()));
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        return Some((&statement.arms, wildcard_arm.body.clone()));
     }
 
     if !payloadless_switch_covers_all_variants(statement, variant_names) {
@@ -2792,7 +2792,7 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
             for arm in &statement.arms {
                 mark_explicit_moves_in_block(&arm.body, context);
             }
-            if let Some(arm) = &statement.else_arm {
+            if let Some(arm) = &statement.wildcard_arm {
                 mark_explicit_moves_in_block(&arm.body, context);
             }
         }
@@ -2987,7 +2987,7 @@ fn expression_contains_explicit_aggregate_move_matching(
                 matches_move,
             ) || statement.arms.iter().any(|arm| {
                 block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
-            }) || statement.else_arm.as_ref().is_some_and(|arm| {
+            }) || statement.wildcard_arm.as_ref().is_some_and(|arm| {
                 block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
             })
         }
@@ -3082,7 +3082,7 @@ fn statement_contains_explicit_aggregate_move_matching(
                 matches_move,
             ) || statement.arms.iter().any(|arm| {
                 block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
-            }) || statement.else_arm.as_ref().is_some_and(|arm| {
+            }) || statement.wildcard_arm.as_ref().is_some_and(|arm| {
                 block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
             })
         }

@@ -102,13 +102,13 @@ pub(in crate::typecheck) fn switch_arm_payload_mismatch_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0365",
         format!(
-            "`{}.{}` has {} payload value(s), but the match arm provides {} binding(s)",
+            "`{}.{}` has {} payload value(s), but the match arm provides {} payload pattern(s)",
             enum_symbol.canonical_name, arm.variant_name, expected, actual
         ),
     );
     diagnostic.primary_span = sources.span_to_json(arm.span).ok().map(Box::new);
     diagnostic.help = Some(
-        "match the variant payload shape; v0 supports either no payload or one payload binding"
+        "match the variant payload shape; v0 supports either no payload or one payload pattern"
             .to_string(),
     );
     diagnostic
@@ -281,7 +281,7 @@ pub(in crate::typecheck) fn if_is_payload_mismatch_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0365",
         format!(
-            "`{}.{}` has {} payload value(s), but the if-is pattern provides {} binding(s)",
+            "`{}.{}` has {} payload value(s), but the if-is pattern provides {} payload pattern(s)",
             enum_symbol.canonical_name, statement.variant_name, expected, actual
         ),
     );
@@ -290,7 +290,7 @@ pub(in crate::typecheck) fn if_is_payload_mismatch_diagnostic(
         .ok()
         .map(Box::new);
     diagnostic.help = Some(
-        "match the variant payload shape; v0 supports either no payload or one payload binding"
+        "match the variant payload shape; v0 supports either no payload or one payload pattern"
             .to_string(),
     );
     diagnostic

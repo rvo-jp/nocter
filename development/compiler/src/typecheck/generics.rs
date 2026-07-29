@@ -396,8 +396,8 @@ fn check_statement(
             for arm in &statement.arms {
                 check_block(sources, &arm.body, resolved, scope, diagnostics);
             }
-            if let Some(else_arm) = &statement.else_arm {
-                check_block(sources, &else_arm.body, resolved, scope, diagnostics);
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
+                check_block(sources, &wildcard_arm.body, resolved, scope, diagnostics);
             }
         }
         Stmt::ForRange(statement) => {
@@ -579,7 +579,7 @@ fn check_expression(
             for arm in &expression.arms {
                 check_block(sources, &arm.body, resolved, scope, diagnostics);
             }
-            if let Some(arm) = &expression.else_arm {
+            if let Some(arm) = &expression.wildcard_arm {
                 check_block(sources, &arm.body, resolved, scope, diagnostics);
             }
         }

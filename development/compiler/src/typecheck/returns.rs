@@ -501,19 +501,23 @@ fn check_statement_returns(
                     incoming.push(arm_borrow_provenance);
                 }
             }
-            if let Some(else_arm) = &statement.else_arm {
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
                 let mut else_environment = environment.clone();
                 let mut else_borrow_provenance = borrow_provenance.clone();
                 check_block_return_statements(
                     sources,
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     context,
                     resolved,
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
                 );
-                if !block_guarantees_return_or_never(&else_arm.body, resolved, &else_environment) {
+                if !block_guarantees_return_or_never(
+                    &wildcard_arm.body,
+                    resolved,
+                    &else_environment,
+                ) {
                     incoming.push(else_borrow_provenance);
                 }
             } else if !switch_statement_covers_all_variants(statement, resolved, environment) {
@@ -976,12 +980,12 @@ fn check_expression_for_nested_returns(
                     &mut arm_borrow_provenance,
                 );
             }
-            if let Some(else_arm) = &expression.else_arm {
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
                 let mut else_environment = environment.clone();
                 let mut else_borrow_provenance = borrow_provenance.clone();
                 check_block_return_statements(
                     sources,
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     context,
                     resolved,
                     diagnostics,
@@ -1715,10 +1719,14 @@ pub(super) fn statement_guarantees_control_exit_or_never(
                 return false;
             }
 
-            statement.else_arm.as_ref().map_or_else(
+            statement.wildcard_arm.as_ref().map_or_else(
                 || switch_statement_covers_all_variants(statement, resolved, environment),
-                |else_arm| {
-                    block_guarantees_control_exit_or_never(&else_arm.body, resolved, environment)
+                |wildcard_arm| {
+                    block_guarantees_control_exit_or_never(
+                        &wildcard_arm.body,
+                        resolved,
+                        environment,
+                    )
                 },
             )
         }
@@ -1763,9 +1771,11 @@ fn statement_guarantees_return_or_never(
                 return false;
             }
 
-            statement.else_arm.as_ref().map_or_else(
+            statement.wildcard_arm.as_ref().map_or_else(
                 || switch_statement_covers_all_variants(statement, resolved, environment),
-                |else_arm| block_guarantees_return_or_never(&else_arm.body, resolved, environment),
+                |wildcard_arm| {
+                    block_guarantees_return_or_never(&wildcard_arm.body, resolved, environment)
+                },
             )
         }
         Stmt::Loop(statement) => {
@@ -1795,13 +1805,16 @@ fn expression_guarantees_return(expression: &Expr) -> bool {
         Expr::IfIs(expression) => expression.else_block.as_ref().is_some_and(|else_block| {
             block_guarantees_return(&expression.then_block) && block_guarantees_return(else_block)
         }),
-        Expr::Match(expression) => expression.else_arm.as_ref().is_some_and(|else_arm| {
-            expression
-                .arms
-                .iter()
-                .all(|arm| block_guarantees_return(&arm.body))
-                && block_guarantees_return(&else_arm.body)
-        }),
+        Expr::Match(expression) => expression
+            .wildcard_arm
+            .as_ref()
+            .is_some_and(|wildcard_arm| {
+                expression
+                    .arms
+                    .iter()
+                    .all(|arm| block_guarantees_return(&arm.body))
+                    && block_guarantees_return(&wildcard_arm.body)
+            }),
         Expr::Group(group) => expression_guarantees_return(&group.expression),
         _ => false,
     }
@@ -1816,12 +1829,12 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
             block_guarantees_return(&statement.then_block) && block_guarantees_return(else_block)
         }),
-        Stmt::Switch(statement) => statement.else_arm.as_ref().is_some_and(|else_arm| {
+        Stmt::Switch(statement) => statement.wildcard_arm.as_ref().is_some_and(|wildcard_arm| {
             statement
                 .arms
                 .iter()
                 .all(|arm| block_guarantees_return(&arm.body))
-                && block_guarantees_return(&else_arm.body)
+                && block_guarantees_return(&wildcard_arm.body)
         }),
         Stmt::Loop(statement) => block_guarantees_return(&statement.body),
         Stmt::Import(_) | Stmt::FromImport(_) => false,

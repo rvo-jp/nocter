@@ -438,7 +438,7 @@ fn statement_conflicting_action(
                 })
                 .or_else(|| {
                     statement
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| block_move_action(&arm.body, source, resolved, environment))
                 })
@@ -528,7 +528,7 @@ fn statement_read_action(
                 })
                 .or_else(|| {
                     statement
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| block_read_action(&arm.body, source, resolved, environment))
                 })
@@ -698,7 +698,7 @@ fn expression_move_action(
                 })
                 .or_else(|| {
                     expression
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| block_move_action(&arm.body, source, resolved, environment))
                 })
@@ -854,7 +854,7 @@ fn expression_read_action(
                 })
                 .or_else(|| {
                     expression
-                        .else_arm
+                        .wildcard_arm
                         .as_ref()
                         .and_then(|arm| block_read_action(&arm.body, source, resolved, environment))
                 })
@@ -946,9 +946,9 @@ fn collect_direct_borrow_expressions_in_statement(
                     borrows,
                 );
             }
-            if let Some(else_arm) = &statement.else_arm {
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
                 collect_direct_borrow_expressions_in_block(
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     resolved,
                     environment,
                     borrows,
@@ -1161,7 +1161,7 @@ fn collect_direct_borrow_expressions(
                     borrows,
                 );
             }
-            if let Some(arm) = &expression.else_arm {
+            if let Some(arm) = &expression.wildcard_arm {
                 collect_direct_borrow_expressions_in_block(
                     &arm.body,
                     resolved,
@@ -1255,7 +1255,7 @@ fn statement_uses_identifier(
                     );
                     block_uses_identifier(&arm.body, name, resolved, &arm_environment)
                 })
-                || statement.else_arm.as_ref().is_some_and(|arm| {
+                || statement.wildcard_arm.as_ref().is_some_and(|arm| {
                     block_uses_identifier(&arm.body, name, resolved, environment)
                 })
         }
@@ -1433,7 +1433,7 @@ fn expression_uses_identifier(
                     );
                     block_uses_identifier(&arm.body, name, resolved, &arm_environment)
                 })
-                || expression.else_arm.as_ref().is_some_and(|arm| {
+                || expression.wildcard_arm.as_ref().is_some_and(|arm| {
                     block_uses_identifier(&arm.body, name, resolved, environment)
                 })
         }
@@ -1592,7 +1592,11 @@ fn check_statement_ownership(
             let mut then_environment =
                 environment_for_if_is_binding(statement, resolved, environment);
             let mut then_ownership = ownership.clone();
-            if let Some(payload) = &statement.payload {
+            if let Some(payload) = statement
+                .payload
+                .as_ref()
+                .and_then(|payload| payload.binding())
+            {
                 then_ownership.define_binding_from_environment(
                     &payload.name,
                     payload.span,
@@ -1655,7 +1659,7 @@ fn check_statement_ownership(
                 let mut arm_environment =
                     environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 let mut arm_ownership = ownership.clone();
-                if let Some(payload) = &arm.payload {
+                if let Some(payload) = arm.payload.as_ref().and_then(|payload| payload.binding()) {
                     arm_ownership.define_binding_from_environment(
                         &payload.name,
                         payload.span,
@@ -1676,12 +1680,12 @@ fn check_statement_ownership(
                 }
                 flow.extend_nested(arm_flow);
             }
-            if let Some(else_arm) = &statement.else_arm {
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
                 let else_flow = check_block_ownership(
                     sources,
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     resolved,
                     diagnostics,
                     &mut else_environment,

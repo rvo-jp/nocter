@@ -93,7 +93,7 @@ func value(option: Maybe<i32>): &str {
 }
 
 #[test]
-fn accepts_switch_else_as_terminal_statement() {
+fn accepts_switch_wildcard_as_terminal_statement() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -114,7 +114,7 @@ func describe(error: AppError): &str {
             return path
         }
 
-        else {
+        _ {
             return "unknown"
         }
     }
@@ -126,7 +126,7 @@ func describe(error: AppError): &str {
 }
 
 #[test]
-fn accepts_exhaustive_switch_without_else_as_terminal_statement() {
+fn accepts_exhaustive_switch_without_wildcard_fallback_as_terminal_statement() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -182,6 +182,39 @@ func describe(error: AppError): &str {
 }
 
 #[test]
+fn accepts_payload_discard_patterns() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
+}
+
+func main(): i32 {
+    return describe(AppError.missing_path)
+}
+
+func describe(error: AppError): i32 {
+    if error is AppError.open_failed(_) {
+        return 2
+    }
+
+    match error {
+        AppError.open_failed(_) {
+            return 1
+        }
+
+        _ {
+            return 0
+        }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn substitutes_generic_enum_if_is_payload_binding_type() {
     let diagnostics = check_text(
         r#"enum Maybe<T> {
@@ -222,7 +255,7 @@ func describe(error: AppError): &str {
     return match error {
         AppError.missing_path { "missing" }
         AppError.open_failed(path) { path }
-        else { "unknown" }
+        _ { "unknown" }
     }
 }
 "#,
@@ -247,7 +280,7 @@ func value(option: Maybe<i32>): i32 {
     return match option {
         Maybe.some(inner) { inner }
         Maybe.empty { 0 }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -299,7 +332,7 @@ func select(status: Status): u8 {
     return match status {
         Status.missing { 0 }
         Status.found(code) { code }
-        else { 1 }
+        _ { 1 }
     }
 }
 
@@ -322,7 +355,7 @@ fn diagnoses_match_expression_non_enum_target() {
 func main(): i32 {
     return match 1 {
         AppError.missing_path { 1 }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -346,7 +379,7 @@ func main(): i32 {
 func code(error: AppError): i32 {
     return match error {
         AppError.missing_path { "missing" }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -472,7 +505,7 @@ func code(error: AppError): i32 {
     return match error {
         AppError.missing_path { 1 }
         AppError.missing_path { 2 }
-        else { 0 }
+        _ { 0 }
     }
 }
 "#,
@@ -483,7 +516,7 @@ func code(error: AppError): i32 {
 }
 
 #[test]
-fn diagnoses_switch_else_with_non_terminal_arm() {
+fn diagnoses_switch_wildcard_with_non_terminal_arm() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -499,7 +532,7 @@ func describe(error: AppError): &str {
             let message = "missing"
         }
 
-        else {
+        _ {
             return "unknown"
         }
     }

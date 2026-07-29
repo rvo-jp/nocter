@@ -303,11 +303,11 @@ fn check_statement_expressions(
                     loop_depth,
                 );
             }
-            if let Some(else_arm) = &statement.else_arm {
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
                 let mut else_environment = environment.clone();
                 check_block_expressions(
                     sources,
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     resolved,
                     diagnostics,
                     &mut else_environment,
@@ -910,11 +910,11 @@ fn check_expression_tree(
                     loop_depth,
                 );
             }
-            if let Some(else_arm) = &expression.else_arm {
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
                 let mut else_environment = environment.clone();
                 check_block_expressions(
                     sources,
-                    &else_arm.body,
+                    &wildcard_arm.body,
                     resolved,
                     diagnostics,
                     &mut else_environment,

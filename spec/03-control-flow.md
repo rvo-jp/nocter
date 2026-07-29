@@ -168,10 +168,14 @@ Rules:
 - Only the selected `if` branch is evaluated.
 - `if enum_expr is Enum.variant { ... }` follows the same statement/expression rules as ordinary `if`.
 - Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
+- `if expr is Enum.variant(_)` checks the variant and discards the payload
+  without introducing a binding.
 - `else if ...` is syntax for an `else` body whose result is another `if` expression.
-- `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` may be used as statements or expressions.
-- A `match` expression without `else` must cover all variants to avoid a `void` missing-branch type.
+- `match enum_expr { ... }` and `match enum_expr { ... _ { ... } }` may be used as statements or expressions.
+- A `match` expression without `_` must cover all variants to avoid a `void` missing-branch type.
 - `match` arm body result types must be compatible when the `match` value is used.
+- A `match` `_` fallback arm matches every remaining variant and must be the
+  last arm.
 - A `never` branch is compatible with the other branch result type.
 - Only the selected `match` arm body is evaluated.
 - `for name in start..<end { ... }` is a statement.
@@ -190,7 +194,7 @@ let value = if condition {
 
 return match error {
     AppError.open_failed(path) { 1 }
-    else { 0 }
+    _ { 0 }
 }
 ```
 

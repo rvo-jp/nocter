@@ -1167,7 +1167,7 @@ func main(): i32! {
 
     var bytes: Vec<u8> = Vec.empty()
     bytes.push(if choice is Choice.no { 5 } else { 1 })?
-    bytes.push(match choice { Choice.no { 7 } else { 1 } })?
+    bytes.push(match choice { Choice.no { 7 } _ { 1 } })?
     if bytes.len() != 2 {
         return 1
     }
@@ -1179,7 +1179,7 @@ func main(): i32! {
     }
 
     var words: Vec<usize> = Vec.empty()
-    words.push(match choice { Choice.no { 13 } else { 1 } })?
+    words.push(match choice { Choice.no { 13 } _ { 1 } })?
     if words.len() != 1 {
         return 4
     }
@@ -1197,7 +1197,7 @@ func main(): i32! {
     }
 
     var texts: Vec<&str> = Vec.empty()
-    texts.push(match choice { Choice.no { "Nocter" } else { "Other" } })?
+    texts.push(match choice { Choice.no { "Nocter" } _ { "Other" } })?
     if texts.len() != 1 {
         return 8
     }

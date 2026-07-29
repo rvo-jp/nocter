@@ -1252,7 +1252,8 @@ pub(super) fn statement_exits_function(statement: &Stmt, context: &LoweringConte
                 && block_exits_function(else_block, context)
         }
         Stmt::Switch(statement) => {
-            if statement.else_arm.is_none() && !payloadless_switch_is_exhaustive(statement, context)
+            if statement.wildcard_arm.is_none()
+                && !payloadless_switch_is_exhaustive(statement, context)
             {
                 return false;
             }
@@ -1262,9 +1263,9 @@ pub(super) fn statement_exits_function(statement: &Stmt, context: &LoweringConte
                 .iter()
                 .all(|arm| block_exits_function(&arm.body, context))
                 && statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
-                    .is_none_or(|else_arm| block_exits_function(&else_arm.body, context))
+                    .is_none_or(|wildcard_arm| block_exits_function(&wildcard_arm.body, context))
         }
         _ => false,
     }
@@ -1300,7 +1301,8 @@ fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bo
                 && block_exits_function(else_block, context)
         }
         Expr::Match(statement) => {
-            if statement.else_arm.is_none() && !payloadless_switch_is_exhaustive(statement, context)
+            if statement.wildcard_arm.is_none()
+                && !payloadless_switch_is_exhaustive(statement, context)
             {
                 return false;
             }
@@ -1310,9 +1312,9 @@ fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bo
                 .iter()
                 .all(|arm| block_exits_function(&arm.body, context))
                 && statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
-                    .is_none_or(|else_arm| block_exits_function(&else_arm.body, context))
+                    .is_none_or(|wildcard_arm| block_exits_function(&wildcard_arm.body, context))
         }
         _ => false,
     }
@@ -1342,7 +1344,7 @@ fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
                 .iter()
                 .any(|arm| block_may_exit_current_loop(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_may_exit_current_loop(&arm.body))
         }
@@ -1381,7 +1383,7 @@ fn expression_may_exit_current_loop(expression: &Expr) -> bool {
                 .iter()
                 .any(|arm| block_may_exit_current_loop(&arm.body))
                 || statement
-                    .else_arm
+                    .wildcard_arm
                     .as_ref()
                     .is_some_and(|arm| block_may_exit_current_loop(&arm.body))
         }

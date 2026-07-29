@@ -393,7 +393,7 @@ pub struct IfIsStmt {
     pub enum_name_span: ByteSpan,
     pub variant_name: String,
     pub variant_name_span: ByteSpan,
-    pub payload: Option<SwitchPayloadBinding>,
+    pub payload: Option<SwitchPayloadPattern>,
     pub then_block: Block,
     pub else_block: Option<Block>,
 }
@@ -403,7 +403,7 @@ pub struct SwitchStmt {
     pub span: ByteSpan,
     pub expression: Expr,
     pub arms: Vec<SwitchArm>,
-    pub else_arm: Option<SwitchElseArm>,
+    pub wildcard_arm: Option<SwitchWildcardArm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -413,8 +413,34 @@ pub struct SwitchArm {
     pub enum_name_span: ByteSpan,
     pub variant_name: String,
     pub variant_name_span: ByteSpan,
-    pub payload: Option<SwitchPayloadBinding>,
+    pub payload: Option<SwitchPayloadPattern>,
     pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SwitchPayloadPattern {
+    Binding(SwitchPayloadBinding),
+    Discard(SwitchPayloadDiscard),
+}
+
+impl SwitchPayloadPattern {
+    pub fn span(&self) -> ByteSpan {
+        match self {
+            SwitchPayloadPattern::Binding(binding) => binding.span,
+            SwitchPayloadPattern::Discard(discard) => discard.span,
+        }
+    }
+
+    pub fn binding(&self) -> Option<&SwitchPayloadBinding> {
+        match self {
+            SwitchPayloadPattern::Binding(binding) => Some(binding),
+            SwitchPayloadPattern::Discard(_) => None,
+        }
+    }
+
+    pub fn binding_name(&self) -> Option<&str> {
+        self.binding().map(|binding| binding.name.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -424,7 +450,12 @@ pub struct SwitchPayloadBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SwitchElseArm {
+pub struct SwitchPayloadDiscard {
+    pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwitchWildcardArm {
     pub span: ByteSpan,
     pub body: Block,
 }

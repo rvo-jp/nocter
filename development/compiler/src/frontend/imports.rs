@@ -81,8 +81,8 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
                 for arm in &statement.arms {
                     collect_block_import_paths(&arm.body, paths);
                 }
-                if let Some(else_arm) = &statement.else_arm {
-                    collect_block_import_paths(&else_arm.body, paths);
+                if let Some(wildcard_arm) = &statement.wildcard_arm {
+                    collect_block_import_paths(&wildcard_arm.body, paths);
                 }
             }
             Stmt::ForRange(statement) => {
@@ -136,8 +136,8 @@ fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a
             for arm in &expression.arms {
                 collect_block_import_paths(&arm.body, paths);
             }
-            if let Some(else_arm) = &expression.else_arm {
-                collect_block_import_paths(&else_arm.body, paths);
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
+                collect_block_import_paths(&wildcard_arm.body, paths);
             }
         }
         Expr::Propagate(expression) => {

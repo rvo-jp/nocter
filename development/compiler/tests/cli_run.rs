@@ -10455,7 +10455,7 @@ func describe(choice: Choice): i32 {
             return 20
         }
 
-        else {
+        _ {
             return 30
         }
     }
@@ -10494,7 +10494,7 @@ func describe_nested_branch(choice: Choice): i32 {
                 return 6
             }
 
-            else {
+            _ {
                 return 7
             }
         }
@@ -10548,7 +10548,7 @@ func describe(choice: Choice): i32 {
     match choice {
         Choice.yes { 1 }
         Choice.no { 2 }
-        else { 10 }
+        _ { 10 }
     }
 }
 
@@ -10617,7 +10617,7 @@ func from_match(choice: Choice): i32 {
     return match choice {
         Choice.yes { 3 }
         Choice.no { 4 }
-        else { 12 }
+        _ { 12 }
     }
 }
 "#,
@@ -10712,7 +10712,7 @@ func main(): i32 {
             value = value + 0
             value
         }
-        else {
+        _ {
             var value = 0
             value = value + 0
             value
@@ -10810,20 +10810,20 @@ func main(): i32 {
     let code = match choice {
         Choice.yes { 1 }
         Choice.no { 10 }
-        else { 0 }
+        _ { 0 }
     }
-    let byte: u8 = match choice { Choice.no { 5 } else { 1 } }
-    let size: usize = match choice { Choice.no { 7 } else { 1 } }
-    let text: &str = match choice { Choice.no { "Nocter" } else { "Other" } }
-    let data: &[u8] = match choice { Choice.no { bytes(text) } else { bytes("x") } }
-    let ok: bool = match choice { Choice.no { data.len() == 6 } else { false } }
+    let byte: u8 = match choice { Choice.no { 5 } _ { 1 } }
+    let size: usize = match choice { Choice.no { 7 } _ { 1 } }
+    let text: &str = match choice { Choice.no { "Nocter" } _ { "Other" } }
+    let data: &[u8] = match choice { Choice.no { bytes(text) } _ { bytes("x") } }
+    let ok: bool = match choice { Choice.no { data.len() == 6 } _ { false } }
     var total = 0
-    total = match choice { Choice.no { code } else { 1 } }
+    total = match choice { Choice.no { code } _ { 1 } }
     var packet = Packet{ count: 0, byte: 0, size: 0, ok: false }
-    packet.count = match choice { Choice.no { total } else { 1 } }
-    packet.byte = match choice { Choice.no { byte } else { 1 } }
-    packet.size = match choice { Choice.no { size } else { 1 } }
-    packet.ok = match choice { Choice.no { ok } else { false } }
+    packet.count = match choice { Choice.no { total } _ { 1 } }
+    packet.byte = match choice { Choice.no { byte } _ { 1 } }
+    packet.size = match choice { Choice.no { size } _ { 1 } }
+    packet.ok = match choice { Choice.no { ok } _ { false } }
     return if packet.ok { packet.count + 32 } else { 1 }
 }
 "#,
@@ -10867,10 +10867,10 @@ func main(): i32 {
     let choice = Choice.no
     return score(
         if choice is Choice.no { 5 } else { 1 },
-        match choice { Choice.no { 7 } else { 1 } },
+        match choice { Choice.no { 7 } _ { 1 } },
         if choice is Choice.no { true } else { false },
-        match choice { Choice.no { "Nocter" } else { "Other" } },
-        match choice { Choice.no { bytes("abc") } else { bytes("x") } }
+        match choice { Choice.no { "Nocter" } _ { "Other" } },
+        match choice { Choice.no { bytes("abc") } _ { bytes("x") } }
     )
 }
 
@@ -10937,10 +10937,10 @@ func main(): i32 {
     let checker = Checker{ seed: 40 }
     return checker.score(
         if choice is Choice.no { 5 } else { 1 },
-        match choice { Choice.no { 7 } else { 1 } },
+        match choice { Choice.no { 7 } _ { 1 } },
         if choice is Choice.no { true } else { false },
-        match choice { Choice.no { "Nocter" } else { "Other" } },
-        match choice { Choice.no { bytes("abc") } else { bytes("x") } }
+        match choice { Choice.no { "Nocter" } _ { "Other" } },
+        match choice { Choice.no { bytes("abc") } _ { bytes("x") } }
     )
 }
 "#,
@@ -10980,8 +10980,8 @@ func main(): i32 {
     let choice = Choice.no
     let header = Header{
         code: if choice is Choice.no { 10 } else { 1 },
-        tag: match choice { Choice.no { 5 } else { 1 } },
-        size: match choice { Choice.no { 7 } else { 1 } },
+        tag: match choice { Choice.no { 5 } _ { 1 } },
+        size: match choice { Choice.no { 7 } _ { 1 } },
         ok: if choice is Choice.no { true } else { false }
     }
     return if header.ok && header.tag == 5 && header.size == 7 {
@@ -11030,7 +11030,7 @@ func main(): i32 {
         return 1
     }
 
-    label.text = match choice { Choice.yes { "Nocter" } else { "Other" } }
+    label.text = match choice { Choice.yes { "Nocter" } _ { "Other" } }
     if label.text != "Nocter" {
         return 2
     }
@@ -11104,7 +11104,7 @@ func main(): i32 {
         return 3
     }
 
-    packet.data = match choice { Choice.yes { bytes("Done") } else { bytes("bad") } }
+    packet.data = match choice { Choice.yes { bytes("Done") } _ { bytes("bad") } }
     if packet.data.len() != 4 {
         return 4
     }

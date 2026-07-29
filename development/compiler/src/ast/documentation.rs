@@ -118,7 +118,7 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             for arm in &statement.arms {
                 collect_block_targets(text, &arm.body, targets);
             }
-            if let Some(arm) = &statement.else_arm {
+            if let Some(arm) = &statement.wildcard_arm {
                 collect_block_targets(text, &arm.body, targets);
             }
         }
@@ -226,7 +226,7 @@ fn collect_expression_targets(
             for arm in &expression.arms {
                 collect_block_targets(text, &arm.body, targets);
             }
-            if let Some(arm) = &expression.else_arm {
+            if let Some(arm) = &expression.wildcard_arm {
                 collect_block_targets(text, &arm.body, targets);
             }
         }

@@ -143,7 +143,11 @@ pub(super) fn environment_for_if_is_binding(
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut then_environment = environment.clone();
-    if let Some(payload) = &statement.payload {
+    if let Some(payload) = statement
+        .payload
+        .as_ref()
+        .and_then(|payload| payload.binding())
+    {
         let target_type = expression_type(&statement.expression, resolved, environment);
         then_environment.define(
             payload.name.clone(),
@@ -167,7 +171,7 @@ pub(super) fn environment_for_switch_arm(
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut arm_environment = environment.clone();
-    if let Some(payload) = &arm.payload {
+    if let Some(payload) = arm.payload.as_ref().and_then(|payload| payload.binding()) {
         let target_type = expression_type(target, resolved, environment);
         arm_environment.define(
             payload.name.clone(),

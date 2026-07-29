@@ -377,8 +377,8 @@ fn match_expression_is_assignable(
         return false;
     }
 
-    if let Some(else_arm) = &statement.else_arm {
-        return block_result_is_assignable(expected, &else_arm.body, resolved, environment);
+    if let Some(wildcard_arm) = &statement.wildcard_arm {
+        return block_result_is_assignable(expected, &wildcard_arm.body, resolved, environment);
     }
 
     switch_statement_covers_all_variants(statement, resolved, environment)

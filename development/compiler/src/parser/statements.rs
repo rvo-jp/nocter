@@ -3,7 +3,8 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
     DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, Item, LoopStmt, ReturnStmt,
-    Stmt, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, Visibility, WhileStmt,
+    Stmt, SwitchArm, SwitchPayloadBinding, SwitchPayloadDiscard, SwitchPayloadPattern, SwitchStmt,
+    SwitchWildcardArm, Visibility, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -286,7 +287,7 @@ impl Parser<'_> {
         let expression = self.parse_expression()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut arms = Vec::new();
-        let mut else_arm = None;
+        let mut wildcard_arm = None;
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -295,20 +296,22 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            if self.at_keyword(Keyword::Else) {
-                if else_arm.is_some() {
-                    self.error_current("`match` can have only one `else` arm");
-                    return Err(());
-                }
-
-                else_arm = Some(self.parse_switch_else_arm()?);
-                self.skip_newlines();
-                continue;
+            if wildcard_arm.is_some() {
+                self.error_current("wildcard arm `_` must be the last match arm");
+                return Err(());
             }
 
-            if else_arm.is_some() {
-                self.error_current("`else` arm must be the last match arm");
+            if self.at_keyword(Keyword::Else) {
+                self.error_current(
+                    "`match` fallback arms use `_ { ... }`; `else` is not match syntax",
+                );
                 return Err(());
+            }
+
+            if self.at_identifier_text("_") {
+                wildcard_arm = Some(self.parse_switch_wildcard_arm()?);
+                self.skip_newlines();
+                continue;
             }
 
             arms.push(self.parse_switch_arm()?);
@@ -320,7 +323,7 @@ impl Parser<'_> {
             span: self.span(start.span.start, close.span.end),
             expression,
             arms,
-            else_arm,
+            wildcard_arm,
         })))
     }
 
@@ -344,6 +347,11 @@ impl Parser<'_> {
         &mut self,
         start: usize,
     ) -> ParseResult<ParsedEnumPattern> {
+        if self.at_identifier_text("_") {
+            self.error_current("`if is` requires an enum variant pattern; use `_` only as a match fallback arm or payload discard");
+            return Err(());
+        }
+
         self.parse_enum_pattern_with_start(start, "expected enum pattern `Enum.variant` after `is`")
     }
 
@@ -365,13 +373,22 @@ impl Parser<'_> {
         let variant_name = self.expect_identifier("expected enum variant name after `.`")?;
         let mut end = variant_name.span.end;
         let payload = if self.match_punctuation("(").is_some() {
-            let payload = self.expect_name_identifier("expected payload binding name")?;
+            let payload = if self.at_identifier_text("_") {
+                let discard = self
+                    .match_identifier_text("_")
+                    .expect("at_identifier_text matched `_`");
+                SwitchPayloadPattern::Discard(SwitchPayloadDiscard { span: discard.span })
+            } else {
+                let binding =
+                    self.expect_name_identifier("expected payload binding name or `_`")?;
+                SwitchPayloadPattern::Binding(SwitchPayloadBinding {
+                    span: binding.span,
+                    name: binding.value,
+                })
+            };
             let close = self.expect_punctuation(")", "`)`")?;
             end = close.span.end;
-            Some(SwitchPayloadBinding {
-                span: payload.span,
-                name: payload.value,
-            })
+            Some(payload)
         } else {
             None
         };
@@ -386,12 +403,14 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_switch_else_arm(&mut self) -> ParseResult<SwitchElseArm> {
-        let start = self.expect_keyword(Keyword::Else, "`else`")?;
+    pub(super) fn parse_switch_wildcard_arm(&mut self) -> ParseResult<SwitchWildcardArm> {
+        let start = self
+            .match_identifier_text("_")
+            .expect("caller checked wildcard match arm");
         let body = self.parse_block()?;
         let end = body.span.end;
 
-        Ok(SwitchElseArm {
+        Ok(SwitchWildcardArm {
             span: self.span(start.span.start, end),
             body,
         })
@@ -583,7 +602,7 @@ fn switch_statement_has_value_result(statement: &SwitchStmt) -> bool {
         .iter()
         .any(|arm| block_has_value_result(&arm.body))
         || statement
-            .else_arm
+            .wildcard_arm
             .as_ref()
             .is_some_and(|arm| block_has_value_result(&arm.body))
 }
