@@ -536,6 +536,48 @@ func leak(): View {
 }
 
 #[test]
+fn diagnoses_return_error_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"primitive make_error(value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func leak(): error {
+    let value = 1
+    let failure = make_error(&value)
+    return failure
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_error_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"primitive make_error(value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func forward(value: &i32): error {
+    let failure = make_error(value)
+    return failure
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_struct_alias_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

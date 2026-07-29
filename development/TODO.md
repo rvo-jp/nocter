@@ -77,6 +77,9 @@ Recommended order:
   return paths, including fixed arrays with non-copy elements, optionals,
   fallibles, and payload-carrying enums when the source is an existing binding
   or member path.
+- Return provenance now treats built-in `error` as borrow-like, rejecting
+  returned errors derived from local borrows while allowing errors derived from
+  parameter borrows.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

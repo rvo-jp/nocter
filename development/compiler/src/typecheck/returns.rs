@@ -1409,10 +1409,10 @@ fn type_contains_borrow_like_inner(
         Type::ArrayData { element } => {
             type_contains_borrow_like_inner(element, resolved, resolving_names)
         }
+        Type::Error => true,
         Type::I32
         | Type::Primitive(_)
         | Type::StrData
-        | Type::Error
         | Type::Void
         | Type::Never
         | Type::None
@@ -1494,6 +1494,9 @@ fn type_expr_contains_borrow_like(
         }
         TypeExpr::Pointer(_) => false,
         TypeExpr::Reference(reference) => {
+            if reference.name == "error" {
+                return true;
+            }
             substitutions
                 .get(&reference.name)
                 .is_some_and(|ty| type_contains_borrow_like_inner(ty, resolved, resolving_names))
