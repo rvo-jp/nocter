@@ -1323,6 +1323,7 @@ fn collect_otherwise_binding_initializer_diagnostics(
 fn collect_otherwise_assignment_value_diagnostics(
     expression: &OtherwiseExpr,
     assignment_fixed_array_type: Option<&TypeExpr>,
+    assignment_is_scalar_or_view: bool,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
@@ -1375,7 +1376,7 @@ fn collect_otherwise_assignment_value_diagnostics(
     collect_otherwise_value_fallback_block_diagnostics(
         &expression.fallback,
         assignment_fixed_array_type,
-        false,
+        assignment_is_scalar_or_view,
         return_type,
         sources,
         resolved,
@@ -4185,15 +4186,20 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
-            if assignment_value_may_use_value_control_expression(
+            let assignment_is_scalar_or_view = assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,
                 resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
-            ) {
-                collect_value_expression_diagnostics(
-                    &statement.value,
+            );
+            if let Expr::Otherwise(otherwise) = unwrap_group_expr(&statement.value)
+                && (assignment_is_scalar_or_view || assignment_fixed_array_type.is_some())
+            {
+                collect_otherwise_assignment_value_diagnostics(
+                    otherwise,
+                    assignment_fixed_array_type.as_ref(),
+                    assignment_is_scalar_or_view,
                     return_type,
                     sources,
                     resolved,
@@ -4206,12 +4212,9 @@ fn collect_statement_diagnostics(
                     queue,
                     diagnostics,
                 );
-            } else if let Expr::Otherwise(otherwise) = unwrap_group_expr(&statement.value)
-                && assignment_fixed_array_type.is_some()
-            {
-                collect_otherwise_assignment_value_diagnostics(
-                    otherwise,
-                    assignment_fixed_array_type.as_ref(),
+            } else if assignment_is_scalar_or_view {
+                collect_value_expression_diagnostics(
+                    &statement.value,
                     return_type,
                     sources,
                     resolved,
@@ -7394,8 +7397,8 @@ fn collect_expression_diagnostics(
             diagnostics.push(unsupported_v0_build_diagnostic(
                 sources,
                 expression.span,
-                "`otherwise` expressions outside direct binding or return positions",
-                "bind or return the `otherwise` expression directly until general optional expression lowering is promoted",
+                "`otherwise` expressions outside direct binding, assignment, or return positions",
+                "bind, assign, or return the `otherwise` expression directly until general optional expression lowering is promoted",
             ));
             collect_expression_diagnostics(
                 &expression.value,
@@ -9932,8 +9935,78 @@ func source(): i32? {
         assert_eq!(diagnostics[0].code, "E0435");
         assert_eq!(
             diagnostics[0].message,
-            "Nocter v0 build cannot lower `otherwise` expressions outside direct binding or return positions yet"
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct binding, assignment, or return positions yet"
         );
+    }
+
+    #[test]
+    fn accepts_reachable_scalar_otherwise_assignment_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct State {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+    text: &str
+}
+
+func main(): i32 {
+    var count: i32 = 0
+    var byte: u8 = 0
+    var size: usize = 0
+    var ok: bool = false
+    var text: &str = "bad"
+    var state = State{ count: 0, byte: 0, size: 0, ok: false, text: "bad" }
+    count = maybe_i32(true) otherwise { 1 }
+    byte = maybe_u8(false) otherwise { 12 }
+    size = maybe_usize(true) otherwise { 1 }
+    ok = maybe_bool(false) otherwise { true }
+    text = maybe_text(false) otherwise { "Nocter" }
+    state.count = maybe_i32(false) otherwise { 5 }
+    state.byte = maybe_u8(true) otherwise { 1 }
+    state.size = maybe_usize(false) otherwise { 8 }
+    state.ok = maybe_bool(true) otherwise { false }
+    state.text = maybe_text(true) otherwise { "lang" }
+    let returned = assign_with_return_fallback()
+    return count + byte as i32 + state.count + state.byte as i32 + returned
+}
+
+func assign_with_return_fallback(): i32 {
+    var value: i32 = 0
+    value = maybe_i32(false) otherwise { return 7 }
+    return value
+}
+
+func maybe_i32(flag: bool): i32? {
+    if flag { return 10 }
+    return none
+}
+
+func maybe_u8(flag: bool): u8? {
+    if flag { return 7 }
+    return none
+}
+
+func maybe_usize(flag: bool): usize? {
+    if flag { return 20 }
+    return none
+}
+
+func maybe_bool(flag: bool): bool? {
+    if flag { return true }
+    return none
+}
+
+func maybe_text(flag: bool): &str? {
+    if flag { return "lang" }
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

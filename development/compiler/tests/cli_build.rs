@@ -3831,6 +3831,103 @@ func main(): void! {
 }
 
 #[test]
+fn build_command_lowers_scalar_and_view_optional_otherwise_assignments() {
+    let project = TempProject::new("cli-build-scalar-view-optional-otherwise-assignments");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "scalar_view_optional_otherwise_assignments.nct",
+        r#"use std/string.bytes
+
+copy struct State {
+    count: i32
+    byte: u8
+    size: usize
+    ok: bool
+    text: &str
+    data: &[u8]
+}
+
+func main(): i32 {
+    var count: i32 = 0
+    var byte: u8 = 0
+    var size: usize = 0
+    var ok: bool = false
+    var text: &str = "bad"
+    var data: &[u8] = bytes("bad")
+    var state = State{ count: 0, byte: 0, size: 0, ok: false, text: "bad", data: bytes("bad") }
+    count = maybe_i32(true) otherwise { 1 }
+    byte = maybe_u8(false) otherwise { 12 }
+    size = maybe_usize(true) otherwise { 1 }
+    ok = maybe_bool(false) otherwise { true }
+    text = maybe_text(false) otherwise { "Nocter" }
+    data = maybe_data(false) otherwise { bytes("*") }
+    state.count = maybe_i32(false) otherwise { 5 }
+    state.byte = maybe_u8(true) otherwise { 1 }
+    state.size = maybe_usize(false) otherwise { 8 }
+    state.ok = maybe_bool(true) otherwise { false }
+    state.text = maybe_text(true) otherwise { "lang" }
+    state.data = maybe_data(true) otherwise { bytes("bad") }
+    let returned = assign_with_return_fallback()
+    if ok && state.ok && size == 20 && state.size == 8 && text.len() == 6 && state.text.len() == 4 && data.len() == 1 && state.data.len() == 2 && data[0] == b'*' && returned == 7 {
+        return count + (byte as i32) + state.count + (state.byte as i32) + 8
+    }
+    return 1
+}
+
+func assign_with_return_fallback(): i32 {
+    var value: i32 = 0
+    value = maybe_i32(false) otherwise { return 7 }
+    return value
+}
+
+func maybe_i32(flag: bool): i32? {
+    if flag { return 10 }
+    return none
+}
+
+func maybe_u8(flag: bool): u8? {
+    if flag { return 7 }
+    return none
+}
+
+func maybe_usize(flag: bool): usize? {
+    if flag { return 20 }
+    return none
+}
+
+func maybe_bool(flag: bool): bool? {
+    if flag { return true }
+    return none
+}
+
+func maybe_text(flag: bool): &str? {
+    if flag { return "lang" }
+    return none
+}
+
+func maybe_data(flag: bool): &[u8]? {
+    if flag { return bytes("OK") }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_ignored_aggregate_call_expression_statement() {
     let project = TempProject::new("cli-build-ignored-aggregate-call-statement");
     let source = project.write_source(
@@ -4080,7 +4177,9 @@ func source(): i32? {
         "expected buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`otherwise` expressions outside direct binding or return positions"),
+        stderr.contains(
+            "`otherwise` expressions outside direct binding, assignment, or return positions"
+        ),
         "expected otherwise expression construct, got:\n{stderr}"
     );
     assert!(

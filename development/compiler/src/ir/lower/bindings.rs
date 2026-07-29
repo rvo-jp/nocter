@@ -51,7 +51,7 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
+    AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, FallibleFailureMode,
     I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
     SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
@@ -2150,6 +2150,11 @@ fn lower_identifier_assignment(
         let I32Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_i32_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_i32_expression_to_location(value, destination, context);
     }
 
@@ -2157,6 +2162,11 @@ fn lower_identifier_assignment(
         let U8Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_u8_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_u8_expression_to_location(value, destination, context);
     }
 
@@ -2164,6 +2174,11 @@ fn lower_identifier_assignment(
         let UsizeLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_usize_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_usize_expression_to_location(value, destination, context);
     }
 
@@ -2171,6 +2186,11 @@ fn lower_identifier_assignment(
         let BoolLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_bool_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_bool_expression_to_location(value, destination, context, "E8008");
     }
 
@@ -2178,6 +2198,11 @@ fn lower_identifier_assignment(
         let StrLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_str_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_str_expression_to_location(value, destination, context);
     }
 
@@ -2185,6 +2210,11 @@ fn lower_identifier_assignment(
         let SliceLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
+        if let Some(instructions) =
+            lower_slice_otherwise_assignment_to_location(value, destination, context)?
+        {
+            return Ok(instructions);
+        }
         return lower_slice_expression_to_location(value, destination, context);
     }
 
@@ -2200,6 +2230,295 @@ fn lower_identifier_assignment(
     }
 
     Err(unsupported_assignment_diagnostic())
+}
+
+fn direct_optional_otherwise_call<'a>(
+    value: &'a Expr,
+    context: &LoweringContext,
+) -> Result<Option<(&'a CallExpr, &'a Block)>, Vec<Diagnostic>> {
+    let Expr::Otherwise(otherwise) = unwrap_group(value) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
+        return Ok(None);
+    }
+    Ok(Some((call, &otherwise.fallback)))
+}
+
+fn lower_i32_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let fallback_destination = destination;
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_i32_expression_to_location(expression, fallback_destination, context)
+        },
+        "IR v0 can only lower i32 `otherwise` assignment fallback blocks that produce an i32 value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_i32_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_u8_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: U8Location,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_u8_expression_to_location(expression, destination, context)
+        },
+        "IR v0 can only lower u8 `otherwise` assignment fallback blocks that produce a u8 value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_u8_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_usize_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_usize_expression_to_location(expression, destination, context)
+        },
+        "IR v0 can only lower usize `otherwise` assignment fallback blocks that produce a usize value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_usize_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_bool_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_bool_expression_to_location(expression, destination, context, "E8008")
+        },
+        "IR v0 can only lower bool `otherwise` assignment fallback blocks that produce a bool value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_bool_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_str_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: StrLocation,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_str_expression_to_location(expression, destination, context)
+        },
+        "IR v0 can only lower &str `otherwise` assignment fallback blocks that produce a &str value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_str_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_slice_otherwise_assignment_to_location(
+    value: &Expr,
+    destination: SliceLocation,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
+        return Ok(None);
+    };
+    let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        None,
+        move |expression, context| {
+            lower_slice_expression_to_location(expression, destination, context)
+        },
+        "IR v0 can only lower slice `otherwise` assignment fallback blocks that produce a slice value or exit",
+    )?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_slice_normal_call(call, destination, context, &mut temporaries, failure_mode)
+        .map(Some)
+}
+
+fn lower_i32_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_i32_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(1);
+    let Some(mut instructions) =
+        lower_i32_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    instructions.push(Instruction::StoreAggregateI32 {
+        destination,
+        offset,
+        value: I32Value::Location(temporary),
+    });
+    Ok(Some(instructions))
+}
+
+fn lower_u8_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_u8_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(1);
+    let Some(mut instructions) =
+        lower_u8_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    instructions.push(Instruction::StoreAggregateU8 {
+        destination,
+        offset,
+        value: U8Value::Location(temporary),
+    });
+    Ok(Some(instructions))
+}
+
+fn lower_usize_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_usize_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(1);
+    let Some(mut instructions) =
+        lower_usize_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    instructions.push(Instruction::StoreAggregateUsize {
+        destination,
+        offset,
+        value: UsizeValue::Location(temporary),
+    });
+    Ok(Some(instructions))
+}
+
+fn lower_bool_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_bool_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(1);
+    let Some(mut instructions) =
+        lower_bool_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    instructions.push(Instruction::StoreAggregateBool {
+        destination,
+        offset,
+        value: BoolValue::Location(temporary),
+    });
+    Ok(Some(instructions))
+}
+
+fn lower_str_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_str_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(2);
+    let Some(mut instructions) =
+        lower_str_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    push_store_str_view_to_aggregate_field(
+        &mut instructions,
+        destination,
+        offset,
+        StrValue::Location(temporary),
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?;
+    Ok(Some(instructions))
+}
+
+fn lower_slice_otherwise_aggregate_field_assignment(
+    value: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let temporary = context.next_slice_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(2);
+    let Some(mut instructions) =
+        lower_slice_otherwise_assignment_to_location(value, temporary, &expression_context)?
+    else {
+        return Ok(None);
+    };
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    push_store_slice_view_to_aggregate_field(
+        &mut instructions,
+        destination,
+        offset,
+        SliceValue::Location(temporary),
+        &mut temporaries,
+        unsupported_assignment_diagnostic,
+    )?;
+    Ok(Some(instructions))
 }
 
 fn lower_index_assignment(
@@ -2734,6 +3053,11 @@ fn lower_aggregate_field_assignment(
     let field_drop_glue = field.drop_glue.clone();
     match field.kind {
         AggregateFieldKind::I32 => {
+            if let Some(instructions) =
+                lower_i32_otherwise_aggregate_field_assignment(value, destination, offset, context)?
+            {
+                return Ok(instructions);
+            }
             let (mut instructions, value) = lower_i32_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateI32 {
                 destination,
@@ -2753,6 +3077,11 @@ fn lower_aggregate_field_assignment(
             value: lower_u32_literal(value)?,
         }]),
         AggregateFieldKind::U8 => {
+            if let Some(instructions) =
+                lower_u8_otherwise_aggregate_field_assignment(value, destination, offset, context)?
+            {
+                return Ok(instructions);
+            }
             let (mut instructions, value) = lower_u8_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateU8 {
                 destination,
@@ -2762,6 +3091,14 @@ fn lower_aggregate_field_assignment(
             Ok(instructions)
         }
         AggregateFieldKind::Usize => {
+            if let Some(instructions) = lower_usize_otherwise_aggregate_field_assignment(
+                value,
+                destination,
+                offset,
+                context,
+            )? {
+                return Ok(instructions);
+            }
             let (mut instructions, value) = match lower_usize_expression_to_word(value, context) {
                 Ok(lowered) => lowered,
                 Err(_) if expression_is_pointer_address_value(value, context) => {
@@ -2778,6 +3115,14 @@ fn lower_aggregate_field_assignment(
             Ok(instructions)
         }
         AggregateFieldKind::Bool => {
+            if let Some(instructions) = lower_bool_otherwise_aggregate_field_assignment(
+                value,
+                destination,
+                offset,
+                context,
+            )? {
+                return Ok(instructions);
+            }
             let mut lowered = lower_bool_expression_to_value(value, context, "E8008")?;
             lowered.instructions.push(Instruction::StoreAggregateBool {
                 destination,
@@ -2787,9 +3132,22 @@ fn lower_aggregate_field_assignment(
             Ok(lowered.instructions)
         }
         AggregateFieldKind::Str => {
+            if let Some(instructions) =
+                lower_str_otherwise_aggregate_field_assignment(value, destination, offset, context)?
+            {
+                return Ok(instructions);
+            }
             lower_str_aggregate_field_assignment(value, destination, offset, context)
         }
         AggregateFieldKind::Slice(_) => {
+            if let Some(instructions) = lower_slice_otherwise_aggregate_field_assignment(
+                value,
+                destination,
+                offset,
+                context,
+            )? {
+                return Ok(instructions);
+            }
             lower_slice_aggregate_field_assignment(value, destination, offset, context)
         }
         AggregateFieldKind::Array {

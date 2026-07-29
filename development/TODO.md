@@ -130,9 +130,9 @@ Recommended order:
   buildability rejects broader catch terminal-control shapes, such as terminal
   `if` inside a catch block, before IR lowering with E0435.
 - Runtime `otherwise` is now explicitly gated to direct optional-returning calls
-  in supported binding or return positions. General expression positions, such
-  as call arguments, and broader fallback terminal-control shapes reject before
-  IR lowering with E0435.
+  in supported binding, scalar/view assignment, fixed-array assignment, or
+  return positions. General expression positions, such as call arguments, and
+  broader fallback terminal-control shapes reject before IR lowering with E0435.
 - i32 unary negation now lowers as checked `0 - value` for non-literal operands;
   negative integer literals still use the existing constant-literal path.
 - Public `std/ptr.from_ref_mut` address conversion is now covered by CLI build,
