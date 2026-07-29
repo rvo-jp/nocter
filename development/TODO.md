@@ -157,6 +157,9 @@ Recommended order:
   non-terminal `if`/`match`/loop branches before IR lowering, while still
   allowing branch/body-local explicit drops and outer drops on paths that
   immediately exit the function.
+- Ownership borrow liveness now uses typed terminal-control detection, including
+  exhaustive payloadless `match` without `else`, when deciding whether later
+  unreachable borrow uses keep a borrow active.
 - Buildability now mirrors the current IR boundary for explicit aggregate
   `move` inside control flow: value-producing control conditions, non-terminal
   loop/branch conditions, compound terminal conditions, and unsupported

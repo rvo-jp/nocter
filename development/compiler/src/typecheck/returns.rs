@@ -1623,7 +1623,7 @@ pub(super) fn block_guarantees_control_exit_or_never(
         .is_some_and(|result| expression_type(result, resolved, environment) == Type::Never)
 }
 
-fn statement_guarantees_control_exit_or_never(
+pub(super) fn statement_guarantees_control_exit_or_never(
     statement: &Stmt,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,

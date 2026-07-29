@@ -1208,6 +1208,63 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn accepts_borrow_use_after_terminal_if_as_unreachable() {
+    let diagnostics = check_text(
+        r#"struct Box {
+    value: i32
+}
+
+func main(): i32 {
+    var box = Box{ value: 1 }
+    let view = &box
+    if true {
+        box.value = 2
+        return 0
+    } else {
+        return 1
+    }
+    view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_borrow_use_after_exhaustive_switch_as_unreachable() {
+    let diagnostics = check_text(
+        r#"struct Box {
+    value: i32
+}
+
+enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    var box = Box{ value: 1 }
+    let view = &box
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            box.value = 2
+            return 0
+        }
+        Choice.no {
+            return 1
+        }
+    }
+    view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_if_branch_return_after_move_without_poisoning_fallthrough() {
     let diagnostics = check_text(
         r#"struct Text {

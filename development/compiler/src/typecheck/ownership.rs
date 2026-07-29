@@ -12,6 +12,7 @@ use super::environments::{
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::returns::statement_guarantees_control_exit_or_never;
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
@@ -126,13 +127,13 @@ fn check_block_ownership(
     let mut active_borrows: Vec<ActiveBorrow> = Vec::new();
     for (index, statement) in block.statements.iter().enumerate() {
         active_borrows.retain(|borrow| {
-            statements_use_identifier_before_terminal(
+            statements_or_result_use_identifier_before_terminal(
                 &block.statements[index..],
+                block.result.as_deref(),
                 &borrow.borrow_name,
-            ) || block
-                .result
-                .as_ref()
-                .is_some_and(|result| expression_uses_identifier(result, &borrow.borrow_name))
+                resolved,
+                environment,
+            )
         });
         check_statement_borrow_conflicts(
             sources,
@@ -155,6 +156,8 @@ fn check_block_ownership(
             statement,
             &block.statements[index + 1..],
             block.result.as_deref(),
+            resolved,
+            environment,
             &mut active_borrows,
         );
         if !flow.reaches_end {
@@ -162,7 +165,9 @@ fn check_block_ownership(
         }
     }
     if let Some(result) = &block.result {
-        active_borrows.retain(|borrow| expression_uses_identifier(result, &borrow.borrow_name));
+        active_borrows.retain(|borrow| {
+            expression_uses_identifier(result, &borrow.borrow_name, resolved, environment)
+        });
         check_expression_borrow_conflicts(
             sources,
             result,
@@ -335,6 +340,8 @@ fn record_statement_borrow(
     statement: &Stmt,
     later_statements: &[Stmt],
     later_result: Option<&Expr>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     active_borrows: &mut Vec<ActiveBorrow>,
 ) {
     let Stmt::Binding(binding) = statement else {
@@ -343,9 +350,13 @@ fn record_statement_borrow(
     let Some(source) = direct_borrow_source(&binding.initializer) else {
         return;
     };
-    if !statements_use_identifier_before_terminal(later_statements, &binding.name)
-        && !later_result.is_some_and(|result| expression_uses_identifier(result, &binding.name))
-    {
+    if !statements_or_result_use_identifier_before_terminal(
+        later_statements,
+        later_result,
+        &binding.name,
+        resolved,
+        environment,
+    ) {
         return;
     }
 
@@ -1195,163 +1206,287 @@ fn method_borrow_receiver_source(
     })
 }
 
-fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
+fn statement_uses_identifier(
+    statement: &Stmt,
+    name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => false,
-        Stmt::Return(statement) => statement
-            .expression
-            .as_ref()
-            .is_some_and(|expression| expression_uses_identifier(expression, name)),
-        Stmt::Binding(statement) => expression_uses_identifier(&statement.initializer, name),
+        Stmt::Return(statement) => statement.expression.as_ref().is_some_and(|expression| {
+            expression_uses_identifier(expression, name, resolved, environment)
+        }),
+        Stmt::Binding(statement) => {
+            expression_uses_identifier(&statement.initializer, name, resolved, environment)
+        }
         Stmt::Assignment(statement) => {
-            expression_uses_identifier(&statement.target, name)
-                || expression_uses_identifier(&statement.value, name)
+            expression_uses_identifier(&statement.target, name, resolved, environment)
+                || expression_uses_identifier(&statement.value, name, resolved, environment)
         }
         Stmt::If(statement) => {
-            expression_uses_identifier(&statement.condition, name)
-                || block_uses_identifier(&statement.then_block, name)
+            expression_uses_identifier(&statement.condition, name, resolved, environment)
+                || block_uses_identifier(&statement.then_block, name, resolved, environment)
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
+                    .is_some_and(|block| block_uses_identifier(block, name, resolved, environment))
         }
         Stmt::IfIs(statement) => {
-            expression_uses_identifier(&statement.expression, name)
-                || block_uses_identifier(&statement.then_block, name)
+            let then_environment = environment_for_if_is_binding(statement, resolved, environment);
+            expression_uses_identifier(&statement.expression, name, resolved, environment)
+                || block_uses_identifier(&statement.then_block, name, resolved, &then_environment)
                 || statement
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
+                    .is_some_and(|block| block_uses_identifier(block, name, resolved, environment))
         }
         Stmt::Switch(statement) => {
-            expression_uses_identifier(&statement.expression, name)
-                || statement
-                    .arms
-                    .iter()
-                    .any(|arm| block_uses_identifier(&arm.body, name))
-                || statement
-                    .else_arm
-                    .as_ref()
-                    .is_some_and(|arm| block_uses_identifier(&arm.body, name))
+            expression_uses_identifier(&statement.expression, name, resolved, environment)
+                || statement.arms.iter().any(|arm| {
+                    let arm_environment = environment_for_switch_arm(
+                        arm,
+                        &statement.expression,
+                        resolved,
+                        environment,
+                    );
+                    block_uses_identifier(&arm.body, name, resolved, &arm_environment)
+                })
+                || statement.else_arm.as_ref().is_some_and(|arm| {
+                    block_uses_identifier(&arm.body, name, resolved, environment)
+                })
         }
         Stmt::ForRange(statement) => {
-            expression_uses_identifier(&statement.start, name)
-                || expression_uses_identifier(&statement.end, name)
-                || block_uses_identifier(&statement.body, name)
+            let body_environment =
+                environment_for_for_range_binding(statement, resolved, environment);
+            expression_uses_identifier(&statement.start, name, resolved, environment)
+                || expression_uses_identifier(&statement.end, name, resolved, environment)
+                || block_uses_identifier(&statement.body, name, resolved, &body_environment)
         }
         Stmt::While(statement) => {
-            expression_uses_identifier(&statement.condition, name)
-                || block_uses_identifier(&statement.body, name)
+            expression_uses_identifier(&statement.condition, name, resolved, environment)
+                || block_uses_identifier(&statement.body, name, resolved, environment)
         }
-        Stmt::Loop(statement) => block_uses_identifier(&statement.body, name),
-        Stmt::Expression(statement) => expression_uses_identifier(&statement.expression, name),
+        Stmt::Loop(statement) => {
+            block_uses_identifier(&statement.body, name, resolved, environment)
+        }
+        Stmt::Expression(statement) => {
+            expression_uses_identifier(&statement.expression, name, resolved, environment)
+        }
         Stmt::Drop(statement) => statement.name == name,
         Stmt::Break(_) | Stmt::Continue(_) => false,
     }
 }
 
-fn block_uses_identifier(block: &Block, name: &str) -> bool {
-    statements_use_identifier_before_terminal(&block.statements, name)
-        || block
-            .result
-            .as_ref()
-            .is_some_and(|result| expression_uses_identifier(result, name))
-}
-
-fn statements_use_identifier_before_terminal(statements: &[Stmt], name: &str) -> bool {
-    for statement in statements {
-        if statement_uses_identifier(statement, name) {
-            return true;
-        }
-        if statement_is_unconditionally_terminal(statement) {
-            return false;
-        }
-    }
-    false
-}
-
-fn statement_is_unconditionally_terminal(statement: &Stmt) -> bool {
-    matches!(
-        statement,
-        Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_)
+fn block_uses_identifier(
+    block: &Block,
+    name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    statements_or_result_use_identifier_before_terminal(
+        &block.statements,
+        block.result.as_deref(),
+        name,
+        resolved,
+        environment,
     )
 }
 
-fn expression_uses_identifier(expression: &Expr, name: &str) -> bool {
+fn statements_or_result_use_identifier_before_terminal(
+    statements: &[Stmt],
+    result: Option<&Expr>,
+    name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let mut lookahead_environment = environment.clone();
+    for statement in statements {
+        if statement_uses_identifier(statement, name, resolved, &lookahead_environment) {
+            return true;
+        }
+        if statement_stops_later_liveness(statement, resolved, &lookahead_environment) {
+            return false;
+        }
+        extend_liveness_lookahead_environment(statement, resolved, &mut lookahead_environment);
+    }
+    result.is_some_and(|result| {
+        expression_uses_identifier(result, name, resolved, &lookahead_environment)
+    })
+}
+
+fn statement_stops_later_liveness(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    if statement_guarantees_control_exit_or_never(statement, resolved, environment) {
+        return true;
+    }
+
+    match statement {
+        Stmt::Binding(statement) => {
+            expression_type(&statement.initializer, resolved, environment) == Type::Never
+        }
+        Stmt::Assignment(statement) => {
+            expression_type(&statement.value, resolved, environment) == Type::Never
+        }
+        Stmt::If(statement) => {
+            expression_type(&statement.condition, resolved, environment) == Type::Never
+        }
+        Stmt::IfIs(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::Switch(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::ForRange(statement) => {
+            expression_type(&statement.start, resolved, environment) == Type::Never
+                || expression_type(&statement.end, resolved, environment) == Type::Never
+        }
+        Stmt::While(statement) => {
+            expression_type(&statement.condition, resolved, environment) == Type::Never
+        }
+        Stmt::Expression(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Return(_)
+        | Stmt::Loop(_)
+        | Stmt::Drop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => false,
+    }
+}
+
+fn extend_liveness_lookahead_environment(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+) {
+    let Stmt::Binding(statement) = statement else {
+        return;
+    };
+    let initializer_type = expression_type(&statement.initializer, resolved, environment);
+    if initializer_type == Type::Never {
+        return;
+    }
+    let binding_type = continuing_binding_type(statement, initializer_type, resolved, environment);
+    environment.define_binding(
+        statement.name.clone(),
+        binding_type,
+        binding_kind_is_mutable(statement.kind),
+    );
+}
+
+fn expression_uses_identifier(
+    expression: &Expr,
+    name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
     match expression {
         Expr::Identifier(identifier) => identifier.name == name,
-        Expr::Propagate(expression) => expression_uses_identifier(&expression.expression, name),
-        Expr::Force(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::Propagate(expression) => {
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+        }
+        Expr::Force(expression) => {
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+        }
         Expr::Catch(expression) => {
-            expression_uses_identifier(&expression.expression, name)
-                || block_uses_identifier(&expression.catch_block, name)
+            let catch_environment = environment_for_catch(
+                expression.error_name.clone(),
+                &expression.expression,
+                resolved,
+                environment,
+            );
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+                || block_uses_identifier(
+                    &expression.catch_block,
+                    name,
+                    resolved,
+                    &catch_environment,
+                )
         }
-        Expr::Borrow(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::Borrow(expression) => {
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+        }
         Expr::Binary(expression) => {
-            expression_uses_identifier(&expression.left, name)
-                || expression_uses_identifier(&expression.right, name)
+            expression_uses_identifier(&expression.left, name, resolved, environment)
+                || expression_uses_identifier(&expression.right, name, resolved, environment)
         }
-        Expr::Unary(expression) => expression_uses_identifier(&expression.operand, name),
+        Expr::Unary(expression) => {
+            expression_uses_identifier(&expression.operand, name, resolved, environment)
+        }
         Expr::TypeConversion(expression) => {
-            expression_uses_identifier(&expression.expression, name)
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
         }
         Expr::Call(expression) => {
-            expression_uses_identifier(&expression.callee, name)
-                || expression
-                    .arguments
-                    .iter()
-                    .any(|argument| expression_uses_identifier(argument, name))
+            expression_uses_identifier(&expression.callee, name, resolved, environment)
+                || expression.arguments.iter().any(|argument| {
+                    expression_uses_identifier(argument, name, resolved, environment)
+                })
         }
-        Expr::Member(expression) => expression_uses_identifier(&expression.object, name),
+        Expr::Member(expression) => {
+            expression_uses_identifier(&expression.object, name, resolved, environment)
+        }
         Expr::Index(expression) => {
-            expression_uses_identifier(&expression.object, name)
-                || expression_uses_identifier(&expression.index, name)
+            expression_uses_identifier(&expression.object, name, resolved, environment)
+                || expression_uses_identifier(&expression.index, name, resolved, environment)
         }
         Expr::ArrayLiteral(expression) => expression
             .elements
             .iter()
-            .any(|element| expression_uses_identifier(element, name)),
+            .any(|element| expression_uses_identifier(element, name, resolved, environment)),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()
-            .any(|field| expression_uses_identifier(&field.value, name)),
-        Expr::Group(expression) => expression_uses_identifier(&expression.expression, name),
+            .any(|field| expression_uses_identifier(&field.value, name, resolved, environment)),
+        Expr::Group(expression) => {
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+        }
         Expr::InterpolatedString(expression) => expression.parts.iter().any(|part| match part {
             crate::ast::InterpolatedStringPart::Expression(part) => {
-                expression_uses_identifier(&part.expression, name)
+                expression_uses_identifier(&part.expression, name, resolved, environment)
             }
             crate::ast::InterpolatedStringPart::Text(_) => false,
         }),
         Expr::Otherwise(expression) => {
-            expression_uses_identifier(&expression.value, name)
-                || block_uses_identifier(&expression.fallback, name)
+            expression_uses_identifier(&expression.value, name, resolved, environment)
+                || block_uses_identifier(&expression.fallback, name, resolved, environment)
         }
         Expr::If(expression) => {
-            expression_uses_identifier(&expression.condition, name)
-                || block_uses_identifier(&expression.then_block, name)
+            expression_uses_identifier(&expression.condition, name, resolved, environment)
+                || block_uses_identifier(&expression.then_block, name, resolved, environment)
                 || expression
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
+                    .is_some_and(|block| block_uses_identifier(block, name, resolved, environment))
         }
         Expr::IfIs(expression) => {
-            expression_uses_identifier(&expression.expression, name)
-                || block_uses_identifier(&expression.then_block, name)
+            let then_environment = environment_for_if_is_binding(expression, resolved, environment);
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+                || block_uses_identifier(&expression.then_block, name, resolved, &then_environment)
                 || expression
                     .else_block
                     .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
+                    .is_some_and(|block| block_uses_identifier(block, name, resolved, environment))
         }
         Expr::Match(expression) => {
-            expression_uses_identifier(&expression.expression, name)
-                || expression
-                    .arms
-                    .iter()
-                    .any(|arm| block_uses_identifier(&arm.body, name))
-                || expression
-                    .else_arm
-                    .as_ref()
-                    .is_some_and(|arm| block_uses_identifier(&arm.body, name))
+            expression_uses_identifier(&expression.expression, name, resolved, environment)
+                || expression.arms.iter().any(|arm| {
+                    let arm_environment = environment_for_switch_arm(
+                        arm,
+                        &expression.expression,
+                        resolved,
+                        environment,
+                    );
+                    block_uses_identifier(&arm.body, name, resolved, &arm_environment)
+                })
+                || expression.else_arm.as_ref().is_some_and(|arm| {
+                    block_uses_identifier(&arm.body, name, resolved, environment)
+                })
         }
         Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
