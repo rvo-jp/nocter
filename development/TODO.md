@@ -71,10 +71,11 @@ Recommended order:
   including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build
   and run for local and aggregate-field fixed arrays in the same element subset,
-  plus constant and variable numeric index compound assignment for `i32`, `u8`,
-  and `usize`. Move-only element arrays and broader array expressions outside
-  the supported binding, assignment, argument, and return positions remain
-  rejected or deferred.
+  including fixed array fields inside concrete generic structs, plus constant
+  and variable numeric index compound assignment for `i32`, `u8`, and `usize`.
+  Move-only element arrays and broader array expressions outside the supported
+  binding, assignment, argument, and return positions remain rejected or
+  deferred.
 - Release packaging layout now separates tracked inputs from generated output:
   `development/std` is the canonical standard-library source,
   `development/packaging` contains release metadata inputs, and

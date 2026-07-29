@@ -4682,6 +4682,39 @@ func first<T>(values: [T; 2]): T {
 }
 
 #[test]
+fn build_command_lowers_generic_fixed_array_aggregate_fields() {
+    let project = TempProject::new("cli-build-generic-fixed-array-aggregate-fields");
+    let source = project.write_source(
+        "generic_fixed_array_aggregate_fields.nct",
+        r#"copy struct Box<T> {
+    values: [T; 2]
+}
+
+func main(): i32 {
+    var box = Box<i32>{ values: [1, 2] }
+    let replacement: [i32; 2] = [3, 4]
+    let other = Box<i32>{ values: [20, 22] }
+    box.values = [5, 6]
+    box.values = replacement
+    box.values = make_pair()
+    box.values = other.values
+    return box.values[0] + box.values[1]
+}
+
+func make_pair(): [i32; 2] {
+    return [7, 8]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_generic_associated_function_with_concrete_arguments() {
     let project = TempProject::new("cli-build-generic-associated-function");
     let source = project.write_source(

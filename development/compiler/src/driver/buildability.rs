@@ -2054,7 +2054,7 @@ fn fixed_array_literal_struct_field_is_buildable(
     let Some(ty) = field_type_expr_for_span(field.name_span, resolved, typecheck_facts) else {
         return false;
     };
-    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
     let Some((element, length, _layout)) =
         fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
     else {
@@ -2361,7 +2361,7 @@ fn fixed_array_member_binding_is_buildable(
     let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
         return false;
     };
-    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
+    let source_ty = substitute_type_expr_parameters(&source_ty, generic_substitutions);
     let Some((source_element, source_length, source_layout)) =
         fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
     else {
@@ -2501,7 +2501,7 @@ fn fixed_array_member_assignment_is_buildable(
     let Some(source_ty) = field_type_expr_for_member(member, resolved, typecheck_facts) else {
         return false;
     };
-    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
+    let source_ty = substitute_type_expr_parameters(&source_ty, generic_substitutions);
     let Some((source_element, source_length, source_layout)) =
         fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
     else {
@@ -2744,7 +2744,7 @@ fn fixed_array_assignment_target_abi(
         )?,
         Expr::Member(member) => {
             let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
-            substitute_type_expr_parameters(ty, generic_substitutions)
+            substitute_type_expr_parameters(&ty, generic_substitutions)
         }
         _ => return None,
     };
@@ -7505,7 +7505,7 @@ fn unsupported_field_member_value_diagnostic(
     }
 
     let field_ty = field_type_expr_for_member(expression, resolved, typecheck_facts)?;
-    let field_ty = substitute_type_expr_parameters(field_ty, generic_substitutions);
+    let field_ty = substitute_type_expr_parameters(&field_ty, generic_substitutions);
     match member_field_value_type_is_buildable(&field_ty, resolved)? {
         true => None,
         false => Some(unsupported_v0_build_diagnostic(
@@ -7517,19 +7517,22 @@ fn unsupported_field_member_value_diagnostic(
     }
 }
 
-fn field_type_expr_for_member<'a>(
+fn field_type_expr_for_member(
     expression: &MemberExpr,
-    resolved: &'a ResolveOutput,
+    resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
-) -> Option<&'a TypeExpr> {
+) -> Option<TypeExpr> {
     field_type_expr_for_span(expression.member_span, resolved, typecheck_facts)
 }
 
-fn field_type_expr_for_span<'a>(
+fn field_type_expr_for_span(
     field_span: ByteSpan,
-    resolved: &'a ResolveOutput,
+    resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
-) -> Option<&'a TypeExpr> {
+) -> Option<TypeExpr> {
+    if let Some(ty) = typecheck_facts.field_type_expr(field_span) {
+        return Some(ty.clone());
+    }
     let target_span = typecheck_facts.field_target(field_span)?;
     resolved.symbols.symbols().find_map(|symbol| {
         let SymbolKind::Type(type_symbol) = &symbol.kind else {
@@ -7539,7 +7542,7 @@ fn field_type_expr_for_span<'a>(
             .fields
             .iter()
             .find(|field| field.name_span == target_span)
-            .map(|field| &field.ty)
+            .map(|field| field.ty.clone())
     })
 }
 
@@ -7708,7 +7711,7 @@ fn fixed_array_index_target_type_expr(
                 .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
         }
         Expr::Member(member) => field_type_expr_for_member(member, resolved, typecheck_facts)
-            .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions)),
+            .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions)),
         Expr::Group(group) => fixed_array_index_target_type_expr(
             &group.expression,
             resolved,
@@ -9382,6 +9385,35 @@ func make_pair(): [i32; 2] {
 
 func make_fallible_pair(): [i32; 2]! {
     return [11, 12]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_generic_fixed_array_aggregate_field_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Box<T> {
+    values: [T; 2]
+}
+
+func main(): i32 {
+    var box = Box<i32>{ values: [1, 2] }
+    let replacement: [i32; 2] = [3, 4]
+    let other = Box<i32>{ values: [20, 22] }
+    box.values = [5, 6]
+    box.values = replacement
+    box.values = make_pair()
+    box.values = other.values
+    return box.values[0] + box.values[1]
+}
+
+func make_pair(): [i32; 2] {
+    return [7, 8]
 }
 "#,
         );

@@ -106,6 +106,24 @@ pub(super) fn struct_literal_type(
     }
 }
 
+pub(super) fn struct_literal_field_type(
+    literal: &StructLiteralExpr,
+    field: &StructLiteralField,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
+    let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
+    let expected_field = struct_field_for_literal_field(field, struct_symbol)?;
+    Some(struct_field_type_for_owner(
+        expected_field,
+        struct_symbol,
+        &target_type,
+        resolved,
+        environment,
+    ))
+}
+
 pub(super) fn check_struct_literal_expression(
     sources: &SourceMap,
     literal: &StructLiteralExpr,

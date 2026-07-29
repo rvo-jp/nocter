@@ -3816,6 +3816,44 @@ func first<T>(values: [T; 2]): T {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_fixed_array_aggregate_field_exit_code() {
+    let project = TempProject::new("cli-run-generic-fixed-array-aggregate-fields");
+    let source = project.write_source(
+        "generic_fixed_array_aggregate_fields.nct",
+        r#"copy struct Box<T> {
+    values: [T; 2]
+}
+
+func main(): i32 {
+    var box = Box<i32>{ values: [1, 2] }
+    let replacement: [i32; 2] = [3, 4]
+    let other = Box<i32>{ values: [20, 22] }
+    box.values = [5, 6]
+    box.values = replacement
+    box.values = make_pair()
+    box.values = other.values
+    return box.values[0] + box.values[1]
+}
+
+func make_pair(): [i32; 2] {
+    return [7, 8]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_generic_associated_function_exit_code() {
     let project = TempProject::new("cli-run-generic-associated-function");
     let source = project.write_source(

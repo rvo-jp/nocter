@@ -15,7 +15,8 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::places::field_member_is_writable_place;
 use super::structs::{
-    resolved_struct_field_for_literal_field, resolved_struct_field_for_member, struct_member_type,
+    resolved_struct_field_for_literal_field, resolved_struct_field_for_member,
+    struct_literal_field_type, struct_member_type,
 };
 use super::type_expr::{
     infer_type_expr_substitutions, simple_type_from_display_name, type_expr_display_lossy,
@@ -49,6 +50,7 @@ pub(crate) struct TypecheckFacts {
     enum_variant_hover_labels: HashMap<ByteSpan, String>,
     type_references: Vec<TypeReferenceFact>,
     field_targets: HashMap<ByteSpan, ByteSpan>,
+    field_type_exprs: HashMap<ByteSpan, TypeExpr>,
     field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     field_readonly: HashMap<ByteSpan, bool>,
     function_call_targets: HashMap<ByteSpan, ByteSpan>,
@@ -143,6 +145,10 @@ impl TypecheckFacts {
 
     pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.field_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn field_type_expr(&self, field_span: ByteSpan) -> Option<&TypeExpr> {
+        self.field_type_exprs.get(&field_span)
     }
 
     pub(crate) fn field_scalar_view_kind(
@@ -1569,8 +1575,15 @@ impl TypecheckFactCollector<'_> {
             member.member_span,
             !field_member_is_writable_place(member, self.resolved, environment),
         );
-        self.record_struct_field_reference(member.member_span, owner, field, environment);
-        if let Some(field_ty) = struct_member_type(member, self.resolved, environment)
+        let field_ty = struct_member_type(member, self.resolved, environment);
+        self.record_struct_field_reference(
+            member.member_span,
+            owner,
+            field,
+            field_ty.as_ref(),
+            environment,
+        );
+        if let Some(field_ty) = field_ty
             && let Some(specialization) =
                 self.drop_type_specialization(member.member_span, &field_ty)
         {
@@ -1592,7 +1605,14 @@ impl TypecheckFactCollector<'_> {
             return;
         };
 
-        self.record_struct_field_reference(field.name_span, owner, expected_field, environment);
+        let field_ty = struct_literal_field_type(literal, field, self.resolved, environment);
+        self.record_struct_field_reference(
+            field.name_span,
+            owner,
+            expected_field,
+            field_ty.as_ref(),
+            environment,
+        );
     }
 
     fn record_struct_field_reference(
@@ -1600,12 +1620,20 @@ impl TypecheckFactCollector<'_> {
         span: ByteSpan,
         owner: &TypeSymbol,
         field: &crate::resolve::StructFieldSignature,
+        concrete_ty: Option<&Type>,
         environment: &TypeEnvironment,
     ) {
-        let field_ty =
+        let fallback_ty =
             type_expr_to_type_with_self_type(&field.ty, self.resolved, environment.self_type());
+        let field_ty = concrete_ty.unwrap_or(&fallback_ty);
         self.facts.field_targets.insert(span, field.name_span);
-        if let Some(kind) = scalar_view_kind(&field_ty) {
+        let mut free_type_parameters = HashSet::new();
+        if let Some(ty) =
+            type_to_type_expr_allowing_parameters(field_ty, span, &mut free_type_parameters)
+        {
+            self.facts.field_type_exprs.insert(span, ty);
+        }
+        if let Some(kind) = scalar_view_kind(field_ty) {
             self.facts.field_scalar_view_kinds.insert(span, kind);
         }
         self.facts.field_hover_labels.insert(
@@ -1614,7 +1642,7 @@ impl TypecheckFactCollector<'_> {
                 "field {}.{}: {}",
                 type_owner_hover_label(owner, self.resolved),
                 field.name,
-                type_hover_label(&field_ty, self.resolved)
+                type_hover_label(field_ty, self.resolved)
             ),
         );
     }
@@ -2648,6 +2676,44 @@ func main(): i32 {
             panic!("expected inferred binding type expr for generic parameter");
         };
         assert_eq!(reference.name, "T");
+    }
+
+    #[test]
+    fn records_concrete_field_type_expr_facts_for_generic_struct_fields() {
+        let text = r#"copy struct Box<T> {
+    values: [T; 2]
+}
+
+func main(): i32 {
+    let box = Box<i32>{ values: [1, 2] }
+    return box.values[0]
+}
+"#;
+        let (ast, resolved) = parse_and_resolve_text(text);
+        let facts = collect_typecheck_facts(&ast, &resolved);
+        let literal_start = text.find("values: [1, 2]").expect("expected literal field");
+        let literal_span = ByteSpan::new(
+            ast.span.source,
+            literal_start,
+            literal_start + "values".len(),
+        );
+        let member_start = text.rfind("values[0]").expect("expected member field");
+        let member_span =
+            ByteSpan::new(ast.span.source, member_start, member_start + "values".len());
+
+        assert_concrete_i32_pair_type_expr(facts.field_type_expr(literal_span));
+        assert_concrete_i32_pair_type_expr(facts.field_type_expr(member_span));
+    }
+
+    fn assert_concrete_i32_pair_type_expr(ty: Option<&TypeExpr>) {
+        let Some(TypeExpr::Array(array)) = ty else {
+            panic!("expected concrete fixed array field type expr");
+        };
+        let TypeExpr::Reference(element) = array.element.as_ref() else {
+            panic!("expected fixed array element type");
+        };
+        assert_eq!(element.name, "i32");
+        assert_eq!(array.length.value, "2");
     }
 
     fn resolve_text(text: &str) -> ResolveOutput {
