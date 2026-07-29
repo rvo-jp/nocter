@@ -60,15 +60,15 @@ Recommended order:
   local fixed array literals, including zero-length literal bindings,
   aggregate-field fixed array literals, local copy bindings including
   zero-length copies, aggregate-field fixed array value copies in supported
-  binding, whole-local assignment, aggregate-field assignment, argument,
-  return, and aggregate-field initializer positions, whole-local assignment
-  including zero-length
-  literal/copy/call-result assignment, fixed array value parameters including
-  zero-length values, direct fixed array literal value arguments including
+  binding, assignment, argument, return, and aggregate-field initializer
+  positions, whole-local assignment including zero-length
+  literal/copy/call-result/optional-call-otherwise assignment, fixed array
+  value parameters including zero-length values, direct fixed array literal value
+  arguments including
   zero-length literal arguments, matching fixed array call-result bindings
-  including zero-length results, optional-call `otherwise` fixed array bindings
-  and returns, and direct literal/local/call-result/field fixed array returns
-  including zero-length returns for `i32`, `u8`, `usize`, `bool`,
+  including zero-length results, optional-call `otherwise` fixed array bindings,
+  assignments, and returns, and direct literal/local/call-result/field fixed
+  array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build
   and run for local and aggregate-field fixed arrays in the same element subset,
   including fixed array fields inside concrete generic structs, plus constant

@@ -5462,6 +5462,52 @@ func sum(values: [i32; 3]): i32 {
 }
 
 #[test]
+fn build_command_lowers_fixed_array_optional_otherwise_assignments() {
+    let project = TempProject::new("cli-build-fixed-array-optional-otherwise-assignments");
+    let source = project.write_source(
+        "fixed_array_optional_otherwise_assignments.nct",
+        r#"copy struct Bag {
+    tag: i32
+    values: [i32; 3]
+}
+
+func main(): i32 {
+    var values: [i32; 3] = [0, 0, 0]
+    let fallback: [i32; 3] = [1, 2, 3]
+    var bag = Bag{ tag: 5, values: [0, 0, 0] }
+    values = maybe_values(false) otherwise { [1, 2, 3] }
+    values = maybe_values(false) otherwise { fallback }
+    bag.values = maybe_values(true) otherwise { [90, 91, 92] }
+    let field_success_total: i32 = sum(bag.values)
+    bag.values = maybe_values(false) otherwise { make_values() }
+    return sum(values) + field_success_total + sum(bag.values) + bag.tag
+}
+
+func maybe_values(flag: bool): [i32; 3]? {
+    if flag {
+        return [7, 8, 9]
+    }
+    return none
+}
+
+func make_values(): [i32; 3] {
+    return [10, 11, 15]
+}
+
+func sum(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fixed_array_whole_assignments() {
     let project = TempProject::new("cli-build-fixed-array-whole-assignments");
     let source = project.write_source(

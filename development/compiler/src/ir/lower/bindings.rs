@@ -2832,11 +2832,11 @@ fn lower_aggregate_array_field_assignment(
     value: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let expected_type = AbiType::Array {
+        element: Box::new(element),
+        length,
+    };
     if let Expr::ArrayLiteral(literal) = unwrap_group(value) {
-        let expected_type = AbiType::Array {
-            element: Box::new(element),
-            length,
-        };
         let Some((_root_source, resolved)) = context.resolved_calls() else {
             return Err(unsupported_assignment_diagnostic());
         };
@@ -2849,6 +2849,16 @@ fn lower_aggregate_array_field_assignment(
             "E8008",
             "assignments",
             resolved,
+            context,
+        );
+    }
+    if let Expr::Otherwise(otherwise) = unwrap_group(value) {
+        return lower_aggregate_otherwise_assignment_to_location(
+            destination,
+            offset,
+            layout,
+            Some(&expected_type),
+            otherwise,
             context,
         );
     }
@@ -3000,6 +3010,14 @@ fn lower_aggregate_member_value_assignment(
                 context,
             )
         }
+        Expr::Otherwise(otherwise) => lower_aggregate_otherwise_assignment_to_location(
+            destination,
+            destination_offset,
+            layout,
+            None,
+            otherwise,
+            context,
+        ),
         Expr::Member(_) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let access = lower_aggregate_member_field_access(value, context, &mut temporaries)?
@@ -3398,8 +3416,136 @@ fn lower_aggregate_assignment_to_slot(
                 context,
             )
         }
+        Expr::Otherwise(otherwise) => {
+            let expected_abi_type = target_type
+                .and_then(|ty| aggregate_assignment_expected_abi_type(ty, layout, context));
+            lower_aggregate_otherwise_assignment_to_location(
+                AggregateLocation::Slot(slot_index),
+                0,
+                layout,
+                expected_abi_type.as_ref(),
+                otherwise,
+                context,
+            )
+        }
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn aggregate_assignment_expected_abi_type(
+    target_type: &TypeExpr,
+    expected_layout: ValueLayout,
+    context: &LoweringContext,
+) -> Option<AbiType> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let value = abi_value_from_type_expr_with_resolver(target_type, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+    (value.layout == expected_layout).then_some(value.ty)
+}
+
+fn lower_aggregate_otherwise_assignment_to_location(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    expected_abi_type: Option<&AbiType>,
+    otherwise: &crate::ast::OtherwiseExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(callee_layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if callee_layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    if destination_offset == 0 {
+        let failure_mode = lower_otherwise_aggregate_failure_mode(
+            &otherwise.fallback,
+            layout,
+            expected_abi_type,
+            destination,
+            resolved,
+            context,
+            None,
+        )?;
+        let (mut argument_instructions, arguments) =
+            lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
+        let mut instructions = Vec::new();
+        instructions.append(&mut argument_instructions);
+        push_fallible_aggregate_call_instruction(
+            &mut instructions,
+            success_type.as_ref(),
+            destination,
+            target,
+            arguments,
+            layout,
+            failure_mode,
+        );
+        return Ok(instructions);
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let call_destination = AggregateLocation::Slot(source_slot);
+    let failure_mode = lower_otherwise_aggregate_failure_mode(
+        &otherwise.fallback,
+        layout,
+        expected_abi_type,
+        call_destination,
+        resolved,
+        context,
+        None,
+    )?;
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout,
+    }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &call_name,
+            context,
+            &mut temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        call_destination,
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: call_destination,
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
 }
 
 fn lower_aggregate_copy_assignment(

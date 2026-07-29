@@ -1302,10 +1302,80 @@ fn collect_otherwise_binding_initializer_diagnostics(
         queue,
         diagnostics,
     );
-    collect_otherwise_binding_fallback_block_diagnostics(
+    collect_otherwise_value_fallback_block_diagnostics(
         &expression.fallback,
-        binding_is_scalar_or_view,
         binding_fixed_array_type,
+        binding_is_scalar_or_view,
+        return_type,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
+fn collect_otherwise_assignment_value_diagnostics(
+    expression: &OtherwiseExpr,
+    assignment_fixed_array_type: Option<&TypeExpr>,
+    return_type: Option<&TypeExpr>,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_otherwise_runtime_value_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+        diagnostics,
+    );
+    if !otherwise_return_fallback_runtime_shape_is_buildable(
+        &expression.fallback,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.fallback.span,
+            "`otherwise` fallback blocks outside the v0 assignment subset",
+            "end runtime-shipped `otherwise` assignment fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
+        ));
+    }
+
+    collect_expression_diagnostics(
+        &expression.value,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_otherwise_value_fallback_block_diagnostics(
+        &expression.fallback,
+        assignment_fixed_array_type,
+        false,
         return_type,
         sources,
         resolved,
@@ -1413,10 +1483,10 @@ fn collect_otherwise_return_fallback_block_diagnostics(
     }
 }
 
-fn collect_otherwise_binding_fallback_block_diagnostics(
+fn collect_otherwise_value_fallback_block_diagnostics(
     block: &Block,
-    binding_is_scalar_or_view: bool,
-    binding_fixed_array_type: Option<&TypeExpr>,
+    fixed_array_type: Option<&TypeExpr>,
+    result_is_scalar_or_view: bool,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
@@ -1466,7 +1536,7 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
     if let Some(result) = &block.result {
         if fixed_array_literal_for_type_is_buildable(
             result,
-            binding_fixed_array_type,
+            fixed_array_type,
             resolved,
             resolved_sources,
         ) {
@@ -1483,7 +1553,7 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
                 queue,
                 diagnostics,
             );
-        } else if binding_is_scalar_or_view {
+        } else if result_is_scalar_or_view {
             collect_value_expression_diagnostics(
                 result,
                 return_type,
@@ -2475,6 +2545,56 @@ fn fixed_array_call_assignment_is_buildable(
     )
 }
 
+fn fixed_array_otherwise_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    if !matches!(unwrap_group_expr(&statement.value), Expr::Otherwise(_)) {
+        return false;
+    }
+    let Some((target_element, target_length, target_layout)) = fixed_array_assignment_target_abi(
+        &statement.target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    if !fixed_array_element_abi_is_buildable(&target_element) {
+        return false;
+    }
+
+    let Some(source_ty) = fixed_array_binding_call_result_type_expr(
+        &statement.value,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    fixed_array_abi_matches_buildable_element(
+        &target_element,
+        target_length,
+        target_layout,
+        &source_element,
+        source_length,
+        source_layout,
+    )
+}
+
 fn fixed_array_member_assignment_is_buildable(
     statement: &AssignmentStmt,
     resolved: &ResolveOutput,
@@ -2710,6 +2830,12 @@ fn unsupported_fixed_array_assignment_diagnostic(
         resolved_sources,
         typecheck_facts,
         generic_substitutions,
+    ) || fixed_array_otherwise_assignment_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
     ) || fixed_array_member_assignment_is_buildable(
         statement,
         resolved,
@@ -2735,6 +2861,23 @@ fn fixed_array_assignment_target_abi(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<(AbiType, u64, crate::abi::ValueLayout)> {
+    let ty = fixed_array_assignment_target_type_expr(
+        target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+}
+
+fn fixed_array_assignment_target_type_expr(
+    target: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
     let ty = match unwrap_group_expr(target) {
         Expr::Identifier(identifier) => local_identifier_type_expr_with_substitutions(
             identifier,
@@ -2748,7 +2891,8 @@ fn fixed_array_assignment_target_abi(
         }
         _ => return None,
     };
-    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
+    Some(ty)
 }
 
 fn fixed_array_binding_type_abi(
@@ -4034,6 +4178,13 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
+            let assignment_fixed_array_type = fixed_array_assignment_target_type_expr(
+                &statement.target,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            );
             if assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,
@@ -4043,6 +4194,24 @@ fn collect_statement_diagnostics(
             ) {
                 collect_value_expression_diagnostics(
                     &statement.value,
+                    return_type,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            } else if let Expr::Otherwise(otherwise) = unwrap_group_expr(&statement.value)
+                && assignment_fixed_array_type.is_some()
+            {
+                collect_otherwise_assignment_value_diagnostics(
+                    otherwise,
+                    assignment_fixed_array_type.as_ref(),
                     return_type,
                     sources,
                     resolved,
@@ -9385,6 +9554,48 @@ func make_pair(): [i32; 2] {
 
 func make_fallible_pair(): [i32; 2]! {
     return [11, 12]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_fixed_array_optional_otherwise_assignment_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Bag {
+    tag: i32
+    values: [i32; 3]
+}
+
+func main(): i32 {
+    var values: [i32; 3] = [0, 0, 0]
+    let fallback: [i32; 3] = [1, 2, 3]
+    var bag = Bag{ tag: 5, values: [0, 0, 0] }
+    values = maybe_values(false) otherwise { [1, 2, 3] }
+    values = maybe_values(false) otherwise { fallback }
+    bag.values = maybe_values(true) otherwise { [90, 91, 92] }
+    let field_success_total: i32 = sum(bag.values)
+    bag.values = maybe_values(false) otherwise { make_values() }
+    return sum(values) + field_success_total + sum(bag.values) + bag.tag
+}
+
+func maybe_values(flag: bool): [i32; 3]? {
+    if flag {
+        return [7, 8, 9]
+    }
+    return none
+}
+
+func make_values(): [i32; 3] {
+    return [10, 11, 15]
+}
+
+func sum(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
 }
 "#,
         );
