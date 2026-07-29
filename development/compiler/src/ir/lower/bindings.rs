@@ -678,11 +678,15 @@ fn lower_aggregate_array_literal_binding(
         return Ok(None);
     }
 
+    let is_copy = type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    });
+    let drop_glue = context.drop_glue_for_type_expr(&ty);
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
-        true,
-        None,
+        is_copy,
+        drop_glue,
         Vec::new(),
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {

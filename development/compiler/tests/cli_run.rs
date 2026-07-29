@@ -3789,6 +3789,33 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_fixed_array_literal_value_argument_exit_code() {
+    let project = TempProject::new("cli-run-generic-fixed-array-literal-value-argument");
+    let source = project.write_source(
+        "generic_fixed_array_literal_value_argument.nct",
+        r#"func main(): i32 {
+    return first([42, 1])
+}
+
+func first<T>(values: [T; 2]): T {
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_generic_associated_function_exit_code() {
     let project = TempProject::new("cli-run-generic-associated-function");
     let source = project.write_source(

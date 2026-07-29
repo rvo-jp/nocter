@@ -4660,6 +4660,28 @@ func identity<T>(value: T): T {
 }
 
 #[test]
+fn build_command_lowers_generic_fixed_array_literal_value_argument() {
+    let project = TempProject::new("cli-build-generic-fixed-array-literal-value-argument");
+    let source = project.write_source(
+        "generic_fixed_array_literal_value_argument.nct",
+        r#"func main(): i32 {
+    return first([42, 1])
+}
+
+func first<T>(values: [T; 2]): T {
+    return values[0]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_generic_associated_function_with_concrete_arguments() {
     let project = TempProject::new("cli-build-generic-associated-function");
     let source = project.write_source(
