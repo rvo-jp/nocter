@@ -7424,6 +7424,43 @@ fn build_command_skips_unreachable_entry_tail_after_return() {
 }
 
 #[test]
+fn build_command_skips_unreachable_entry_tail_after_exhaustive_match_statement() {
+    let project =
+        TempProject::new("cli-build-unreachable-entry-tail-after-exhaustive-match-statement");
+    let source = project.write_source(
+        "unreachable_entry_tail_after_exhaustive_match_statement.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            return 0
+        }
+
+        Choice.no {
+            return 1
+        }
+    }
+    let stored: u16 = 0 as u16
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(0));
+}
+
+#[test]
 fn build_command_accepts_str_equality() {
     let project = TempProject::new("cli-build-str-equality");
     let source = project.write_source(

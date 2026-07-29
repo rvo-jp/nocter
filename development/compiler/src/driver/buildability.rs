@@ -6564,9 +6564,12 @@ fn switch_statement_exits_function_for_buildability(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some(else_arm) = &statement.else_arm else {
+    if statement.else_arm.is_none()
+        && !switch_statement_covers_all_payloadless_variants(statement, resolved)
+    {
         return false;
-    };
+    }
+
     statement.arms.iter().all(|arm| {
         block_exits_function_for_buildability(
             &arm.body,
@@ -6574,12 +6577,14 @@ fn switch_statement_exits_function_for_buildability(
             typecheck_facts,
             generic_substitutions,
         )
-    }) && block_exits_function_for_buildability(
-        &else_arm.body,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    )
+    }) && statement.else_arm.as_ref().is_none_or(|else_arm| {
+        block_exits_function_for_buildability(
+            &else_arm.body,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        )
+    })
 }
 
 fn block_exits_function_for_buildability(
@@ -10653,6 +10658,36 @@ func main(): i32 {
             r#"func main(): i32 {
     return 0
     let bytes: [u8; 2] = [1, 2]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_unreachable_tail_after_exhaustive_match_statement() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            return 0
+        }
+
+        Choice.no {
+            return 1
+        }
+    }
+    let stored: u16 = 0 as u16
+    return 2
 }
 "#,
         );

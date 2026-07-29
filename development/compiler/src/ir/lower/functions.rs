@@ -1549,6 +1549,15 @@ fn payloadless_switch_variant_names(
     })
 }
 
+pub(super) fn payloadless_switch_is_exhaustive(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+) -> bool {
+    payloadless_switch_variant_names(statement, context).is_some_and(|variant_names| {
+        payloadless_switch_covers_all_variants(statement, &variant_names)
+    })
+}
+
 fn payloadless_switch_if_chain(
     statement: &SwitchStmt,
     target: Expr,

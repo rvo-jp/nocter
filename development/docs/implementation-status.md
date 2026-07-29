@@ -49,7 +49,8 @@ aggregate-field fixed arrays are buildable for the current scalar/view element
 subset, including fixed array fields inside concrete generic structs, with
 constant and variable numeric index compound assignment for `i32`, `u8`, and
 `usize`.
-Unreachable body tails after proven terminal statements are ignored by return/reachability
+Unreachable body tails after proven terminal statements, including exhaustive
+payloadless `match` statements without `else`, are ignored by return/reachability
 checking, buildability, and IR lowering. Buildability and IR lowering consume
 structured typechecker facts for binding types and method receiver kinds, and
 buildability resolves imported type aliases by their declaring source when

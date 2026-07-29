@@ -204,6 +204,10 @@ Recommended order:
 - IR type normalization and drop glue resolution now resolve source-qualified
   imported type names without dropping required cleanup for discarded imported
   aggregate call results.
+- Buildability and IR reachable-prefix handling now treat exhaustive
+  payloadless `match` statements without `else` as proven terminal, so
+  unreachable body tails after those statements are neither preflighted nor
+  lowered.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

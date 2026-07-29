@@ -18,6 +18,7 @@ use super::functions::{
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    payloadless_switch_is_exhaustive,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -1251,14 +1252,19 @@ pub(super) fn statement_exits_function(statement: &Stmt, context: &LoweringConte
                 && block_exits_function(else_block, context)
         }
         Stmt::Switch(statement) => {
-            let Some(else_arm) = &statement.else_arm else {
+            if statement.else_arm.is_none() && !payloadless_switch_is_exhaustive(statement, context)
+            {
                 return false;
-            };
+            }
+
             statement
                 .arms
                 .iter()
                 .all(|arm| block_exits_function(&arm.body, context))
-                && block_exits_function(&else_arm.body, context)
+                && statement
+                    .else_arm
+                    .as_ref()
+                    .is_none_or(|else_arm| block_exits_function(&else_arm.body, context))
         }
         _ => false,
     }
@@ -1294,14 +1300,19 @@ fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bo
                 && block_exits_function(else_block, context)
         }
         Expr::Match(statement) => {
-            let Some(else_arm) = &statement.else_arm else {
+            if statement.else_arm.is_none() && !payloadless_switch_is_exhaustive(statement, context)
+            {
                 return false;
-            };
+            }
+
             statement
                 .arms
                 .iter()
                 .all(|arm| block_exits_function(&arm.body, context))
-                && block_exits_function(&else_arm.body, context)
+                && statement
+                    .else_arm
+                    .as_ref()
+                    .is_none_or(|else_arm| block_exits_function(&else_arm.body, context))
         }
         _ => false,
     }

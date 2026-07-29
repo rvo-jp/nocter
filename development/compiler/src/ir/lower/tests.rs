@@ -29267,6 +29267,58 @@ fn skips_unreachable_entry_tail_after_return() {
 }
 
 #[test]
+fn skips_unreachable_entry_tail_after_exhaustive_match_statement() {
+    let ir = lower_text(
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            return 0
+        }
+
+        Choice.no {
+            return 1
+        }
+    }
+    let header: [u8; 2] = [1, 2]
+    return 2
+}
+"#,
+    );
+
+    assert!(
+        ir.functions[0]
+            .instructions
+            .iter()
+            .all(|instruction| !matches!(
+                instruction,
+                Instruction::ReserveAggregateSlot { .. } | Instruction::StoreAggregateU8 { .. }
+            )),
+        "{:?}",
+        ir.functions[0].instructions
+    );
+    assert!(
+        ir.functions[0]
+            .instructions
+            .iter()
+            .all(|instruction| !matches!(
+                instruction,
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Const(2)
+                }
+            )),
+        "{:?}",
+        ir.functions[0].instructions
+    );
+}
+
+#[test]
 fn skips_unreachable_callable_tail_after_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
