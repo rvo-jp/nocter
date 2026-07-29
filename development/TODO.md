@@ -66,8 +66,10 @@ Recommended order:
   value parameters including zero-length values, direct fixed array literal value
   arguments including
   zero-length literal arguments, matching fixed array call-result bindings
-  including zero-length results, optional-call `otherwise` fixed array bindings,
-  value arguments, aggregate-field initializers, assignments, and returns, and
+  including zero-length results, fallible-call `catch` bindings, whole-local
+  assignments, and aggregate-field assignments, optional-call `otherwise`
+  fixed array bindings, value arguments, aggregate-field initializers,
+  assignments, and returns, and
   direct literal/local/call-result/field fixed
   array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build

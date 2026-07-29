@@ -7321,6 +7321,51 @@ func make_pair(): [i32; 2]! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_fallible_fixed_array_catch_values() {
+    let project = TempProject::new("cli-run-fallible-fixed-array-catch-values");
+    let source = project.write_source(
+        "fallible_fixed_array_catch_values.nct",
+        r#"copy struct Bag {
+    values: [i32; 2]
+}
+
+func main(): i32! {
+    var values: [i32; 2] = [0, 0]
+    values = make_pair() catch error {
+        return error
+    }
+
+    let bound: [i32; 2] = make_pair() catch error {
+        return error
+    }
+
+    var bag = Bag{ values: [0, 0] }
+    bag.values = make_pair() catch error {
+        return error
+    }
+
+    return values[0] + bound[1] + bag.values[0]
+}
+
+func make_pair(): [i32; 2]! {
+    return [11, 20]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_assigns_fixed_array_call_results() {
     let project = TempProject::new("cli-run-fixed-array-call-result-assignments");
     let source = project.write_source(
