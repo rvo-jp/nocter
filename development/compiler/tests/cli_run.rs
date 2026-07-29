@@ -7476,6 +7476,89 @@ func sum(values: [i32; 3]): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_aggregate_optional_otherwise_assignments() {
+    let project = TempProject::new("cli-run-aggregate-optional-otherwise-assignments");
+    let source = project.write_source(
+        "aggregate_optional_otherwise_assignments.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: i32
+    second: i32
+    third: i32
+    fourth: i32
+    fifth: i32
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+}
+
+func main(): i32 {
+    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
+    let fallback = Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
+    var packet = Packet{
+        prefix: 5,
+        header: Header{ tag: 3, ok: false, code: 3, len: 3 },
+        triple: Triple{ first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
+    }
+    header = maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    packet.header = maybe_header(true) otherwise { Header{ tag: 9, ok: false, code: 90, len: 9 } }
+    packet.triple = maybe_triple(false) otherwise { fallback }
+    let returned = assign_with_return_fallback()
+    return header_score(header) + header_score(packet.header) + triple_score(packet.triple) + returned + packet.prefix
+}
+
+func assign_with_return_fallback(): i32 {
+    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
+    header = maybe_header(false) otherwise { return 19 }
+    return header.code
+}
+
+func header_score(header: Header): i32 {
+    return header.code
+}
+
+func triple_score(triple: Triple): i32 {
+    return triple.second + triple.fifth
+}
+
+func maybe_header(flag: bool): Header? {
+    if flag {
+        return Header{ tag: 4, ok: true, code: 10, len: 4 }
+    }
+    return none
+}
+
+func maybe_triple(flag: bool): Triple? {
+    if flag {
+        return Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 }
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(53),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_constant_indices() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
     let source = project.write_source(

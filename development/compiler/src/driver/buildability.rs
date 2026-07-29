@@ -1338,7 +1338,7 @@ fn collect_otherwise_binding_initializer_diagnostics(
 
 fn collect_otherwise_assignment_value_diagnostics(
     expression: &OtherwiseExpr,
-    assignment_fixed_array_type: Option<&TypeExpr>,
+    assignment_aggregate_type: Option<&TypeExpr>,
     assignment_is_scalar_or_view: bool,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
@@ -1391,7 +1391,7 @@ fn collect_otherwise_assignment_value_diagnostics(
     );
     collect_otherwise_value_fallback_block_diagnostics(
         &expression.fallback,
-        assignment_fixed_array_type,
+        assignment_aggregate_type,
         assignment_is_scalar_or_view,
         return_type,
         sources,
@@ -1640,7 +1640,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
 
 fn collect_otherwise_value_fallback_block_diagnostics(
     block: &Block,
-    fixed_array_type: Option<&TypeExpr>,
+    expected_aggregate_type: Option<&TypeExpr>,
     result_is_scalar_or_view: bool,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
@@ -1691,7 +1691,7 @@ fn collect_otherwise_value_fallback_block_diagnostics(
     if let Some(result) = &block.result {
         if fixed_array_literal_for_type_is_buildable(
             result,
-            fixed_array_type,
+            expected_aggregate_type,
             resolved,
             resolved_sources,
         ) {
@@ -3074,21 +3074,43 @@ fn fixed_array_assignment_target_type_expr(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<TypeExpr> {
-    let ty = match unwrap_group_expr(target) {
-        Expr::Identifier(identifier) => local_identifier_type_expr_with_substitutions(
+    let ty = assignment_target_type_expr(target, resolved, typecheck_facts, generic_substitutions)?;
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
+    Some(ty)
+}
+
+fn aggregate_assignment_target_type_expr(
+    target: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let ty = assignment_target_type_expr(target, resolved, typecheck_facts, generic_substitutions)?;
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
+        .then_some(ty)
+}
+
+fn assignment_target_type_expr(
+    target: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    match unwrap_group_expr(target) {
+        Expr::Identifier(identifier) => Some(local_identifier_type_expr_with_substitutions(
             identifier,
             resolved,
             typecheck_facts,
             generic_substitutions,
-        )?,
+        )?),
         Expr::Member(member) => {
             let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
-            substitute_type_expr_parameters(&ty, generic_substitutions)
+            Some(substitute_type_expr_parameters(&ty, generic_substitutions))
         }
-        _ => return None,
-    };
-    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)?;
-    Some(ty)
+        _ => None,
+    }
 }
 
 fn fixed_array_binding_type_abi(
@@ -4374,7 +4396,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
-            let assignment_fixed_array_type = fixed_array_assignment_target_type_expr(
+            let assignment_aggregate_type = aggregate_assignment_target_type_expr(
                 &statement.target,
                 resolved,
                 resolved_sources,
@@ -4389,11 +4411,11 @@ fn collect_statement_diagnostics(
                 generic_substitutions,
             );
             if let Expr::Otherwise(otherwise) = unwrap_group_expr(&statement.value)
-                && (assignment_is_scalar_or_view || assignment_fixed_array_type.is_some())
+                && (assignment_is_scalar_or_view || assignment_aggregate_type.is_some())
             {
                 collect_otherwise_assignment_value_diagnostics(
                     otherwise,
-                    assignment_fixed_array_type.as_ref(),
+                    assignment_aggregate_type.as_ref(),
                     assignment_is_scalar_or_view,
                     return_type,
                     sources,
@@ -9846,6 +9868,80 @@ func make_values(): [i32; 3] {
 
 func sum(values: [i32; 3]): i32 {
     return values[0] + values[1] + values[2]
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_aggregate_optional_otherwise_assignment_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: i32
+    second: i32
+    third: i32
+    fourth: i32
+    fifth: i32
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+}
+
+func main(): i32 {
+    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
+    let fallback = Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
+    var packet = Packet{
+        prefix: 5,
+        header: Header{ tag: 3, ok: false, code: 3, len: 3 },
+        triple: Triple{ first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
+    }
+    header = maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    packet.header = maybe_header(true) otherwise { Header{ tag: 9, ok: false, code: 90, len: 9 } }
+    packet.triple = maybe_triple(false) otherwise { fallback }
+    let returned = assign_with_return_fallback()
+    return header_score(header) + header_score(packet.header) + triple_score(packet.triple) + returned + packet.prefix
+}
+
+func assign_with_return_fallback(): i32 {
+    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
+    header = maybe_header(false) otherwise { return 19 }
+    return header.code
+}
+
+func header_score(header: Header): i32 {
+    return header.code
+}
+
+func triple_score(triple: Triple): i32 {
+    return triple.second + triple.fifth
+}
+
+func maybe_header(flag: bool): Header? {
+    if flag {
+        return Header{ tag: 4, ok: true, code: 10, len: 4 }
+    }
+    return none
+}
+
+func maybe_triple(flag: bool): Triple? {
+    if flag {
+        return Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 }
+    }
+    return none
 }
 "#,
         );
