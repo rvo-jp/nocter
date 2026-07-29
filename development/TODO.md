@@ -65,8 +65,9 @@ Recommended order:
   literal/copy/call-result assignment, fixed array value parameters including
   zero-length values, direct fixed array literal value arguments including
   zero-length literal arguments, matching fixed array call-result bindings
-  including zero-length results, and direct literal/local/call-result/field
-  fixed array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
+  including zero-length results, optional-call `otherwise` fixed array bindings
+  and returns, and direct literal/local/call-result/field fixed array returns
+  including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build
   and run for local and aggregate-field fixed arrays in the same element subset,
   plus constant and variable numeric index compound assignment for `i32`, `u8`,

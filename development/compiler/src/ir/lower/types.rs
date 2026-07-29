@@ -83,6 +83,56 @@ where
     )
 }
 
+pub(super) fn top_level_optional_success_abi_value_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<AbiValue>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    top_level_optional_success_abi_value_inner(
+        ty,
+        fallback_resolved,
+        &resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn top_level_optional_success_abi_value_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<AbiValue>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Optional(optional) => {
+            abi_value_from_type_expr_with_resolver(&optional.inner, fallback_resolved, resolver)
+                .ok()
+        }
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = top_level_optional_success_abi_value_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
+}
+
 fn return_type_expr_is_top_level_optional_inner<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,

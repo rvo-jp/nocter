@@ -17293,6 +17293,90 @@ func make_fallible_empty(): [u8; 0]! {
 }
 
 #[test]
+fn lowers_fixed_array_optional_otherwise_binding_and_return() {
+    let source = r#"func main(): i32 {
+    let fallback: [i32; 2] = [1, 2]
+    let values: [i32; 2] = maybe_pair() otherwise { fallback }
+    return values[0] + values[1]
+}
+
+func choose(): [i32; 2] {
+    return maybe_pair() otherwise { [20, 22] }
+}
+
+func maybe_pair(): [i32; 2]? {
+    return none
+}
+"#;
+    let layout = ValueLayout::new(8, 4);
+    let pair_type = Type::DirectAggregate { layout, words: 1 };
+
+    let main = lower_named_function_with_signatures(
+        source,
+        "main",
+        function_signatures(vec![(
+            "maybe_pair",
+            Type::Fallible(Box::new(pair_type.clone())),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    let Some(Instruction::CallFallibleDirectAggregate {
+        destination,
+        target,
+        arguments,
+        layout: call_layout,
+        failure_mode: FallibleFailureMode::Recover { instructions },
+    }) = main
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+    else {
+        panic!("{main:?}");
+    };
+    assert_eq!(*destination, AggregateLocation::Slot(1));
+    assert_eq!(*target, CallTarget::same_file("maybe_pair"));
+    assert!(arguments.is_empty());
+    assert_eq!(*call_layout, layout);
+    assert!(instructions.contains(&Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(1),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(0),
+        source_offset: 0,
+        layout,
+    }));
+
+    let choose = lower_named_function_with_signatures(
+        source,
+        "choose",
+        function_signatures(vec![(
+            "maybe_pair",
+            Type::Fallible(Box::new(pair_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        choose.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::DirectReturn,
+                target,
+                arguments,
+                layout: call_layout,
+                failure_mode: FallibleFailureMode::Handle { instructions },
+            } if *target == CallTarget::same_file("maybe_pair")
+                && arguments.is_empty()
+                && *call_layout == layout
+                && instructions.contains(&Instruction::Return)
+        )),
+        "{choose:?}"
+    );
+}
+
+#[test]
 fn lowers_fixed_array_literal_value_arguments() {
     let source = r#"func main(): i32 {
     let answer: i32 = consume([20, 22], ["bad", "Nocter", "lang"], [])

@@ -39,7 +39,7 @@ use super::functions::{
 use super::literals::{lower_u16_literal, lower_u32_literal};
 use super::types::{
     return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr,
-    view_element_type_from_type_expr,
+    top_level_optional_success_abi_value_with_resolver, view_element_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
@@ -54,6 +54,7 @@ use crate::ir::{
     I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
     SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use crate::resolve::ResolveOutput;
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
 #[derive(Clone, Copy)]
@@ -543,6 +544,10 @@ fn lower_otherwise_aggregate_binding(
     if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Ok(None);
     }
+    let success_abi_value =
+        top_level_optional_success_abi_value_with_resolver(&return_type, resolved, |source| {
+            context.resolved_source(source)
+        });
 
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
@@ -562,7 +567,9 @@ fn lower_otherwise_aggregate_binding(
     let failure_mode = lower_otherwise_aggregate_failure_mode(
         &otherwise.fallback,
         layout,
+        success_abi_value.as_ref().map(|value| &value.ty),
         AggregateLocation::Slot(slot_index),
+        resolved,
         context,
         loop_control,
     )?;
@@ -585,7 +592,9 @@ fn lower_otherwise_aggregate_binding(
 fn lower_otherwise_aggregate_failure_mode(
     fallback: &Block,
     layout: ValueLayout,
+    expected_abi_type: Option<&AbiType>,
     destination: AggregateLocation,
+    resolved: &ResolveOutput,
     context: &LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
@@ -594,6 +603,21 @@ fn lower_otherwise_aggregate_failure_mode(
         context,
         loop_control,
         |expression, context| {
+            if let Expr::ArrayLiteral(literal) = unwrap_group(expression) {
+                let Some(expected_abi_type) = expected_abi_type else {
+                    return Err(unsupported_assignment_diagnostic());
+                };
+                return lower_aggregate_array_literal_to_location(
+                    literal,
+                    expected_abi_type,
+                    layout,
+                    destination,
+                    "E8008",
+                    "`otherwise` binding fallbacks",
+                    resolved,
+                    context,
+                );
+            }
             lower_aggregate_member_value_assignment(destination, 0, layout, expression, context)
         },
         "IR v0 can only lower aggregate `otherwise` fallback blocks with supported aggregate values or exits",

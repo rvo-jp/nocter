@@ -7341,6 +7341,52 @@ func make_fallible_empty(): [u8; 0]! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_fixed_array_optional_otherwise_values() {
+    let project = TempProject::new("cli-run-fixed-array-optional-otherwise-values");
+    let source = project.write_source(
+        "fixed_array_optional_otherwise_values.nct",
+        r#"func main(): i32 {
+    let fallback: [i32; 3] = [4, 5, 6]
+    let success: [i32; 3] = maybe_values(true) otherwise { [7, 8, 9] }
+    let recovered: [i32; 3] = maybe_values(false) otherwise { fallback }
+    let returned: [i32; 3] = choose(false)
+    return sum(success) + sum(recovered) + sum(returned)
+}
+
+func choose(flag: bool): [i32; 3] {
+    return maybe_values(flag) otherwise { make_values() }
+}
+
+func maybe_values(flag: bool): [i32; 3]? {
+    if flag {
+        return [1, 2, 3]
+    }
+    return none
+}
+
+func make_values(): [i32; 3] {
+    return [10, 11, 12]
+}
+
+func sum(values: [i32; 3]): i32 {
+    return values[0] + values[1] + values[2]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(54),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_constant_indices() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
     let source = project.write_source(

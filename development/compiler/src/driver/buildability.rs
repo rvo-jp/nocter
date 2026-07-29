@@ -1252,6 +1252,7 @@ fn collect_otherwise_return_expression_diagnostics(
 fn collect_otherwise_binding_initializer_diagnostics(
     expression: &OtherwiseExpr,
     binding_is_scalar_or_view: bool,
+    binding_fixed_array_type: Option<&TypeExpr>,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
@@ -1304,6 +1305,7 @@ fn collect_otherwise_binding_initializer_diagnostics(
     collect_otherwise_binding_fallback_block_diagnostics(
         &expression.fallback,
         binding_is_scalar_or_view,
+        binding_fixed_array_type,
         return_type,
         sources,
         resolved,
@@ -1414,6 +1416,7 @@ fn collect_otherwise_return_fallback_block_diagnostics(
 fn collect_otherwise_binding_fallback_block_diagnostics(
     block: &Block,
     binding_is_scalar_or_view: bool,
+    binding_fixed_array_type: Option<&TypeExpr>,
     return_type: Option<&TypeExpr>,
     sources: &SourceMap,
     resolved: &ResolveOutput,
@@ -1461,7 +1464,26 @@ fn collect_otherwise_binding_fallback_block_diagnostics(
         );
     }
     if let Some(result) = &block.result {
-        if binding_is_scalar_or_view {
+        if fixed_array_literal_for_type_is_buildable(
+            result,
+            binding_fixed_array_type,
+            resolved,
+            resolved_sources,
+        ) {
+            collect_fixed_array_literal_elements_diagnostics(
+                unwrap_group_expr(result),
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        } else if binding_is_scalar_or_view {
             collect_value_expression_diagnostics(
                 result,
                 return_type,
@@ -2176,6 +2198,24 @@ fn fixed_array_literal_return_is_buildable(
     };
     let Some((element, length, _layout)) =
         return_type.and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_element_abi_is_buildable(&element)
+}
+
+fn fixed_array_literal_for_type_is_buildable(
+    expression: &Expr,
+    ty: Option<&TypeExpr>,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
+        return false;
+    };
+    let Some((element, length, _layout)) =
+        ty.and_then(|ty| fixed_array_type_abi_for_sources(ty, resolved, resolved_sources))
     else {
         return false;
     };
@@ -3858,10 +3898,19 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
+            let binding_type_expr = binding_type_expr_with_substitutions(
+                statement,
+                typecheck_facts,
+                generic_substitutions,
+            );
+            let binding_fixed_array_type = binding_type_expr.as_ref().and_then(|ty| {
+                fixed_array_type_abi_for_sources(ty, resolved, resolved_sources).map(|_| ty)
+            });
             if let Expr::Otherwise(expression) = unwrap_group_expr(&statement.initializer) {
                 collect_otherwise_binding_initializer_diagnostics(
                     expression,
                     binding_is_scalar_or_view,
+                    binding_fixed_array_type,
                     return_type,
                     sources,
                     resolved,
