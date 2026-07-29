@@ -1,3 +1,4 @@
+use super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::context::{
     AggregateField, AggregateFieldKind, LoweringContext, SliceTypeInfo,
     drop_glue_for_type_expr_with_resolver,
@@ -1077,6 +1078,17 @@ fn lower_aggregate_field_to_location(
                         lower_catch_failure_mode(catch, context, 0)?,
                     )
                 }
+                Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
+                    destination,
+                    offset,
+                    expected_layout,
+                    Some(field_type),
+                    otherwise,
+                    context,
+                )
+                .map_err(|_| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                }),
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(
                     expression,
                     expected_layout,
@@ -1256,6 +1268,17 @@ fn lower_aggregate_field_to_location(
                         lower_catch_failure_mode(catch, context, 0)?,
                     )
                 }
+                Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
+                    destination,
+                    offset,
+                    expected_layout,
+                    Some(field_type),
+                    otherwise,
+                    context,
+                )
+                .map_err(|_| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                }),
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(
                     expression,
                     expected_layout,

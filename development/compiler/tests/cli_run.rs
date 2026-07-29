@@ -11804,6 +11804,115 @@ func maybe_pair(flag: bool): [i32; 2]? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_aggregate_optional_otherwise_struct_literal_fields() {
+    let project = TempProject::new("cli-run-aggregate-optional-otherwise-fields");
+    let source = project.write_source(
+        "aggregate_optional_otherwise_fields.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+copy struct Packet {
+    left: i32
+    header: Header
+    triple: Triple
+    pair: [i32; 2]
+}
+
+func main(): i32 {
+    let fallback_packet = make_packet(false)
+    let success_packet = make_packet(true)
+    let returned = field_return_fallback()
+    return score(fallback_packet) + score(success_packet) + returned
+}
+
+func make_packet(flag: bool): Packet {
+    let fallback = Triple{ first: 2, second: 8, third: 4 }
+    return Packet{
+        left: 1,
+        header: maybe_header(flag) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } },
+        triple: maybe_triple(flag) otherwise { fallback },
+        pair: maybe_pair(flag) otherwise { [3, 4] },
+    }
+}
+
+func field_return_fallback(): i32 {
+    let fallback = Triple{ first: 2, second: 8, third: 4 }
+    let packet = Packet{
+        left: 0,
+        header: maybe_header(false) otherwise { return 5 },
+        triple: maybe_triple(true) otherwise { fallback },
+        pair: maybe_pair(true) otherwise { [0, 0] },
+    }
+    return score(packet)
+}
+
+func score(packet: Packet): i32 {
+    return packet.left + header_score(packet.header) + triple_score(packet.triple) + packet.pair[0] + packet.pair[1]
+}
+
+func header_score(header: Header): i32 {
+    if header.ok {
+        return header.code
+    }
+    return header.code + (header.tag as i32)
+}
+
+func triple_score(triple: Triple): i32 {
+    if triple.second == 11 {
+        return 11
+    }
+    if triple.second == 8 {
+        return 8
+    }
+    return 1
+}
+
+func maybe_header(flag: bool): Header? {
+    if flag {
+        return Header{ tag: 3, ok: true, code: 10, len: 1 }
+    }
+    return none
+}
+
+func maybe_triple(flag: bool): Triple? {
+    if flag {
+        return Triple{ first: 1, second: 11, third: 3 }
+    }
+    return none
+}
+
+func maybe_pair(flag: bool): [i32; 2]? {
+    if flag {
+        return [6, 6]
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(63),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_scalar_otherwise_bindings_exit_code() {
     let project = TempProject::new("cli-run-optional-scalar-otherwise-bindings");
     let source = project.write_source(

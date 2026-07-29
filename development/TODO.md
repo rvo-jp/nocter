@@ -67,8 +67,8 @@ Recommended order:
   arguments including
   zero-length literal arguments, matching fixed array call-result bindings
   including zero-length results, optional-call `otherwise` fixed array bindings,
-  value arguments, assignments, and returns, and direct
-  literal/local/call-result/field fixed
+  value arguments, aggregate-field initializers, assignments, and returns, and
+  direct literal/local/call-result/field fixed
   array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build
   and run for local and aggregate-field fixed arrays in the same element subset,
@@ -132,10 +132,10 @@ Recommended order:
   `if` inside a catch block, before IR lowering with E0435.
 - Runtime `otherwise` is now explicitly gated to direct optional-returning calls
   in supported scalar/view value, binding, scalar/view assignment, and return
-  positions; supported aggregate/fixed-array binding, argument, and return
-  positions; and fixed-array assignment positions. Nested/general expression
-  positions and broader fallback terminal-control shapes reject before IR
-  lowering with E0435.
+  positions; supported aggregate/fixed-array binding, argument,
+  aggregate-field initializer, and return positions; and fixed-array assignment
+  positions. Nested/general expression positions and broader fallback
+  terminal-control shapes reject before IR lowering with E0435.
 - i32 unary negation now lowers as checked `0 - value` for non-literal operands;
   negative integer literals still use the existing constant-literal path.
 - Public `std/ptr.from_ref_mut` address conversion is now covered by CLI build,

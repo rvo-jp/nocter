@@ -1476,9 +1476,9 @@ fn collect_otherwise_scalar_view_value_expression_diagnostics(
     );
 }
 
-fn collect_otherwise_aggregate_argument_value_diagnostics(
+fn collect_otherwise_aggregate_value_expression_diagnostics(
     expression: &OtherwiseExpr,
-    parameter_type: &TypeExpr,
+    expected_type: &TypeExpr,
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
@@ -1509,8 +1509,8 @@ fn collect_otherwise_aggregate_argument_value_diagnostics(
         diagnostics.push(unsupported_v0_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 aggregate argument subset",
-            "end runtime-shipped aggregate argument `otherwise` fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
+            "`otherwise` fallback blocks outside the v0 aggregate value subset",
+            "end runtime-shipped aggregate `otherwise` fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
 
@@ -1529,7 +1529,7 @@ fn collect_otherwise_aggregate_argument_value_diagnostics(
     );
     collect_otherwise_value_fallback_block_diagnostics(
         &expression.fallback,
-        Some(parameter_type),
+        Some(expected_type),
         false,
         None,
         sources,
@@ -2164,6 +2164,23 @@ fn otherwise_aggregate_argument_parameter_type(
         typecheck_facts,
         generic_substitutions,
     )?;
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
+        .then_some(ty)
+}
+
+fn otherwise_aggregate_struct_field_type(
+    field: &StructLiteralField,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let Expr::Otherwise(_) = unwrap_group_expr(&field.value) else {
+        return None;
+    };
+    let ty = field_type_expr_for_span(field.name_span, resolved, typecheck_facts)?;
+    let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
     let source_resolver = |source| resolved_sources.get(&source).copied();
     type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
         .then_some(ty)
@@ -7159,6 +7176,30 @@ fn collect_expression_diagnostics(
                         queue,
                         diagnostics,
                     );
+                } else if let Some(field_type) = otherwise_aggregate_struct_field_type(
+                    field,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    let Expr::Otherwise(otherwise) = unwrap_group_expr(&field.value) else {
+                        unreachable!("aggregate otherwise field helper checked expression shape");
+                    };
+                    collect_otherwise_aggregate_value_expression_diagnostics(
+                        otherwise,
+                        &field_type,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        resolved_sources,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
                 } else if struct_literal_field_may_use_value_control_expression(
                     field.name_span,
                     typecheck_facts,
@@ -7462,7 +7503,7 @@ fn collect_expression_diagnostics(
                             "aggregate otherwise argument helper checked expression shape"
                         );
                     };
-                    collect_otherwise_aggregate_argument_value_diagnostics(
+                    collect_otherwise_aggregate_value_expression_diagnostics(
                         otherwise,
                         &parameter_type,
                         sources,
@@ -7603,8 +7644,8 @@ fn collect_expression_diagnostics(
             diagnostics.push(unsupported_v0_build_diagnostic(
                 sources,
                 expression.span,
-                "`otherwise` expressions outside direct scalar/view value, aggregate argument, binding, assignment, or return positions",
-                "use `otherwise` directly as a scalar/view value, aggregate argument, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
+                "`otherwise` expressions outside direct scalar/view value, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
+                "use `otherwise` directly as a scalar/view value, aggregate argument, aggregate field initializer, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
             ));
             collect_expression_diagnostics(
                 &expression.value,
@@ -10141,7 +10182,7 @@ func source(): i32? {
         assert_eq!(diagnostics[0].code, "E0435");
         assert_eq!(
             diagnostics[0].message,
-            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate argument, binding, assignment, or return positions yet"
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate argument, aggregate field initializer, binding, assignment, or return positions yet"
         );
     }
 

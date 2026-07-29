@@ -24136,6 +24136,200 @@ func maybe_pair(flag: bool): [i32; 2]? {
 }
 
 #[test]
+fn lowers_optional_aggregate_otherwise_struct_literal_fields() {
+    let header_layout = ValueLayout::new(16, 8);
+    let triple_layout = ValueLayout::new(24, 8);
+    let pair_layout = ValueLayout::new(8, 4);
+    let packet_layout = ValueLayout::new(56, 8);
+    let header_type = Type::DirectAggregate {
+        layout: header_layout,
+        words: 2,
+    };
+    let triple_type = Type::Aggregate {
+        layout: triple_layout,
+    };
+    let pair_type = Type::DirectAggregate {
+        layout: pair_layout,
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+copy struct Packet {
+    prefix: i32
+    header: Header
+    triple: Triple
+    pair: [i32; 2]
+}
+
+func main(): i32 {
+    let fallback = Triple{ first: 2, second: 8, third: 4 }
+    let packet = Packet{
+        prefix: 1,
+        header: maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } },
+        triple: maybe_triple(false) otherwise { fallback },
+        pair: maybe_pair(false) otherwise { [3, 4] },
+    }
+    return packet.header.code + packet.pair[1]
+}
+
+func maybe_header(flag: bool): Header? {
+    return none
+}
+
+func maybe_triple(flag: bool): Triple? {
+    return none
+}
+
+func maybe_pair(flag: bool): [i32; 2]? {
+    return none
+}
+"#,
+        "main",
+        function_signatures(vec![
+            (
+                "maybe_header",
+                Type::Fallible(Box::new(header_type.clone())),
+                vec![Type::Bool],
+            ),
+            (
+                "maybe_triple",
+                Type::Fallible(Box::new(triple_type.clone())),
+                vec![Type::Bool],
+            ),
+            (
+                "maybe_pair",
+                Type::Fallible(Box::new(pair_type.clone())),
+                vec![Type::Bool],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: packet_layout,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(2),
+                target: CallTarget::same_file("maybe_header"),
+                arguments: vec![ScalarArgument::Bool(BoolValue::Const(false))],
+                layout: header_layout,
+                failure_mode: FallibleFailureMode::Recover {
+                    instructions: vec![
+                        Instruction::StoreAggregateU8 {
+                            destination: AggregateLocation::Slot(2),
+                            offset: 0,
+                            value: u8_const(1),
+                        },
+                        Instruction::StoreAggregateBool {
+                            destination: AggregateLocation::Slot(2),
+                            offset: 1,
+                            value: BoolValue::Const(false),
+                        },
+                        Instruction::StoreAggregateI32 {
+                            destination: AggregateLocation::Slot(2),
+                            offset: 4,
+                            value: i32_const(7),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Slot(2),
+                            offset: 8,
+                            value: usize_const(2),
+                        },
+                    ],
+                },
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(2),
+                source_offset: 0,
+                layout: header_layout,
+            })
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallFallibleAggregate {
+            destination: AggregateLocation::Slot(3),
+            target,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+            ..
+        } if target == &CallTarget::same_file("maybe_triple")
+            && instructions.contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(3),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: triple_layout,
+            })
+    )));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 24,
+                source: AggregateLocation::Slot(3),
+                source_offset: 0,
+                layout: triple_layout,
+            })
+    );
+
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallFallibleDirectAggregate {
+            destination: AggregateLocation::Slot(4),
+            target,
+            layout,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+            ..
+        } if target == &CallTarget::same_file("maybe_pair")
+            && *layout == pair_layout
+            && instructions.contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(4),
+                offset: 4,
+                value: i32_const(4),
+            })
+    )));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 48,
+                source: AggregateLocation::Slot(4),
+                source_offset: 0,
+                layout: pair_layout,
+            })
+    );
+}
+
+#[test]
 fn lowers_fallible_aggregate_force_unwrap_member_binding_as_trapping_fallible_call() {
     let packet_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),
