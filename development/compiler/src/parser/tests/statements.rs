@@ -1,4 +1,4 @@
-use super::support::{assert_rejects_discard_name, parse_text};
+use super::support::{assert_rejects_discard_name, assert_rejects_self_name, parse_text};
 use crate::ast::{AssignmentOperator, Expr, Item, Stmt};
 
 #[test]
@@ -72,6 +72,38 @@ fn rejects_discard_name_for_statement_bindings() {
 "#,
     ] {
         assert_rejects_discard_name(source);
+    }
+}
+
+#[test]
+fn rejects_self_name_for_statement_bindings() {
+    for source in [
+        r#"func main(): i32 {
+    let Self = 1
+    return 0
+}
+"#,
+        r#"func main(): void {
+    drop Self
+    return
+}
+"#,
+        r#"func main(): i32 {
+    for Self in 0..<1 {
+        return 0
+    }
+    return 0
+}
+"#,
+        r#"func main(choice: Choice): i32 {
+    return match choice {
+        Choice.some(Self) { 1 }
+        else { 0 }
+    }
+}
+"#,
+    ] {
+        assert_rejects_self_name(source);
     }
 }
 

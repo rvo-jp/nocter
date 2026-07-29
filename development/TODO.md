@@ -60,9 +60,9 @@ Recommended order:
 
 ## Recent Notes
 
-- Parser diagnostics now reject the reserved single `_` name across v0
-  name-introducing syntax, including declarations, parameters, local bindings,
-  payload bindings, import-introduced names, and import aliases.
+- Parser diagnostics now reject the reserved `_` and `Self` spellings across
+  v0 name-introducing syntax, including declarations, parameters, local
+  bindings, payload bindings, import-introduced names, and import aliases.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

@@ -1,5 +1,6 @@
 use super::support::{
-    assert_rejects_discard_name, find_json_node, parse_text, parse_text_with_sources,
+    assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
+    parse_text_with_sources,
 };
 use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
 
@@ -181,6 +182,65 @@ impl Counter {
 "#,
     ] {
         assert_rejects_discard_name(source);
+    }
+}
+
+#[test]
+fn rejects_self_name_for_item_declarations_and_imports() {
+    for source in [
+        "use std/io as Self\n",
+        "use std/io.Self\n",
+        "use std/io.print as Self\n",
+        r#"func Self(): i32 {
+    return 0
+}
+"#,
+        r#"func Owner.Self(): i32 {
+    return 0
+}
+"#,
+        "primitive Self(): i32\n",
+        "type Self = i32\n",
+        r#"struct Self {
+    value: i32
+}
+"#,
+        r#"struct Pair {
+    Self: i32
+}
+"#,
+        r#"enum Self {
+    ready
+}
+"#,
+        r#"enum Status {
+    Self
+}
+"#,
+        r#"interface Self {
+    pub method &self.ready(): bool
+}
+"#,
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    method &self.Self(): i32 {
+        return 0
+    }
+}
+"#,
+        r#"func generic<Self>(): i32 {
+    return 0
+}
+"#,
+        r#"func consume(Self: i32): i32 {
+    return 0
+}
+"#,
+    ] {
+        assert_rejects_self_name(source);
     }
 }
 

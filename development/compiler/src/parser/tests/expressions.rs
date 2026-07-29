@@ -1,5 +1,6 @@
 use super::support::{
-    assert_rejects_discard_name, find_json_node, parse_text, parse_text_with_sources,
+    assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
+    parse_text_with_sources,
 };
 use crate::ast::{
     BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr, UnaryOperator,
@@ -61,6 +62,20 @@ fn rejects_discard_name_for_catch_binding() {
     assert_rejects_discard_name(
         r#"func main(): i32 {
     maybe() catch _ {
+        return 1
+    }
+
+    return 0
+}
+"#,
+    );
+}
+
+#[test]
+fn rejects_self_name_for_catch_binding() {
+    assert_rejects_self_name(
+        r#"func main(): i32 {
+    maybe() catch Self {
         return 1
     }
 

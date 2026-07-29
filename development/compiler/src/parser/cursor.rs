@@ -24,11 +24,8 @@ impl Parser<'_> {
         message: &str,
     ) -> ParseResult<ParsedIdentifier> {
         let identifier = self.expect_identifier(message)?;
-        if identifier.value == "_" {
-            self.error_at(
-                identifier.span,
-                "`_` is reserved for future discard or wildcard syntax and cannot be used as a name in v0",
-            );
+        if let Some(message) = reserved_name_diagnostic(&identifier.value) {
+            self.error_at(identifier.span, message);
             return Err(());
         }
 
@@ -486,5 +483,17 @@ impl Parser<'_> {
         let mut diagnostic = Diagnostic::error("E0200", message);
         diagnostic.primary_span = primary_span;
         self.diagnostics.push(diagnostic);
+    }
+}
+
+fn reserved_name_diagnostic(name: &str) -> Option<&'static str> {
+    match name {
+        "_" => Some(
+            "`_` is reserved for future discard or wildcard syntax and cannot be used as a name in v0",
+        ),
+        "Self" => {
+            Some("`Self` is reserved as contextual type syntax and cannot be used as a name in v0")
+        }
+        _ => None,
     }
 }
