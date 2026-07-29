@@ -1090,6 +1090,124 @@ pub(nocter) func Raw.secret(): i32 {
 }
 
 #[test]
+fn check_reports_nocter_visibility_declaration_outside_nocter_home() {
+    let root = make_temp_project("nocter-visibility-user-declaration");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"pub(nocter) func hidden_func(): i32 {
+    return 1
+}
+
+pub(nocter) type HiddenAlias = i32
+
+pub(nocter) copy struct HiddenStruct {
+    value: i32
+}
+
+pub struct PublicStruct {
+    pub(nocter) value: i32
+}
+
+pub(nocter) enum HiddenEnum {
+    one
+}
+
+pub(nocter) interface HiddenInterface {
+    pub method &self.value(): i32
+}
+
+pub(nocter) func PublicStruct.hidden_associated(): i32 {
+    return 2
+}
+
+impl PublicStruct {
+    pub(nocter) method &self.hidden_method(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 8, "{diagnostics:?}");
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code == "E0420"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.message.contains("pub(nocter)")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_allows_nocter_visibility_declaration_inside_nocter_home() {
+    let root = make_temp_project("nocter-visibility-home-declaration");
+    let home = make_nocter_home(&root);
+    fs::write(
+        home.join("std/app.nct"),
+        r#"pub(nocter) func hidden_func(): i32 {
+    return 1
+}
+
+pub(nocter) type HiddenAlias = i32
+
+pub(nocter) copy struct HiddenStruct {
+    value: i32
+}
+
+pub struct PublicStruct {
+    pub(nocter) value: i32
+}
+
+pub(nocter) enum HiddenEnum {
+    one
+}
+
+pub(nocter) interface HiddenInterface {
+    pub method &self.value(): i32
+}
+
+pub(nocter) func PublicStruct.hidden_associated(): i32 {
+    return 2
+}
+
+impl PublicStruct {
+    pub(nocter) method &self.hidden_method(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(home.join("std/app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_rejects_primitive_declaration_outside_nocter_home_std() {
     let root = make_temp_project("user-primitive");
     let home = make_nocter_home(&root);
@@ -1110,6 +1228,34 @@ func main(): i32 {
     fs::remove_dir_all(&root).unwrap();
 
     assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0414");
+    assert!(
+        diagnostics[0].message.contains("primitive"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_reports_nocter_primitive_outside_nocter_home_as_primitive_boundary() {
+    let root = make_temp_project("user-nocter-primitive");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"pub(nocter) primitive new_error(code: &str, message: &str): error
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0414");
     assert!(
         diagnostics[0].message.contains("primitive"),

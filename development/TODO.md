@@ -60,6 +60,10 @@ Recommended order:
 
 ## Recent Notes
 
+- Frontend validation now rejects non-primitive `pub(nocter)` declarations
+  outside the active Nocter home across top-level definitions, struct fields,
+  and impl methods. `pub(nocter) primitive` declarations still report through
+  the primitive Nocter-home boundary so registry diagnostics stay distinct.
 - Fixed array ABI layout/classification is implemented. Runtime currently ships
   local fixed array literals, including zero-length literal bindings,
   aggregate-field fixed array literals, local copy bindings including

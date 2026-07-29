@@ -133,6 +133,22 @@ pub(super) fn primitive_outside_nocter_home_diagnostic(
     diagnostic
 }
 
+pub(super) fn nocter_visibility_outside_nocter_home_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0420",
+        "`pub(nocter)` declarations are allowed only inside the active Nocter home",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "use `pub` for public project API, omit `pub` for module-private API, or move the declaration inside the active Nocter home"
+            .to_string(),
+    );
+    diagnostic
+}
+
 pub(super) fn primitive_registry_diagnostic(
     sources: &SourceMap,
     span: ByteSpan,

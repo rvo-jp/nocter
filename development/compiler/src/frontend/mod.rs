@@ -9,18 +9,18 @@ mod prelude;
 mod tests;
 
 use crate::analysis::CompileUnit;
-use crate::ast::{AstFile, Item};
+use crate::ast::{AstFile, ImplMember, Item, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSource, ImportSourceMap, PreludeSourceMap};
-use crate::source::{SourceId, SourceMap};
+use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use diagnostics::{
-    import_source_diagnostic, primitive_outside_nocter_home_diagnostic,
-    primitive_registry_diagnostic,
+    import_source_diagnostic, nocter_visibility_outside_nocter_home_diagnostic,
+    primitive_outside_nocter_home_diagnostic, primitive_registry_diagnostic,
 };
 use imports::{
     active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
@@ -76,6 +76,14 @@ pub(crate) fn load_compile_unit(
         };
 
         filter_target_items(&mut ast, &options.target);
+
+        diagnostics.extend(validate_nocter_visibility_declarations(
+            sources,
+            source,
+            &ast,
+            options,
+            &mut resolved_nocter_home,
+        ));
 
         diagnostics.extend(validate_primitive_declarations(
             sources,
@@ -266,6 +274,91 @@ fn filter_target_items(ast: &mut AstFile, target: &str) {
             .is_none_or(|directive| directive.target == target),
         _ => true,
     });
+}
+
+fn validate_nocter_visibility_declarations(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &AstFile,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Vec<Diagnostic> {
+    let spans = nocter_visibility_declaration_spans(ast);
+    if spans.is_empty()
+        || source_is_inside_active_nocter_home(sources, source, options, resolved_nocter_home)
+    {
+        return Vec::new();
+    }
+
+    spans
+        .into_iter()
+        .map(|span| nocter_visibility_outside_nocter_home_diagnostic(sources, span))
+        .collect()
+}
+
+fn nocter_visibility_declaration_spans(ast: &AstFile) -> Vec<ByteSpan> {
+    let mut spans = Vec::new();
+
+    for item in &ast.items {
+        match item {
+            Item::Function(function) if function.visibility == Visibility::Nocter => {
+                spans.push(function.span);
+            }
+            Item::TypeAlias(alias) if alias.visibility == Visibility::Nocter => {
+                spans.push(alias.span);
+            }
+            Item::Struct(struct_) => {
+                if struct_.visibility == Visibility::Nocter {
+                    spans.push(struct_.span);
+                }
+                spans.extend(
+                    struct_
+                        .fields
+                        .iter()
+                        .filter(|field| field.visibility == Visibility::Nocter)
+                        .map(|field| field.span),
+                );
+            }
+            Item::Enum(enum_) if enum_.visibility == Visibility::Nocter => {
+                spans.push(enum_.span);
+            }
+            Item::Interface(interface) if interface.visibility == Visibility::Nocter => {
+                spans.push(interface.span);
+            }
+            Item::Impl(impl_) => {
+                spans.extend(impl_.members.iter().filter_map(|member| match member {
+                    ImplMember::Method(method) if method.visibility == Visibility::Nocter => {
+                        Some(method.span)
+                    }
+                    _ => None,
+                }));
+            }
+            _ => {}
+        }
+    }
+
+    spans
+}
+
+fn source_is_inside_active_nocter_home(
+    sources: &SourceMap,
+    source: SourceId,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> bool {
+    let Ok(home) = active_nocter_home(options, resolved_nocter_home) else {
+        return false;
+    };
+
+    let Some(source_path) = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return false;
+    };
+
+    source_path.starts_with(canonicalize_existing(&home))
 }
 
 fn validate_primitive_declarations(
