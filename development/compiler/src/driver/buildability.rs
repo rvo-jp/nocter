@@ -281,7 +281,12 @@ impl<'a> IndexedCallable<'a> {
             &file.resolved,
             resolved_sources,
         ));
-        issues.extend(nested_fallible_return_issue(function, &file.resolved));
+        issues.extend(nested_fallible_return_issue(
+            function,
+            &HashMap::new(),
+            &file.resolved,
+            resolved_sources,
+        ));
 
         Self {
             span: function.span,
@@ -307,15 +312,18 @@ impl<'a> IndexedCallable<'a> {
             &file.resolved,
             resolved_sources,
         ));
-        issues.extend(nested_fallible_return_issue(function, &file.resolved));
+        issues.extend(nested_fallible_return_issue(
+            function,
+            &substitutions,
+            &file.resolved,
+            resolved_sources,
+        ));
+        let return_type = substitute_type_expr_parameters(&function.return_type, &substitutions);
 
         Self {
             span: function.span,
             body: &function.body,
-            return_type: Some(substitute_type_expr_parameters(
-                &function.return_type,
-                &substitutions,
-            )),
+            return_type: Some(return_type),
             substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -339,18 +347,18 @@ impl<'a> IndexedCallable<'a> {
             &file.resolved,
             resolved_sources,
         ));
+        let return_type =
+            substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
         issues.extend(nested_fallible_return_type_issue(
-            &method.return_type,
+            &return_type,
             &file.resolved,
+            resolved_sources,
         ));
 
         Self {
             span: method.span,
             body,
-            return_type: Some(substitute_type_expr_parameters(
-                &method.return_type,
-                &contextual_substitutions,
-            )),
+            return_type: Some(return_type),
             substitutions: contextual_substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
@@ -9549,16 +9557,20 @@ fn drop_target_name(self_ty: &TypeExpr) -> String {
 
 fn nested_fallible_return_issue(
     function: &FunctionDecl,
+    substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
-    nested_fallible_return_type_issue(&function.return_type, resolved)
+    let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
+    nested_fallible_return_type_issue(&return_type, resolved, resolved_sources)
 }
 
 fn nested_fallible_return_type_issue(
     return_type: &TypeExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
-    if type_expr_fallible_depth(return_type, resolved) <= 1 {
+    if type_expr_fallible_depth(return_type, resolved, resolved_sources) <= 1 {
         return None;
     }
 
@@ -9569,17 +9581,27 @@ fn nested_fallible_return_type_issue(
     })
 }
 
-fn type_expr_fallible_depth(ty: &TypeExpr, resolved: &ResolveOutput) -> usize {
-    type_expr_fallible_depth_inner(ty, resolved, &mut HashSet::new())
+fn type_expr_fallible_depth(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> usize {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_fallible_depth_inner(ty, fallback_resolved, &source_resolver, &mut HashSet::new())
 }
 
-fn type_expr_fallible_depth_inner(
+fn type_expr_fallible_depth_inner<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> usize {
+) -> usize
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return 0;
             };
@@ -9589,15 +9611,30 @@ fn type_expr_fallible_depth_inner(
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return 0;
             }
-            let depth = type_expr_fallible_depth_inner(target, resolved, resolving_names);
+            let depth = type_expr_fallible_depth_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             depth
         }
         TypeExpr::Fallible(fallible) => {
-            1 + type_expr_fallible_depth_inner(&fallible.success, resolved, resolving_names)
+            1 + type_expr_fallible_depth_inner(
+                &fallible.success,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
         }
         TypeExpr::Optional(optional) => {
-            1 + type_expr_fallible_depth_inner(&optional.inner, resolved, resolving_names)
+            1 + type_expr_fallible_depth_inner(
+                &optional.inner,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
         }
         _ => 0,
     }

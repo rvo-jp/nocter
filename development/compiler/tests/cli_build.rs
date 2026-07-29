@@ -5233,6 +5233,56 @@ func make_value(): (i32?)! {
 }
 
 #[test]
+fn build_command_reports_specialized_nested_fallible_return_before_ir_lowering() {
+    let project = TempProject::new("cli-build-specialized-nested-fallible-return-boundary");
+    let source = project.write_source(
+        "specialized_nested_fallible_return_boundary.nct",
+        r#"func main(): i32 {
+    return consume(make(maybe_value())!)
+}
+
+func consume(item: i32?): i32 {
+    return 0
+}
+
+func maybe_value(): i32? {
+    return none
+}
+
+func make<T>(item: T): T! {
+    return item
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("nested fallible or optional return types"),
+        "expected specialized nested fallible return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("13 | func make<T>(item: T): T! {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_reachable_nested_fallible_method_return_before_ir_lowering() {
     let project = TempProject::new("cli-build-nested-fallible-method-return-boundary");
     let source = project.write_source(
@@ -5278,6 +5328,63 @@ func consume(item: i32?): i32 {
     assert!(
         !stderr.contains("error[E8007]"),
         "buildability preflight should reject before IR method lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_specialized_nested_fallible_method_return_before_ir_lowering() {
+    let project = TempProject::new("cli-build-specialized-nested-fallible-method-return-boundary");
+    let source = project.write_source(
+        "specialized_nested_fallible_method_return_boundary.nct",
+        r#"copy struct Holder<T> {
+    value: T
+}
+
+impl<T> Holder<T> {
+    pub method &self.make(): T! {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let holder = Holder<i32?> { value: maybe_value() }
+    return consume(holder.make()!)
+}
+
+func consume(item: i32?): i32 {
+    return 0
+}
+
+func maybe_value(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("nested fallible or optional return types"),
+        "expected specialized nested fallible method return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     pub method &self.make(): T! {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
