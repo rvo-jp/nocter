@@ -4,7 +4,7 @@ use super::diagnostics::{
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
     duplicate_interface_method_name_diagnostic, duplicate_parameter_name_diagnostic,
     duplicate_struct_field_name_diagnostic, duplicate_visible_name_diagnostic,
-    invalid_associated_function_owner_diagnostic,
+    invalid_associated_function_owner_diagnostic, prelude_name_collision_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -196,20 +196,38 @@ impl Resolver<'_> {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) {
-        if let Err(first_id) =
-            self.output
-                .symbols
-                .define(name.clone(), name_span, declaration_span, kind)
-            && let Some(first) = self.output.symbols.get(first_id)
+        match self
+            .output
+            .symbols
+            .define(name.clone(), name_span, declaration_span, kind)
         {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    first.name_span,
-                    name_span,
-                ));
+            Ok(id) => {
+                if self.collecting_synthetic_prelude
+                    && let Some(symbol) = self.output.symbols.get(id)
+                {
+                    self.synthetic_prelude_symbol_spans.insert(symbol.name_span);
+                }
+            }
+            Err(first_id) => {
+                if let Some(first) = self.output.symbols.get(first_id) {
+                    let diagnostic =
+                        self.duplicate_visible_symbol_diagnostic(&name, first.name_span, name_span);
+                    self.output.diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+
+    pub(super) fn duplicate_visible_symbol_diagnostic(
+        &self,
+        name: &str,
+        first_span: ByteSpan,
+        duplicate_span: ByteSpan,
+    ) -> Diagnostic {
+        if self.synthetic_prelude_symbol_spans.contains(&first_span) {
+            prelude_name_collision_diagnostic(self.sources, name, first_span, duplicate_span)
+        } else {
+            duplicate_visible_name_diagnostic(self.sources, name, first_span, duplicate_span)
         }
     }
 

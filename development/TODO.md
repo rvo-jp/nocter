@@ -60,6 +60,9 @@ Recommended order:
 
 ## Recent Notes
 
+- Resolver diagnostics now identify synthetic standard prelude name collisions
+  explicitly across top-level definitions, parameters, local bindings, and
+  block imports, instead of reporting them as ordinary hidden duplicate names.
 - Synthetic prelude loading now resolves `std/prelude.nct` directly from the
   active Nocter home, and non-relative imports inside active Nocter home files
   no longer search the user source root. User source imports still keep the

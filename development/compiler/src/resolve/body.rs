@@ -1,7 +1,7 @@
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
-    builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
-    unqualified_enum_variant_constructor_diagnostic, unresolved_identifier_diagnostic,
+    builtin_name_reuse_diagnostic, unqualified_enum_variant_constructor_diagnostic,
+    unresolved_identifier_diagnostic,
 };
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
@@ -416,23 +416,12 @@ impl Resolver<'_> {
                 .diagnostics
                 .push(builtin_name_reuse_diagnostic(self.sources, &name, span));
         } else if let Some(first_span) = scope.get(&name) {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    first_span,
-                    span,
-                ));
+            let diagnostic = self.duplicate_visible_symbol_diagnostic(&name, first_span, span);
+            self.output.diagnostics.push(diagnostic);
         } else if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    symbol.name_span,
-                    span,
-                ));
+            let diagnostic =
+                self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, span);
+            self.output.diagnostics.push(diagnostic);
         }
 
         let id = self.output.define_local_symbol(name.clone(), span, kind);
@@ -447,14 +436,9 @@ impl Resolver<'_> {
         } else if scope.get(&name).is_none()
             && let Some(symbol) = self.output.symbols.symbol_by_name(&name)
         {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    symbol.name_span,
-                    span,
-                ));
+            let diagnostic =
+                self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, span);
+            self.output.diagnostics.push(diagnostic);
         }
 
         let id = self

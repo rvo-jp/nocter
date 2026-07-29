@@ -1,8 +1,8 @@
 use super::body::Scope;
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
-    builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic, missing_import_diagnostic,
-    restricted_import_diagnostic, unloaded_import_diagnostic,
+    builtin_name_reuse_diagnostic, missing_import_diagnostic, restricted_import_diagnostic,
+    unloaded_import_diagnostic,
 };
 use super::module_index::is_relative_module_path;
 use super::signatures::{
@@ -26,7 +26,10 @@ impl Resolver<'_> {
             return;
         };
 
+        let was_collecting = self.collecting_synthetic_prelude;
+        self.collecting_synthetic_prelude = true;
         self.collect_public_exports(prelude_ast, prelude_source.access, "std/prelude");
+        self.collecting_synthetic_prelude = was_collecting;
     }
 
     pub(super) fn collect_import_namespace_symbol(&mut self, item: &ImportItem) {
@@ -283,26 +286,15 @@ impl Resolver<'_> {
         }
 
         if let Some(first_span) = scope.get(&name) {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    first_span,
-                    name_span,
-                ));
+            let diagnostic = self.duplicate_visible_symbol_diagnostic(&name, first_span, name_span);
+            self.output.diagnostics.push(diagnostic);
             return;
         }
 
         if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
-            self.output
-                .diagnostics
-                .push(duplicate_visible_name_diagnostic(
-                    self.sources,
-                    &name,
-                    symbol.name_span,
-                    name_span,
-                ));
+            let diagnostic =
+                self.duplicate_visible_symbol_diagnostic(&name, symbol.name_span, name_span);
+            self.output.diagnostics.push(diagnostic);
             return;
         }
 

@@ -21,6 +21,29 @@ pub(super) fn duplicate_visible_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn prelude_name_collision_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    prelude_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0400",
+        format!("name `{name}` is already visible from the synthetic standard prelude"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(prelude_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the synthetic standard prelude introduces this name here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(
+        "choose a distinct name; Nocter v0 does not allow shadowing prelude names".to_string(),
+    );
+    diagnostic
+}
+
 pub(super) fn builtin_name_reuse_diagnostic(
     sources: &SourceMap,
     name: &str,
