@@ -1476,6 +1476,75 @@ fn collect_otherwise_scalar_view_value_expression_diagnostics(
     );
 }
 
+fn collect_otherwise_aggregate_argument_value_diagnostics(
+    expression: &OtherwiseExpr,
+    parameter_type: &TypeExpr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    collect_otherwise_runtime_value_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        resolved_sources,
+        diagnostics,
+    );
+    if !otherwise_return_fallback_runtime_shape_is_buildable(
+        &expression.fallback,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.fallback.span,
+            "`otherwise` fallback blocks outside the v0 aggregate argument subset",
+            "end runtime-shipped aggregate argument `otherwise` fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
+        ));
+    }
+
+    collect_expression_diagnostics(
+        &expression.value,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+    collect_otherwise_value_fallback_block_diagnostics(
+        &expression.fallback,
+        Some(parameter_type),
+        false,
+        None,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
 fn collect_otherwise_runtime_value_diagnostics(
     expression: &OtherwiseExpr,
     sources: &SourceMap,
@@ -2074,6 +2143,30 @@ fn call_argument_may_use_value_control_expression(
     .is_some_and(|ty| {
         type_expr_is_buildable_scalar_or_view_for_sources(&ty, resolved, resolved_sources)
     })
+}
+
+fn otherwise_aggregate_argument_parameter_type(
+    call: &CallExpr,
+    index: usize,
+    argument: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    let Expr::Otherwise(_) = unwrap_group_expr(argument) else {
+        return None;
+    };
+    let ty = call_argument_parameter_type(
+        call,
+        index,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_supported_aggregate_value_with_resolver(&ty, resolved, &source_resolver)
+        .then_some(ty)
 }
 
 fn call_argument_parameter_type(
@@ -7355,6 +7448,34 @@ fn collect_expression_diagnostics(
                         queue,
                         diagnostics,
                     );
+                } else if let Some(parameter_type) = otherwise_aggregate_argument_parameter_type(
+                    expression,
+                    index,
+                    argument,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    let Expr::Otherwise(otherwise) = unwrap_group_expr(argument) else {
+                        unreachable!(
+                            "aggregate otherwise argument helper checked expression shape"
+                        );
+                    };
+                    collect_otherwise_aggregate_argument_value_diagnostics(
+                        otherwise,
+                        &parameter_type,
+                        sources,
+                        resolved,
+                        typecheck_facts,
+                        generic_substitutions,
+                        root_source,
+                        names,
+                        resolved_sources,
+                        nocter_home,
+                        queue,
+                        diagnostics,
+                    );
                 } else if call_argument_may_use_value_control_expression(
                     expression,
                     index,
@@ -7482,8 +7603,8 @@ fn collect_expression_diagnostics(
             diagnostics.push(unsupported_v0_build_diagnostic(
                 sources,
                 expression.span,
-                "`otherwise` expressions outside direct scalar/view value, binding, assignment, or return positions",
-                "use `otherwise` directly as a scalar/view value, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
+                "`otherwise` expressions outside direct scalar/view value, aggregate argument, binding, assignment, or return positions",
+                "use `otherwise` directly as a scalar/view value, aggregate argument, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
             ));
             collect_expression_diagnostics(
                 &expression.value,
@@ -10020,7 +10141,7 @@ func source(): i32? {
         assert_eq!(diagnostics[0].code, "E0435");
         assert_eq!(
             diagnostics[0].message,
-            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, binding, assignment, or return positions yet"
+            "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate argument, binding, assignment, or return positions yet"
         );
     }
 

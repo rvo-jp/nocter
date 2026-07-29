@@ -3211,7 +3211,7 @@ fn lower_aggregate_array_field_assignment(
         );
     }
     if let Expr::Otherwise(otherwise) = unwrap_group(value) {
-        return lower_aggregate_otherwise_assignment_to_location(
+        return lower_aggregate_optional_otherwise_to_location(
             destination,
             offset,
             layout,
@@ -3368,7 +3368,7 @@ fn lower_aggregate_member_value_assignment(
                 context,
             )
         }
-        Expr::Otherwise(otherwise) => lower_aggregate_otherwise_assignment_to_location(
+        Expr::Otherwise(otherwise) => lower_aggregate_optional_otherwise_to_location(
             destination,
             destination_offset,
             layout,
@@ -3777,7 +3777,7 @@ fn lower_aggregate_assignment_to_slot(
         Expr::Otherwise(otherwise) => {
             let expected_abi_type = target_type
                 .and_then(|ty| aggregate_assignment_expected_abi_type(ty, layout, context));
-            lower_aggregate_otherwise_assignment_to_location(
+            lower_aggregate_optional_otherwise_to_location(
                 AggregateLocation::Slot(slot_index),
                 0,
                 layout,
@@ -3803,7 +3803,7 @@ fn aggregate_assignment_expected_abi_type(
     (value.layout == expected_layout).then_some(value.ty)
 }
 
-fn lower_aggregate_otherwise_assignment_to_location(
+pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
     destination: AggregateLocation,
     destination_offset: u32,
     layout: ValueLayout,

@@ -23944,6 +23944,198 @@ func fallback(): Triple {
 }
 
 #[test]
+fn lowers_optional_aggregate_otherwise_value_arguments() {
+    let header_layout = ValueLayout::new(16, 8);
+    let triple_layout = ValueLayout::new(24, 8);
+    let pair_layout = ValueLayout::new(8, 4);
+    let header_type = Type::DirectAggregate {
+        layout: header_layout,
+        words: 2,
+    };
+    let triple_type = Type::Aggregate {
+        layout: triple_layout,
+    };
+    let pair_type = Type::DirectAggregate {
+        layout: pair_layout,
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let header_score = consume_header(maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } })
+    let fallback = Triple{ first: 2, second: 8, third: 4 }
+    let triple_score = consume_triple(maybe_triple(false) otherwise { fallback })
+    let pair_score = sum_pair(maybe_pair(false) otherwise { [3, 4] })
+    return header_score + triple_score + pair_score
+}
+
+func consume_header(header: Header): i32 {
+    return header.code
+}
+
+func consume_triple(triple: Triple): i32 {
+    if triple.second == 8 {
+        return 8
+    }
+    return 1
+}
+
+func sum_pair(pair: [i32; 2]): i32 {
+    return pair[0] + pair[1]
+}
+
+func maybe_header(flag: bool): Header? {
+    return none
+}
+
+func maybe_triple(flag: bool): Triple? {
+    return none
+}
+
+func maybe_pair(flag: bool): [i32; 2]? {
+    return none
+}
+"#,
+        "main",
+        function_signatures(vec![
+            (
+                "consume_header",
+                Type::I32,
+                vec![header_type.clone()],
+            ),
+            ("consume_triple", Type::I32, vec![triple_type.clone()]),
+            ("sum_pair", Type::I32, vec![pair_type.clone()]),
+            (
+                "maybe_header",
+                Type::Fallible(Box::new(header_type.clone())),
+                vec![Type::Bool],
+            ),
+            (
+                "maybe_triple",
+                Type::Fallible(Box::new(triple_type.clone())),
+                vec![Type::Bool],
+            ),
+            (
+                "maybe_pair",
+                Type::Fallible(Box::new(pair_type.clone())),
+                vec![Type::Bool],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    let header_call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallFallibleDirectAggregate {
+            destination,
+            target,
+            layout,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("maybe_header") && *layout == header_layout)
+            .then_some((*destination, instructions))
+    });
+    let Some((header_destination, header_fallback)) = header_call else {
+        panic!("{function:?}");
+    };
+    let AggregateLocation::Slot(header_slot) = header_destination else {
+        panic!("{function:?}");
+    };
+    assert!(header_fallback.contains(&Instruction::StoreAggregateI32 {
+        destination: header_destination,
+        offset: 4,
+        value: i32_const(7),
+    }));
+    let consume_header_arguments = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallI32 {
+            target, arguments, ..
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("consume_header")).then_some(arguments)
+    });
+    let Some(consume_header_arguments) = consume_header_arguments else {
+        panic!("{function:?}");
+    };
+    assert_eq!(consume_header_arguments.len(), 1, "{function:?}");
+    assert!(matches!(
+        &consume_header_arguments[0],
+        ScalarArgument::AggregateDirect(DirectAggregateArgument {
+            source: AggregateArgumentSource::Slot(slot),
+            layout,
+            words,
+        }) if *slot == header_slot && *layout == header_layout && *words == 2
+    ));
+
+    let triple_call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("maybe_triple")).then_some((*destination, instructions))
+    });
+    let Some((triple_destination, triple_fallback)) = triple_call else {
+        panic!("{function:?}");
+    };
+    assert!(triple_fallback.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: 0,
+            source,
+            source_offset: 0,
+            layout,
+        } if *destination == triple_destination
+            && *source == AggregateLocation::Slot(1)
+            && *layout == triple_layout
+    )));
+
+    let pair_call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallFallibleDirectAggregate {
+            destination,
+            target,
+            layout,
+            failure_mode: FallibleFailureMode::Recover { instructions },
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        (target == &CallTarget::same_file("maybe_pair") && *layout == pair_layout)
+            .then_some((*destination, instructions))
+    });
+    let Some((pair_destination, pair_fallback)) = pair_call else {
+        panic!("{function:?}");
+    };
+    assert!(pair_fallback.contains(&Instruction::StoreAggregateI32 {
+        destination: pair_destination,
+        offset: 4,
+        value: i32_const(4),
+    }));
+}
+
+#[test]
 fn lowers_fallible_aggregate_force_unwrap_member_binding_as_trapping_fallible_call() {
     let packet_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),

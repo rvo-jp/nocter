@@ -5,6 +5,7 @@ use super::super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct_with_resolver,
 };
+use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
@@ -1011,11 +1012,42 @@ fn lower_aggregate_argument_source(
                 lower_catch_failure_mode(catch, context, 0)?,
             )
         }
+        Expr::Otherwise(otherwise) => {
+            let slot_index = temporaries.next_aggregate_slot();
+            let expected_abi_type =
+                aggregate_argument_expected_abi_type(parameter_type_expr, expected_layout, context);
+            let mut instructions = vec![Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: expected_layout,
+            }];
+            instructions.extend(lower_aggregate_optional_otherwise_to_location(
+                AggregateLocation::Slot(slot_index),
+                0,
+                expected_layout,
+                expected_abi_type.as_ref(),
+                otherwise,
+                context,
+            )?);
+            Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
+        }
         _ => Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         )),
     }
+}
+
+fn aggregate_argument_expected_abi_type(
+    parameter_type_expr: Option<&TypeExpr>,
+    expected_layout: ValueLayout,
+    context: &LoweringContext,
+) -> Option<AbiType> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let value = abi_value_from_type_expr_with_resolver(parameter_type_expr?, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+    (value.layout == expected_layout).then_some(value.ty)
 }
 
 fn lower_aggregate_local_argument_source(
