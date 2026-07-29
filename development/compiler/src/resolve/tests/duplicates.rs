@@ -1,18 +1,171 @@
 use super::support::resolve_text;
 
 #[test]
-fn diagnoses_builtin_error_type_name_reuse() {
-    let output = resolve_text(
+fn diagnoses_reserved_type_declaration_name_reuse() {
+    for source in [
         r#"type error = i32
 
 func main(): i32 {
     return 0
 }
 "#,
-    );
+        r#"struct i32 {
+    value: bool
+}
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert_eq!(output.diagnostics[0].code, "E0401");
+func main(): i32 {
+    return 0
+}
+"#,
+    ] {
+        let output = resolve_text(source);
+
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+        assert_eq!(output.diagnostics[0].code, "E0401");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("reserved type spelling"),
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn diagnoses_builtin_type_value_name_reuse() {
+    for source in [
+        r#"func i32(): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"primitive usize(): i32
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"use std/io as bool
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"use std/io.print as str
+
+func main(): i32 {
+    return 0
+}
+"#,
+    ] {
+        let output = resolve_text(source);
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+        assert_eq!(output.diagnostics[0].code, "E0401");
+        assert!(
+            output.diagnostics[0].message.contains("value name"),
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn diagnoses_reserved_type_generic_parameter_name_reuse() {
+    for source in [
+        r#"func identity<i32>(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return identity(1)
+}
+"#,
+        r#"primitive syscall<usize>(number: usize): i32
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"type Alias<error> = i32
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"struct Box<str> {
+    value: i32
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"enum Choice<bool> {
+    ready
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"interface Source<u8> {
+    pub method &self.get(): i32
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<error> Box<i32> {
+    method self.value(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    ] {
+        let output = resolve_text(source);
+        assert_eq!(
+            output.diagnostics.len(),
+            1,
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+        assert_eq!(output.diagnostics[0].code, "E0401");
+        assert!(
+            output.diagnostics[0]
+                .message
+                .contains("reserved type spelling"),
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+        assert!(
+            output.diagnostics[0].message.contains("generic parameter"),
+            "{source}\n{:?}",
+            output.diagnostics
+        );
+    }
 }
 
 #[test]

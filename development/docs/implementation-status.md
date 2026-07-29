@@ -63,6 +63,9 @@ payload bindings, import introduced names, and import aliases.
 Typechecking accepts `Self` type syntax only in inherent member, qualified
 associated-function, and interface method signature contexts; other type
 positions receive a source-backed diagnostic instead of normal name lookup.
+Resolver diagnostics reject built-in type spellings as introduced value names,
+and reject reserved type-position spellings such as `i32`, `str`, and
+contextual `error` as type declaration or generic parameter names.
 
 ## Implemented Capability
 

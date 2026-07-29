@@ -1,10 +1,12 @@
-use super::builtins::is_reserved_type_declaration_name;
+use super::builtins::{is_builtin_type_name, is_reserved_type_declaration_name};
 use super::diagnostics::{
-    builtin_type_declaration_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
+    builtin_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
     duplicate_interface_method_name_diagnostic, duplicate_parameter_name_diagnostic,
     duplicate_struct_field_name_diagnostic, duplicate_visible_name_diagnostic,
     invalid_associated_function_owner_diagnostic, prelude_name_collision_diagnostic,
+    reserved_generic_parameter_name_reuse_diagnostic,
+    reserved_type_declaration_name_reuse_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -32,7 +34,7 @@ impl Resolver<'_> {
                 Item::Function(function) => {
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("function `{}`", function.name),
                             &function.generics,
@@ -51,7 +53,7 @@ impl Resolver<'_> {
                 Item::Primitive(primitive) => {
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("primitive `{}`", primitive.name),
                             &primitive.generics,
@@ -68,7 +70,7 @@ impl Resolver<'_> {
                 Item::TypeAlias(alias) => {
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("type alias `{}`", alias.name),
                             &alias.generics,
@@ -89,7 +91,7 @@ impl Resolver<'_> {
                         ));
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("struct `{}`", struct_.name),
                             &struct_.generics,
@@ -107,7 +109,7 @@ impl Resolver<'_> {
                         .extend(duplicate_enum_decl_diagnostics(self.sources, enum_));
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("enum `{}`", enum_.name),
                             &enum_.generics,
@@ -122,7 +124,7 @@ impl Resolver<'_> {
                 Item::Interface(interface) => {
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             &format!("interface `{}`", interface.name),
                             &interface.generics,
@@ -153,7 +155,7 @@ impl Resolver<'_> {
                 Item::Impl(impl_) => {
                     self.output
                         .diagnostics
-                        .extend(duplicate_generic_param_name_diagnostics(
+                        .extend(generic_parameter_name_diagnostics(
                             self.sources,
                             "impl block",
                             &impl_.generics,
@@ -196,6 +198,15 @@ impl Resolver<'_> {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) {
+        if symbol_kind_introduces_value_name(&kind) && is_builtin_type_name(&name) {
+            self.output.diagnostics.push(builtin_name_reuse_diagnostic(
+                self.sources,
+                &name,
+                name_span,
+            ));
+            return;
+        }
+
         match self
             .output
             .symbols
@@ -336,7 +347,7 @@ impl Resolver<'_> {
         if is_reserved_type_declaration_name(&name) {
             self.output
                 .diagnostics
-                .push(builtin_type_declaration_name_reuse_diagnostic(
+                .push(reserved_type_declaration_name_reuse_diagnostic(
                     self.sources,
                     &name,
                     name_span,
@@ -422,7 +433,7 @@ fn duplicate_struct_field_name_diagnostics(
     diagnostics
 }
 
-fn duplicate_generic_param_name_diagnostics(
+fn generic_parameter_name_diagnostics(
     sources: &SourceMap,
     subject: &str,
     generics: &GenericParamList,
@@ -431,7 +442,13 @@ fn duplicate_generic_param_name_diagnostics(
     let mut seen = HashMap::new();
 
     for parameter in &generics.parameters {
-        if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
+        if is_reserved_type_declaration_name(&parameter.name) {
+            diagnostics.push(reserved_generic_parameter_name_reuse_diagnostic(
+                sources,
+                &parameter.name,
+                parameter.span,
+            ));
+        } else if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
             diagnostics.push(duplicate_generic_parameter_name_diagnostic(
                 sources,
                 subject,
@@ -445,6 +462,13 @@ fn duplicate_generic_param_name_diagnostics(
     }
 
     diagnostics
+}
+
+fn symbol_kind_introduces_value_name(kind: &SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_)
+    )
 }
 
 fn duplicate_parameter_name_diagnostics(

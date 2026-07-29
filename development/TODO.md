@@ -66,6 +66,9 @@ Recommended order:
 - Typechecking now accepts `Self` type syntax only in inherent member,
   qualified associated-function, and interface method signature contexts, with
   a source-backed diagnostic in other type positions.
+- Resolver diagnostics now reject built-in type spellings as introduced value
+  names, and reject reserved type-position spellings such as `i32`, `str`, and
+  contextual `error` as type declaration or generic parameter names.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

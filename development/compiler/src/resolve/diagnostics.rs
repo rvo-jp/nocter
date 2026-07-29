@@ -51,24 +51,41 @@ pub(super) fn builtin_name_reuse_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0401",
-        format!("built-in type name `{name}` cannot be reused as a binding"),
+        format!("built-in type name `{name}` cannot be reused as a value name"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
-    diagnostic.help = Some("choose a binding name that is not a built-in type name".to_string());
+    diagnostic.help = Some("choose a value name that is not a built-in type name".to_string());
     diagnostic
 }
 
-pub(super) fn builtin_type_declaration_name_reuse_diagnostic(
+pub(super) fn reserved_type_declaration_name_reuse_diagnostic(
     sources: &SourceMap,
     name: &str,
     span: ByteSpan,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0401",
-        format!("built-in type name `{name}` cannot be reused as a type declaration"),
+        format!("reserved type spelling `{name}` cannot be reused as a type declaration"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
-    diagnostic.help = Some("choose a type name that is not a built-in type name".to_string());
+    diagnostic.help =
+        Some("choose a type name that is not reserved type-position syntax".to_string());
+    diagnostic
+}
+
+pub(super) fn reserved_generic_parameter_name_reuse_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0401",
+        format!("reserved type spelling `{name}` cannot be reused as a generic parameter"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "choose a generic parameter name that is not reserved type-position syntax".to_string(),
+    );
     diagnostic
 }
 
