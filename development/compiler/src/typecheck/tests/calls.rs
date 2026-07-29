@@ -114,6 +114,31 @@ func length(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_implicit_move_only_fixed_array_argument() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let values: [Text; 1] = [Text{ len: 42 }]
+    return consume(values)
+}
+
+func consume(values: [Text; 1]): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0392");
+    assert!(diagnostics[0].message.contains("move-only fixed array"));
+    assert!(diagnostics[0].message.contains("[Text; 1]"));
+    assert!(diagnostics[0].message.contains("values"));
+}
+
+#[test]
 fn diagnoses_implicit_non_copy_struct_field_argument() {
     let diagnostics = check_text(
         r#"struct Text {

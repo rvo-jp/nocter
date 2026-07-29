@@ -758,6 +758,30 @@ func make(): Text {
 }
 
 #[test]
+fn diagnoses_implicit_move_only_fixed_array_return() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(values: [Text; 1]): [Text; 1] {
+    return values
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0393");
+    assert!(diagnostics[0].message.contains("move-only fixed array"));
+    assert!(diagnostics[0].message.contains("[Text; 1]"));
+    assert!(diagnostics[0].message.contains("values"));
+}
+
+#[test]
 fn diagnoses_implicit_non_copy_struct_field_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

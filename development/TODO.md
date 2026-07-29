@@ -72,6 +72,11 @@ Recommended order:
 - Typechecking now rejects fallible return success types that are `error`
   directly or through optional success layers such as `error?!`, including
   alias-expanded forms.
+- Copyability now treats built-in `error` as copyable and rejects implicit
+  copies of move-only owned values across binding, assignment, argument, and
+  return paths, including fixed arrays with non-copy elements, optionals,
+  fallibles, and payload-carrying enums when the source is an existing binding
+  or member path.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

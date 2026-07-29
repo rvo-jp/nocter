@@ -1,6 +1,6 @@
 use super::bindings::continuing_binding_type;
 use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
-use super::copyability::implicit_non_copy_struct_value_source;
+use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     body_result_type_mismatch_diagnostic, borrow_return_escapes_diagnostic,
     catch_block_fallthrough_diagnostic, fallible_success_error_diagnostic,
@@ -1061,14 +1061,13 @@ fn check_body_result_return(
         diagnostics,
     );
 
-    if let Some((source_name, type_name)) =
-        implicit_non_copy_struct_value_source(expression, resolved, environment)
-    {
+    if let Some(source) = implicit_non_copy_owned_value_source(expression, resolved, environment) {
         diagnostics.push(non_copy_struct_return_diagnostic(
             sources,
             expression,
-            &source_name,
-            &type_name,
+            &source.source_name,
+            &source.type_name,
+            source.kind,
             context,
         ));
     }
@@ -1148,14 +1147,15 @@ fn check_return_statement(
                 diagnostics,
             );
 
-            if let Some((source_name, type_name)) =
-                implicit_non_copy_struct_value_source(expression, resolved, environment)
+            if let Some(source) =
+                implicit_non_copy_owned_value_source(expression, resolved, environment)
             {
                 diagnostics.push(non_copy_struct_return_diagnostic(
                     sources,
                     expression,
-                    &source_name,
-                    &type_name,
+                    &source.source_name,
+                    &source.type_name,
+                    source.kind,
                     context,
                 ));
             }

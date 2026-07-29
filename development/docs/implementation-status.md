@@ -69,6 +69,11 @@ contextual `error` as type declaration or generic parameter names.
 Typechecking rejects fallible return success types that are `error` directly or
 through optional success layers such as `error?!`, including alias-expanded
 forms.
+Copyability treats the built-in `error` type as copyable and rejects implicit
+copies of move-only owned values across bindings, assignments, arguments, and
+returns, including non-copy structs, fixed arrays with non-copy elements,
+optionals, fallibles, and payload-carrying enums where those values are existing
+bindings or member paths.
 
 ## Implemented Capability
 
@@ -82,7 +87,7 @@ forms.
 | Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. `catch` blocks that can fall through are rejected by typechecking. Scalar/view and supported aggregate paths build and run when `catch` failure blocks use the current direct-return/effect-only terminal subset and `otherwise` is applied directly to optional-returning calls in supported scalar/view value, binding, assignment, or return positions, and supported aggregate/fixed-array member-root projection, binding, argument, aggregate-field initializer, whole-local or aggregate-field assignment, or return positions. Broader catch/otherwise control-flow endings and nested/general `otherwise` expression positions reject before IR lowering. Nested fallible/optional return shapes remain limited. |
 | Struct aggregates | Struct literals, fields including optional-call `otherwise` member roots, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, numeric field compound assignment, replacement drops, and cleanup paths are implemented for the current subset. |
 | Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
-| Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit non-copy aggregate copies. Lowering inserts drop glue for the documented aggregate/control-flow subset. Buildability rejects unsupported explicit aggregate moves in control-flow conditions and outer aggregate moves/drops inside non-terminal control-flow branches/bodies unless that path is one of the current immediate-function-exit forms. |
+| Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit copies of move-only owned values such as non-copy structs, fixed arrays with non-copy elements, optionals, fallibles, and payload-carrying enums. Lowering inserts drop glue for the documented aggregate/control-flow subset. Buildability rejects unsupported explicit aggregate moves in control-flow conditions and outer aggregate moves/drops inside non-terminal control-flow branches/bodies unless that path is one of the current immediate-function-exit forms. |
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |

@@ -19,6 +19,7 @@ mod types;
 mod variants;
 
 use super::calls::CheckedCallSignature;
+use super::copyability::NonCopyOwnedValueKind;
 use super::model::{ReturnContext, Type};
 use super::type_expr::type_expr_display_lossy;
 use crate::ast::{

@@ -1,6 +1,6 @@
 use super::{
-    CallExpr, CheckedCallSignature, Diagnostic, DiagnosticNote, Expr, ParameterSignature,
-    SourceMap, Type,
+    CallExpr, CheckedCallSignature, Diagnostic, DiagnosticNote, Expr, NonCopyOwnedValueKind,
+    ParameterSignature, SourceMap, Type,
 };
 
 pub(in crate::typecheck) fn argument_count_mismatch_diagnostic(
@@ -74,11 +74,13 @@ pub(in crate::typecheck) fn non_copy_struct_argument_diagnostic(
     parameter: &ParameterSignature,
     source_name: &str,
     type_name: &str,
+    kind: NonCopyOwnedValueKind,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0392",
         format!(
-            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` into argument {}",
+            "cannot implicitly copy {} `{type_name}` from `{source_name}` into argument {}",
+            kind.noun(),
             index + 1
         ),
     );

@@ -1,4 +1,4 @@
-use super::copyability::implicit_non_copy_struct_value_source;
+use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{binding_type_mismatch_diagnostic, non_copy_struct_binding_diagnostic};
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
@@ -84,14 +84,15 @@ pub(super) fn check_binding_initializer_copyability(
         return;
     }
 
-    if let Some((source_name, type_name)) =
-        implicit_non_copy_struct_value_source(&statement.initializer, resolved, environment)
+    if let Some(source) =
+        implicit_non_copy_owned_value_source(&statement.initializer, resolved, environment)
     {
         diagnostics.push(non_copy_struct_binding_diagnostic(
             sources,
             statement,
-            &source_name,
-            &type_name,
+            &source.source_name,
+            &source.type_name,
+            source.kind,
         ));
     }
 }

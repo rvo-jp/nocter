@@ -1,5 +1,6 @@
 use super::bindings::continuing_binding_type;
 use super::calls::{method_member_for_call, resolved_method_for_call};
+use super::copyability::{non_copy_owned_type_kind, non_copy_struct_type_name};
 use super::diagnostics::{
     active_borrow_conflict_diagnostic, invalid_drop_target_diagnostic,
     uninitialized_binding_diagnostic,
@@ -16,7 +17,7 @@ use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ResolveOutput, TypeSymbolKind};
+use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 
@@ -1714,7 +1715,7 @@ fn check_statement_ownership(
                 ));
                 return FlowState::fallthrough();
             };
-            if non_copy_struct_type_name(ty, resolved).is_none() {
+            if non_copy_owned_type_kind(ty, resolved).is_none() {
                 diagnostics.push(invalid_drop_target_diagnostic(
                     sources,
                     statement.name.as_str(),
@@ -1767,7 +1768,7 @@ fn check_expression_ownership(
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = expression.operand.as_ref()
                 && let Some(ty) = environment.get(&identifier.name)
-                && non_copy_struct_type_name(ty, resolved).is_some()
+                && non_copy_owned_type_kind(ty, resolved).is_some()
             {
                 ownership.ensure_binding_from_environment(
                     &identifier.name,
@@ -2161,14 +2162,6 @@ fn owned_method_receiver_identifier<'a>(
     Some(identifier)
 }
 
-fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a str> {
-    let canonical_name = ty.nominal_name()?;
-    resolved
-        .type_symbol_by_canonical_name(canonical_name)
-        .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
-        .map(|symbol| symbol.canonical_name.as_str())
-}
-
 #[derive(Debug, Clone)]
 struct ActiveBorrow {
     source: BorrowPlace,
@@ -2343,7 +2336,7 @@ impl OwnershipState {
         ty: &Type,
         resolved: &ResolveOutput,
     ) {
-        if non_copy_struct_type_name(ty, resolved).is_some() {
+        if non_copy_owned_type_kind(ty, resolved).is_some() {
             self.bindings.insert(
                 name,
                 OwnedBinding {

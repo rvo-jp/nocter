@@ -1,5 +1,5 @@
 use super::{
-    ByteSpan, Diagnostic, Expr, ReturnContext, ReturnStmt, SourceMap, Type,
+    ByteSpan, Diagnostic, Expr, NonCopyOwnedValueKind, ReturnContext, ReturnStmt, SourceMap, Type,
     add_declared_return_note,
 };
 
@@ -112,12 +112,14 @@ pub(in crate::typecheck) fn non_copy_struct_return_diagnostic(
     expression: &Expr,
     source_name: &str,
     type_name: &str,
+    kind: NonCopyOwnedValueKind,
     context: &ReturnContext,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0393",
         format!(
-            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` in `return`"
+            "cannot implicitly copy {} `{type_name}` from `{source_name}` in `return`",
+            kind.noun()
         ),
     );
     diagnostic.primary_span = sources.span_to_json(expression.span()).ok().map(Box::new);

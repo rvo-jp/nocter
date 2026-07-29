@@ -1,6 +1,6 @@
 use super::{
-    AssignmentStmt, BindingStmt, BorrowExpr, Diagnostic, DiagnosticNote, SourceMap, Type,
-    binding_keyword,
+    AssignmentStmt, BindingStmt, BorrowExpr, Diagnostic, DiagnosticNote, NonCopyOwnedValueKind,
+    SourceMap, Type, binding_keyword,
 };
 
 pub(in crate::typecheck) fn binding_type_mismatch_diagnostic(
@@ -125,18 +125,20 @@ pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
     statement: &AssignmentStmt,
     source_name: &str,
     type_name: &str,
+    kind: NonCopyOwnedValueKind,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0384",
-        format!("cannot implicitly copy non-copy struct `{type_name}` from `{source_name}`"),
+        format!(
+            "cannot implicitly copy {} `{type_name}` from `{source_name}`",
+            kind.noun()
+        ),
     );
     diagnostic.primary_span = sources
         .span_to_json(statement.value.span())
         .ok()
         .map(Box::new);
-    diagnostic.help = Some(format!(
-        "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
-    ));
+    diagnostic.help = Some(kind.copy_help(source_name, type_name));
     diagnostic
 }
 
@@ -156,12 +158,14 @@ pub(in crate::typecheck) fn non_copy_struct_binding_diagnostic(
     statement: &BindingStmt,
     source_name: &str,
     type_name: &str,
+    kind: NonCopyOwnedValueKind,
 ) -> Diagnostic {
     let keyword = binding_keyword(statement.kind);
     let mut diagnostic = Diagnostic::error(
         "E0432",
         format!(
-            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` into `{keyword}` binding `{}`",
+            "cannot implicitly copy {} `{type_name}` from `{source_name}` into `{keyword}` binding `{}`",
+            kind.noun(),
             statement.name
         ),
     );
@@ -169,9 +173,7 @@ pub(in crate::typecheck) fn non_copy_struct_binding_diagnostic(
         .span_to_json(statement.initializer.span())
         .ok()
         .map(Box::new);
-    diagnostic.help = Some(format!(
-        "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
-    ));
+    diagnostic.help = Some(kind.copy_help(source_name, type_name));
     diagnostic
 }
 

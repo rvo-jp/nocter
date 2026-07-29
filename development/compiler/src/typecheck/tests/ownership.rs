@@ -56,6 +56,32 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_double_move_of_move_only_fixed_array() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let values: [Text; 1] = [Text{ len: 42 }]
+    let first = consume(move values)
+    let second = consume(move values)
+    return first + second
+}
+
+func consume(values: [Text; 1]): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("moved"));
+}
+
+#[test]
 fn invalid_outer_move_operand_does_not_consume_nested_move() {
     let diagnostics = check_text(
         r#"struct Text {
@@ -117,6 +143,28 @@ func main(): i32 {
     let text = Text{ start: 1, len: 42, capacity: 3 }
     drop text
     drop text
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("drop"));
+    assert!(diagnostics[0].message.contains("dropped"));
+}
+
+#[test]
+fn diagnoses_double_explicit_drop_of_move_only_fixed_array() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let values: [Text; 1] = [Text{ len: 42 }]
+    drop values
+    drop values
     return 0
 }
 "#,

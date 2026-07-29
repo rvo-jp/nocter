@@ -395,6 +395,81 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_binding_from_move_only_fixed_array_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let source: [Text; 1] = [Text{ len: 42 }]
+    let target = source
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("move-only fixed array"));
+    assert!(diagnostics[0].message.contains("[Text; 1]"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
+fn diagnoses_binding_from_move_only_optional_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let text = Text{ len: 42 }
+    let source: Text? = move text
+    let target = source
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("move-only optional value"));
+    assert!(diagnostics[0].message.contains("Text?"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
+fn diagnoses_binding_from_move_only_fallible_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let source = make()
+    let target = source
+    return 0
+}
+
+func make(): Text! {
+    let text = Text{ len: 42 }
+    return move text
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("move-only fallible value"));
+    assert!(diagnostics[0].message.contains("Text!"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
 fn diagnoses_binding_from_non_copy_struct_field() {
     let diagnostics = check_text(
         r#"struct Text {
@@ -508,6 +583,49 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0384");
     assert!(diagnostics[0].message.contains("Text"));
     assert!(diagnostics[0].message.contains("wrap.text"));
+}
+
+#[test]
+fn diagnoses_assignment_from_move_only_fixed_array_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var source: [Text; 1] = [Text{ len: 1 }]
+    var target: [Text; 1] = [Text{ len: 2 }]
+    target = source
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0384");
+    assert!(diagnostics[0].message.contains("move-only fixed array"));
+    assert!(diagnostics[0].message.contains("[Text; 1]"));
+    assert!(diagnostics[0].message.contains("source"));
+}
+
+#[test]
+fn diagnoses_self_move_assignment_from_move_only_fixed_array_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var target: [Text; 1] = [Text{ len: 1 }]
+    target = move target
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0395");
+    assert!(diagnostics[0].message.contains("target"));
 }
 
 #[test]

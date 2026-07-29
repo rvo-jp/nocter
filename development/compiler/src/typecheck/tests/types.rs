@@ -228,6 +228,7 @@ func main(): i32 {
 fn accepts_copy_struct_fields_with_copy_alias_payloadless_enum_and_readonly_borrow() {
     let diagnostics = check_text(
         r#"type Count = i32
+type ErrorAlias = error
 
 enum Mode {
     read
@@ -237,6 +238,8 @@ enum Mode {
 copy struct Header {
     count: Count
     mode: Mode
+    failure: error
+    alias_failure: ErrorAlias
     label: &str
     count_ref: &Count
     ptr: *u8

@@ -1,6 +1,6 @@
 use super::arrays::array_length_matches;
 use super::calls::{infer_generic_substitutions, resolved_call_signature};
-use super::copyability::non_copy_struct_type_name;
+use super::copyability::non_copy_owned_type_kind;
 use super::diagnostics::{
     arithmetic_operand_type_mismatch_diagnostic, equality_operand_type_mismatch_diagnostic,
     logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
@@ -173,7 +173,7 @@ pub(super) fn check_unary_expression(
         UnaryOperator::Move => {
             if !matches!(expression.operand.as_ref(), Expr::Identifier(_)) {
                 diagnostics.push(move_operand_must_be_binding_diagnostic(sources, expression));
-            } else if non_copy_struct_type_name(&operand_type, resolved).is_none() {
+            } else if non_copy_owned_type_kind(&operand_type, resolved).is_none() {
                 diagnostics.push(move_operand_not_move_only_diagnostic(
                     sources,
                     expression,

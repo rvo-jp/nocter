@@ -7,7 +7,7 @@ use super::calls::{
     method_member_for_call, resolved_call_signature,
 };
 use super::controls::{check_for_range_bounds, check_if_condition, check_while_condition};
-use super::copyability::{implicit_non_copy_struct_value_source, non_copy_struct_type_name};
+use super::copyability::{implicit_non_copy_owned_value_source, non_copy_owned_type_kind};
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
     immutable_assignment_diagnostic, loop_control_outside_loop_diagnostic,
@@ -468,7 +468,7 @@ fn check_assignment_statement(
         return;
     }
 
-    if non_copy_struct_type_name(&target_type, resolved).is_some()
+    if non_copy_owned_type_kind(&target_type, resolved).is_some()
         && let Some(target_name) = assignment_target_root_name(&statement.target)
         && let Some(source_name) = assignment_move_source_name(statement)
         && target_name == source_name
@@ -481,14 +481,15 @@ fn check_assignment_statement(
         return;
     }
 
-    if let Some((source_name, type_name)) =
-        implicit_non_copy_struct_value_source(&statement.value, resolved, environment)
+    if let Some(source) =
+        implicit_non_copy_owned_value_source(&statement.value, resolved, environment)
     {
         diagnostics.push(non_copy_struct_assignment_diagnostic(
             sources,
             statement,
-            &source_name,
-            &type_name,
+            &source.source_name,
+            &source.type_name,
+            source.kind,
         ));
     }
 }
