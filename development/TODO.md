@@ -84,6 +84,9 @@ Recommended order:
   buildability now use the same substituted `copy struct` copyability, so
   concrete instantiations such as `Box<Text>` do not enter copy-only runtime
   paths when `Text` is move-only.
+- Buildability now resolves slice binding, field, and call-result `TypeExpr`
+  facts before allowing `Slice(Other)` index reads or assignments, so non-copy
+  aggregate slice elements reject with source-backed E0435 before IR lowering.
 - Return provenance now treats built-in `error` as borrow-like, rejecting
   returned errors derived from local borrows while allowing errors derived from
   parameter borrows.

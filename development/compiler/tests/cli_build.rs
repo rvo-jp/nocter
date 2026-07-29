@@ -6468,6 +6468,109 @@ fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_non_copy_aggregate_slice_index_before_ir_lowering() {
+    let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-boundary");
+    let source = project.write_source(
+        "non_copy_aggregate_slice_index_boundary.nct",
+        r#"struct Text {
+    pub len: i32
+}
+
+func read(view: &[Text]): i32 {
+    let first = view[0]
+    return first.len
+}
+
+func main(): i32 {
+    return read(source())
+}
+
+func source(): &[Text] {
+    return source()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("slice indexing outside scalar, `&str`, and copy aggregate elements"),
+        "expected slice indexing diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     let first = view[0]"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_non_copy_aggregate_slice_index_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-non-copy-aggregate-slice-index-assignment-boundary");
+    let source = project.write_source(
+        "non_copy_aggregate_slice_index_assignment_boundary.nct",
+        r#"struct Text {
+    pub len: i32
+}
+
+func replace(view: &+[Text]): void {
+    view[0] = Text{ len: 42 }
+    return
+}
+
+func main(): i32 {
+    replace(source())
+    return 0
+}
+
+func source(): &+[Text] {
+    return source()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("index assignment targets outside supported slice values"),
+        "expected slice assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     view[0] = Text{ len: 42 }"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_scope_drop_body_before_ir_lowering() {
     let project = TempProject::new("cli-build-scope-drop-body-boundary");
     let source = project.write_source(

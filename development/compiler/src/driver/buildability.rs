@@ -3626,13 +3626,6 @@ where
     }
 }
 
-fn type_expr_resolves_to_supported_slice_view(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<bool> {
-    type_expr_resolves_to_supported_slice_view_with_resolver(ty, resolved, &|_| Some(resolved))
-}
-
 fn type_expr_resolves_to_supported_slice_view_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
@@ -6881,6 +6874,7 @@ fn unsupported_index_assignment_target_diagnostic(
         slice_index_assignment_target_is_buildable(
             &index.object,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -6917,6 +6911,7 @@ fn fixed_array_index_assignment_target_is_buildable(
 fn slice_index_assignment_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
@@ -6925,7 +6920,16 @@ fn slice_index_assignment_target_is_buildable(
             let symbol = resolved.local_symbol_for_identifier(identifier)?;
             match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Slice(element) => {
-                    typecheck_slice_element_kind_is_buildable(element).then_some(true)
+                    if typecheck_slice_element_kind_is_buildable(element) {
+                        return Some(true);
+                    }
+                    let ty = typecheck_facts.binding_type_expr(symbol.name_span)?;
+                    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+                    slice_index_target_type_expr_is_buildable_for_sources(
+                        &ty,
+                        resolved,
+                        resolved_sources,
+                    )
                 }
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8
@@ -6941,11 +6945,24 @@ fn slice_index_assignment_target_is_buildable(
                 typecheck_facts,
                 generic_substitutions,
             )?;
-            slice_index_target_type_expr_is_buildable(&return_type, resolved)
+            slice_index_target_type_expr_is_buildable_for_sources(
+                &return_type,
+                resolved,
+                resolved_sources,
+            )
         }
         Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Slice(element) => {
-                typecheck_slice_element_kind_is_buildable(element).then_some(true)
+                if typecheck_slice_element_kind_is_buildable(element) {
+                    return Some(true);
+                }
+                let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
+                let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
+                slice_index_target_type_expr_is_buildable_for_sources(
+                    &ty,
+                    resolved,
+                    resolved_sources,
+                )
             }
             TypecheckScalarViewKind::I32
             | TypecheckScalarViewKind::U8
@@ -6956,24 +6973,28 @@ fn slice_index_assignment_target_is_buildable(
         Expr::Propagate(propagation) => slice_index_assignment_fallible_target_is_buildable(
             &propagation.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Force(force) => slice_index_assignment_fallible_target_is_buildable(
             &force.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Catch(catch) => slice_index_assignment_fallible_target_is_buildable(
             &catch.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
         Expr::Group(group) => slice_index_assignment_target_is_buildable(
             &group.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -6984,6 +7005,7 @@ fn slice_index_assignment_target_is_buildable(
 fn slice_index_assignment_fallible_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
@@ -6999,7 +7021,11 @@ fn slice_index_assignment_fallible_target_is_buildable(
     let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
-    slice_index_target_type_expr_is_buildable(&fallible.success, resolved)
+    slice_index_target_type_expr_is_buildable_for_sources(
+        &fallible.success,
+        resolved,
+        resolved_sources,
+    )
 }
 
 fn aggregate_field_compound_assignment_is_buildable(
@@ -8190,6 +8216,7 @@ fn unsupported_slice_index_diagnostic(
     if slice_index_expression_is_buildable(
         expression,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     )? {
@@ -8268,12 +8295,14 @@ fn fixed_array_index_target_type_expr(
 fn slice_index_expression_is_buildable(
     expression: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
     slice_index_target_is_buildable(
         &expression.object,
         resolved,
+        resolved_sources,
         typecheck_facts,
         generic_substitutions,
     )
@@ -8282,6 +8311,7 @@ fn slice_index_expression_is_buildable(
 fn slice_index_target_is_buildable(
     expression: &Expr,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<bool> {
@@ -8292,7 +8322,16 @@ fn slice_index_target_is_buildable(
             match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
                 TypecheckScalarViewKind::Str => Some(true),
                 TypecheckScalarViewKind::Slice(element) => {
-                    typecheck_slice_element_kind_is_buildable(element).then_some(true)
+                    if typecheck_slice_element_kind_is_buildable(element) {
+                        return Some(true);
+                    }
+                    let ty = typecheck_facts.binding_type_expr(symbol.name_span)?;
+                    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+                    slice_index_target_type_expr_is_buildable_for_sources(
+                        &ty,
+                        resolved,
+                        resolved_sources,
+                    )
                 }
                 TypecheckScalarViewKind::I32
                 | TypecheckScalarViewKind::U8
@@ -8307,12 +8346,25 @@ fn slice_index_target_is_buildable(
                 typecheck_facts,
                 generic_substitutions,
             )?;
-            slice_index_target_type_expr_is_buildable(&return_type, resolved)
+            slice_index_target_type_expr_is_buildable_for_sources(
+                &return_type,
+                resolved,
+                resolved_sources,
+            )
         }
         Expr::Member(member) => match typecheck_facts.field_scalar_view_kind(member.member_span)? {
             TypecheckScalarViewKind::Str => Some(true),
             TypecheckScalarViewKind::Slice(element) => {
-                typecheck_slice_element_kind_is_buildable(element).then_some(true)
+                if typecheck_slice_element_kind_is_buildable(element) {
+                    return Some(true);
+                }
+                let ty = field_type_expr_for_member(member, resolved, typecheck_facts)?;
+                let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
+                slice_index_target_type_expr_is_buildable_for_sources(
+                    &ty,
+                    resolved,
+                    resolved_sources,
+                )
             }
             TypecheckScalarViewKind::I32
             | TypecheckScalarViewKind::U8
@@ -8322,6 +8374,7 @@ fn slice_index_target_is_buildable(
         Expr::Group(group) => slice_index_target_is_buildable(
             &group.expression,
             resolved,
+            resolved_sources,
             typecheck_facts,
             generic_substitutions,
         ),
@@ -8500,35 +8553,69 @@ fn call_return_type_expr_with_substitutions(
     ))
 }
 
-fn slice_index_target_type_expr_is_buildable(
+fn slice_index_target_type_expr_is_buildable_for_sources(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
 ) -> Option<bool> {
-    slice_index_target_type_expr_is_buildable_inner(ty, resolved, &mut HashSet::new())
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    slice_index_target_type_expr_is_buildable_with_resolver(ty, fallback_resolved, &source_resolver)
 }
 
-fn slice_index_target_type_expr_is_buildable_inner(
+fn slice_index_target_type_expr_is_buildable_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<bool>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    slice_index_target_type_expr_is_buildable_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn slice_index_target_type_expr_is_buildable_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
     resolving_names: &mut HashSet<String>,
-) -> Option<bool> {
+) -> Option<bool>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite && type_expr_resolves_to_str(&borrow.inner, resolved) =>
+            if !borrow.is_readwrite
+                && type_expr_resolves_to_str_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                ) =>
         {
             Some(true)
         }
-        TypeExpr::Borrow(borrow) => {
-            type_expr_resolves_to_supported_slice_view(&borrow.inner, resolved)
-        }
+        TypeExpr::Borrow(borrow) => type_expr_resolves_to_supported_slice_view_with_resolver(
+            &borrow.inner,
+            fallback_resolved,
+            resolver,
+        ),
         TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             let target = symbol.alias_target.as_ref()?;
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;
             }
-            let result =
-                slice_index_target_type_expr_is_buildable_inner(target, resolved, resolving_names);
+            let result = slice_index_target_type_expr_is_buildable_inner(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
             resolving_names.remove(&symbol.canonical_name);
             result
         }
