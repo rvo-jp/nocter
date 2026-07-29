@@ -59,11 +59,11 @@ Recommended order:
 - Fixed array ABI layout/classification is implemented. Runtime currently ships
   local fixed array literals, including zero-length literal bindings, local copy
   bindings including zero-length copies, whole-local assignment including
-  zero-length literal/copy assignment, fixed array value parameters including
-  zero-length values, direct fixed array literal value arguments including
-  zero-length literal arguments, matching fixed array call-result bindings
-  including zero-length results, and direct literal/local/call-result fixed
-  array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
+  zero-length literal/copy/call-result assignment, fixed array value parameters
+  including zero-length values, direct fixed array literal value arguments
+  including zero-length literal arguments, matching fixed array call-result
+  bindings including zero-length results, and direct literal/local/call-result
+  fixed array returns including zero-length returns for `i32`, `u8`, `usize`, `bool`,
   and `&str` elements. Constant and variable index reads and simple writes build
   and run for the same element subset, plus constant and variable numeric index
   compound assignment for `i32`, `u8`, and `usize`. Move-only element arrays and

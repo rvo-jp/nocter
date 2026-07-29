@@ -5397,7 +5397,17 @@ fn build_command_lowers_fixed_array_whole_assignments() {
     let replacement: [i32; 2] = [3, 4]
     values = [5, 6]
     values = replacement
+    values = make_pair()
+    values = make_fallible_pair()!
     return values[0]
+}
+
+func make_pair(): [i32; 2] {
+    return [7, 8]
+}
+
+func make_fallible_pair(): [i32; 2]! {
+    return [9, 10]
 }
 "#,
     );
@@ -5458,7 +5468,17 @@ fn build_command_lowers_zero_length_fixed_array_copy_and_assignment() {
     let copied: [u8; 0] = empty
     empty = []
     empty = copied
+    empty = make_empty()
+    empty = make_fallible_empty()!
     return 0
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func make_fallible_empty(): [u8; 0]! {
+    return []
 }
 "#,
     );

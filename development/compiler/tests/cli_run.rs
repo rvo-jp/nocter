@@ -7283,6 +7283,64 @@ func make_pair(): [i32; 2]! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_assigns_fixed_array_call_results() {
+    let project = TempProject::new("cli-run-fixed-array-call-result-assignments");
+    let source = project.write_source(
+        "fixed_array_call_result_assignments.nct",
+        r#"func main(): i32 {
+    var pair: [i32; 2] = [0, 0]
+    var words: [&str; 2] = ["bad", "bad"]
+    var empty: [u8; 0] = []
+    pair = make_pair()
+    pair = make_fallible_pair()!
+    words = make_words()
+    empty = make_empty()
+    empty = make_fallible_empty()!
+    let total: i32 = pair[0] + pair[1]
+    let word: &str = words[1]
+    if total == 42 {
+        if word.len() == 6 {
+            return 42
+        }
+    }
+    return 1
+}
+
+func make_pair(): [i32; 2] {
+    return [1, 2]
+}
+
+func make_fallible_pair(): [i32; 2]! {
+    return [20, 22]
+}
+
+func make_words(): [&str; 2] {
+    return ["lang", "Nocter"]
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func make_fallible_empty(): [u8; 0]! {
+    return []
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_fixed_array_constant_indices() {
     let project = TempProject::new("cli-run-fixed-array-constant-index-writes");
     let source = project.write_source(

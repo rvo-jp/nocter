@@ -17060,6 +17060,105 @@ fn lowers_zero_length_fixed_array_copy_binding_and_assignment() {
 }
 
 #[test]
+fn lowers_fixed_array_call_result_assignments_to_existing_slots() {
+    let source = r#"func main(): i32 {
+    var values: [i32; 2] = [1, 2]
+    var empty: [u8; 0] = []
+    values = make_pair()
+    values = make_fallible_pair()!
+    empty = make_empty()
+    empty = make_fallible_empty()!
+    return values[0] + values[1]
+}
+
+func make_pair(): [i32; 2] {
+    return [3, 4]
+}
+
+func make_fallible_pair(): [i32; 2]! {
+    return [20, 22]
+}
+
+func make_empty(): [u8; 0] {
+    return []
+}
+
+func make_fallible_empty(): [u8; 0]! {
+    return []
+}
+"#;
+    let pair_layout = ValueLayout::new(8, 4);
+    let pair_type = Type::DirectAggregate {
+        layout: pair_layout,
+        words: 1,
+    };
+    let empty_layout = ValueLayout::new(0, 1);
+    let empty_type = Type::DirectAggregate {
+        layout: empty_layout,
+        words: 0,
+    };
+
+    let main = lower_named_function_with_signatures(
+        source,
+        "main",
+        function_signatures(vec![
+            ("make_pair", pair_type.clone(), vec![]),
+            (
+                "make_fallible_pair",
+                Type::Fallible(Box::new(pair_type)),
+                vec![],
+            ),
+            ("make_empty", empty_type.clone(), vec![]),
+            (
+                "make_fallible_empty",
+                Type::Fallible(Box::new(empty_type)),
+                vec![],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make_pair"),
+                arguments: vec![],
+                layout: pair_layout,
+            })
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make_fallible_pair"),
+                arguments: vec![],
+                layout: pair_layout,
+                failure_mode: FallibleFailureMode::Trap,
+            })
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_empty"),
+                arguments: vec![],
+                layout: empty_layout,
+            })
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_fallible_empty"),
+                arguments: vec![],
+                layout: empty_layout,
+                failure_mode: FallibleFailureMode::Trap,
+            })
+    );
+}
+
+#[test]
 fn lowers_fixed_array_literal_value_arguments() {
     let source = r#"func main(): i32 {
     let answer: i32 = consume([20, 22], ["bad", "Nocter", "lang"], [])
