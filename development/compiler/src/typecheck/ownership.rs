@@ -12,7 +12,10 @@ use super::environments::{
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
-use super::returns::statement_guarantees_control_exit_or_never;
+use super::returns::{
+    extend_terminal_lookahead_environment, statement_evaluates_never_before_fallthrough,
+    statement_guarantees_control_exit_or_never,
+};
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
@@ -1308,7 +1311,7 @@ fn statements_or_result_use_identifier_before_terminal(
         if statement_stops_later_liveness(statement, resolved, &lookahead_environment) {
             return false;
         }
-        extend_liveness_lookahead_environment(statement, resolved, &mut lookahead_environment);
+        extend_terminal_lookahead_environment(statement, resolved, &mut lookahead_environment);
     }
     result.is_some_and(|result| {
         expression_uses_identifier(result, name, resolved, &lookahead_environment)
@@ -1323,61 +1326,7 @@ fn statement_stops_later_liveness(
     if statement_guarantees_control_exit_or_never(statement, resolved, environment) {
         return true;
     }
-
-    match statement {
-        Stmt::Binding(statement) => {
-            expression_type(&statement.initializer, resolved, environment) == Type::Never
-        }
-        Stmt::Assignment(statement) => {
-            expression_type(&statement.value, resolved, environment) == Type::Never
-        }
-        Stmt::If(statement) => {
-            expression_type(&statement.condition, resolved, environment) == Type::Never
-        }
-        Stmt::IfIs(statement) => {
-            expression_type(&statement.expression, resolved, environment) == Type::Never
-        }
-        Stmt::Switch(statement) => {
-            expression_type(&statement.expression, resolved, environment) == Type::Never
-        }
-        Stmt::ForRange(statement) => {
-            expression_type(&statement.start, resolved, environment) == Type::Never
-                || expression_type(&statement.end, resolved, environment) == Type::Never
-        }
-        Stmt::While(statement) => {
-            expression_type(&statement.condition, resolved, environment) == Type::Never
-        }
-        Stmt::Expression(statement) => {
-            expression_type(&statement.expression, resolved, environment) == Type::Never
-        }
-        Stmt::Import(_)
-        | Stmt::FromImport(_)
-        | Stmt::Return(_)
-        | Stmt::Loop(_)
-        | Stmt::Drop(_)
-        | Stmt::Break(_)
-        | Stmt::Continue(_) => false,
-    }
-}
-
-fn extend_liveness_lookahead_environment(
-    statement: &Stmt,
-    resolved: &ResolveOutput,
-    environment: &mut TypeEnvironment,
-) {
-    let Stmt::Binding(statement) = statement else {
-        return;
-    };
-    let initializer_type = expression_type(&statement.initializer, resolved, environment);
-    if initializer_type == Type::Never {
-        return;
-    }
-    let binding_type = continuing_binding_type(statement, initializer_type, resolved, environment);
-    environment.define_binding(
-        statement.name.clone(),
-        binding_type,
-        binding_kind_is_mutable(statement.kind),
-    );
+    statement_evaluates_never_before_fallthrough(statement, resolved, environment)
 }
 
 fn expression_uses_identifier(

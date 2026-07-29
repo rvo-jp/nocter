@@ -17,6 +17,31 @@ fn accepts_if_else_return_as_terminal_statement() {
 }
 
 #[test]
+fn accepts_nested_block_local_exhaustive_switch_as_terminal_statement() {
+    let diagnostics = check_text(
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    if true {
+        let choice = Choice.yes
+        match choice {
+            Choice.yes { return 0 }
+            Choice.no { return 1 }
+        }
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_if_condition_from_bool_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

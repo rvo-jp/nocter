@@ -1594,16 +1594,20 @@ pub(super) fn block_guarantees_return_or_never(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    let mut environment = environment.clone();
     for statement in &block.statements {
-        if statement_guarantees_return_or_never(statement, resolved, environment) {
+        if statement_guarantees_return_or_never(statement, resolved, &environment)
+            || statement_evaluates_never_before_fallthrough(statement, resolved, &environment)
+        {
             return true;
         }
+        extend_terminal_lookahead_environment(statement, resolved, &mut environment);
     }
 
     block
         .result
         .as_ref()
-        .is_some_and(|result| expression_type(result, resolved, environment) == Type::Never)
+        .is_some_and(|result| expression_type(result, resolved, &environment) == Type::Never)
 }
 
 pub(super) fn block_guarantees_control_exit_or_never(
@@ -1611,16 +1615,81 @@ pub(super) fn block_guarantees_control_exit_or_never(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    let mut environment = environment.clone();
     for statement in &block.statements {
-        if statement_guarantees_control_exit_or_never(statement, resolved, environment) {
+        if statement_guarantees_control_exit_or_never(statement, resolved, &environment)
+            || statement_evaluates_never_before_fallthrough(statement, resolved, &environment)
+        {
             return true;
         }
+        extend_terminal_lookahead_environment(statement, resolved, &mut environment);
     }
 
     block
         .result
         .as_ref()
-        .is_some_and(|result| expression_type(result, resolved, environment) == Type::Never)
+        .is_some_and(|result| expression_type(result, resolved, &environment) == Type::Never)
+}
+
+pub(super) fn statement_evaluates_never_before_fallthrough(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match statement {
+        Stmt::Binding(statement) => {
+            expression_type(&statement.initializer, resolved, environment) == Type::Never
+        }
+        Stmt::Assignment(statement) => {
+            expression_type(&statement.value, resolved, environment) == Type::Never
+        }
+        Stmt::If(statement) => {
+            expression_type(&statement.condition, resolved, environment) == Type::Never
+        }
+        Stmt::IfIs(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::Switch(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::ForRange(statement) => {
+            expression_type(&statement.start, resolved, environment) == Type::Never
+                || expression_type(&statement.end, resolved, environment) == Type::Never
+        }
+        Stmt::While(statement) => {
+            expression_type(&statement.condition, resolved, environment) == Type::Never
+        }
+        Stmt::Expression(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Return(_)
+        | Stmt::Loop(_)
+        | Stmt::Drop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => false,
+    }
+}
+
+pub(super) fn extend_terminal_lookahead_environment(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+) {
+    let Stmt::Binding(statement) = statement else {
+        return;
+    };
+    let initializer_type = expression_type(&statement.initializer, resolved, environment);
+    if initializer_type == Type::Never {
+        return;
+    }
+    let binding_type = continuing_binding_type(statement, initializer_type, resolved, environment);
+    environment.define_binding(
+        statement.name.clone(),
+        binding_type,
+        binding_kind_is_mutable(statement.kind),
+    );
 }
 
 pub(super) fn statement_guarantees_control_exit_or_never(

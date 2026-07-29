@@ -160,6 +160,10 @@ Recommended order:
 - Ownership borrow liveness now uses typed terminal-control detection, including
   exhaustive payloadless `match` without `else`, when deciding whether later
   unreachable borrow uses keep a borrow active.
+- Return and control-exit terminal analysis now advances a typed lookahead
+  environment through block-local bindings before checking later terminal
+  statements, so nested branches with local exhaustive enum `match` statements
+  no longer report false missing-return diagnostics.
 - Buildability now mirrors the current IR boundary for explicit aggregate
   `move` inside control flow: value-producing control conditions, non-terminal
   loop/branch conditions, compound terminal conditions, and unsupported
