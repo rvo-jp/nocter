@@ -8,10 +8,10 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
-  - `6ad023a Record binding type expressions in typecheck facts`
-  - `7bbcb07 Record method receiver kind in typecheck facts`
-  - `b5b280a Skip unreachable body tails consistently`
-  - `ba54fbd Preflight aggregate moves in control-flow buildability`
+  - `c8144be Cover payload if-is discard build boundary`
+  - `8339743 Cover imported wildcard-only payloadless match`
+  - `2a023b8 Cover wildcard patterns in formatter CLI`
+  - `96f5a63 Support wildcard-only payloadless match`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
