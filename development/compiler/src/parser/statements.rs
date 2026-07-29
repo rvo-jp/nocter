@@ -138,7 +138,7 @@ impl Parser<'_> {
             TokenKind::Keyword(Keyword::Var) => BindingKind::Var,
             _ => unreachable!("parse_binding_statement starts at let or var"),
         };
-        let name = self.expect_identifier("expected binding name")?;
+        let name = self.expect_name_identifier("expected binding name")?;
         let ty = if self.match_punctuation(":").is_some() {
             Some(self.parse_type()?)
         } else {
@@ -168,7 +168,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_drop_statement(&mut self) -> ParseResult<Stmt> {
         let start = self.bump();
-        let name = self.expect_identifier("expected binding name after `drop`")?;
+        let name = self.expect_name_identifier("expected binding name after `drop`")?;
         if let Some(message) = deferred_drop_target_message(self.current().kind) {
             self.error_current(message);
             return Err(());
@@ -365,7 +365,7 @@ impl Parser<'_> {
         let variant_name = self.expect_identifier("expected enum variant name after `.`")?;
         let mut end = variant_name.span.end;
         let payload = if self.match_punctuation("(").is_some() {
-            let payload = self.expect_identifier("expected payload binding name")?;
+            let payload = self.expect_name_identifier("expected payload binding name")?;
             let close = self.expect_punctuation(")", "`)`")?;
             end = close.span.end;
             Some(SwitchPayloadBinding {
@@ -399,7 +399,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_for_statement(&mut self) -> ParseResult<Stmt> {
         let start = self.expect_keyword(Keyword::For, "`for`")?;
-        let name = self.expect_identifier("expected loop variable name after `for`")?;
+        let name = self.expect_name_identifier("expected loop variable name after `for`")?;
         self.expect_keyword(Keyword::In, "`in`")?;
         let range_start = self.parse_expression()?;
         let range = self.expect_punctuation("..<", "`..<`")?;

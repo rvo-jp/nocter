@@ -262,7 +262,7 @@ impl Parser<'_> {
                 self.error_current("namespace aliases cannot be re-exported in v0");
                 return Err(());
             }
-            let alias = self.expect_identifier("expected import alias after `as`")?;
+            let alias = self.expect_name_identifier("expected import alias after `as`")?;
             return Ok(Item::Import(ImportItem {
                 span: self.span(start.span.start, alias.span.end),
                 path,
@@ -337,10 +337,10 @@ impl Parser<'_> {
             self.error_current("wildcard imports are not part of v0");
             return Err(());
         }
-        let name = self.expect_identifier(message)?;
+        let name = self.expect_name_identifier(message)?;
         let mut end = name.span.end;
         let alias = if self.match_keyword(Keyword::As).is_some() {
-            let alias = self.expect_identifier("expected import alias after `as`")?;
+            let alias = self.expect_name_identifier("expected import alias after `as`")?;
             end = alias.span.end;
             Some(ImportAlias {
                 span: alias.span,
@@ -373,11 +373,11 @@ impl Parser<'_> {
         target: Option<TargetDirective>,
     ) -> ParseResult<FunctionDecl> {
         let start = self.expect_keyword(Keyword::Func, "`func`")?;
-        let first_name = self.expect_identifier("expected function name after `func`")?;
+        let first_name = self.expect_name_identifier("expected function name after `func`")?;
         let (owner, name, name_span, member_name, member_name_span) =
             if self.match_punctuation(".").is_some() {
                 let member =
-                    self.expect_identifier("expected associated function name after `.`")?;
+                    self.expect_name_identifier("expected associated function name after `.`")?;
                 (
                     Some(FunctionOwner {
                         name: first_name.value.clone(),
@@ -431,7 +431,7 @@ impl Parser<'_> {
         target: Option<TargetDirective>,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Primitive, "`primitive`")?;
-        let name = self.expect_identifier("expected primitive name after `primitive`")?;
+        let name = self.expect_name_identifier("expected primitive name after `primitive`")?;
         let generics = self.parse_generic_param_list()?;
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
@@ -461,7 +461,7 @@ impl Parser<'_> {
         target_directive: Option<TargetDirective>,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Type, "`type`")?;
-        let name = self.expect_identifier("expected type alias name after `type`")?;
+        let name = self.expect_name_identifier("expected type alias name after `type`")?;
         let generics = self.parse_generic_param_list()?;
         self.expect_punctuation("=", "`=`")?;
         let target = self.parse_type()?;
@@ -490,7 +490,7 @@ impl Parser<'_> {
         is_copy: bool,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Struct, "`struct`")?;
-        let name = self.expect_identifier("expected struct name after `struct`")?;
+        let name = self.expect_name_identifier("expected struct name after `struct`")?;
         let generics = self.parse_generic_param_list()?;
         let fields = self.parse_struct_fields()?;
         let end = fields.0.end;
@@ -531,7 +531,7 @@ impl Parser<'_> {
                 );
                 return Err(());
             }
-            let name = self.expect_identifier("expected struct field name")?;
+            let name = self.expect_name_identifier("expected struct field name")?;
             self.expect_punctuation(":", "`:`")?;
             let ty = self.parse_type()?;
             fields.push(StructField {
@@ -557,7 +557,7 @@ impl Parser<'_> {
         target: Option<TargetDirective>,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Enum, "`enum`")?;
-        let name = self.expect_identifier("expected enum name after `enum`")?;
+        let name = self.expect_name_identifier("expected enum name after `enum`")?;
         let generics = self.parse_generic_param_list()?;
         let variants = self.parse_enum_variants()?;
         let end = variants.0.end;
@@ -589,7 +589,7 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            let name = self.expect_identifier("expected enum variant name")?;
+            let name = self.expect_name_identifier("expected enum variant name")?;
             let payload = if self.at_punctuation("(") {
                 self.parse_parameter_list()?.parameters
             } else {
@@ -698,7 +698,7 @@ impl Parser<'_> {
         target: Option<TargetDirective>,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Interface, "`interface`")?;
-        let name = self.expect_identifier("expected interface name after `interface`")?;
+        let name = self.expect_name_identifier("expected interface name after `interface`")?;
         let generics = self.parse_generic_param_list()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut methods = Vec::new();
@@ -761,7 +761,7 @@ impl Parser<'_> {
         let start = self.expect_keyword(Keyword::Method, "`method`")?;
         let receiver = self.parse_method_receiver()?;
         self.expect_punctuation(".", "`.`")?;
-        let name = self.expect_identifier("expected method name after `.`")?;
+        let name = self.expect_name_identifier("expected method name after `.`")?;
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
@@ -862,7 +862,7 @@ impl Parser<'_> {
                 );
                 return Err(());
             }
-            let name = self.expect_identifier("expected parameter name")?;
+            let name = self.expect_name_identifier("expected parameter name")?;
             self.expect_punctuation(":", "`:`")?;
             let ty = self.parse_type()?;
             if self.at_punctuation("=") {

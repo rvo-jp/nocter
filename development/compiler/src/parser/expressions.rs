@@ -244,7 +244,7 @@ impl Parser<'_> {
             }
 
             if let Some(catch) = self.match_keyword(Keyword::Catch) {
-                let error = self.expect_identifier("expected catch binding name")?;
+                let error = self.expect_name_identifier("expected catch binding name")?;
                 let catch_block = self.parse_block()?;
                 let end = catch_block.span.end;
                 expression = Expr::Catch(CatchExpr {

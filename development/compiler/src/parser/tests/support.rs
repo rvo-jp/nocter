@@ -17,6 +17,19 @@ pub(super) fn parse_text_with_sources(text: &str) -> (SourceMap, ParseOutput) {
     (sources, output)
 }
 
+pub(super) fn assert_rejects_discard_name(text: &str) {
+    let output = parse_text(text);
+    assert!(output.ast.is_none(), "{:?}", output.diagnostics);
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("`_` is reserved")),
+        "{:?}",
+        output.diagnostics
+    );
+}
+
 pub(super) fn find_json_node<'a>(node: &'a JsonAstNode, kind: &str) -> Option<&'a JsonAstNode> {
     if node.kind == kind {
         return Some(node);

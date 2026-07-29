@@ -181,7 +181,7 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            let parameter = self.expect_identifier("expected generic parameter name")?;
+            let parameter = self.expect_name_identifier("expected generic parameter name")?;
             if self.match_punctuation(":").is_some() {
                 self.error_current(
                     "generic bounds are deferred after v0; use an unbounded type parameter",

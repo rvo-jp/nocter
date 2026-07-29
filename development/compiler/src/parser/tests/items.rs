@@ -1,4 +1,6 @@
-use super::support::{find_json_node, parse_text, parse_text_with_sources};
+use super::support::{
+    assert_rejects_discard_name, find_json_node, parse_text, parse_text_with_sources,
+};
 use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
 
 #[test]
@@ -120,6 +122,65 @@ fn rejects_invalid_module_path_segments() {
             "{source}: {:?}",
             output.diagnostics
         );
+    }
+}
+
+#[test]
+fn rejects_discard_name_for_item_declarations_and_imports() {
+    for source in [
+        "use std/io as _\n",
+        "use std/io._\n",
+        "use std/io.print as _\n",
+        r#"func _(): i32 {
+    return 0
+}
+"#,
+        r#"func Owner._(): i32 {
+    return 0
+}
+"#,
+        "primitive _(): i32\n",
+        "type _ = i32\n",
+        r#"struct _ {
+    value: i32
+}
+"#,
+        r#"struct Pair {
+    _: i32
+}
+"#,
+        r#"enum _ {
+    ready
+}
+"#,
+        r#"enum Status {
+    _
+}
+"#,
+        r#"interface _ {
+    pub method &self.ready(): bool
+}
+"#,
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    method &self._(): i32 {
+        return 0
+    }
+}
+"#,
+        r#"func generic<_>(): i32 {
+    return 0
+}
+"#,
+        r#"func consume(_: i32): i32 {
+    return 0
+}
+"#,
+    ] {
+        assert_rejects_discard_name(source);
     }
 }
 

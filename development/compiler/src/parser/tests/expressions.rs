@@ -1,4 +1,6 @@
-use super::support::{find_json_node, parse_text, parse_text_with_sources};
+use super::support::{
+    assert_rejects_discard_name, find_json_node, parse_text, parse_text_with_sources,
+};
 use crate::ast::{
     BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr, UnaryOperator,
 };
@@ -51,6 +53,20 @@ fn rejects_removed_optional_question_question_operator() {
             .diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.message.contains("`??` was removed") })
+    );
+}
+
+#[test]
+fn rejects_discard_name_for_catch_binding() {
+    assert_rejects_discard_name(
+        r#"func main(): i32 {
+    maybe() catch _ {
+        return 1
+    }
+
+    return 0
+}
+"#,
     );
 }
 

@@ -57,6 +57,9 @@ deciding whether value-producing control expressions or discardable expression
 statements are in scalar/view runtime positions. IR type normalization and drop
 glue resolution also handle source-qualified imported type names when lowering
 imported call signatures. Hover labels remain editor presentation data.
+Parser diagnostics reserve a single `_` across v0 name-introducing syntax,
+including declarations, parameters, local bindings, payload bindings, import
+introduced names, and import aliases.
 
 ## Implemented Capability
 

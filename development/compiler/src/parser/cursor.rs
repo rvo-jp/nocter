@@ -19,6 +19,22 @@ impl Parser<'_> {
         Err(())
     }
 
+    pub(super) fn expect_name_identifier(
+        &mut self,
+        message: &str,
+    ) -> ParseResult<ParsedIdentifier> {
+        let identifier = self.expect_identifier(message)?;
+        if identifier.value == "_" {
+            self.error_at(
+                identifier.span,
+                "`_` is reserved for future discard or wildcard syntax and cannot be used as a name in v0",
+            );
+            return Err(());
+        }
+
+        Ok(identifier)
+    }
+
     pub(super) fn expect_integer_literal(&mut self, message: &str) -> ParseResult<Token> {
         if self.current().kind == TokenKind::IntegerLiteral {
             return Ok(self.bump());
