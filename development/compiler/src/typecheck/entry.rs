@@ -34,14 +34,16 @@ pub(super) fn find_entry_function(ast: &AstFile) -> Option<&FunctionDecl> {
 }
 
 pub(super) fn is_valid_entry_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    is_valid_entry_return_model_type(&type_expr_to_type(ty, resolved))
+    is_valid_entry_return_model_type(&type_expr_to_type(ty, resolved), true)
 }
 
-fn is_valid_entry_return_model_type(ty: &Type) -> bool {
+fn is_valid_entry_return_model_type(ty: &Type, allow_fallible: bool) -> bool {
     match ty {
         Type::I32 | Type::Void => true,
         Type::Primitive(name) if name == "usize" => true,
-        Type::Fallible { success, .. } => is_valid_entry_return_model_type(success),
+        Type::Fallible { success, .. } if allow_fallible => {
+            is_valid_entry_return_model_type(success, false)
+        }
         _ => false,
     }
 }

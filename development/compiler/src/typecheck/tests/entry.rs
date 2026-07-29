@@ -145,6 +145,23 @@ fn diagnoses_invalid_default_main_return_type() {
 }
 
 #[test]
+fn diagnoses_nested_fallible_default_main_return_type() {
+    let diagnostics = check_text(
+        r#"func main(): i32!! {
+    return answer()
+}
+
+func answer(): i32! {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0303");
+}
+
+#[test]
 fn diagnoses_duplicate_default_main_as_duplicate_function_name() {
     let diagnostics = check_text(
         r#"func main(): i32 {
