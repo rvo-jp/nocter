@@ -7993,6 +7993,102 @@ func dynamic_message(): &str {
 }
 
 #[test]
+fn build_command_lowers_static_error_payload_helper() {
+    let project = TempProject::new("cli-build-static-error-payload-helper");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "static_error_payload_helper.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return app_failed()
+}
+
+func app_failed(): error {
+    return Error.new("app.failed", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_dynamic_error_return_helper_before_ir_lowering() {
+    let project = TempProject::new("cli-build-dynamic-error-return-helper-boundary");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "dynamic_error_return_helper_boundary.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return app_failed(dynamic_message())
+}
+
+func app_failed(message: &str): error {
+    return Error.new("app.failed", message)
+}
+
+func dynamic_message(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        "expected return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 | func app_failed(message: &str): error {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-unreachable-dynamic-failure-payload");
     project.write_nocter_home_file(

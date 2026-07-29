@@ -92,7 +92,12 @@ impl<'a> CallableIndex<'a> {
                         names.insert(function.name_span, function.name.clone());
                         definitions.insert(
                             target,
-                            IndexedCallable::new_function(function, file, &resolved_sources),
+                            IndexedCallable::new_function(
+                                function,
+                                file,
+                                &resolved_sources,
+                                root_source,
+                            ),
                         );
                     }
                     Item::Function(function) => {
@@ -119,6 +124,7 @@ impl<'a> CallableIndex<'a> {
                                     specialization.substitutions.clone(),
                                     file,
                                     &resolved_sources,
+                                    root_source,
                                 ),
                             );
                         }
@@ -273,6 +279,7 @@ impl<'a> IndexedCallable<'a> {
         function: &'a FunctionDecl,
         file: &'a FileAnalysis,
         resolved_sources: &ResolvedSources<'a>,
+        root_source: SourceId,
     ) -> Self {
         let mut issues = Vec::new();
         issues.extend(callable_function_signature_issues(
@@ -280,6 +287,7 @@ impl<'a> IndexedCallable<'a> {
             &HashMap::new(),
             &file.resolved,
             resolved_sources,
+            root_source,
         ));
         issues.extend(nested_fallible_return_issue(
             function,
@@ -304,6 +312,7 @@ impl<'a> IndexedCallable<'a> {
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
         resolved_sources: &ResolvedSources<'a>,
+        root_source: SourceId,
     ) -> Self {
         let mut issues = Vec::new();
         issues.extend(callable_function_signature_issues(
@@ -311,6 +320,7 @@ impl<'a> IndexedCallable<'a> {
             &substitutions,
             &file.resolved,
             resolved_sources,
+            root_source,
         ));
         issues.extend(nested_fallible_return_issue(
             function,
@@ -400,6 +410,7 @@ fn callable_function_signature_issues(
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
+    root_source: SourceId,
 ) -> Vec<BuildabilityIssue> {
     let mut issues = callable_parameter_issues(
         &function.parameters.parameters,
@@ -409,11 +420,19 @@ fn callable_function_signature_issues(
     );
     let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
     let source_resolver = |source| resolved_sources.get(&source).copied();
-    if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver) {
+    if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver)
+        && !function_error_return_type_is_buildable(
+            function,
+            &return_type,
+            resolved,
+            &source_resolver,
+            root_source,
+        )
+    {
         issues.push(BuildabilityIssue {
             span: function.return_type.span(),
             construct: "function return types outside the v0 runtime ABI subset",
-            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, `error`, a supported aggregate, or a fallible form of one of those types",
+            help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, a supported static `error` payload helper, or a fallible form with a non-`error` success type",
         });
     }
     issues
@@ -470,6 +489,114 @@ fn callable_parameter_issues(
             })
         })
         .collect()
+}
+
+fn function_error_return_type_is_buildable<'a, F>(
+    function: &FunctionDecl,
+    return_type: &TypeExpr,
+    resolved: &'a ResolveOutput,
+    resolver: &F,
+    root_source: SourceId,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if !type_expr_is_error_parameter_with_resolver(return_type, resolved, resolver) {
+        return false;
+    }
+
+    non_root_error_constructor_signature(function, root_source, resolved, resolver)
+        || static_error_payload_function_body_is_buildable(function, root_source, resolved)
+}
+
+fn non_root_error_constructor_signature<'a, F>(
+    function: &FunctionDecl,
+    root_source: SourceId,
+    resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    function.name_span.source != root_source
+        && function.parameters.parameters.len() == 2
+        && type_expr_is_error_parameter_with_resolver(&function.return_type, resolved, resolver)
+}
+
+fn static_error_payload_function_body_is_buildable(
+    function: &FunctionDecl,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    let mut runtime_statements = function
+        .body
+        .statements
+        .iter()
+        .filter(|statement| !matches!(statement, Stmt::Import(_) | Stmt::FromImport(_)));
+    let Some(Stmt::Return(statement)) = runtime_statements.next() else {
+        return false;
+    };
+    if runtime_statements.next().is_some() {
+        return false;
+    }
+    let Some(expression) = statement.expression.as_ref() else {
+        return false;
+    };
+    static_error_payload_expression_is_buildable(expression, root_source, resolved)
+}
+
+fn static_error_payload_expression_is_buildable(
+    expression: &Expr,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    match expression {
+        Expr::Group(group) => {
+            static_error_payload_expression_is_buildable(&group.expression, root_source, resolved)
+        }
+        Expr::Call(call) => {
+            error_constructor_call_is_buildable(call, root_source, resolved)
+                && call.arguments.len() == 2
+                && call
+                    .arguments
+                    .iter()
+                    .all(static_error_payload_string_expression_is_buildable)
+        }
+        _ => false,
+    }
+}
+
+fn static_error_payload_string_expression_is_buildable(expression: &Expr) -> bool {
+    match expression {
+        Expr::StringLiteral(_) => true,
+        Expr::Group(group) => {
+            static_error_payload_string_expression_is_buildable(&group.expression)
+        }
+        _ => false,
+    }
+}
+
+fn error_constructor_call_is_buildable(
+    call: &CallExpr,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> bool {
+    if let Some(symbol) = resolved.symbol_for_call(call)
+        && symbol.declaration_span.source != root_source
+        && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
+    {
+        return signature.parameters.len() == 2
+            && type_expr_is_error_parameter(&signature.return_type, resolved);
+    }
+
+    if let Some((_owner, function)) = resolved.associated_function_for_call(call)
+        && function.name_span.source != root_source
+    {
+        return function.signature.parameters.len() == 2
+            && type_expr_is_error_parameter(&function.signature.return_type, resolved);
+    }
+
+    false
 }
 
 fn method_contextual_substitutions(
@@ -3867,7 +3994,6 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
-        || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
 }
 
