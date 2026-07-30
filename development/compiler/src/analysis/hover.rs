@@ -1462,6 +1462,37 @@ mod tests {
     }
 
     #[test]
+    fn workspace_hover_uses_typecheck_facts_for_enum_pattern_variant_reference() {
+        let text = r#"enum Choice {
+    /// Selected hit.
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text
+            .find("hit(_)")
+            .expect("expected pattern variant reference");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "variant Choice.hit(value: i32)");
+        assert_eq!(hover.documentation.as_deref(), Some("Selected hit."));
+    }
+
+    #[test]
     fn workspace_hover_uses_typecheck_facts_for_payloadless_enum_variant_reference() {
         let text = "enum Event {\n    /// Ready to run.\n    ready\n}\n\nfunc main(): i32 {\n    let event = Event.ready\n    return 0\n}\n";
         let (sources, analysis) = analyze_text(text);

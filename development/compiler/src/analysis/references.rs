@@ -467,6 +467,36 @@ mod tests {
         assert_eq!(span_fragments(text, &method_spans), vec!["read", "read"]);
     }
 
+    #[test]
+    fn reference_query_finds_enum_pattern_variant_references() {
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    let event = Choice.hit(1)
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text
+            .find("hit(value")
+            .expect("expected variant declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+        let fragments = span_fragments(text, &spans);
+
+        assert_eq!(fragments, vec!["hit", "hit", "hit", "hit"]);
+    }
+
     fn span_fragments<'a>(text: &'a str, spans: &[ByteSpan]) -> Vec<&'a str> {
         spans
             .iter()

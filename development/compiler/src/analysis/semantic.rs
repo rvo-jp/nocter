@@ -438,6 +438,50 @@ mod tests {
         assert_eq!(fd.kind, SemanticTokenKind::Property);
     }
 
+    #[test]
+    fn analysis_classifies_enum_pattern_variants_as_properties() {
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        for start in [
+            text.find("hit(_)").expect("expected if-is hit pattern"),
+            text.rfind("hit(_)").expect("expected match hit pattern"),
+        ] {
+            let hit = identifier_starting_at(&identifiers, start)
+                .expect("expected semantic token for hit pattern variant");
+            assert_eq!(hit.kind, SemanticTokenKind::Property);
+        }
+
+        let miss = identifier_starting_at(
+            &identifiers,
+            text.rfind("miss(_)").expect("expected match miss pattern"),
+        )
+        .expect("expected semantic token for miss pattern variant");
+        assert_eq!(miss.kind, SemanticTokenKind::Property);
+
+        assert!(
+            identifiers_for_lexeme(text, &identifiers, "_").is_empty(),
+            "payload discard should not be classified as an identifier"
+        );
+    }
+
     fn identifiers_for_lexeme<'a>(
         text: &str,
         identifiers: &'a [ClassifiedIdentifier],

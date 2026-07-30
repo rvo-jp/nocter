@@ -238,6 +238,111 @@ fn lsp_command_single_file_semantic_tokens_classify_builtin_types() {
 }
 
 #[test]
+fn lsp_command_semantic_tokens_classify_enum_pattern_variants() {
+    let project = TempProject::new("cli-lsp-enum-pattern-semantic");
+    let source_text = r#"enum Choice {
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/semanticTokens/full",
+                "params": {
+                    "textDocument": {
+                        "uri": uri
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let semantic_data = messages
+        .iter()
+        .find(|message| message["id"] == 2)
+        .and_then(|message| message["result"]["data"].as_array())
+        .expect("expected semantic token response");
+    let tokens = decode_semantic_tokens(semantic_data);
+
+    for start in [
+        source_text
+            .find("hit(_)")
+            .expect("expected if-is hit pattern"),
+        source_text
+            .rfind("hit(_)")
+            .expect("expected match hit pattern"),
+        source_text
+            .rfind("miss(_)")
+            .expect("expected match miss pattern"),
+    ] {
+        let token = token_starting_at(&tokens, source_text, start)
+            .expect("expected semantic token for pattern variant");
+        assert_eq!(token.kind, SEMANTIC_TOKEN_PROPERTY);
+    }
+
+    assert!(
+        tokens
+            .iter()
+            .all(|token| token.lexeme(source_text) != Some("_")),
+        "payload discard should not be classified as an identifier"
+    );
+}
+
+#[test]
 fn lsp_command_serves_v0_editor_features() {
     let project = TempProject::new("cli-lsp-editor-features");
     let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";
@@ -589,6 +694,7 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 }
 
 const SEMANTIC_TOKEN_TYPE: usize = 4;
+const SEMANTIC_TOKEN_PROPERTY: usize = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DecodedSemanticToken {
@@ -629,6 +735,23 @@ fn decode_semantic_tokens(values: &[Value]) -> Vec<DecodedSemanticToken> {
     }
 
     tokens
+}
+
+fn token_starting_at<'a>(
+    tokens: &'a [DecodedSemanticToken],
+    text: &str,
+    start_byte: usize,
+) -> Option<&'a DecodedSemanticToken> {
+    let prefix = text.get(..start_byte)?;
+    let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+    let character = prefix
+        .rsplit_once('\n')
+        .map(|(_, line)| line.len())
+        .unwrap_or(prefix.len());
+
+    tokens
+        .iter()
+        .find(|token| token.line == line && token.character == character)
 }
 
 fn file_uri(path: &Path) -> String {

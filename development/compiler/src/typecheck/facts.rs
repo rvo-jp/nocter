@@ -26,14 +26,15 @@ use super::type_expr::{
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
     ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, EnumDecl,
-    EnumVariant, Expr, FallibleType, GenericParamList, GenericType, ImplDecl, ImplMember,
+    EnumVariant, Expr, FallibleType, GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember,
     InterpolatedStringPart, Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType,
-    Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding,
-    TypeAliasDecl, TypeExpr, TypeReference, ViewType, substitute_type_expr_parameters,
+    Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchArm,
+    SwitchPayloadBinding, TypeAliasDecl, TypeExpr, TypeReference, ViewType,
+    substitute_type_expr_parameters,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
-    ResolveOutput, SymbolKind, TypeSymbol,
+    ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
@@ -728,7 +729,7 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
-                self.record_type_reference(&statement.enum_name, statement.enum_name_span);
+                self.record_if_is_pattern_references(statement);
 
                 let mut then_environment =
                     environment_for_if_is_binding(statement, self.resolved, environment);
@@ -752,7 +753,7 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 for arm in &statement.arms {
-                    self.record_type_reference(&arm.enum_name, arm.enum_name_span);
+                    self.record_switch_arm_pattern_references(arm);
                     let mut arm_environment = environment_for_switch_arm(
                         arm,
                         &statement.expression,
@@ -1319,7 +1320,7 @@ impl TypecheckFactCollector<'_> {
                     environment,
                     return_type,
                 );
-                self.record_type_reference(&expression.enum_name, expression.enum_name_span);
+                self.record_if_is_pattern_references(expression);
 
                 let mut then_environment =
                     environment_for_if_is_binding(expression, self.resolved, environment);
@@ -1347,7 +1348,7 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 for arm in &expression.arms {
-                    self.record_type_reference(&arm.enum_name, arm.enum_name_span);
+                    self.record_switch_arm_pattern_references(arm);
                     let mut arm_environment = environment_for_switch_arm(
                         arm,
                         &expression.expression,
@@ -1502,6 +1503,50 @@ impl TypecheckFactCollector<'_> {
             symbol_name_span,
             symbol_declaration_span,
         });
+    }
+
+    fn record_if_is_pattern_references(&mut self, statement: &IfIsStmt) {
+        self.record_enum_pattern_references(
+            &statement.enum_name,
+            statement.enum_name_span,
+            &statement.variant_name,
+            statement.variant_name_span,
+        );
+    }
+
+    fn record_switch_arm_pattern_references(&mut self, arm: &SwitchArm) {
+        self.record_enum_pattern_references(
+            &arm.enum_name,
+            arm.enum_name_span,
+            &arm.variant_name,
+            arm.variant_name_span,
+        );
+    }
+
+    fn record_enum_pattern_references(
+        &mut self,
+        enum_name: &str,
+        enum_name_span: ByteSpan,
+        variant_name: &str,
+        variant_name_span: ByteSpan,
+    ) {
+        self.record_type_reference(enum_name, enum_name_span);
+
+        let Some(owner) = self.resolved.type_symbol_by_name(enum_name) else {
+            return;
+        };
+        if owner.kind != TypeSymbolKind::Enum {
+            return;
+        }
+        let Some(variant) = owner
+            .variants
+            .iter()
+            .find(|variant| variant.name == variant_name)
+        else {
+            return;
+        };
+
+        self.record_enum_variant_reference(variant_name_span, owner, variant);
     }
 
     fn record_parameter_bindings(
@@ -2753,6 +2798,45 @@ func main(choice: Choice): i32 {
     }
 
     #[test]
+    fn records_enum_pattern_variant_reference_facts() {
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+        let (ast, resolved) = parse_and_resolve_text(text);
+        let facts = collect_typecheck_facts(&ast, &resolved);
+        let hit_declaration = identifier_span(&ast, text, "hit(value", "hit");
+        let miss_declaration = identifier_span(&ast, text, "miss(value", "miss");
+
+        for start in [
+            text.find("hit(_)").expect("expected if-is hit pattern"),
+            text.rfind("hit(_)").expect("expected match hit pattern"),
+        ] {
+            let span = ByteSpan::new(ast.span.source, start, start + "hit".len());
+            assert_eq!(facts.enum_variant_target(span), Some(hit_declaration));
+        }
+
+        let miss_start = text.rfind("miss(_)").expect("expected match miss pattern");
+        let miss_span = ByteSpan::new(ast.span.source, miss_start, miss_start + "miss".len());
+        assert_eq!(facts.enum_variant_target(miss_span), Some(miss_declaration));
+
+        let discard_start = text.find("_)").expect("expected discard payload");
+        let discard_span = ByteSpan::new(ast.span.source, discard_start, discard_start + 1);
+        assert_eq!(facts.enum_variant_target(discard_span), None);
+    }
+
+    #[test]
     fn records_concrete_field_type_expr_facts_for_generic_struct_fields() {
         let text = r#"copy struct Box<T> {
     values: [T; 2]
@@ -2788,6 +2872,11 @@ func main(): i32 {
         };
         assert_eq!(element.name, "i32");
         assert_eq!(array.length.value, "2");
+    }
+
+    fn identifier_span(ast: &AstFile, text: &str, needle: &str, identifier: &str) -> ByteSpan {
+        let start = text.find(needle).expect("expected identifier");
+        ByteSpan::new(ast.span.source, start, start + identifier.len())
     }
 
     fn resolve_text(text: &str) -> ResolveOutput {
