@@ -76,9 +76,8 @@ Recommended order:
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
    over existing values, plus scalar/view payload binding in `if is` statements
-   and value expressions and `match` statement arms; next, design `match` value
-   expression payload binding and active payload cleanup before broader
-   collection expansion.
+   and value expressions and `match` statement/value-expression arms; next,
+   design active payload cleanup before broader collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -315,10 +314,10 @@ Recommended order:
   `match` statements over existing values, including wildcard-only,
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
-  statement arms also build/run for `i32`, `u8`, `usize`, `bool`, and `&str`
-  payloads over existing enum bindings and parameters. Payload `match` value
-  expressions, aggregate/slice/non-copy payload binding, and active payload drop
-  cleanup remain the next promotion boundary.
+  statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
+  `bool`, and `&str` payloads over existing enum bindings and parameters.
+  Aggregate/slice/non-copy payload binding and active payload drop cleanup remain
+  the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

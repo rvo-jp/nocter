@@ -4702,14 +4702,24 @@ fn terminal_match_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    payloadless_switch_statement_is_buildable(
-        expression,
-        resolved,
-        resolved_sources,
-        typecheck_facts,
-        generic_substitutions,
-    ) && (expression.wildcard_arm.is_some()
-        || switch_statement_covers_all_payloadless_variants(expression, resolved))
+    let expression_is_exhaustive = expression.wildcard_arm.is_some()
+        || switch_statement_covers_all_payloadless_variants(expression, resolved)
+        || switch_statement_covers_all_tag_only_payload_variants(expression, resolved);
+
+    expression_is_exhaustive
+        && (payloadless_switch_statement_is_buildable(
+            expression,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        ) || tag_only_payload_enum_switch_statement_is_buildable(
+            expression,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        ))
 }
 
 fn payloadless_if_is_statement_is_buildable(
@@ -11219,17 +11229,21 @@ func main(): i32 {
     }
 
     #[test]
-    fn reports_reachable_payload_match_expression_before_ir_lowering() {
+    fn reports_reachable_payload_match_expression_aggregate_binding_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"enum Result {
-    ok(value: i32)
+            r#"copy struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
     failed
 }
 
 func main(): i32 {
-    let result = Result.ok(10)
+    let result = Result.failed
     return match result {
-        Result.ok(value) { value }
+        Result.ok(value) { value.code }
         _ { 0 }
     }
 }

@@ -1202,7 +1202,7 @@ fn lower_callable_control_body_result(
             })
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_control_flow(statement, context, "E8007")?;
+            let switch = tag_only_switch_as_control_flow(statement, context, "E8007")?;
             lower_callable_payloadless_switch_body_result(
                 switch,
                 function_name,
@@ -1351,7 +1351,7 @@ fn lower_terminal_control_return_expression(
             })
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
+            let switch = tag_only_switch_as_control_flow(statement, context, diagnostic_code)?;
             lower_terminal_payloadless_switch_for_success_type(
                 switch,
                 context,
@@ -3215,7 +3215,7 @@ fn lower_terminal_aggregate_result_expression(
             Ok(instructions)
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_control_flow(statement, context, "E8007")?;
+            let switch = tag_only_switch_as_control_flow(statement, context, "E8007")?;
             let mut instructions = switch.leading_instructions;
             instructions.extend(lower_terminal_aggregate_payloadless_switch_body(
                 switch.body,

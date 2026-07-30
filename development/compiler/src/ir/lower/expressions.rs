@@ -20,7 +20,7 @@ use super::functions::{
     lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_switch_as_control_flow, propagating_failure_mode, tag_only_if_is_as_control_flow,
+    propagating_failure_mode, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -1026,8 +1026,7 @@ fn lower_match_expression_to_location(
     lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut switch_context = context.with_reserved_local_abi_words(reserved_local_abi_words);
-    let switch =
-        payloadless_switch_as_control_flow(statement, &mut switch_context, diagnostic_code)?;
+    let switch = tag_only_switch_as_control_flow(statement, &mut switch_context, diagnostic_code)?;
     let mut instructions = switch.leading_instructions;
     instructions.extend(match switch.body {
         LoweredPayloadlessSwitchBody::Direct(block) => {
