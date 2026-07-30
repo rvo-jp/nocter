@@ -8,6 +8,11 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `967ef88 Avoid generic fixed array literal diagnostics`
+  - `f722275 Contextualize unsupported fixed array literals`
+  - `a31858c Clarify unsupported fixed array literal bindings`
+  - `7be19ee Cover alias arms in match expression runtime`
+  - `f8d3471 Update handoff after match buildability work`
   - `91fa4c9 Use canonical enum coverage for match buildability`
   - `978c99e Extract completion recovery helpers`
   - `6e28464 Document struct literal completion recovery`
@@ -87,7 +92,16 @@ Recommended order:
 - Buildability now checks wildcard-free payloadless `match` coverage using the
   resolved canonical enum and covered variant set. Exhaustive `match`
   expressions remain buildable when different visible names, such as an import
-  name and an import alias, are used across arms.
+  name and an import alias, are used across arms; CLI run coverage pins that
+  import-alias match expression path.
+- Buildability now treats array literals in fixed-array typed binding,
+  assignment, return/fallback, function argument, and struct-field initializer
+  contexts as contextual fixed-array values even when the element ABI remains
+  outside v0 runtime support. Unsupported aggregate-element arrays now report
+  the surrounding binding, assignment, signature, or member E0435 and avoid the
+  generic `array literals` fallback diagnostic before IR lowering. CLI build
+  coverage pins each reachable position, and full
+  `./development/compiler/scripts/verify.sh` passed after `967ef88`.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
