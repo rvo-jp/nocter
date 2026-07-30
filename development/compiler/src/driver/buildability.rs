@@ -2523,7 +2523,7 @@ fn method_call_argument_parameter_type(
     Some(substitute_type_expr_parameters(&ty, generic_substitutions))
 }
 
-fn fixed_array_literal_argument_is_buildable(
+fn fixed_array_literal_argument_has_fixed_array_parameter_type(
     call: &CallExpr,
     index: usize,
     argument: &Expr,
@@ -2532,7 +2532,7 @@ fn fixed_array_literal_argument_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(argument) else {
+    let Expr::ArrayLiteral(_) = unwrap_group_expr(argument) else {
         return false;
     };
     let Some(ty) = call_argument_parameter_type(
@@ -2544,13 +2544,7 @@ fn fixed_array_literal_argument_is_buildable(
     ) else {
         return false;
     };
-    let Some((element, length, _layout)) =
-        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
 fn struct_literal_field_may_use_value_control_expression(
@@ -2575,27 +2569,21 @@ fn field_kind_may_use_value_control_expression(kind: TypecheckScalarViewKind) ->
     }
 }
 
-fn fixed_array_literal_struct_field_is_buildable(
+fn fixed_array_literal_struct_field_has_fixed_array_type(
     field: &StructLiteralField,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&field.value) else {
+    let Expr::ArrayLiteral(_) = unwrap_group_expr(&field.value) else {
         return false;
     };
     let Some(ty) = field_type_expr_for_span(field.name_span, resolved, typecheck_facts) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
-    let Some((element, length, _layout)) =
-        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+    fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
 fn unsupported_local_binding_type_diagnostic(
@@ -7869,7 +7857,7 @@ fn collect_expression_diagnostics(
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                if fixed_array_literal_struct_field_is_buildable(
+                if fixed_array_literal_struct_field_has_fixed_array_type(
                     field,
                     resolved,
                     resolved_sources,
@@ -8182,7 +8170,7 @@ fn collect_expression_diagnostics(
                 queue.push_back(target);
             }
             for (index, argument) in expression.arguments.iter().enumerate() {
-                if fixed_array_literal_argument_is_buildable(
+                if fixed_array_literal_argument_has_fixed_array_parameter_type(
                     expression,
                     index,
                     argument,

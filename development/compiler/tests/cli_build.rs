@@ -5252,6 +5252,107 @@ func make_texts(): [Text; 1] {
 }
 
 #[test]
+fn build_command_reports_unsupported_fixed_array_literal_argument_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-fixed-array-literal-argument-boundary");
+    let source = project.write_source(
+        "unsupported_fixed_array_literal_argument_boundary.nct",
+        r#"struct Text {
+    value: i32
+}
+
+func main(): i32 {
+    consume([Text{ value: 1 }])
+    return 0
+}
+
+func consume(texts: [Text; 1]): void {
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        "expected unsupported parameter diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("10 | func consume(texts: [Text; 1]): void {"),
+        "expected parameter source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_fixed_array_literal_field_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-fixed-array-literal-field-boundary");
+    let source = project.write_source(
+        "unsupported_fixed_array_literal_field_boundary.nct",
+        r#"struct Text {
+    value: i32
+}
+
+struct Bag {
+    texts: [Text; 1]
+}
+
+func main(): i32 {
+    let bag = Bag{ texts: [Text{ value: 1 }] }
+    return bag.texts[0].value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("field member values outside supported scalar/view or aggregate types"),
+        "expected unsupported field member diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("11 |     return bag.texts[0].value"),
+        "expected field member source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_scalar_function_signature_before_ir_lowering() {
     let project = TempProject::new("cli-build-unsupported-scalar-signature-boundary");
     let source = project.write_source(
