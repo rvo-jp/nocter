@@ -10,6 +10,15 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `b063078 Track borrow provenance through array indexes`
+  - `b60cb5a Track borrow provenance through struct fields`
+  - `7bf25d7 Cover payload borrow alias returns`
+  - `47f4275 Cover payload match call target boundary`
+  - `8a59e33 Track payload binding borrow provenance`
+  - `ddc2892 Cover borrow return member summaries`
+  - `74e50de Iterate borrow return summaries`
+  - `dc2392a Refine borrow return expression provenance`
+  - `211654f Structure borrow return provenance`
   - `8dd1740 Lower match payload expressions`
   - `c96914c Lower match payload bindings`
   - `514a587 Lower if-is payload bindings`
