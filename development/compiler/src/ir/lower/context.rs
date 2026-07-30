@@ -1,4 +1,6 @@
-use crate::abi::{ReturnPassing, ValueLayout};
+use crate::abi::{
+    AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver, layout_of,
+};
 use crate::ast::{
     CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
     type_expr_display_lossy,
@@ -193,7 +195,7 @@ pub(super) struct LoweringAggregateParameter {
     pub(super) slot_index: usize,
     pub(super) source: AggregateParameterSource,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
     pub(super) fields: Vec<AggregateField>,
 }
 
@@ -274,8 +276,8 @@ impl<'a> LoweringContext<'a> {
                     layout: parameter.layout,
                     slot_index: parameter.slot_index,
                     is_copy: parameter.is_copy,
-                    drop_state: AggregateDropState::from_drop_glue(&parameter.drop_glue),
-                    drop_glue: parameter.drop_glue,
+                    drop_state: AggregateDropState::from_drop_kind(&parameter.drop_kind),
+                    drop_kind: parameter.drop_kind,
                 },
                 index: 0,
             });
@@ -942,7 +944,7 @@ impl<'a> LoweringContext<'a> {
         name: String,
         layout: ValueLayout,
         is_copy: bool,
-        drop_glue: Option<DropGlue>,
+        drop_kind: Option<AggregateDrop>,
         fields: Vec<AggregateField>,
     ) -> usize {
         let slot_index = self.reserve_aggregate_slot_index();
@@ -952,8 +954,8 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index,
                 is_copy,
-                drop_state: AggregateDropState::from_drop_glue(&drop_glue),
-                drop_glue,
+                drop_state: AggregateDropState::from_drop_kind(&drop_kind),
+                drop_kind,
             },
             index: 0,
         });
@@ -1139,7 +1141,7 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     slot_index,
                     is_copy,
-                    ref drop_glue,
+                    ref drop_kind,
                     ..
                 } = local.kind
             {
@@ -1147,7 +1149,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index,
                     layout,
                     is_copy,
-                    drop_glue: drop_glue.clone(),
+                    drop_kind: drop_kind.clone(),
                 });
             }
             None
@@ -1160,7 +1162,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index: local_slot_index,
                 is_copy,
-                ref drop_glue,
+                ref drop_kind,
                 ..
             } = local.kind
             else {
@@ -1171,7 +1173,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index: local_slot_index,
                     layout,
                     is_copy,
-                    drop_glue: drop_glue.clone(),
+                    drop_kind: drop_kind.clone(),
                 });
             }
             None
@@ -1200,14 +1202,14 @@ impl<'a> LoweringContext<'a> {
             return;
         };
         let LocalKind::Aggregate {
-            drop_glue,
+            drop_kind,
             drop_state,
             ..
         } = &mut local.kind
         else {
             return;
         };
-        *drop_state = AggregateDropState::from_drop_glue(drop_glue);
+        *drop_state = AggregateDropState::from_drop_kind(drop_kind);
     }
 
     pub(super) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
@@ -1219,7 +1221,7 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     slot_index,
                     drop_state,
-                    ref drop_glue,
+                    ref drop_kind,
                     ..
                 } = local.kind
                 else {
@@ -1232,7 +1234,7 @@ impl<'a> LoweringContext<'a> {
                     name: local.name.clone(),
                     slot_index,
                     layout,
-                    drop_glue: drop_glue.clone()?,
+                    drop_kind: drop_kind.clone()?,
                 })
             })
             .collect()
@@ -1271,7 +1273,7 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     slot_index,
                     drop_state,
-                    ref drop_glue,
+                    ref drop_kind,
                     ..
                 } = local.kind
                 else {
@@ -1284,7 +1286,7 @@ impl<'a> LoweringContext<'a> {
                     name: local.name.clone(),
                     slot_index,
                     layout,
-                    drop_glue: drop_glue.clone()?,
+                    drop_kind: drop_kind.clone()?,
                 })
             })
             .collect()
@@ -1299,7 +1301,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index: local_slot_index,
                 drop_state,
-                ref drop_glue,
+                ref drop_kind,
                 ..
             } = local.kind
             else {
@@ -1312,7 +1314,7 @@ impl<'a> LoweringContext<'a> {
                 name: local.name.clone(),
                 slot_index,
                 layout,
-                drop_glue: drop_glue.clone()?,
+                drop_kind: drop_kind.clone()?,
             })
         })
     }
@@ -1446,6 +1448,14 @@ impl<'a> LoweringContext<'a> {
         let (root_source, resolved) = self.resolved_calls()?;
         let ty = substitute_type_expr_parameters(ty, &self.generic_substitutions);
         drop_glue_for_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            self.resolved_source(source)
+        })
+    }
+
+    pub(super) fn aggregate_drop_for_type_expr(&self, ty: &TypeExpr) -> Option<AggregateDrop> {
+        let (root_source, resolved) = self.resolved_calls()?;
+        let ty = substitute_type_expr_parameters(ty, &self.generic_substitutions);
+        aggregate_drop_for_type_expr_with_resolver(&ty, root_source, resolved, |source| {
             self.resolved_source(source)
         })
     }
@@ -1585,7 +1595,7 @@ pub(super) struct AggregateLocal {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1593,12 +1603,31 @@ pub(super) struct PendingAggregateDrop {
     pub(super) name: String,
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
-    pub(super) drop_glue: DropGlue,
+    pub(super) drop_kind: AggregateDrop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum AggregateDrop {
+    Direct(DropGlue),
+    PayloadEnum(PayloadEnumDrop),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DropGlue {
     pub(super) target: CallTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDrop {
+    pub(super) variants: Vec<PayloadEnumDropVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDropVariant {
+    pub(super) tag: u8,
+    pub(super) payload_offset: u32,
+    pub(super) payload_layout: ValueLayout,
+    pub(super) drop_glue: DropGlue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1676,7 +1705,7 @@ enum LocalKind {
         slot_index: usize,
         is_copy: bool,
         drop_state: AggregateDropState,
-        drop_glue: Option<DropGlue>,
+        drop_kind: Option<AggregateDrop>,
     },
 }
 
@@ -1698,12 +1727,202 @@ enum AggregateDropState {
 }
 
 impl AggregateDropState {
-    fn from_drop_glue(drop_glue: &Option<DropGlue>) -> Self {
-        if drop_glue.is_some() {
+    fn from_drop_kind(drop_kind: &Option<AggregateDrop>) -> Self {
+        if drop_kind.is_some() {
             Self::NeedsDrop
         } else {
             Self::Suppressed
         }
+    }
+}
+
+pub(super) fn aggregate_drop_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if let Some(drop_glue) =
+        drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, &resolver)
+    {
+        return Some(AggregateDrop::Direct(drop_glue));
+    }
+
+    payload_enum_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, &resolver)
+        .map(AggregateDrop::PayloadEnum)
+}
+
+fn payload_enum_drop_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<PayloadEnumDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
+    let AbiType::Enum(enum_) = value.ty else {
+        return None;
+    };
+    let (symbol, substitutions) =
+        payload_enum_symbol_and_substitutions_for_type_expr(ty, fallback_resolved, resolver)?;
+    let payload_offset = u32::try_from(enum_.payload_offset).ok()?;
+    let mut variants = Vec::new();
+    for variant in &symbol.variants {
+        let abi_variant = enum_
+            .variants
+            .iter()
+            .find(|abi_variant| abi_variant.name == variant.name)?;
+        match payload_enum_drop_variant_for_payload(
+            variant,
+            abi_variant,
+            payload_offset,
+            root_source,
+            fallback_resolved,
+            resolver,
+            &substitutions,
+        ) {
+            Ok(Some(variant)) => variants.push(variant),
+            Ok(None) => {}
+            Err(()) => return None,
+        }
+    }
+    (!variants.is_empty()).then_some(PayloadEnumDrop { variants })
+}
+
+fn payload_enum_drop_variant_for_payload<'a, F>(
+    variant: &crate::resolve::EnumVariantSignature,
+    abi_variant: &crate::abi::AbiEnumVariant,
+    payload_offset: u32,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Result<Option<PayloadEnumDropVariant>, ()>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match variant.payload.as_slice() {
+        [] => Ok(None),
+        [payload] => {
+            let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
+            let Some(drop_glue) = drop_glue_for_type_expr_with_resolver(
+                &ty,
+                root_source,
+                fallback_resolved,
+                resolver,
+            ) else {
+                return Ok(None);
+            };
+            let payload_abi = abi_variant.payload.as_ref().ok_or(())?;
+            let payload_layout = layout_of(payload_abi).map_err(|_| ())?;
+            Ok(Some(PayloadEnumDropVariant {
+                tag: abi_variant.tag,
+                payload_offset,
+                payload_layout,
+                drop_glue,
+            }))
+        }
+        payloads => {
+            let has_drop_payload = payloads.iter().any(|payload| {
+                let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
+                drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver)
+                    .is_some()
+            });
+            if has_drop_payload { Err(()) } else { Ok(None) }
+        }
+    }
+}
+
+fn payload_enum_symbol_and_substitutions_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    payload_enum_symbol_and_substitutions_for_type_expr_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
+}
+
+fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
+            match symbol.kind {
+                TypeSymbolKind::Enum if symbol.generic_arity == 0 => Some((symbol, HashMap::new())),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return None;
+                    }
+                    let result = payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                        target,
+                        fallback_resolved,
+                        resolver,
+                        resolving_names,
+                    );
+                    resolving_names.remove(&symbol.canonical_name);
+                    result
+                }
+                TypeSymbolKind::Struct | TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            let symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions: HashMap<String, TypeExpr> = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            match symbol.kind {
+                TypeSymbolKind::Enum => Some((symbol, substitutions)),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return None;
+                    }
+                    let target = substitute_type_expr_parameters(target, &substitutions);
+                    let result = payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                        &target,
+                        fallback_resolved,
+                        resolver,
+                        resolving_names,
+                    );
+                    resolving_names.remove(&symbol.canonical_name);
+                    result
+                }
+                TypeSymbolKind::Struct | TypeSymbolKind::Interface => None,
+            }
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
     }
 }
 

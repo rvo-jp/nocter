@@ -11,16 +11,17 @@ use super::bindings::{
     lower_str_optional_otherwise_to_location, lower_u8_optional_otherwise_to_location,
     lower_usize_optional_otherwise_to_location,
 };
-use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
+use super::context::{AggregateDrop, AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
-    expression_contains_explicit_aggregate_move_outside, lower_aggregate_return_expression,
-    lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    propagating_failure_mode, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    expression_contains_explicit_aggregate_move_outside, lower_aggregate_drop_instructions,
+    lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
+    lower_never_expression_with_scope_drops, lower_scope_end_drops_for_locals_since,
+    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses, propagating_failure_mode,
+    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -44,9 +45,9 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
-    BorrowArgument, BorrowSource, FallibleFailureMode, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    U8Location, U8Value, UsizeLocation, UsizeValue,
+    FallibleFailureMode, I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::literals::decode_integer_literal_value;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
@@ -1688,7 +1689,7 @@ fn lower_aggregate_struct_literal_statement(
         return Err(unsupported_aggregate_literal_statement_diagnostic());
     }
 
-    let drop_glue = context.drop_glue_for_type_expr(&literal.ty);
+    let drop_kind = context.aggregate_drop_for_type_expr(&literal.ty);
     let mut temporaries = TemporaryAllocator::new(context)?;
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -1707,7 +1708,7 @@ fn lower_aggregate_struct_literal_statement(
     )?);
     append_discarded_aggregate_drop(
         &mut instructions,
-        drop_glue,
+        drop_kind,
         value.layout,
         slot_index,
         context,
@@ -1836,7 +1837,7 @@ fn lower_aggregate_normal_call_statement(
     let Some(return_type_expr) = context.call_return_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
-    let drop_glue = context.drop_glue_for_type_expr(&return_type_expr);
+    let drop_kind = context.aggregate_drop_for_type_expr(&return_type_expr);
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
@@ -1877,7 +1878,7 @@ fn lower_aggregate_normal_call_statement(
             layout,
         );
     }
-    append_discarded_aggregate_drop(&mut instructions, drop_glue, layout, slot_index, context)?;
+    append_discarded_aggregate_drop(&mut instructions, drop_kind, layout, slot_index, context)?;
     Ok(instructions)
 }
 
@@ -1891,7 +1892,7 @@ fn lower_aggregate_fallible_call_statement(
     let Some(return_type_expr) = context.call_return_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
-    let drop_glue = context.drop_glue_for_type_expr(&return_type_expr);
+    let drop_kind = context.aggregate_drop_for_type_expr(&return_type_expr);
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
@@ -1916,35 +1917,43 @@ fn lower_aggregate_fallible_call_statement(
         layout,
         failure_mode,
     );
-    append_discarded_aggregate_drop(&mut instructions, drop_glue, layout, slot_index, context)?;
+    append_discarded_aggregate_drop(&mut instructions, drop_kind, layout, slot_index, context)?;
     Ok(instructions)
 }
 
 fn append_discarded_aggregate_drop(
     instructions: &mut Vec<Instruction>,
-    drop_glue: Option<DropGlue>,
+    drop_kind: Option<AggregateDrop>,
     layout: ValueLayout,
     slot_index: usize,
     context: &LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let Some(drop_glue) = drop_glue else {
+    let Some(drop_kind) = drop_kind else {
         return Ok(());
     };
-    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
-        return Err(unsupported_aggregate_call_statement_diagnostic());
-    };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_aggregate_slot(&parameter_types[0], layout)
-    {
-        return Err(unsupported_aggregate_call_statement_diagnostic());
+    match &drop_kind {
+        AggregateDrop::Direct(drop_glue) => {
+            let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+                return Err(unsupported_aggregate_call_statement_diagnostic());
+            };
+            if parameter_types.len() != 1
+                || !drop_parameter_matches_aggregate_slot(&parameter_types[0], layout)
+            {
+                return Err(unsupported_aggregate_call_statement_diagnostic());
+            }
+        }
+        AggregateDrop::PayloadEnum(_) => {}
     }
-
-    instructions.push(Instruction::CallVoid {
-        target: drop_glue.target,
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlot(slot_index),
-        })],
-    });
+    instructions.extend(
+        lower_aggregate_drop_instructions(
+            "discarded aggregate",
+            slot_index,
+            layout,
+            &drop_kind,
+            context,
+        )
+        .map_err(|_| unsupported_aggregate_call_statement_diagnostic())?,
+    );
     Ok(())
 }
 

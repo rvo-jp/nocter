@@ -316,15 +316,18 @@ Recommended order:
   lowering use the target expression type to accept wildcard-only payloadless
   enum `match` forms while still keeping payload enum `match` binding and
   temporary-pattern control outside the runtime subset.
-- Payload-carrying enum ABI layout now backs copy/no-drop payload enum
+- Payload-carrying enum ABI layout now backs runtime-supported payload enum
   construction, local slots, returns, value arguments, and tag-only `if is` /
   `match` statements over existing values, including wildcard-only,
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
   `bool`, and `&str` payloads over existing enum bindings and parameters.
-  Aggregate/slice/non-copy payload binding and active payload drop cleanup remain
-  the next promotion boundary.
+  Single direct-drop aggregate payload variants now drop only the active payload
+  in scope, parameter, discarded call-result, call-result binding, and
+  whole-local replacement cleanup paths. Aggregate/slice/non-copy payload
+  binding, temporary-pattern control, and multi-field droppable payload cleanup
+  remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

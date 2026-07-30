@@ -1607,6 +1607,7 @@ impl TypecheckFactCollector<'_> {
         if let Some(ty) =
             type_to_type_expr_allowing_parameters(ty, name_span, &mut free_type_parameters)
         {
+            self.record_payload_enum_drop_type_specializations(&ty);
             self.facts.binding_type_exprs.insert(name_span, ty);
         }
         if let Some(kind) = scalar_view_kind(ty) {
@@ -1620,6 +1621,7 @@ impl TypecheckFactCollector<'_> {
         if let Some(ty) =
             type_to_type_expr_allowing_parameters(ty, expression_span, &mut free_type_parameters)
         {
+            self.record_payload_enum_drop_type_specializations(&ty);
             self.facts.expression_type_exprs.insert(expression_span, ty);
         }
     }
@@ -1627,6 +1629,29 @@ impl TypecheckFactCollector<'_> {
     fn record_drop_type_specialization(&mut self, span: ByteSpan, ty: &Type) {
         if let Some(specialization) = self.drop_type_specialization(span, ty) {
             self.facts.drop_type_specializations.push(specialization);
+        }
+    }
+
+    fn record_payload_enum_drop_type_specializations(&mut self, ty: &TypeExpr) {
+        let Some((symbol, substitutions)) =
+            payload_enum_symbol_and_substitutions_for_type_expr(ty, self.resolved)
+        else {
+            return;
+        };
+        for variant in &symbol.variants {
+            let [payload] = variant.payload.as_slice() else {
+                continue;
+            };
+            let payload_ty = substitute_type_expr_parameters(&payload.ty, &substitutions);
+            let free_type_parameters =
+                free_type_parameters_in_type_expr(&payload_ty, self.resolved);
+            if let Some(specialization) = drop_type_specialization_from_self_ty(
+                &payload_ty,
+                self.resolved,
+                free_type_parameters,
+            ) {
+                self.facts.drop_type_specializations.push(specialization);
+            }
         }
     }
 
@@ -2198,6 +2223,148 @@ fn drop_type_specialization_from_self_ty_inner(
         base_target_name: drop_member.target_name.clone(),
         free_type_parameters,
     })
+}
+
+fn payload_enum_symbol_and_substitutions_for_type_expr<'a>(
+    ty: &TypeExpr,
+    resolved: &'a ResolveOutput,
+) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
+    payload_enum_symbol_and_substitutions_for_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a>(
+    ty: &TypeExpr,
+    resolved: &'a ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            match symbol.kind {
+                TypeSymbolKind::Enum if symbol.generic_arity == 0 => Some((symbol, HashMap::new())),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return None;
+                    }
+                    let result = payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                        target,
+                        resolved,
+                        resolving_names,
+                    );
+                    resolving_names.remove(&symbol.canonical_name);
+                    result
+                }
+                TypeSymbolKind::Struct | TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions: HashMap<String, TypeExpr> = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            match symbol.kind {
+                TypeSymbolKind::Enum => Some((symbol, substitutions)),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return None;
+                    }
+                    let target = substitute_type_expr_parameters(target, &substitutions);
+                    let result = payload_enum_symbol_and_substitutions_for_type_expr_inner(
+                        &target,
+                        resolved,
+                        resolving_names,
+                    );
+                    resolving_names.remove(&symbol.canonical_name);
+                    result
+                }
+                TypeSymbolKind::Struct | TypeSymbolKind::Interface => None,
+            }
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
+    }
+}
+
+fn free_type_parameters_in_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> HashSet<String> {
+    let mut parameters = HashSet::new();
+    collect_free_type_parameters_in_type_expr(ty, resolved, &mut parameters);
+    parameters
+}
+
+fn collect_free_type_parameters_in_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    parameters: &mut HashSet<String>,
+) {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            if resolved
+                .type_symbol_by_reference_name(&reference.name)
+                .is_none()
+                && !builtin_type_name(&reference.name)
+            {
+                parameters.insert(reference.name.clone());
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            for argument in &generic.arguments {
+                collect_free_type_parameters_in_type_expr(argument, resolved, parameters);
+            }
+        }
+        TypeExpr::Pointer(pointer) => {
+            collect_free_type_parameters_in_type_expr(&pointer.inner, resolved, parameters);
+        }
+        TypeExpr::Borrow(borrow) => {
+            collect_free_type_parameters_in_type_expr(&borrow.inner, resolved, parameters);
+        }
+        TypeExpr::View(view) => {
+            collect_free_type_parameters_in_type_expr(&view.element, resolved, parameters);
+        }
+        TypeExpr::Array(array) => {
+            collect_free_type_parameters_in_type_expr(&array.element, resolved, parameters);
+        }
+        TypeExpr::Optional(optional) => {
+            collect_free_type_parameters_in_type_expr(&optional.inner, resolved, parameters);
+        }
+        TypeExpr::Fallible(fallible) => {
+            collect_free_type_parameters_in_type_expr(&fallible.success, resolved, parameters);
+            collect_free_type_parameters_in_type_expr(&fallible.error, resolved, parameters);
+        }
+    }
+}
+
+fn builtin_type_name(name: &str) -> bool {
+    matches!(
+        name,
+        "bool"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "usize"
+            | "isize"
+            | "error"
+            | "str"
+            | "void"
+            | "never"
+            | "Self"
+    )
 }
 
 fn type_expr_contains_free_parameters(

@@ -10,7 +10,7 @@ use super::aggregates::{
     supported_aggregate_copy_layout, type_expr_is_copy_aggregate_value_with_resolver,
     type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
 };
-use super::context::{AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
+use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
@@ -566,10 +566,10 @@ fn lower_otherwise_aggregate_binding(
     };
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
-    let drop_glue = call_success_drop_glue(call, context);
+    let drop_kind = call_success_aggregate_drop(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
     let failure_mode = lower_otherwise_aggregate_failure_mode(
         &otherwise.fallback,
         layout,
@@ -655,14 +655,14 @@ fn lower_aggregate_struct_literal_binding(
     validate_aggregate_binding_layout(value.layout)?;
 
     let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
-    let drop_glue = context.drop_glue_for_type_expr(&literal.ty);
+    let drop_kind = context.aggregate_drop_for_type_expr(&literal.ty);
     let fields =
         aggregate_fields_from_type_expr(&literal.ty, root_source, resolved).unwrap_or_default();
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
         is_copy,
-        drop_glue,
+        drop_kind,
         fields,
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -715,12 +715,12 @@ fn lower_aggregate_array_literal_binding(
     let is_copy = type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
         context.resolved_source(source)
     });
-    let drop_glue = context.drop_glue_for_type_expr(&ty);
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
         is_copy,
-        drop_glue,
+        drop_kind,
         Vec::new(),
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -771,7 +771,7 @@ fn lower_payload_enum_constructor_binding(
         statement.name.clone(),
         value.layout,
         false,
-        context.drop_glue_for_type_expr(&ty),
+        context.aggregate_drop_for_type_expr(&ty),
         Vec::new(),
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -848,13 +848,13 @@ fn lower_aggregate_normal_call_binding(
     {
         validate_aggregate_binding_layout(layout)?;
         let is_copy = call_success_type_is_copy_aggregate_value(call, context);
-        let drop_glue = call_success_drop_glue(call, context);
+        let drop_kind = call_success_aggregate_drop(call, context);
         let fields = call_success_aggregate_fields(call, context);
         let slot_index = context.define_aggregate_local(
             statement.name.clone(),
             layout,
             is_copy,
-            drop_glue,
+            drop_kind,
             fields,
         );
         let mut temporaries = TemporaryAllocator::new(context)?;
@@ -885,10 +885,10 @@ fn lower_aggregate_normal_call_binding(
     };
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
-    let drop_glue = call_success_drop_glue(call, context);
+    let drop_kind = call_success_aggregate_drop(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
@@ -921,10 +921,10 @@ fn lower_aggregate_fallible_call_binding(
     };
 
     let is_copy = call_success_type_is_copy_aggregate_value(call, context);
-    let drop_glue = call_success_drop_glue(call, context);
+    let drop_kind = call_success_aggregate_drop(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
@@ -965,7 +965,7 @@ fn lower_aggregate_copy_binding(
         statement.name.clone(),
         source.layout,
         source.is_copy,
-        source.drop_glue.clone(),
+        source.drop_kind.clone(),
         fields,
     );
     Ok(Some(vec![
@@ -1014,7 +1014,7 @@ fn lower_aggregate_move_binding(
         statement.name.clone(),
         source.layout,
         source.is_copy,
-        source.drop_glue.clone(),
+        source.drop_kind.clone(),
         fields,
     );
     Ok(Some(vec![
@@ -1329,11 +1329,12 @@ fn lower_aggregate_slice_index_binding(
         return Ok(None);
     };
 
+    let drop_kind = element.drop_glue.map(AggregateDrop::Direct);
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         element.layout,
         true,
-        element.drop_glue,
+        drop_kind,
         element.fields,
     );
     let mut temporaries = TemporaryAllocator::new(context)?;
@@ -3864,6 +3865,16 @@ fn lower_aggregate_assignment_to_slot(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_payload_enum_constructor_assignment(
+        slot_index,
+        layout,
+        target_type,
+        expression,
+        context,
+    )? {
+        return Ok(instructions);
+    }
+
     match unwrap_group(expression) {
         Expr::ArrayLiteral(literal) => lower_aggregate_array_literal_assignment(
             slot_index,
@@ -3943,6 +3954,53 @@ fn lower_aggregate_assignment_to_slot(
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn lower_payload_enum_constructor_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((member, _arguments)) = payload_enum_constructor_member_and_arguments(expression)
+    else {
+        return Ok(None);
+    };
+    let Some(ty) = target_type else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+    let value = abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| unsupported_assignment_diagnostic())?;
+    let AbiType::Enum(enum_) = &value.ty else {
+        return Ok(None);
+    };
+    if value.layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+    if !enum_
+        .variants
+        .iter()
+        .any(|variant| variant.name == member.member)
+    {
+        return Ok(None);
+    }
+
+    lower_payload_enum_constructor_to_location(
+        expression,
+        &value.ty,
+        layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "assignments",
+        resolved,
+        context,
+    )
 }
 
 fn aggregate_assignment_expected_abi_type(
@@ -4706,12 +4764,12 @@ fn call_success_aggregate_fields(
     aggregate_fields_from_type_expr(&return_type, root_source, resolved).unwrap_or_default()
 }
 
-fn call_success_drop_glue(
+fn call_success_aggregate_drop(
     call: &CallExpr,
     context: &LoweringContext,
-) -> Option<super::context::DropGlue> {
+) -> Option<super::context::AggregateDrop> {
     let return_type = context.call_return_type_expr(call)?;
-    context.drop_glue_for_type_expr(&return_type)
+    context.aggregate_drop_for_type_expr(&return_type)
 }
 
 fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {

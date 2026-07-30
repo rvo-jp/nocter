@@ -9,10 +9,10 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateParameterSource, BorrowParameter, ErrorPayloads,
-    FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
-    LoweringParameterSlots, PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
-    drop_glue_for_type_expr_with_resolver,
+    AggregateBorrowParameter, AggregateDrop, AggregateParameterSource, BorrowParameter,
+    ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
+    LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropVariant, PendingAggregateDrop,
+    ResolvedSources, SliceTypeInfo, aggregate_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
@@ -61,9 +61,9 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget,
-    FallibleFailureMode, Function, I32Location, I32Value, Instruction, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value,
+    UsizeLocation, UsizeValue,
 };
 use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
@@ -508,7 +508,7 @@ fn lower_scalar_parameters(
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
                     ),
-                    drop_glue: drop_glue_for_type_expr_with_resolver(
+                    drop_kind: aggregate_drop_for_type_expr_with_resolver(
                         &parameter.ty,
                         root_source,
                         resolved,
@@ -534,7 +534,7 @@ fn lower_scalar_parameters(
                         resolved,
                         |source| resolved_sources.get(&source).copied(),
                     ),
-                    drop_glue: drop_glue_for_type_expr_with_resolver(
+                    drop_kind: aggregate_drop_for_type_expr_with_resolver(
                         &parameter.ty,
                         root_source,
                         resolved,
@@ -3380,6 +3380,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: I32Location::Return,
                     value: I32Value::Location(temporary),
                 }],
+                1,
                 return_type,
                 context,
             )?;
@@ -3396,6 +3397,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: U8Location::Return,
                     value: U8Value::Location(temporary),
                 }],
+                1,
                 return_type,
                 context,
             )?;
@@ -3412,6 +3414,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: UsizeLocation::Return,
                     value: UsizeValue::Location(temporary),
                 }],
+                1,
                 return_type,
                 context,
             )?;
@@ -3432,6 +3435,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: BoolLocation::Return,
                     value: BoolValue::Location(temporary),
                 }],
+                1,
                 return_type,
                 context,
             )?;
@@ -3448,6 +3452,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: StrLocation::Return,
                     value: StrValue::Location(temporary),
                 }],
+                2,
                 return_type,
                 context,
             )?;
@@ -3464,6 +3469,7 @@ pub(super) fn lower_value_return_with_scope_drops(
                     destination: SliceLocation::Return,
                     value: SliceValue::Location(temporary),
                 }],
+                2,
                 return_type,
                 context,
             )?;
@@ -3484,15 +3490,20 @@ pub(super) fn lower_value_return_with_scope_drops(
 fn append_scope_drops_then_restore_return(
     instructions: &mut Vec<Instruction>,
     restore_return: Vec<Instruction>,
+    reserved_local_abi_words: usize,
     return_type: &Type,
     context: &mut LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut tail =
-        append_scope_end_drops_before_exit(vec![success_return_instruction(return_type)], context)?;
+    let cleanup_context = context.with_reserved_local_abi_words(reserved_local_abi_words);
+    let mut tail = vec![success_return_instruction(return_type)];
     let Some(return_index) = tail.iter().rposition(is_scope_exit_instruction) else {
         return Ok(());
     };
-    tail.splice(return_index..return_index, restore_return);
+    let drops = lower_scope_end_drop_instructions(&cleanup_context)?;
+    let restore_index = return_index + drops.len();
+    tail.splice(return_index..return_index, drops);
+    mark_pending_aggregate_drops(context);
+    tail.splice(restore_index..restore_index, restore_return);
     instructions.extend(tail);
     Ok(())
 }
@@ -3670,26 +3681,19 @@ pub(super) fn lower_drop_statement(
     let Some(local) = context.aggregate_local(&statement.name) else {
         return Err(unsupported_drop_statement_diagnostic(&statement.name));
     };
-    let Some(drop_glue) = local.drop_glue else {
+    let Some(drop_kind) = local.drop_kind else {
         context.mark_aggregate_local_dropped(&statement.name);
         return Ok(Vec::new());
     };
-    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
-        return Err(unsupported_drop_statement_diagnostic(&statement.name));
-    };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_local(&parameter_types[0], local.layout)
-    {
-        return Err(unsupported_drop_statement_diagnostic(&statement.name));
-    }
 
     context.mark_aggregate_local_dropped(&statement.name);
-    Ok(vec![Instruction::CallVoid {
-        target: drop_glue.target,
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlot(local.slot_index),
-        })],
-    }])
+    lower_aggregate_drop_instructions(
+        &statement.name,
+        local.slot_index,
+        local.layout,
+        &drop_kind,
+        context,
+    )
 }
 
 pub(super) fn lower_never_expression_with_scope_drops(
@@ -3738,7 +3742,7 @@ pub(super) fn replacement_drop_for_aggregate_slot(
     let Some(drop_) = context.pending_aggregate_drop_by_slot(slot_index) else {
         return Ok(Vec::new());
     };
-    Ok(vec![lower_pending_aggregate_drop(&drop_, context)?])
+    lower_pending_aggregate_drop(&drop_, context)
 }
 
 pub(super) fn lower_scope_end_drops_for_locals_since(
@@ -3746,9 +3750,9 @@ pub(super) fn lower_scope_end_drops_for_locals_since(
     local_mark: usize,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let pending = context.pending_aggregate_drops_since(local_mark);
-    let mut instructions = Vec::with_capacity(pending.len());
+    let mut instructions = Vec::new();
     for drop_ in &pending {
-        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
+        instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
     }
     for drop_ in &pending {
         context.mark_aggregate_local_dropped(&drop_.name);
@@ -3760,9 +3764,9 @@ fn lower_scope_end_drop_instructions(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let pending = context.pending_aggregate_drops();
-    let mut instructions = Vec::with_capacity(pending.len());
+    let mut instructions = Vec::new();
     for drop_ in &pending {
-        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
+        instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
     }
     Ok(instructions)
 }
@@ -3788,21 +3792,109 @@ fn mark_pending_aggregate_drops(context: &mut LoweringContext) {
 fn lower_pending_aggregate_drop(
     drop_: &PendingAggregateDrop,
     context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_drop_instructions(
+        &drop_.name,
+        drop_.slot_index,
+        drop_.layout,
+        &drop_.drop_kind,
+        context,
+    )
+}
+
+pub(super) fn lower_aggregate_drop_instructions(
+    name: &str,
+    slot_index: usize,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match drop_kind {
+        AggregateDrop::Direct(drop_glue) => {
+            lower_direct_aggregate_drop_instruction(name, slot_index, layout, drop_glue, context)
+                .map(|instruction| vec![instruction])
+        }
+        AggregateDrop::PayloadEnum(drop_) => {
+            lower_payload_enum_drop_instructions(name, slot_index, drop_, context)
+        }
+    }
+}
+
+fn lower_direct_aggregate_drop_instruction(
+    name: &str,
+    slot_index: usize,
+    layout: ValueLayout,
+    drop_glue: &super::context::DropGlue,
+    context: &LoweringContext,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let Some(parameter_types) = context.call_parameter_types(&drop_.drop_glue.target) else {
-        return Err(unsupported_drop_statement_diagnostic(&drop_.name));
+    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(name));
     };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_local(&parameter_types[0], drop_.layout)
-    {
-        return Err(unsupported_drop_statement_diagnostic(&drop_.name));
+    if parameter_types.len() != 1 || !drop_parameter_matches_local(&parameter_types[0], layout) {
+        return Err(unsupported_drop_statement_diagnostic(name));
     }
 
     Ok(Instruction::CallVoid {
-        target: drop_.drop_glue.target.clone(),
+        target: drop_glue.target.clone(),
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlot(drop_.slot_index),
+            source: BorrowSource::AggregateSlot(slot_index),
         })],
+    })
+}
+
+fn lower_payload_enum_drop_instructions(
+    name: &str,
+    slot_index: usize,
+    drop_: &PayloadEnumDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let tag = temporaries.next_u8()?;
+    let mut instructions = vec![Instruction::LoadAggregateU8 {
+        destination: tag,
+        source: AggregateLocation::Slot(slot_index),
+        offset: 0,
+    }];
+    for variant in drop_.variants.iter().rev() {
+        instructions.push(lower_payload_enum_drop_variant_if(
+            name, slot_index, tag, variant, context,
+        )?);
+    }
+    Ok(instructions)
+}
+
+fn lower_payload_enum_drop_variant_if(
+    name: &str,
+    slot_index: usize,
+    tag: U8Location,
+    variant: &PayloadEnumDropVariant,
+    context: &LoweringContext,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let Some(parameter_types) = context.call_parameter_types(&variant.drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_local(&parameter_types[0], variant.payload_layout)
+    {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    }
+
+    Ok(Instruction::If {
+        condition: BoolValue::I32Comparison {
+            operator: I32ComparisonOperator::Equal,
+            left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(tag))),
+            right: I32Value::U8ZeroExtend(Box::new(U8Value::Const(variant.tag))),
+        },
+        then_instructions: vec![Instruction::CallVoid {
+            target: variant.drop_glue.target.clone(),
+            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField {
+                    slot_index,
+                    offset: variant.payload_offset,
+                },
+            })],
+        }],
+        else_instructions: Vec::new(),
     })
 }
 
@@ -5369,7 +5461,30 @@ fn append_scope_drops_then_restore_scalar_return(
             )]);
         }
     };
-    append_scope_drops_then_restore_return(instructions, restore_return, return_type, context)
+    append_scope_drops_then_restore_return(
+        instructions,
+        restore_return,
+        scalar_return_temporary_abi_words(success_type)?,
+        return_type,
+        context,
+    )
+}
+
+fn scalar_return_temporary_abi_words(success_type: &Type) -> Result<usize, Vec<Diagnostic>> {
+    match success_type {
+        Type::I32 | Type::U8 | Type::Usize | Type::Bool => Ok(1),
+        Type::Str | Type::Slice { .. } => Ok(2),
+        Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Error
+        | Type::Borrow { .. }
+        | Type::Void
+        | Type::Never
+        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+            "E8007",
+            "IR v0 can only restore `otherwise` returns for scalar success types",
+        )]),
+    }
 }
 
 fn lower_otherwise_aggregate_return_with_scope_drops(

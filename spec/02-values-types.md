@@ -681,19 +681,25 @@ Rules:
 - In the v0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum construction, local storage, returns, and value
-  arguments lower in the current copy/no-drop payload subset.
+  arguments lower in the current runtime-supported payload subset: copy/no-drop
+  payloads, plus variants with one direct-drop aggregate payload when active
+  payload cleanup is required.
 - Tag-only payload-carrying enum `if is Enum.variant(_)` statements and
   tag-only payload-carrying enum `match` statements lower over existing enum
-  bindings and parameters in the current copy/no-drop payload subset, including
-  wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
-  statement forms.
+  bindings and parameters in the current runtime-supported payload subset,
+  including wildcard-only, nonexhaustive no-wildcard, and exhaustive
+  no-wildcard statement forms.
 - Payload-carrying enum `if is Enum.variant(binding)` statements/value
   expressions and `match` statement/value-expression arms lower over existing
   enum bindings and parameters when the payload ABI is `i32`, `u8`, `usize`,
   `bool`, or `&str`. The binding is loaded only inside the matching branch.
+- Payload-carrying enum active payload cleanup lowers for runtime-supported enum
+  values whose droppable variants each have exactly one direct-drop aggregate
+  payload. Scope-end cleanup, parameter cleanup, discarded call results,
+  call-result bindings, and whole-local replacement drop only the active payload.
 - Payload-carrying enum `if is` / `match` over temporary expressions,
-  aggregate/slice/non-copy payload binding, and active payload drop cleanup are
-  typechecked in v0 but still reject before build/run.
+  aggregate/slice/non-copy payload binding, and multi-field droppable payload
+  cleanup are typechecked in v0 but still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

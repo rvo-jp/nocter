@@ -4367,7 +4367,7 @@ where
                     result
                 }
                 TypeSymbolKind::Enum if symbol.generic_arity == 0 => {
-                    type_symbol_payload_enum_payloads_are_copy_values(
+                    type_symbol_payload_enum_payloads_are_supported_values(
                         symbol,
                         fallback_resolved,
                         resolver,
@@ -4409,7 +4409,7 @@ where
                     resolving_names.remove(&symbol.canonical_name);
                     result
                 }
-                TypeSymbolKind::Enum => type_symbol_payload_enum_payloads_are_copy_values(
+                TypeSymbolKind::Enum => type_symbol_payload_enum_payloads_are_supported_values(
                     symbol,
                     fallback_resolved,
                     resolver,
@@ -4427,7 +4427,7 @@ where
     }
 }
 
-fn type_symbol_payload_enum_payloads_are_copy_values<'a, F>(
+fn type_symbol_payload_enum_payloads_are_supported_values<'a, F>(
     symbol: &TypeSymbol,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -4446,17 +4446,118 @@ where
     }
 
     symbol.variants.iter().all(|variant| {
-        variant.payload.iter().all(|payload| {
-            let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
-            abi_value_from_type_expr_with_resolver(&ty, fallback_resolved, resolver).is_ok()
-                && type_expr_is_copy_value_for_vec_element_with_resolver(
-                    &ty,
-                    fallback_resolved,
-                    resolver,
-                    &mut HashSet::new(),
-                )
-        })
+        payload_enum_variant_payloads_are_supported(
+            &variant.payload,
+            fallback_resolved,
+            resolver,
+            substitutions,
+        )
     })
+}
+
+fn payload_enum_variant_payloads_are_supported<'a, F>(
+    payloads: &[crate::resolve::ParameterSignature],
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match payloads {
+        [] => true,
+        [payload] => {
+            let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
+            payload_enum_payload_type_is_supported(&ty, fallback_resolved, resolver, true)
+        }
+        payloads => payloads.iter().all(|payload| {
+            let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
+            payload_enum_payload_type_is_supported(&ty, fallback_resolved, resolver, false)
+        }),
+    }
+}
+
+fn payload_enum_payload_type_is_supported<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    allow_active_drop: bool,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok()
+        && (type_expr_is_copy_value_for_vec_element_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+            &mut HashSet::new(),
+        ) || (allow_active_drop
+            && type_expr_has_direct_drop_with_resolver(
+                ty,
+                fallback_resolved,
+                resolver,
+                &mut HashSet::new(),
+            )))
+}
+
+fn type_expr_has_direct_drop_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+    let (type_name, substitutions) = match ty {
+        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+        TypeExpr::Generic(generic) => {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
+                return false;
+            };
+            if symbol.generic_arity != generic.arguments.len() {
+                return false;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            (generic.name.as_str(), substitutions)
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => return false,
+    };
+
+    let Some(symbol) = type_symbol_by_reference_name(resolved, type_name) else {
+        return false;
+    };
+    if symbol.kind == TypeSymbolKind::Alias {
+        let Some(target) = symbol.alias_target.as_ref() else {
+            return false;
+        };
+        if !resolving_names.insert(symbol.canonical_name.clone()) {
+            return false;
+        }
+        let target = substitute_type_expr_parameters(target, &substitutions);
+        let has_drop = type_expr_has_direct_drop_with_resolver(
+            &target,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        );
+        resolving_names.remove(&symbol.canonical_name);
+        return has_drop;
+    }
+
+    symbol.drop_member.is_some()
 }
 
 fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
@@ -11339,7 +11440,7 @@ func main(): i32 {
     }
 
     #[test]
-    fn reports_reachable_payload_enum_drop_payload_before_ir_lowering() {
+    fn does_not_report_reachable_payload_enum_single_drop_payload_construction() {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11358,6 +11459,36 @@ enum Result {
 
 func main(): i32 {
     let result = Result.ok(Payload{ value: 10 })
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_payload_enum_multi_drop_payload_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Payload {
+    value: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(first: Payload, second: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ value: 10 }, Payload{ value: 20 })
     return 0
 }
 "#,
@@ -11387,7 +11518,7 @@ impl Payload {
 }
 
 enum Result {
-    ok(value: Payload)
+    ok(first: Payload, second: Payload)
     failed
 }
 
@@ -11397,7 +11528,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 })
+        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
         return
     }
 }
@@ -11433,7 +11564,7 @@ impl Payload {
 }
 
 enum Result {
-    ok(value: Payload)
+    ok(first: Payload, second: Payload)
     failed
 }
 
@@ -11443,7 +11574,7 @@ struct Box<T> {
 
 impl<T> Box<T> {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 })
+        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
         return
     }
 }
@@ -11479,7 +11610,7 @@ impl Payload {
 }
 
 enum Result {
-    ok(value: Payload)
+    ok(first: Payload, second: Payload)
     failed
 }
 
@@ -11489,7 +11620,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 })
+        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
         return
     }
 }
@@ -11530,7 +11661,7 @@ impl Payload {
 }
 
 enum Result {
-    ok(value: Payload)
+    ok(first: Payload, second: Payload)
     failed
 }
 
@@ -11540,7 +11671,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 })
+        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
         return
     }
 }

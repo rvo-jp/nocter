@@ -210,11 +210,13 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum payload binding, temporary-pattern control, and active
-  payload drop cleanup; payload-carrying enum construction, locals, returns,
-  value arguments, tag-only `if is Enum.variant(_)` statements, and tag-only
-  `match` statements are buildable only for the current copy/no-drop payload
-  subset over existing enum values
+- payload-carrying enum temporary-pattern control, aggregate/slice/non-copy
+  payload binding, and multi-field droppable payload cleanup; payload-carrying
+  enum construction, locals, returns, value arguments, tag-only
+  `if is Enum.variant(_)` statements, and tag-only `match` statements are
+  buildable for the current copy/no-drop payload subset over existing enum
+  values, with active payload cleanup additionally supported for variants whose
+  only droppable payload is one direct-drop aggregate value
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -257,9 +259,11 @@ Rules fixed for v0:
   by ABI v0
 - payload-carrying enum construction, locals, returns, value arguments,
   tag-only `if is Enum.variant(_)` statements, and tag-only `match` statements
-  may lower in the copy/no-drop payload subset over existing enum values; payload
-  binding, temporary-pattern control, and active payload drop glue still reject
-  before build/run
+  may lower in the copy/no-drop payload subset over existing enum values; active
+  payload cleanup may lower when each droppable variant has exactly one
+  direct-drop aggregate payload; aggregate/slice/non-copy payload binding,
+  temporary-pattern control, and multi-field droppable payload cleanup still
+  reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification

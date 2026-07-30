@@ -4050,6 +4050,185 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_scope_end_drop_for_active_payload_enum_payload() {
+    let ir = lower_text(
+        r#"struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ code: 42 })
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(8, 4),
+                    },
+                    Instruction::StoreAggregateU8 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: u8_const(0),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 4,
+                        value: i32_const(42),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    },
+                    Instruction::LoadAggregateU8 {
+                        destination: U8Location::Local(1),
+                        source: AggregateLocation::Slot(0),
+                        offset: 0,
+                    },
+                    Instruction::If {
+                        condition: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                                U8Location::Local(1),
+                            ))),
+                            right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
+                        },
+                        then_instructions: vec![Instruction::CallVoid {
+                            target: CallTarget::same_file("Payload.drop"),
+                            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::AggregateSlotField {
+                                    slot_index: 0,
+                                    offset: 4,
+                                },
+                            })],
+                        }],
+                        else_instructions: Vec::new(),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Payload.drop".to_string(),
+                target: CallTarget::same_file("Payload.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_scope_end_drop_for_inactive_payload_enum_payload() {
+    let ir = lower_text(
+        r#"struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(8, 4),
+                    },
+                    Instruction::StoreAggregateU8 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: u8_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(42),
+                    },
+                    Instruction::LoadAggregateU8 {
+                        destination: U8Location::Local(1),
+                        source: AggregateLocation::Slot(0),
+                        offset: 0,
+                    },
+                    Instruction::If {
+                        condition: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
+                                U8Location::Local(1),
+                            ))),
+                            right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
+                        },
+                        then_instructions: vec![Instruction::CallVoid {
+                            target: CallTarget::same_file("Payload.drop"),
+                            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::AggregateSlotField {
+                                    slot_index: 0,
+                                    offset: 4,
+                                },
+                            })],
+                        }],
+                        else_instructions: Vec::new(),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Payload.drop".to_string(),
+                target: CallTarget::same_file("Payload.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
     let ir = lower_text(
         r#"struct Box<T> {

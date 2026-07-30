@@ -1,9 +1,10 @@
 use super::super::aggregates::{
     aggregate_call_instruction, aggregate_type_layout,
     lower_aggregate_array_literal_to_location_with_temporaries,
-    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
-    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct_with_resolver,
+    lower_aggregate_struct_literal_to_location_with_temporaries,
+    lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,
+    push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
+    supported_aggregate_copy_layout, type_expr_is_copy_struct_with_resolver,
 };
 use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::super::context::{AggregateFieldKind, LoweringContext};
@@ -847,6 +848,18 @@ fn lower_aggregate_argument_source(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
     };
+    if let Some(source) = lower_payload_enum_constructor_argument_source(
+        argument,
+        parameter_type,
+        parameter_type_expr,
+        expected_layout,
+        callee_name,
+        context,
+        temporaries,
+    )? {
+        return Ok(source);
+    }
+
     match unwrap_group(argument) {
         Expr::Identifier(identifier) => lower_aggregate_local_argument_source(
             &identifier.name,
@@ -1036,6 +1049,73 @@ fn lower_aggregate_argument_source(
             parameter_type,
         )),
     }
+}
+
+fn lower_payload_enum_constructor_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    expected_layout: ValueLayout,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Some((member, _arguments)) = payload_enum_constructor_member_and_arguments(argument) else {
+        return Ok(None);
+    };
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let value = abi_value_from_type_expr_with_resolver(parameter_type_expr, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
+    let AbiType::Enum(enum_) = &value.ty else {
+        return Ok(None);
+    };
+    if value.layout != expected_layout {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    if !enum_
+        .variants
+        .iter()
+        .any(|variant| variant.name == member.member)
+    {
+        return Ok(None);
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    let Some(mut constructor_instructions) = lower_payload_enum_constructor_to_location(
+        argument,
+        &value.ty,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8006",
+        &format!("arguments for function `{callee_name}`"),
+        resolved,
+        context,
+    )?
+    else {
+        return Ok(None);
+    };
+    instructions.append(&mut constructor_instructions);
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
 }
 
 fn aggregate_argument_expected_abi_type(

@@ -10426,6 +10426,271 @@ func accept(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_active_payload_enum_payload_at_scope_end_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-active-payload-scope-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_active_payload_scope_drop.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ code: 42 })
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_skips_inactive_payload_enum_payload_scope_drop_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-inactive-payload-scope-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_inactive_payload_scope_drop.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_replaced_payload_enum_payload_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-active-payload-replacement-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_active_payload_replacement_drop.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    var result = Result.ok(Payload{ code: 42 })
+    result = Result.failed
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_discarded_payload_enum_call_result_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-active-payload-discarded-call");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_active_payload_discarded_call.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    make()
+    return 0
+}
+
+func make(): Result {
+    return Result.ok(Payload{ code: 42 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_payload_enum_call_result_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-active-payload-call-binding");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_active_payload_call_binding.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = make()
+    return 0
+}
+
+func make(): Result {
+    return Result.ok(Payload{ code: 42 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_payload_enum_parameter_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-active-payload-parameter");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_active_payload_parameter.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    consume(Result.ok(Payload{ code: 42 }))
+    return 0
+}
+
+func consume(result: Result): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_if_is_discard_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-discard");
     let source = project.write_source(
@@ -14494,6 +14759,20 @@ fn nocter<const N: usize>(project: &TempProject, args: [&str; N]) -> Output {
 
 fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn write_process_exit_home(project: &TempProject) {
+    project.write_nocter_home_file(
+        "std/process.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive exit_raw(code: i32): never
+
+pub func exit(code: i32): never {
+    exit_raw(code)
+}
+"#,
+    );
 }
 
 struct TempProject {

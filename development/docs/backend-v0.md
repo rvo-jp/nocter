@@ -111,20 +111,25 @@ includes:
   return storage
 - payload-carrying enum ABI layout as a tag byte plus aligned payload union
 - payload-carrying enum construction, local slots, returns, and value arguments
-  for the current copy/no-drop payload subset
+  for the current runtime-supported payload subset, including direct enum
+  constructors in value-argument position
 - tag-only payload-carrying enum `if is Enum.variant(_)` statements over
-  existing enum bindings and parameters in the current copy/no-drop payload
+  existing enum bindings and parameters in the current runtime-supported payload
   subset
 - payload-carrying enum `if is Enum.variant(binding)` statements and value
   expressions over existing enum bindings and parameters when the bound payload
   ABI is `i32`, `u8`, `usize`, `bool`, or `&str`
 - tag-only payload-carrying enum `match` statements over existing enum bindings
-  and parameters in the current copy/no-drop payload subset, including
+  and parameters in the current runtime-supported payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
   statement forms
 - payload-carrying enum `match` statement and value-expression arm bindings over
   existing enum bindings and parameters when the bound payload ABI is `i32`,
   `u8`, `usize`, `bool`, or `&str`
+- active payload cleanup for payload-carrying enum values whose droppable
+  variants each have exactly one direct-drop aggregate payload, covering
+  scope-end cleanup, parameter cleanup, discarded call results, call-result
+  bindings, and whole-local replacement
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -136,10 +141,10 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-aggregate/slice/non-copy payload binding and drop cleanup, payload enum
-temporary-pattern control, broader field-level live-state tracking, non-copy
-aggregate collection elements, arrays, broad control-flow joins, and unsupported
-expression shapes.
+aggregate/slice/non-copy payload binding, multi-field droppable payload cleanup,
+payload enum temporary-pattern control, broader field-level live-state tracking,
+non-copy aggregate collection elements, arrays, broad control-flow joins, and
+unsupported expression shapes.
 
 ## Safety Checks
 
