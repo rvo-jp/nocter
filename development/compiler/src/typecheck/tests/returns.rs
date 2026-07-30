@@ -542,6 +542,59 @@ func ok(): &str {
 }
 
 #[test]
+fn accepts_return_static_borrow_like_associated_function_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Label {
+    code: i32
+}
+
+func Label.text(value: &i32): &str {
+    return "static"
+}
+
+func ok(): &str {
+    let local = 1
+    return Label.text(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_borrow_like_method_with_local_receiver_and_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Label {
+    code: i32
+}
+
+impl Label {
+    method &self.text(value: &i32): &str {
+        return "static"
+    }
+}
+
+func ok(): &str {
+    let label = Label{ code: 1 }
+    let local = 2
+    return label.text(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_borrow_like_call_alias_from_local_borrow() {
     let diagnostics = check_text(
         r#"func main(): i32 {
