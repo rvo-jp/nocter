@@ -122,6 +122,9 @@ includes:
   and parameters in the current copy/no-drop payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
   statement forms
+- payload-carrying enum `match` statement arm bindings over existing enum
+  bindings and parameters when the bound payload ABI is `i32`, `u8`, `usize`,
+  `bool`, or `&str`
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -133,10 +136,10 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-`match` binding, aggregate/slice/non-copy payload binding and drop cleanup,
-payload enum temporary-pattern control, broader field-level live-state tracking,
-non-copy aggregate collection elements, arrays, broad control-flow joins, and
-unsupported expression shapes.
+`match` value expressions, aggregate/slice/non-copy payload binding and drop
+cleanup, payload enum temporary-pattern control, broader field-level live-state
+tracking, non-copy aggregate collection elements, arrays, broad control-flow
+joins, and unsupported expression shapes.
 
 ## Safety Checks
 

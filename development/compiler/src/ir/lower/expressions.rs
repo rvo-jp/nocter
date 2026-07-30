@@ -14,8 +14,8 @@ use super::bindings::{
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
-    BranchPrologue, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
-    expression_contains_explicit_aggregate_move,
+    BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
+    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_aggregate_return_expression,
     lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
@@ -1031,13 +1031,64 @@ fn lower_match_expression_to_location(
     let mut instructions = switch.leading_instructions;
     instructions.extend(match switch.body {
         LoweredPayloadlessSwitchBody::Direct(block) => {
-            lower_value_control_block_to_location(&block, &switch_context, &lower_result)?
+            lower_match_switch_block_to_location(block, &switch_context, &lower_result)?
         }
-        LoweredPayloadlessSwitchBody::Conditional(statement) => {
-            lower_if_expression_to_location(&statement, &switch_context, &lower_result)?
+        LoweredPayloadlessSwitchBody::Conditional(condition) => {
+            lower_match_switch_condition_to_location(condition, &switch_context, &lower_result)?
         }
     });
     Ok(instructions)
+}
+
+fn lower_match_switch_condition_to_location(
+    condition: LoweredSwitchCondition,
+    context: &LoweringContext,
+    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let condition_value = lower_bool_expression_to_value(&condition.condition, context, "E8008")?;
+    let mut instructions = condition_value.instructions;
+    instructions.push(Instruction::If {
+        condition: condition_value.value,
+        then_instructions: lower_match_switch_block_to_location(
+            condition.then_branch,
+            context,
+            lower_result,
+        )?,
+        else_instructions: lower_match_switch_body_to_location(
+            *condition.else_body,
+            context,
+            lower_result,
+        )?,
+    });
+    Ok(instructions)
+}
+
+fn lower_match_switch_body_to_location(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => {
+            lower_match_switch_block_to_location(block, context, lower_result)
+        }
+        LoweredPayloadlessSwitchBody::Conditional(condition) => {
+            lower_match_switch_condition_to_location(condition, context, lower_result)
+        }
+    }
+}
+
+fn lower_match_switch_block_to_location(
+    block: LoweredSwitchBlock,
+    context: &LoweringContext,
+    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_value_control_block_to_location_with_prologue(
+        &block.block,
+        context,
+        &block.prologue,
+        lower_result,
+    )
 }
 
 fn lower_i32_if_expression_to_value(
@@ -1364,20 +1415,6 @@ fn lower_slice_match_expression_to_value(
     })
 }
 
-fn lower_if_expression_to_location(
-    statement: &IfStmt,
-    context: &LoweringContext,
-    lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location_with_branch_prologues(
-        statement,
-        context,
-        &BranchPrologue::empty(),
-        &BranchPrologue::empty(),
-        lower_result,
-    )
-}
-
 fn lower_if_is_expression_to_location(
     statement: &IfIsStmt,
     context: &LoweringContext,
@@ -1433,19 +1470,6 @@ fn lower_if_expression_to_location_with_branch_prologues(
         )?,
     });
     Ok(instructions)
-}
-
-fn lower_value_control_block_to_location(
-    block: &Block,
-    context: &LoweringContext,
-    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_value_control_block_to_location_with_prologue(
-        block,
-        context,
-        &BranchPrologue::empty(),
-        lower_result,
-    )
 }
 
 fn lower_value_control_block_to_location_with_prologue(

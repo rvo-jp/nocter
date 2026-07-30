@@ -5502,10 +5502,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-boundary");
+fn build_command_accepts_payload_enum_match_binding_tag_only() {
+    let project = TempProject::new("cli-build-payload-enum-match-binding-tag-only");
     let source = project.write_source(
-        "payload_match_boundary.nct",
+        "payload_enum_match_binding_tag_only.nct",
         r#"enum AppError {
     missing_path
     open_failed(path: &str)
@@ -5523,7 +5523,53 @@ func describe(error: AppError): i32 {
         }
 
         AppError.open_failed(path) {
-            return 1
+            if path.len() == 9 {
+                return 42
+            } else {
+                return 1
+            }
+        }
+    }
+
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_payload_match_aggregate_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-match-aggregate-binding-boundary");
+    let source = project.write_source(
+        "payload_match_aggregate_binding_boundary.nct",
+        r#"copy struct Detail {
+    code: i32
+}
+
+enum AppError {
+    missing_path
+    open_failed(detail: Detail)
+}
+
+func main(): i32 {
+    let error = AppError.open_failed(Detail{ code: 42 })
+    return describe(move error)
+}
+
+func describe(error: AppError): i32 {
+    match error {
+        AppError.missing_path {
+            return 0
+        }
+
+        AppError.open_failed(detail) {
+            return detail.code
         }
     }
 
@@ -5546,7 +5592,7 @@ func describe(error: AppError): i32 {
         "expected match diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("12 |     match error {"),
+        stderr.contains("16 |     match error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

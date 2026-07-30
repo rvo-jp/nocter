@@ -10636,6 +10636,94 @@ func score(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_match_i32_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-i32-binding");
+    let source = project.write_source(
+        "payload_enum_match_i32_binding.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(40)
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    match result {
+        Result.ok(value) {
+            return value
+        }
+
+        _ {
+            return 2
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_match_str_binding_exhaustive_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-str-binding-exhaustive");
+    let source = project.write_source(
+        "payload_enum_match_str_binding_exhaustive.nct",
+        r#"enum Message {
+    empty
+    text(value: &str)
+}
+
+func main(): i32 {
+    let text = Message.text("Nocter")
+    let empty = Message.empty
+    return score(move text) + score(move empty)
+}
+
+func score(message: Message): i32 {
+    match message {
+        Message.empty {
+            return 2
+        }
+
+        Message.text(text) {
+            if text.len() == 6 {
+                return 40
+            } else {
+                return 1
+            }
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_match_discard_exhaustive_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-discard-exhaustive");
     let source = project.write_source(

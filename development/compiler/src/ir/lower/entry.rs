@@ -6,24 +6,24 @@ use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
     lower_nonterminal_if_statement_with_branch_prologues, lower_nonterminal_loop_statement,
     lower_nonterminal_payloadless_switch_body, lower_nonterminal_payloadless_switch_statement,
-    lower_nonterminal_while_statement, lower_terminal_i32_block,
-    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_usize_block,
-    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_void_block,
-    lower_terminal_void_if_statement_with_branch_prologues,
+    lower_nonterminal_while_statement, lower_terminal_condition,
+    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_i32_switch_block,
+    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_usize_switch_block,
+    lower_terminal_void_if_statement_with_branch_prologues, lower_terminal_void_switch_block,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
-    BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody,
-    append_scope_end_drops_before_exit, lower_drop_statement,
+    BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, LoweredSwitchBlock,
+    LoweredSwitchCondition, append_scope_end_drops_before_exit, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     payloadless_switch_as_control_flow, reachable_body_prefix, tag_only_if_is_as_control_flow,
     tag_only_switch_as_control_flow,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
-use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
+use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -612,22 +612,6 @@ fn lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
     )))
 }
 
-fn lower_terminal_entry_if_statement_body_for_success_type(
-    statement: &IfStmt,
-    context: &LoweringContext,
-    return_type: &Type,
-    sources: &SourceMap,
-) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    lower_terminal_entry_if_statement_body_for_success_type_with_branch_prologues(
-        statement,
-        context,
-        &BranchPrologue::empty(),
-        &BranchPrologue::empty(),
-        return_type,
-        sources,
-    )
-}
-
 fn lower_terminal_entry_if_statement_body_for_success_type_with_branch_prologues(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -705,11 +689,11 @@ fn lower_terminal_entry_payloadless_switch_body_for_success_type(
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match body {
         LoweredPayloadlessSwitchBody::Direct(block) => {
-            lower_terminal_entry_block_for_success_type(&block, context, return_type, sources)
+            lower_terminal_entry_switch_block_for_success_type(block, context, return_type, sources)
         }
-        LoweredPayloadlessSwitchBody::Conditional(statement) => {
-            lower_terminal_entry_if_statement_body_for_success_type(
-                &statement,
+        LoweredPayloadlessSwitchBody::Conditional(condition) => {
+            lower_terminal_entry_switch_condition_for_success_type(
+                condition,
                 context,
                 return_type,
                 sources,
@@ -718,14 +702,48 @@ fn lower_terminal_entry_payloadless_switch_body_for_success_type(
     }
 }
 
-fn lower_terminal_entry_block_for_success_type(
-    block: &Block,
+fn lower_terminal_entry_switch_condition_for_success_type(
+    condition: LoweredSwitchCondition,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(then_instructions) = lower_terminal_entry_switch_block_for_success_type(
+        condition.then_branch,
+        context,
+        return_type,
+        sources,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(else_instructions) = lower_terminal_entry_payloadless_switch_body_for_success_type(
+        *condition.else_body,
+        context,
+        return_type,
+        sources,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(lower_terminal_condition(
+        &condition.condition,
+        then_instructions,
+        else_instructions,
+        context,
+        "E8002",
+        sources,
+    )?))
+}
+
+fn lower_terminal_entry_switch_block_for_success_type(
+    block: LoweredSwitchBlock,
     context: &LoweringContext,
     return_type: &Type,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let branch_instructions = match return_type.success_type() {
-        Type::I32 => lower_terminal_i32_block(
+        Type::I32 => lower_terminal_i32_switch_block(
             block,
             context,
             return_type,
@@ -733,7 +751,7 @@ fn lower_terminal_entry_block_for_success_type(
             "entry functions",
             sources,
         )?,
-        Type::Usize => lower_terminal_usize_block(
+        Type::Usize => lower_terminal_usize_switch_block(
             block,
             context,
             return_type,
@@ -741,7 +759,7 @@ fn lower_terminal_entry_block_for_success_type(
             "entry functions",
             sources,
         )?,
-        Type::Void => lower_terminal_void_block(
+        Type::Void => lower_terminal_void_switch_block(
             block,
             context,
             return_type,
@@ -751,7 +769,6 @@ fn lower_terminal_entry_block_for_success_type(
         )?,
         _ => return Ok(None),
     };
-
     Ok(Some(branch_instructions))
 }
 

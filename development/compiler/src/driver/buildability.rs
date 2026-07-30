@@ -4820,7 +4820,7 @@ fn tag_only_if_is_payload_pattern_statement_is_buildable(
 ) -> bool {
     match (statement.payload.as_ref(), payload_len) {
         (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1) => true,
-        (Some(SwitchPayloadPattern::Binding(binding)), 1) => payload_if_is_binding_is_buildable(
+        (Some(SwitchPayloadPattern::Binding(binding)), 1) => payload_binding_is_buildable(
             binding,
             resolved,
             resolved_sources,
@@ -4831,7 +4831,40 @@ fn tag_only_if_is_payload_pattern_statement_is_buildable(
     }
 }
 
-fn payload_if_is_binding_is_buildable(
+fn tag_only_payload_pattern_is_buildable(
+    payload: Option<&SwitchPayloadPattern>,
+    payload_len: usize,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match (payload, payload_len) {
+        (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1) => true,
+        (Some(SwitchPayloadPattern::Binding(binding)), 1) => payload_binding_is_buildable(
+            binding,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => false,
+    }
+}
+
+fn tag_only_payload_pattern_covers_variant(
+    payload: Option<&SwitchPayloadPattern>,
+    payload_len: usize,
+) -> bool {
+    matches!(
+        (payload, payload_len),
+        (None, 0)
+            | (Some(SwitchPayloadPattern::Discard(_)), 1)
+            | (Some(SwitchPayloadPattern::Binding(_)), 1)
+    )
+}
+
+fn payload_binding_is_buildable(
     binding: &crate::ast::SwitchPayloadBinding,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
@@ -4858,16 +4891,6 @@ fn payload_if_is_binding_type_expr_is_buildable(
     matches!(
         value.ty,
         AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
-    )
-}
-
-fn tag_only_payload_discard_pattern_is_buildable(
-    payload: Option<&SwitchPayloadPattern>,
-    payload_len: usize,
-) -> bool {
-    matches!(
-        (payload, payload_len),
-        (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1)
     )
 }
 
@@ -4993,7 +5016,14 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
         else {
             return false;
         };
-        tag_only_payload_discard_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
+        tag_only_payload_pattern_is_buildable(
+            arm.payload.as_ref(),
+            variant.payload.len(),
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
     })
 }
 
@@ -5219,11 +5249,8 @@ fn switch_statement_covers_all_tag_only_payload_variants(
                 .variants
                 .iter()
                 .find(|variant| variant.name == arm.variant_name)?;
-            tag_only_payload_discard_pattern_is_buildable(
-                arm.payload.as_ref(),
-                variant.payload.len(),
-            )
-            .then_some(variant.name.as_str())
+            tag_only_payload_pattern_covers_variant(arm.payload.as_ref(), variant.payload.len())
+                .then_some(variant.name.as_str())
         })
         .collect::<HashSet<_>>();
 
