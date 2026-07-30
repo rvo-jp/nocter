@@ -5,23 +5,27 @@ use super::scoped_imports::visible_scoped_import_spans_at_offset;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use crate::ast::{
     AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, SwitchArm, SwitchStmt,
+    TypeExpr,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
-    AssociatedFunctionSignature, EnumVariantSignature, ResolveOutput, Symbol, SymbolKind,
-    TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, EnumVariantSignature, MethodSignature, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::ByteSpan;
+use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
     Function,
+    Method,
     Class,
     Interface,
     Module,
     Enum,
     EnumMember,
+    Field,
     Keyword,
     Struct,
 }
@@ -36,7 +40,10 @@ pub(crate) struct CompletionItemInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionContext<'a> {
     EnumPatternMembers(&'a str),
-    TypeMembers(&'a str),
+    MemberAccess {
+        owner_name: &'a str,
+        owner_span: ByteSpan,
+    },
 }
 
 #[cfg(test)]
@@ -48,7 +55,9 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    if let Some(items) = contextual_completion_items(&file.ast, &file.resolved, offset) {
+    if let Some(items) =
+        contextual_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
+    {
         return items;
     }
 
@@ -64,8 +73,9 @@ pub(crate) fn completion_items_for_text_at_offset(
 ) -> Option<Vec<CompletionItemInfo>> {
     let parsed = parse_single_file_text("completion.nct", text)?;
     let resolved = resolve_single_file_ast("completion.nct", text, parsed.source, &parsed.ast);
+    let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
-    if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, offset) {
+    if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, &facts, offset) {
         return Some(items);
     }
 
@@ -149,6 +159,7 @@ fn symbol_detail(symbol: &Symbol) -> String {
 fn contextual_completion_items(
     ast: &AstFile,
     resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     match completion_context_at_offset(ast, offset)? {
@@ -158,13 +169,32 @@ fn contextual_completion_items(
                 .map(enum_variant_completion_items)
                 .unwrap_or_default(),
         ),
-        CompletionContext::TypeMembers(type_name) => Some(
-            resolved
-                .type_symbol_by_name(type_name)
-                .map(type_member_completion_items)
-                .unwrap_or_default(),
-        ),
+        CompletionContext::MemberAccess {
+            owner_name,
+            owner_span,
+        } => Some(member_completion_items(
+            resolved, facts, owner_name, owner_span,
+        )),
     }
+}
+
+fn member_completion_items(
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
+    owner_name: &str,
+    owner_span: ByteSpan,
+) -> Vec<CompletionItemInfo> {
+    if let Some(symbol) = resolved.type_symbol_by_name(owner_name) {
+        return type_member_completion_items(symbol);
+    }
+
+    let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
+        return Vec::new();
+    };
+    let Some(symbol) = type_symbol_for_value_member_completion(resolved, owner_ty) else {
+        return Vec::new();
+    };
+    value_member_completion_items(symbol)
 }
 
 fn type_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
@@ -178,6 +208,25 @@ fn type_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> 
             .iter()
             .filter(|function| function.is_accessible)
             .map(associated_function_completion_item),
+    );
+    items
+}
+
+fn value_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
+    let mut items = Vec::new();
+    items.extend(
+        symbol
+            .fields
+            .iter()
+            .filter(|field| field.is_accessible)
+            .map(struct_field_completion_item),
+    );
+    items.extend(
+        symbol
+            .methods
+            .iter()
+            .filter(|method| method.is_accessible)
+            .map(method_completion_item),
     );
     items
 }
@@ -205,6 +254,40 @@ fn associated_function_completion_item(
         label: function.name.clone(),
         kind: CompletionItemKind::Function,
         detail: Some("associated function".to_string()),
+    }
+}
+
+fn struct_field_completion_item(field: &StructFieldSignature) -> CompletionItemInfo {
+    CompletionItemInfo {
+        label: field.name.clone(),
+        kind: CompletionItemKind::Field,
+        detail: Some("field".to_string()),
+    }
+}
+
+fn method_completion_item(method: &MethodSignature) -> CompletionItemInfo {
+    CompletionItemInfo {
+        label: method.name.clone(),
+        kind: CompletionItemKind::Method,
+        detail: Some("method".to_string()),
+    }
+}
+
+fn type_symbol_for_value_member_completion<'a>(
+    resolved: &'a ResolveOutput,
+    ty: &TypeExpr,
+) -> Option<&'a TypeSymbol> {
+    match ty {
+        TypeExpr::Reference(reference) => resolved.type_symbol_by_reference_name(&reference.name),
+        TypeExpr::Generic(generic) => resolved.type_symbol_by_reference_name(&generic.name),
+        TypeExpr::Borrow(borrow) => {
+            type_symbol_for_value_member_completion(resolved, &borrow.inner)
+        }
+        TypeExpr::View(view) => type_symbol_for_value_member_completion(resolved, &view.element),
+        TypeExpr::Pointer(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
     }
 }
 
@@ -367,7 +450,7 @@ fn completion_context_in_expression_at_offset(
             })
         }
         Expr::Member(expression) => {
-            type_member_completion_context_in_member_expression_at_offset(expression, offset)
+            member_completion_context_in_member_expression_at_offset(expression, offset)
                 .or_else(|| completion_context_in_expression_at_offset(&expression.object, offset))
         }
         Expr::Index(expression) => {
@@ -460,7 +543,7 @@ fn enum_pattern_completion_context_in_switch_arm_at_offset(
     )
 }
 
-fn type_member_completion_context_in_member_expression_at_offset(
+fn member_completion_context_in_member_expression_at_offset(
     expression: &MemberExpr,
     offset: usize,
 ) -> Option<CompletionContext<'_>> {
@@ -468,8 +551,12 @@ fn type_member_completion_context_in_member_expression_at_offset(
         return None;
     };
 
-    offset_in_member_completion(owner.span, expression.member_span, offset)
-        .then_some(CompletionContext::TypeMembers(owner.name.as_str()))
+    offset_in_member_completion(owner.span, expression.member_span, offset).then_some(
+        CompletionContext::MemberAccess {
+            owner_name: owner.name.as_str(),
+            owner_span: owner.span,
+        },
+    )
 }
 
 fn offset_in_member_completion(owner_span: ByteSpan, member_span: ByteSpan, offset: usize) -> bool {
@@ -672,6 +759,83 @@ func main(): i32 {
             items.is_empty(),
             "expected no global fallback, got {items:#?}"
         );
+    }
+
+    #[test]
+    fn completion_candidates_include_fields_and_methods_after_value_member_dot() {
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+impl File {
+    method &self.describe(): i32 {
+        return self.size
+    }
+}
+
+func main(): i32 {
+    let file = File{ fd: 1, size: 2 }
+    return file.fd
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
+
+        let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+        assert!(items.iter().any(|item| {
+            item.label == "fd"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "size"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "describe"
+                && item.kind == CompletionItemKind::Method
+                && item.detail.as_deref() == Some("method")
+        }));
+        assert!(!items.iter().any(|item| item.label == "File"));
+    }
+
+    #[test]
+    fn completion_candidates_include_fields_and_methods_after_borrowed_value_member_dot() {
+        let text = r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method &self.describe(): i32 {
+        return self.fd
+    }
+}
+
+func inspect(file: &File): i32 {
+    return file.fd
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
+
+        let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+        assert!(items.iter().any(|item| {
+            item.label == "fd"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "describe"
+                && item.kind == CompletionItemKind::Method
+                && item.detail.as_deref() == Some("method")
+        }));
+        assert!(!items.iter().any(|item| item.label == "File"));
     }
 
     #[test]

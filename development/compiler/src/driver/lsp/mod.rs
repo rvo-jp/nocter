@@ -18,7 +18,8 @@ mod symbols;
 use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{
-    LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER, LSP_COMPLETION_ITEM_KIND_FUNCTION,
+    LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER, LSP_COMPLETION_ITEM_KIND_FIELD,
+    LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_METHOD,
     LSP_COMPLETION_ITEM_KIND_MODULE, LSP_COMPLETION_ITEM_KIND_STRUCT,
 };
 use completion::{
@@ -2553,6 +2554,67 @@ func main(): i32 {
         );
         assert_eq!(open_item["detail"].as_str(), Some("associated function"));
         assert!(completion_item_with_label(function_items, "File").is_none());
+    }
+
+    #[test]
+    fn returns_completion_items_for_value_members() {
+        let uri = "file:///tmp/nocter-value-member-completion.nct".to_string();
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+impl File {
+    method &self.describe(): i32 {
+        return self.size
+    }
+}
+
+func main(): i32 {
+    let file = File{ fd: 1, size: 2 }
+    return file.fd
+}
+"#;
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
+        let position = byte_offset_to_lsp_position(text, offset);
+        let response = server.completion_response(
+            json!(17),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": position.line,
+                    "character": position.character
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected value member completion items");
+        let fd_item = completion_item_with_label(items, "fd").expect("expected fd completion");
+        let describe_item =
+            completion_item_with_label(items, "describe").expect("expected describe completion");
+
+        assert_eq!(
+            fd_item["kind"].as_u64(),
+            Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
+        );
+        assert_eq!(fd_item["detail"].as_str(), Some("field"));
+        assert_eq!(
+            describe_item["kind"].as_u64(),
+            Some(LSP_COMPLETION_ITEM_KIND_METHOD as u64)
+        );
+        assert_eq!(describe_item["detail"].as_str(), Some("method"));
+        assert!(completion_item_with_label(items, "File").is_none());
     }
 
     #[test]

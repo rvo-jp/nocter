@@ -8,7 +8,9 @@ use crate::analysis::completion::{
 };
 use serde_json::{Value, json};
 
+pub(super) const LSP_COMPLETION_ITEM_KIND_METHOD: u8 = 2;
 pub(super) const LSP_COMPLETION_ITEM_KIND_FUNCTION: u8 = 3;
+pub(super) const LSP_COMPLETION_ITEM_KIND_FIELD: u8 = 5;
 const LSP_COMPLETION_ITEM_KIND_CLASS: u8 = 7;
 const LSP_COMPLETION_ITEM_KIND_INTERFACE: u8 = 8;
 pub(super) const LSP_COMPLETION_ITEM_KIND_MODULE: u8 = 9;
@@ -57,11 +59,13 @@ fn completion_item(item: &CompletionItemInfo) -> Value {
 const fn lsp_completion_kind(kind: CompletionItemKind) -> u8 {
     match kind {
         CompletionItemKind::Function => LSP_COMPLETION_ITEM_KIND_FUNCTION,
+        CompletionItemKind::Method => LSP_COMPLETION_ITEM_KIND_METHOD,
         CompletionItemKind::Class => LSP_COMPLETION_ITEM_KIND_CLASS,
         CompletionItemKind::Interface => LSP_COMPLETION_ITEM_KIND_INTERFACE,
         CompletionItemKind::Module => LSP_COMPLETION_ITEM_KIND_MODULE,
         CompletionItemKind::Enum => LSP_COMPLETION_ITEM_KIND_ENUM,
         CompletionItemKind::EnumMember => LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER,
+        CompletionItemKind::Field => LSP_COMPLETION_ITEM_KIND_FIELD,
         CompletionItemKind::Keyword => LSP_COMPLETION_ITEM_KIND_KEYWORD,
         CompletionItemKind::Struct => LSP_COMPLETION_ITEM_KIND_STRUCT,
     }
