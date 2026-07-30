@@ -536,6 +536,31 @@ func leak(): View {
 }
 
 #[test]
+fn diagnoses_return_struct_literal_after_static_field_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func leak(): View {
+    let value = 1
+    return View{ label: "static", value: &value }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
 fn diagnoses_return_error_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"primitive make_error(value: &i32): error
@@ -548,6 +573,28 @@ func leak(): error {
     let value = 1
     let failure = make_error(&value)
     return failure
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_error_after_static_argument_and_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func leak(): error {
+    let value = 1
+    return make_error("static", &value)
 }
 "#,
     );

@@ -26,7 +26,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
 use crate::source::SourceMap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 struct BorrowReturnEnvironment {
@@ -61,6 +61,7 @@ impl BorrowReturnEnvironment {
             for (name, provenance) in &state.bindings {
                 joined
                     .entry(name.clone())
+                    .and_modify(|existing: &mut BorrowReturnProvenance| existing.merge(provenance))
                     .or_insert_with(|| provenance.clone());
             }
         }
@@ -68,9 +69,55 @@ impl BorrowReturnEnvironment {
     }
 }
 
-#[derive(Debug, Clone)]
-struct BorrowReturnProvenance {
-    source: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BorrowReturnProvenance {
+    Static,
+    InputBorrow { sources: BTreeSet<String> },
+    Escaping { source: String },
+}
+
+impl BorrowReturnProvenance {
+    fn input_borrow(source: String) -> Self {
+        Self::InputBorrow {
+            sources: BTreeSet::from([source]),
+        }
+    }
+
+    fn escaping(source: String) -> Self {
+        Self::Escaping { source }
+    }
+
+    fn escaping_source(&self) -> Option<&str> {
+        match self {
+            Self::Escaping { source } => Some(source),
+            Self::Static | Self::InputBorrow { .. } => None,
+        }
+    }
+
+    fn merge(&mut self, other: &BorrowReturnProvenance) {
+        match (&mut *self, other) {
+            (Self::Escaping { .. }, _) => {}
+            (_, Self::Escaping { source }) => {
+                *self = Self::Escaping {
+                    source: source.clone(),
+                };
+            }
+            (
+                Self::InputBorrow { sources },
+                Self::InputBorrow {
+                    sources: other_sources,
+                },
+            ) => {
+                sources.extend(other_sources.iter().cloned());
+            }
+            (Self::Static, Self::InputBorrow { sources }) => {
+                *self = Self::InputBorrow {
+                    sources: sources.clone(),
+                };
+            }
+            (Self::InputBorrow { .. }, Self::Static) | (Self::Static, Self::Static) => {}
+        }
+    }
 }
 
 pub(super) fn check_return_types(
@@ -1186,12 +1233,12 @@ fn check_borrow_return_provenance(
     ) else {
         return;
     };
+    let Some(source) = provenance.escaping_source() else {
+        return;
+    };
 
     diagnostics.push(borrow_return_escapes_diagnostic(
-        sources,
-        expression,
-        &provenance.source,
-        context,
+        sources, expression, source, context,
     ));
 }
 
@@ -1208,51 +1255,63 @@ fn borrow_return_provenance_for_expression(
 
     match unwrap_group(expression) {
         Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(expression, resolved),
-        Expr::Identifier(identifier) => borrow_provenance.get(&identifier.name).cloned(),
+        Expr::Identifier(identifier) => borrow_return_provenance_for_identifier(
+            identifier,
+            resolved,
+            environment,
+            borrow_provenance,
+        ),
+        Expr::StringLiteral(_) => Some(BorrowReturnProvenance::Static),
         Expr::StructLiteral(literal) => {
+            let mut provenance = None;
             for field in &literal.fields {
                 let field_type = expression_type(&field.value, resolved, environment);
-                if let Some(provenance) = borrow_return_provenance_for_expression(
-                    &field.value,
-                    &field_type,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                ) {
-                    return Some(provenance);
-                }
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_expression(
+                        &field.value,
+                        &field_type,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                    ),
+                );
             }
-            None
+            provenance
         }
         Expr::ArrayLiteral(literal) => {
+            let mut provenance = None;
             for element in &literal.elements {
                 let element_type = expression_type(element, resolved, environment);
-                if let Some(provenance) = borrow_return_provenance_for_expression(
-                    element,
-                    &element_type,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                ) {
-                    return Some(provenance);
-                }
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_expression(
+                        element,
+                        &element_type,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                    ),
+                );
             }
-            None
+            provenance
         }
         Expr::Call(call) if is_enum_variant_call(call, resolved) => {
+            let mut provenance = None;
             for argument in &call.arguments {
                 let argument_type = expression_type(argument, resolved, environment);
-                if let Some(provenance) = borrow_return_provenance_for_expression(
-                    argument,
-                    &argument_type,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                ) {
-                    return Some(provenance);
-                }
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_expression(
+                        argument,
+                        &argument_type,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                    ),
+                );
             }
-            None
+            provenance
         }
         Expr::Call(call) => {
             borrow_return_provenance_for_call(call, resolved, environment, borrow_provenance)
@@ -1267,17 +1326,18 @@ fn borrow_return_provenance_for_call(
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
 ) -> Option<BorrowReturnProvenance> {
+    let mut provenance = None;
     if let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
         && method_receiver_is_borrow(method)
         && let Some(member) = method_member_for_call(call)
-        && let Some(provenance) = borrow_return_provenance_for_borrowed_input(
+        && let Some(receiver_provenance) = borrow_return_provenance_for_borrowed_input(
             &member.object,
             resolved,
             environment,
             borrow_provenance,
         )
     {
-        return Some(provenance);
+        merge_borrow_return_provenance(&mut provenance, Some(receiver_provenance));
     }
 
     let signature = resolved_call_signature(resolved, call, environment)?;
@@ -1294,17 +1354,32 @@ fn borrow_return_provenance_for_call(
             continue;
         }
 
-        if let Some(provenance) = borrow_return_provenance_for_borrowed_input(
-            argument,
-            resolved,
-            environment,
-            borrow_provenance,
-        ) {
-            return Some(provenance);
-        }
+        merge_borrow_return_provenance(
+            &mut provenance,
+            borrow_return_provenance_for_borrowed_input(
+                argument,
+                resolved,
+                environment,
+                borrow_provenance,
+            ),
+        );
     }
 
-    None
+    provenance
+}
+
+fn merge_borrow_return_provenance(
+    provenance: &mut Option<BorrowReturnProvenance>,
+    next: Option<BorrowReturnProvenance>,
+) {
+    let Some(next) = next else {
+        return;
+    };
+    if let Some(existing) = provenance {
+        existing.merge(&next);
+    } else {
+        *provenance = Some(next);
+    }
 }
 
 fn method_receiver_is_borrow(method: &crate::resolve::MethodSignature) -> bool {
@@ -1329,18 +1404,48 @@ fn borrow_return_provenance_for_borrowed_input(
     }
 
     let Some(identifier) = expression_root_identifier(expression) else {
-        return Some(BorrowReturnProvenance {
-            source: "temporary expression".to_string(),
-        });
+        return Some(BorrowReturnProvenance::escaping(
+            "temporary expression".to_string(),
+        ));
     };
     if environment
         .get(&identifier.name)
         .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
     {
-        return borrow_provenance.get(&identifier.name).cloned();
+        return borrow_return_provenance_for_identifier(
+            identifier,
+            resolved,
+            environment,
+            borrow_provenance,
+        );
     }
 
     borrow_return_provenance_for_local_storage(identifier, resolved)
+}
+
+fn borrow_return_provenance_for_identifier(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+) -> Option<BorrowReturnProvenance> {
+    if let Some(provenance) = borrow_provenance.get(&identifier.name) {
+        return Some(provenance.clone());
+    }
+
+    if matches!(
+        resolved.local_symbol_for_identifier(identifier)?.kind,
+        LocalSymbolKind::Parameter
+    ) && environment
+        .get(&identifier.name)
+        .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
+    {
+        return Some(BorrowReturnProvenance::input_borrow(
+            identifier.name.clone(),
+        ));
+    }
+
+    None
 }
 
 fn borrow_return_provenance_for_direct_borrow(
@@ -1353,12 +1458,14 @@ fn borrow_return_provenance_for_direct_borrow(
 
     let source = match unwrap_group(&borrow.expression) {
         Expr::Identifier(identifier) => {
-            borrow_return_provenance_for_local_storage(identifier, resolved)?.source
+            borrow_return_provenance_for_local_storage(identifier, resolved)?
+                .escaping_source()?
+                .to_string()
         }
         _ => "temporary expression".to_string(),
     };
 
-    Some(BorrowReturnProvenance { source })
+    Some(BorrowReturnProvenance::escaping(source))
 }
 
 fn borrow_return_provenance_for_local_storage(
@@ -1373,7 +1480,7 @@ fn borrow_return_provenance_for_local_storage(
         LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
     };
 
-    Some(BorrowReturnProvenance { source })
+    Some(BorrowReturnProvenance::escaping(source))
 }
 
 fn type_contains_borrow_like(ty: &Type, resolved: &ResolveOutput) -> bool {

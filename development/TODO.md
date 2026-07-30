@@ -190,6 +190,9 @@ Recommended order:
 - Return provenance now treats built-in `error` as borrow-like, rejecting
   returned errors derived from local borrows while allowing errors derived from
   parameter borrows.
+- Return provenance now distinguishes static, input-borrow, and escaping sources
+  internally and merges aggregate/call inputs, so a static borrow before a local
+  borrow cannot hide the escaping local source.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.
