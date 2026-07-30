@@ -5402,6 +5402,57 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
+fn build_command_reports_payload_if_is_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-binding-boundary");
+    let source = project.write_source(
+        "payload_if_is_binding_boundary.nct",
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
+}
+
+func main(): i32 {
+    return describe(AppError.missing_path)
+}
+
+func describe(error: AppError): i32 {
+    if error is AppError.open_failed(path) {
+        return 1
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`if is` pattern branches"),
+        "expected if-is diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("11 |     if error is AppError.open_failed(path) {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_generic_function_with_concrete_arguments() {
     let project = TempProject::new("cli-build-generic-function");
     let source = project.write_source(
