@@ -407,6 +407,150 @@ func leak(choice: Choice): &i32 {
 }
 
 #[test]
+fn diagnoses_return_if_is_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    if result is Result.ok(value) {
+        return value
+    }
+    return fallback
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_body_result_if_is_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    if result is Result.ok(value) {
+        value
+    } else {
+        fallback
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_return_match_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    return match result {
+        Result.ok(value) {
+            value
+        }
+        _ {
+            fallback
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_return_if_is_payload_borrow_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    if result is Result.ok(value) {
+        return value
+    }
+    return fallback
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_match_payload_borrow_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    return match result {
+        Result.ok(value) {
+            value
+        }
+        _ {
+            fallback
+        }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_borrow_alias_after_all_if_branches_reassign_to_parameter() {
     let diagnostics = check_text(
         r#"func main(): i32 {

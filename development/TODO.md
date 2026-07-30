@@ -200,6 +200,9 @@ Recommended order:
 - Same-AST borrow return summaries now iterate to a fixed point, so transitive
   static-returning helpers do not conservatively inherit unrelated local borrow
   arguments.
+- `if is` and `match` payload bindings now inherit borrow return provenance from
+  the matched enum value, so local borrows cannot escape through borrow-like
+  payload bindings while parameter-carried borrows remain returnable.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

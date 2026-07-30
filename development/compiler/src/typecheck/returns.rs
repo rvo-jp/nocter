@@ -20,8 +20,8 @@ use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
-    AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
-    TypeExpr,
+    AstFile, Block, Expr, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt,
+    Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
@@ -349,6 +349,14 @@ fn collect_return_statement_provenance(
                 let mut then_environment =
                     environment_for_if_is_binding(if_is_statement, resolved, environment);
                 let mut then_borrow_provenance = borrow_provenance.clone();
+                define_if_is_payload_borrow_return_binding(
+                    if_is_statement,
+                    resolved,
+                    environment,
+                    &then_environment,
+                    &mut then_borrow_provenance,
+                    summaries,
+                );
                 collect_return_statement_provenance(
                     &if_is_statement.then_block,
                     resolved,
@@ -386,6 +394,15 @@ fn collect_return_statement_provenance(
                         environment,
                     );
                     let mut arm_borrow_provenance = borrow_provenance.clone();
+                    define_switch_arm_payload_borrow_return_binding(
+                        arm,
+                        &switch_statement.expression,
+                        resolved,
+                        environment,
+                        &arm_environment,
+                        &mut arm_borrow_provenance,
+                        summaries,
+                    );
                     collect_return_statement_provenance(
                         &arm.body,
                         resolved,
@@ -814,6 +831,14 @@ fn check_statement_returns(
             let mut then_environment =
                 environment_for_if_is_binding(statement, resolved, environment);
             let mut then_borrow_provenance = borrow_provenance.clone();
+            define_if_is_payload_borrow_return_binding(
+                statement,
+                resolved,
+                environment,
+                &then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
             check_block_return_statements(
                 sources,
                 &statement.then_block,
@@ -868,6 +893,15 @@ fn check_statement_returns(
                 let mut arm_environment =
                     environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 let mut arm_borrow_provenance = borrow_provenance.clone();
+                define_switch_arm_payload_borrow_return_binding(
+                    arm,
+                    &statement.expression,
+                    resolved,
+                    environment,
+                    &arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
                 check_block_return_statements(
                     sources,
                     &arm.body,
@@ -1347,6 +1381,14 @@ fn check_expression_for_nested_returns(
             let mut then_environment =
                 environment_for_if_is_binding(expression, resolved, environment);
             let mut then_borrow_provenance = borrow_provenance.clone();
+            define_if_is_payload_borrow_return_binding(
+                expression,
+                resolved,
+                environment,
+                &then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
             check_block_return_statements(
                 sources,
                 &expression.then_block,
@@ -1387,6 +1429,15 @@ fn check_expression_for_nested_returns(
                 let mut arm_environment =
                     environment_for_switch_arm(arm, &expression.expression, resolved, environment);
                 let mut arm_borrow_provenance = borrow_provenance.clone();
+                define_switch_arm_payload_borrow_return_binding(
+                    arm,
+                    &expression.expression,
+                    resolved,
+                    environment,
+                    &arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
                 check_block_return_statements(
                     sources,
                     &arm.body,
@@ -1751,11 +1802,20 @@ fn borrow_return_provenance_for_expression(
                 return None;
             };
             let then_environment = environment_for_if_is_binding(expression, resolved, environment);
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            define_if_is_payload_borrow_return_binding(
+                expression,
+                resolved,
+                environment,
+                &then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
             let mut provenance = borrow_return_provenance_for_block_result(
                 &expression.then_block,
                 resolved,
                 &then_environment,
-                borrow_provenance,
+                &then_borrow_provenance,
                 summaries,
             );
             merge_borrow_return_provenance(
@@ -1775,13 +1835,23 @@ fn borrow_return_provenance_for_expression(
             for arm in &expression.arms {
                 let arm_environment =
                     environment_for_switch_arm(arm, &expression.expression, resolved, environment);
+                let mut arm_borrow_provenance = borrow_provenance.clone();
+                define_switch_arm_payload_borrow_return_binding(
+                    arm,
+                    &expression.expression,
+                    resolved,
+                    environment,
+                    &arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
                 merge_borrow_return_provenance(
                     &mut provenance,
                     borrow_return_provenance_for_block_result(
                         &arm.body,
                         resolved,
                         &arm_environment,
-                        borrow_provenance,
+                        &arm_borrow_provenance,
                         summaries,
                     ),
                 );
@@ -2085,6 +2155,14 @@ fn apply_borrow_return_statement_effect(
             let mut then_environment =
                 environment_for_if_is_binding(statement, resolved, environment);
             let mut then_borrow_provenance = borrow_provenance.clone();
+            define_if_is_payload_borrow_return_binding(
+                statement,
+                resolved,
+                environment,
+                &then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
             apply_borrow_return_statement_effects(
                 &statement.then_block,
                 resolved,
@@ -2115,6 +2193,15 @@ fn apply_borrow_return_statement_effect(
                 let mut arm_environment =
                     environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 let mut arm_borrow_provenance = borrow_provenance.clone();
+                define_switch_arm_payload_borrow_return_binding(
+                    arm,
+                    &statement.expression,
+                    resolved,
+                    environment,
+                    &arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
                 apply_borrow_return_statement_effects(
                     &arm.body,
                     resolved,
@@ -2142,6 +2229,87 @@ fn apply_borrow_return_statement_effect(
         }
         _ => {}
     }
+}
+
+fn define_if_is_payload_borrow_return_binding(
+    statement: &IfIsStmt,
+    resolved: &ResolveOutput,
+    source_environment: &TypeEnvironment,
+    payload_environment: &TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    let Some(binding) = statement
+        .payload
+        .as_ref()
+        .and_then(|payload| payload.binding())
+    else {
+        return;
+    };
+    define_payload_borrow_return_binding(
+        binding,
+        &statement.expression,
+        resolved,
+        source_environment,
+        payload_environment,
+        borrow_provenance,
+        summaries,
+    );
+}
+
+fn define_switch_arm_payload_borrow_return_binding(
+    arm: &SwitchArm,
+    target_expression: &Expr,
+    resolved: &ResolveOutput,
+    source_environment: &TypeEnvironment,
+    payload_environment: &TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    let Some(binding) = arm.payload.as_ref().and_then(|payload| payload.binding()) else {
+        return;
+    };
+    define_payload_borrow_return_binding(
+        binding,
+        target_expression,
+        resolved,
+        source_environment,
+        payload_environment,
+        borrow_provenance,
+        summaries,
+    );
+}
+
+fn define_payload_borrow_return_binding(
+    binding: &SwitchPayloadBinding,
+    target_expression: &Expr,
+    resolved: &ResolveOutput,
+    source_environment: &TypeEnvironment,
+    payload_environment: &TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    let Some(binding_type) = payload_environment.get(&binding.name) else {
+        borrow_provenance.define_binding(binding.name.clone(), false, None);
+        return;
+    };
+    let contains_borrow_like = type_contains_borrow_like(binding_type, resolved);
+    let provenance = contains_borrow_like.then(|| {
+        let target_type = expression_type(target_expression, resolved, source_environment);
+        borrow_return_provenance_for_expression(
+            target_expression,
+            &target_type,
+            resolved,
+            source_environment,
+            borrow_provenance,
+            summaries,
+        )
+    });
+    borrow_provenance.define_binding(
+        binding.name.clone(),
+        contains_borrow_like,
+        provenance.flatten(),
+    );
 }
 
 fn method_receiver_is_borrow(method: &crate::resolve::MethodSignature) -> bool {
