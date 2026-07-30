@@ -143,8 +143,9 @@
                 <span class="markdown-path-text">/development/docs/roadmap.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="compiler-roadmap">Compiler Roadmap</h1><p>This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in <a href="../../../spec/index.html#content">../../spec</a>, and the fixed v0 completion gates live in <a href="../v0-closure/index.html#content">v0-closure.md</a>.</p><h2 id="current-priority">Current Priority</h2><p>The current priority is to make the standard-library-driven v0 subset reliable end to end:</p><ol><li>1. keep docs, spec, implementation status, and tests consistent</li><li>close accepted-but-not-buildable frontend/backend gaps with source-backed
-   rejection diagnostics</li><li>continue aggregate ABI, ownership, and drop cleanup work</li><li>promote only stable std APIs into runtime support</li><li>keep LSP behavior tied to compiler facts</li></ol><h2 id="recommended-work-order">Recommended Work Order</h2><ol><li>1. <strong>Frontend closure audit</strong>: enumerate parser-accepted forms and ensure each
+                <h1 id="compiler-roadmap">Compiler Roadmap</h1><p>This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in <a href="../../../spec/index.html#content">../../spec</a>, and the fixed v0 completion gates live in <a href="../v0-closure/index.html#content">v0-closure.md</a>.</p><h2 id="current-priority">Current Priority</h2><p>The current priority is <code>v0.2.0-dev</code> work after the narrow v0.1.0 release. Keep the v0.1.0 subset stable while choosing one or two promoted runtime themes for v0.2.0:</p><ol><li>1. keep docs, spec, implementation status, and tests consistent</li><li>close accepted-but-not-buildable frontend/backend gaps with source-backed
+   rejection diagnostics</li><li>promote payload-carrying enum runtime or collection behavior only with
+   matching ABI, ownership, buildability, and CLI/distributed-home tests</li><li>continue aggregate ABI, ownership, and drop cleanup work</li><li>keep LSP behavior tied to compiler facts</li></ol><h2 id="recommended-work-order">Recommended Work Order</h2><ol><li>1. <strong>Frontend closure audit</strong>: enumerate parser-accepted forms and ensure each
    has resolver/typechecker facts or a stable rejection diagnostic.</li><li><strong>Buildability boundary</strong>: stop unsupported runtime forms before IR/backend
    emission with diagnostics written in source-language terms.</li><li><strong>Aggregate ABI and ownership</strong>: continue direct/indirect aggregate edges,
    field-level state, enum payload facts, aggregate cleanup, and drop glue.</li><li><strong>Std runtime</strong>: keep <code>development/std/</code> aligned with <code>spec/11</code>; promote
@@ -161,7 +162,10 @@
   bounds, or code reuse as a convenience for implementation.</li><li>Keep literal definitions and generalized <code>...</code> spread/capture out of v0.
   Treat them as post-v0 language design, not as std or LSP shortcuts.</li><li>Keep bare string interpolation rejected by buildability until an explicit
   allocator source is designed.</li><li>Keep LSP semantic tokens, hovers, definitions, references, symbols, and
-  completions backed by resolver/typechecker facts.</li></ul><h2 id="near-term-open-work">Near-Term Open Work</h2><ul><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
+  completions backed by resolver/typechecker facts.</li></ul><h2 id="near-term-open-work">Near-Term Open Work</h2><ul><li>Pick the v0.2.0 implementation theme. The default recommendation is
+  payload-carrying enum <code>if is</code> / <code>match</code> runtime lowering before broad
+  collection expansion, because it sharpens control-flow facts without changing
+  the public standard-library API.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.</li><li>Promote non-copy <code>Vec&lt;T&gt;</code> storage only after per-element drop behavior is
   designed and tested.</li><li>Promote payload enum runtime only after match/if-is payload binding facts and
   drop cleanup are stable.</li><li>Promote <code>std/process.env</code> only after nested fallible/optional return lowering
