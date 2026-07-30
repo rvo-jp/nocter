@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `c1deabe Lower tag-only payload enum match`
+  - `ccb2235 Update handoff after payload if-is lowering`
   - `0e0a182 Lower tag-only payload enum if-is`
   - `d2738d5 Promote copy payload enum values`
   - `864230a Define payload enum ABI layout`
