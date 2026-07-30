@@ -36,6 +36,50 @@ fn distributed_nocter_home_passes_doctor() {
 }
 
 #[test]
+fn distributed_release_identity_matches_packaging_metadata() {
+    let home = distributed_home();
+    let version = fs::read_to_string(home.join("VERSION")).unwrap();
+    assert_eq!(version, format!("{}\n", env!("CARGO_PKG_VERSION")));
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(home.join("MANIFEST.json")).unwrap()).unwrap();
+    assert_eq!(manifest["release"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(manifest["host"], "arm64-darwin");
+    assert_eq!(manifest["default_target"], "arm64-darwin");
+    assert_eq!(
+        manifest["archive"]["name"],
+        format!("nocter-v{}-arm64-darwin.tar.gz", env!("CARGO_PKG_VERSION"))
+    );
+
+    let output = Command::new(home.join("nocter"))
+        .arg("--version")
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+
+    let stdout = text(&output.stdout);
+    assert!(
+        stdout.contains(&format!("nocter {}", env!("CARGO_PKG_VERSION")))
+            && stdout.contains("host: arm64-darwin")
+            && stdout.contains("default target: arm64-darwin"),
+        "unexpected version output:\n{stdout}"
+    );
+}
+
+#[test]
 fn installed_nocter_uses_executable_parent_as_home_without_env() {
     let install = TempProject::new("distributed-home-installed-layout");
     let home = install.root();
