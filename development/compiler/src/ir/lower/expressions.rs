@@ -14,14 +14,13 @@ use super::bindings::{
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
-    LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
+    BranchPrologue, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
     expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_aggregate_return_expression,
     lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_control_flow,
-    propagating_failure_mode,
+    payloadless_switch_as_control_flow, propagating_failure_mode, tag_only_if_is_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -39,8 +38,8 @@ use crate::abi::{
     array_element_stride,
 };
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfStmt, IndexExpr, Stmt,
-    SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
+    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfIsStmt, IfStmt, IndexExpr,
+    Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -140,8 +139,7 @@ pub(super) fn lower_i32_expression_to_location(
         }
         Expr::If(statement) => lower_i32_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_i32_if_expression_to_location(&if_statement, destination, context)
+            lower_i32_if_is_expression_to_location(statement, destination, context)
         }
         Expr::Match(statement) => lower_i32_match_expression_to_location(
             statement,
@@ -239,8 +237,7 @@ pub(super) fn lower_u8_expression_to_location(
         }
         Expr::If(statement) => lower_u8_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_u8_if_expression_to_location(&if_statement, destination, context)
+            lower_u8_if_is_expression_to_location(statement, destination, context)
         }
         Expr::Match(statement) => lower_u8_match_expression_to_location(
             statement,
@@ -378,8 +375,7 @@ pub(super) fn lower_usize_expression_to_location(
             lower_usize_if_expression_to_location(statement, destination, context)
         }
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_usize_if_expression_to_location(&if_statement, destination, context)
+            lower_usize_if_is_expression_to_location(statement, destination, context)
         }
         Expr::Match(statement) => lower_usize_match_expression_to_location(
             statement,
@@ -482,8 +478,7 @@ pub(super) fn lower_str_expression_to_location(
         }
         Expr::If(statement) => lower_str_if_expression_to_location(statement, destination, context),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_str_if_expression_to_location(&if_statement, destination, context)
+            lower_str_if_is_expression_to_location(statement, destination, context)
         }
         Expr::Match(statement) => lower_str_match_expression_to_location(
             statement,
@@ -563,8 +558,7 @@ pub(super) fn lower_slice_expression_to_location(
             lower_slice_if_expression_to_location(statement, destination, context)
         }
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_slice_if_expression_to_location(&if_statement, destination, context)
+            lower_slice_if_is_expression_to_location(statement, destination, context)
         }
         Expr::Match(statement) => lower_slice_match_expression_to_location(
             statement,
@@ -593,9 +587,52 @@ fn lower_i32_if_expression_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_i32_expression_to_location(expression, destination, branch_context)
-    })
+    lower_i32_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_i32_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_i32_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_i32_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: I32Location,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_i32_expression_to_location(expression, destination, branch_context)
+        },
+    )
 }
 
 fn lower_u8_if_expression_to_location(
@@ -603,9 +640,52 @@ fn lower_u8_if_expression_to_location(
     destination: U8Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_u8_expression_to_location(expression, destination, branch_context)
-    })
+    lower_u8_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_u8_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: U8Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_u8_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_u8_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: U8Location,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_u8_expression_to_location(expression, destination, branch_context)
+        },
+    )
 }
 
 fn lower_usize_if_expression_to_location(
@@ -613,9 +693,52 @@ fn lower_usize_if_expression_to_location(
     destination: UsizeLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_usize_expression_to_location(expression, destination, branch_context)
-    })
+    lower_usize_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_usize_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_usize_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_usize_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_usize_expression_to_location(expression, destination, branch_context)
+        },
+    )
 }
 
 fn lower_bool_if_expression_to_location(
@@ -624,9 +747,61 @@ fn lower_bool_if_expression_to_location(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_bool_expression_to_location(expression, destination, branch_context, diagnostic_code)
-    })
+    lower_bool_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        diagnostic_code,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_bool_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        diagnostic_code,
+        |statement, context, then_prologue, else_prologue| {
+            lower_bool_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                diagnostic_code,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_bool_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_bool_expression_to_location(
+                expression,
+                destination,
+                branch_context,
+                diagnostic_code,
+            )
+        },
+    )
 }
 
 fn lower_str_if_expression_to_location(
@@ -634,9 +809,52 @@ fn lower_str_if_expression_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_str_expression_to_location(expression, destination, branch_context)
-    })
+    lower_str_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_str_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: StrLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_str_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_str_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: StrLocation,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_str_expression_to_location(expression, destination, branch_context)
+        },
+    )
 }
 
 fn lower_slice_if_expression_to_location(
@@ -644,9 +862,52 @@ fn lower_slice_if_expression_to_location(
     destination: SliceLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_if_expression_to_location(statement, context, |expression, branch_context| {
-        lower_slice_expression_to_location(expression, destination, branch_context)
-    })
+    lower_slice_if_expression_to_location_with_branch_prologues(
+        statement,
+        destination,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+    )
+}
+
+fn lower_slice_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    destination: SliceLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_is_expression_to_location(
+        statement,
+        context,
+        "E8008",
+        |statement, context, then_prologue, else_prologue| {
+            lower_slice_if_expression_to_location_with_branch_prologues(
+                statement,
+                destination,
+                context,
+                then_prologue,
+                else_prologue,
+            )
+        },
+    )
+}
+
+fn lower_slice_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    destination: SliceLocation,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        |expression, branch_context| {
+            lower_slice_expression_to_location(expression, destination, branch_context)
+        },
+    )
 }
 
 fn lower_i32_match_expression_to_location(
@@ -797,6 +1058,24 @@ fn lower_i32_if_expression_to_value(
     })
 }
 
+fn lower_i32_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_i32()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredI32Value {
+        instructions: lower_i32_if_is_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: I32Value::Location(temporary),
+    })
+}
+
 fn lower_u8_if_expression_to_value(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -815,6 +1094,24 @@ fn lower_u8_if_expression_to_value(
     })
 }
 
+fn lower_u8_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    let temporary = temporaries.next_u8()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredU8Value {
+        instructions: lower_u8_if_is_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: U8Value::Location(temporary),
+    })
+}
+
 fn lower_usize_if_expression_to_value(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -825,6 +1122,24 @@ fn lower_usize_if_expression_to_value(
         context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
     Ok(LoweredUsizeValue {
         instructions: lower_usize_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: UsizeValue::Location(temporary),
+    })
+}
+
+fn lower_usize_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_usize()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredUsizeValue {
+        instructions: lower_usize_if_is_expression_to_location(
             statement,
             temporary,
             &expression_context,
@@ -853,6 +1168,26 @@ fn lower_bool_if_expression_to_value(
     })
 }
 
+fn lower_bool_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_bool()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredBoolValue {
+        instructions: lower_bool_if_is_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+            diagnostic_code,
+        )?,
+        value: BoolValue::Location(temporary),
+    })
+}
+
 fn lower_str_if_expression_to_value(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -871,6 +1206,24 @@ fn lower_str_if_expression_to_value(
     })
 }
 
+fn lower_str_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_str()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredStrValue {
+        instructions: lower_str_if_is_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: StrValue::Location(temporary),
+    })
+}
+
 fn lower_slice_if_expression_to_value(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -881,6 +1234,24 @@ fn lower_slice_if_expression_to_value(
         context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
     Ok(LoweredSliceValue {
         instructions: lower_slice_if_expression_to_location(
+            statement,
+            temporary,
+            &expression_context,
+        )?,
+        value: SliceValue::Location(temporary),
+    })
+}
+
+fn lower_slice_if_is_expression_to_value(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_slice()?;
+    let expression_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    Ok(LoweredSliceValue {
+        instructions: lower_slice_if_is_expression_to_location(
             statement,
             temporary,
             &expression_context,
@@ -998,6 +1369,45 @@ fn lower_if_expression_to_location(
     context: &LoweringContext,
     lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_if_expression_to_location_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        lower_result,
+    )
+}
+
+fn lower_if_is_expression_to_location(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    lower_statement: impl Fn(
+        &IfStmt,
+        &LoweringContext,
+        &BranchPrologue,
+        &BranchPrologue,
+    ) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut if_context = context.clone();
+    let if_is = tag_only_if_is_as_control_flow(statement, &mut if_context, diagnostic_code)?;
+    let mut instructions = if_is.leading_instructions;
+    instructions.extend(lower_statement(
+        &if_is.statement,
+        &if_context,
+        &if_is.then_prologue,
+        &BranchPrologue::empty(),
+    )?);
+    Ok(instructions)
+}
+
+fn lower_if_expression_to_location_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_value_control_expression_diagnostic());
     };
@@ -1009,14 +1419,16 @@ fn lower_if_expression_to_location(
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
         condition: condition.value,
-        then_instructions: lower_value_control_block_to_location(
+        then_instructions: lower_value_control_block_to_location_with_prologue(
             &statement.then_block,
             context,
+            then_prologue,
             &lower_result,
         )?,
-        else_instructions: lower_value_control_block_to_location(
+        else_instructions: lower_value_control_block_to_location_with_prologue(
             else_block,
             context,
+            else_prologue,
             &lower_result,
         )?,
     });
@@ -1028,13 +1440,29 @@ fn lower_value_control_block_to_location(
     context: &LoweringContext,
     lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_value_control_block_to_location_with_prologue(
+        block,
+        context,
+        &BranchPrologue::empty(),
+        lower_result,
+    )
+}
+
+fn lower_value_control_block_to_location_with_prologue(
+    block: &Block,
+    context: &LoweringContext,
+    prologue: &BranchPrologue,
+    lower_result: &impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(result) = block.result.as_deref() else {
         return Err(unsupported_value_control_expression_diagnostic());
     };
     let mut branch_context = context.clone();
     let local_mark = branch_context.local_mark();
-    let (mut instructions, ends_execution) =
+    let mut instructions = prologue.apply(&mut branch_context)?;
+    let (leading_instructions, ends_execution) =
         lower_value_control_leading_statements(&block.statements, &mut branch_context, local_mark)?;
+    instructions.extend(leading_instructions);
     if ends_execution {
         return Ok(instructions);
     }
@@ -2045,8 +2473,7 @@ fn lower_i32_expression_to_value(
         }
         Expr::If(statement) => lower_i32_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_i32_if_expression_to_value(&if_statement, context, temporaries)
+            lower_i32_if_is_expression_to_value(statement, context, temporaries)
         }
         Expr::Match(statement) => {
             lower_i32_match_expression_to_value(statement, context, temporaries)
@@ -2218,8 +2645,7 @@ fn lower_u8_expression_to_value(
         }
         Expr::If(statement) => lower_u8_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_u8_if_expression_to_value(&if_statement, context, temporaries)
+            lower_u8_if_is_expression_to_value(statement, context, temporaries)
         }
         Expr::Match(statement) => {
             lower_u8_match_expression_to_value(statement, context, temporaries)
@@ -2512,8 +2938,7 @@ fn lower_usize_expression_to_value(
         }
         Expr::If(statement) => lower_usize_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_usize_if_expression_to_value(&if_statement, context, temporaries)
+            lower_usize_if_is_expression_to_value(statement, context, temporaries)
         }
         Expr::Match(statement) => {
             lower_usize_match_expression_to_value(statement, context, temporaries)
@@ -2649,8 +3074,7 @@ pub(super) fn lower_str_expression_to_value(
         }
         Expr::If(statement) => lower_str_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_str_if_expression_to_value(&if_statement, context, temporaries)
+            lower_str_if_is_expression_to_value(statement, context, temporaries)
         }
         Expr::Member(_) => lower_aggregate_str_field_to_value(expression, context, temporaries),
         Expr::Index(index) => lower_str_index_expression_to_value(index, context, temporaries),
@@ -2757,8 +3181,7 @@ pub(super) fn lower_slice_expression_to_value(
         }
         Expr::If(statement) => lower_slice_if_expression_to_value(statement, context, temporaries),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8008")?;
-            lower_slice_if_expression_to_value(&if_statement, context, temporaries)
+            lower_slice_if_is_expression_to_value(statement, context, temporaries)
         }
         Expr::Member(_) => lower_aggregate_slice_field_to_value(expression, context, temporaries),
         Expr::Group(group) => {
@@ -3370,16 +3793,12 @@ pub(super) fn lower_bool_expression_to_location(
         Expr::If(statement) => {
             lower_bool_if_expression_to_location(statement, destination, context, diagnostic_code)
         }
-        Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_bool_if_expression_to_location(
-                &if_statement,
-                destination,
-                context,
-                diagnostic_code,
-            )
-        }
+        Expr::IfIs(statement) => lower_bool_if_is_expression_to_location(
+            statement,
+            destination,
+            context,
+            diagnostic_code,
+        ),
         Expr::Match(statement) => lower_bool_match_expression_to_location(
             statement,
             destination,
@@ -4510,9 +4929,7 @@ pub(super) fn lower_bool_expression_to_value_with_temporaries(
             lower_bool_if_expression_to_value(statement, context, diagnostic_code, temporaries)
         }
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_bool_if_expression_to_value(&if_statement, context, diagnostic_code, temporaries)
+            lower_bool_if_is_expression_to_value(statement, context, diagnostic_code, temporaries)
         }
         Expr::Match(statement) => {
             lower_bool_match_expression_to_value(statement, context, diagnostic_code, temporaries)

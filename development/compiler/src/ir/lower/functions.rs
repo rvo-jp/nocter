@@ -16,14 +16,17 @@ use super::context::{
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
-    lower_nonterminal_loop_statement, lower_nonterminal_payloadless_switch_body,
-    lower_nonterminal_payloadless_switch_statement, lower_nonterminal_while_statement,
-    lower_terminal_bool_block, lower_terminal_bool_if_statement,
+    lower_nonterminal_if_statement_with_branch_prologues, lower_nonterminal_loop_statement,
+    lower_nonterminal_payloadless_switch_body, lower_nonterminal_payloadless_switch_statement,
+    lower_nonterminal_while_statement, lower_terminal_bool_block,
+    lower_terminal_bool_if_statement_with_branch_prologues,
     lower_terminal_branch_leading_statements, lower_terminal_condition, lower_terminal_i32_block,
-    lower_terminal_i32_if_statement, lower_terminal_slice_block, lower_terminal_slice_if_statement,
-    lower_terminal_str_block, lower_terminal_str_if_statement, lower_terminal_u8_block,
-    lower_terminal_u8_if_statement, lower_terminal_usize_block, lower_terminal_usize_if_statement,
-    lower_terminal_void_block, lower_terminal_void_if_statement, split_terminal_branch_block,
+    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_slice_block,
+    lower_terminal_slice_if_statement_with_branch_prologues, lower_terminal_str_block,
+    lower_terminal_str_if_statement_with_branch_prologues, lower_terminal_u8_block,
+    lower_terminal_u8_if_statement_with_branch_prologues, lower_terminal_usize_block,
+    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_void_block,
+    lower_terminal_void_if_statement_with_branch_prologues, split_terminal_branch_block,
     statement_exits_function,
 };
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -998,19 +1001,22 @@ fn lower_callable_body(
                     attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                 },
             )?;
-            let Some(branch_instructions) = lower_terminal_if_statement_for_success_type(
-                &if_is.statement,
-                context,
-                function_name,
-                return_type,
-                "E8007",
-                "functions",
-                resolved,
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?
+            let Some(branch_instructions) =
+                lower_terminal_if_statement_for_success_type_with_branch_prologues(
+                    &if_is.statement,
+                    context,
+                    &if_is.then_prologue,
+                    &BranchPrologue::empty(),
+                    function_name,
+                    return_type,
+                    "E8007",
+                    "functions",
+                    resolved,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?
             else {
                 return Err(attach_primary_span_if_absent(
                     unsupported_function_body_diagnostic(function_name),
@@ -1179,8 +1185,10 @@ fn lower_callable_control_body_result(
         }
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007")?;
-            lower_callable_if_body_result(
+            lower_callable_if_body_result_with_branch_prologues(
                 &if_is.statement,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 function_name,
                 return_type,
                 context,
@@ -1320,9 +1328,11 @@ fn lower_terminal_control_return_expression(
         ),
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
-            lower_terminal_if_statement_for_success_type(
+            lower_terminal_if_statement_for_success_type_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 &function_name,
                 &return_type,
                 diagnostic_code,
@@ -1368,13 +1378,35 @@ fn lower_callable_if_body_result(
     context: &mut LoweringContext,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    lower_callable_if_body_result_with_branch_prologues(
+        statement,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        function_name,
+        return_type,
+        context,
+        sources,
+    )
+}
+
+fn lower_callable_if_body_result_with_branch_prologues(
+    statement: &IfStmt,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    function_name: &str,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let resolved = context
         .resolved_calls()
         .map(|(_, resolved)| resolved)
         .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?;
-    match lower_terminal_if_statement_for_success_type(
+    match lower_terminal_if_statement_for_success_type_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         function_name,
         return_type,
         "E8007",
@@ -1383,27 +1415,33 @@ fn lower_callable_if_body_result(
         sources,
     ) {
         Ok(instructions) => Ok(instructions),
-        Err(_) if return_type.success_type() == &Type::Void => {
-            Ok(Some(lower_void_nonterminal_callable_if_body_result(
+        Err(_) if return_type.success_type() == &Type::Void => Ok(Some(
+            lower_void_nonterminal_callable_if_body_result_with_branch_prologues(
                 statement,
+                then_prologue,
+                else_prologue,
                 return_type,
                 context,
                 sources,
-            )?))
-        }
+            )?,
+        )),
         Err(diagnostics) => Err(diagnostics),
     }
 }
 
-fn lower_void_nonterminal_callable_if_body_result(
+fn lower_void_nonterminal_callable_if_body_result_with_branch_prologues(
     statement: &IfStmt,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
     return_type: &Type,
     context: &mut LoweringContext,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let mut instructions = lower_nonterminal_if_statement(
+    let mut instructions = lower_nonterminal_if_statement_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         None,
         &[],
         "E8007",
@@ -1427,16 +1465,45 @@ fn lower_terminal_if_statement_for_success_type(
     resolved: &ResolveOutput,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Some(branch_instructions) = lower_terminal_if_statement_body_for_success_type(
+    lower_terminal_if_statement_for_success_type_with_branch_prologues(
         statement,
         context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
         function_name,
         return_type,
         diagnostic_code,
         subject,
         resolved,
         sources,
-    )?
+    )
+}
+
+fn lower_terminal_if_statement_for_success_type_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    function_name: &str,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(branch_instructions) =
+        lower_terminal_if_statement_body_for_success_type_with_branch_prologues(
+            statement,
+            context,
+            then_prologue,
+            else_prologue,
+            function_name,
+            return_type,
+            diagnostic_code,
+            subject,
+            resolved,
+            sources,
+        )?
     else {
         return Ok(None);
     };
@@ -1457,68 +1524,110 @@ fn lower_terminal_if_statement_body_for_success_type(
     resolved: &ResolveOutput,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    lower_terminal_if_statement_body_for_success_type_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        function_name,
+        return_type,
+        diagnostic_code,
+        subject,
+        resolved,
+        sources,
+    )
+}
+
+fn lower_terminal_if_statement_body_for_success_type_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    function_name: &str,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let branch_instructions = match success_type {
-        Type::I32 => lower_terminal_i32_if_statement(
+        Type::I32 => lower_terminal_i32_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::Bool => lower_terminal_bool_if_statement(
+        Type::Bool => lower_terminal_bool_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::U8 => lower_terminal_u8_if_statement(
+        Type::U8 => lower_terminal_u8_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::Usize => lower_terminal_usize_if_statement(
+        Type::Usize => lower_terminal_usize_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::Str => lower_terminal_str_if_statement(
+        Type::Str => lower_terminal_str_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::Slice { .. } => lower_terminal_slice_if_statement(
+        Type::Slice { .. } => lower_terminal_slice_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        Type::Void => lower_terminal_void_if_statement(
+        Type::Void => lower_terminal_void_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
-            lower_terminal_aggregate_if_statement(
+            lower_terminal_aggregate_if_statement_with_branch_prologues(
                 statement,
                 context,
+                then_prologue,
+                else_prologue,
                 success_type,
                 function_name,
                 resolved,
@@ -1715,6 +1824,122 @@ pub(super) fn payloadless_if_is_as_if_statement(
 pub(super) struct LoweredTagOnlyIfIs {
     pub(super) leading_instructions: Vec<Instruction>,
     pub(super) statement: IfStmt,
+    pub(super) then_prologue: BranchPrologue,
+}
+
+#[derive(Clone)]
+pub(super) struct BranchPrologue {
+    bindings: Vec<BranchPrologueBinding>,
+}
+
+impl BranchPrologue {
+    pub(super) fn empty() -> Self {
+        Self {
+            bindings: Vec::new(),
+        }
+    }
+
+    fn single_binding(binding: BranchPrologueBinding) -> Self {
+        Self {
+            bindings: vec![binding],
+        }
+    }
+
+    pub(super) fn apply(
+        &self,
+        context: &mut LoweringContext,
+    ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+        let mut instructions = Vec::new();
+        for binding in &self.bindings {
+            instructions.extend(binding.lower(context)?);
+        }
+        Ok(instructions)
+    }
+}
+
+#[derive(Clone)]
+struct BranchPrologueBinding {
+    name: String,
+    source_slot: usize,
+    payload_offset: u32,
+    payload_type: AbiType,
+    diagnostic_code: &'static str,
+}
+
+impl BranchPrologueBinding {
+    fn lower(&self, context: &mut LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+        let source = AggregateLocation::Slot(self.source_slot);
+        match &self.payload_type {
+            AbiType::I32 => {
+                let destination = context.next_i32_local_location()?;
+                context.define_i32_local(self.name.clone());
+                Ok(vec![Instruction::LoadAggregateI32 {
+                    destination,
+                    source,
+                    offset: self.payload_offset,
+                }])
+            }
+            AbiType::U8 => {
+                let destination = context.next_u8_local_location()?;
+                context.define_u8_local(self.name.clone());
+                Ok(vec![Instruction::LoadAggregateU8 {
+                    destination,
+                    source,
+                    offset: self.payload_offset,
+                }])
+            }
+            AbiType::Usize => {
+                let destination = context.next_usize_local_location()?;
+                context.define_usize_local(self.name.clone());
+                Ok(vec![Instruction::LoadAggregateUsize {
+                    destination,
+                    source,
+                    offset: self.payload_offset,
+                }])
+            }
+            AbiType::Bool => {
+                let destination = context.next_bool_local_location()?;
+                context.define_bool_local(self.name.clone());
+                Ok(vec![Instruction::LoadAggregateBool {
+                    destination,
+                    source,
+                    offset: self.payload_offset,
+                }])
+            }
+            AbiType::StrView => {
+                let destination = context.next_str_local_location()?;
+                let StrLocation::Local(index) = destination else {
+                    unreachable!("local str binding locations are local pairs");
+                };
+                let len_index = index.checked_add(1).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        self.diagnostic_code,
+                        "IR v0 cannot lower payload enum bindings with overflowing local indexes",
+                    )]
+                })?;
+                let len_offset = self.payload_offset.checked_add(8).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        self.diagnostic_code,
+                        "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
+                    )]
+                })?;
+                context.define_str_local(self.name.clone());
+                Ok(vec![
+                    Instruction::LoadAggregateUsize {
+                        destination: UsizeLocation::Local(index),
+                        source,
+                        offset: self.payload_offset,
+                    },
+                    Instruction::LoadAggregateUsize {
+                        destination: UsizeLocation::Local(len_index),
+                        source,
+                        offset: len_offset,
+                    },
+                ])
+            }
+            _ => Err(unsupported_if_is_diagnostic(self.diagnostic_code)),
+        }
+    }
 }
 
 pub(super) fn tag_only_if_is_as_control_flow(
@@ -1732,6 +1957,7 @@ pub(super) fn tag_only_if_is_as_control_flow(
             |statement| LoweredTagOnlyIfIs {
                 leading_instructions: Vec::new(),
                 statement,
+                then_prologue: BranchPrologue::empty(),
             },
         );
     }
@@ -1750,6 +1976,8 @@ pub(super) fn tag_only_if_is_as_control_flow(
     }
     let source_slot = tag_only_if_is_aggregate_source_slot(&statement.expression, context)
         .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    let then_prologue =
+        tag_only_if_is_then_prologue(statement, source_slot, context, diagnostic_code)?;
     let target_name = tag_only_if_is_target_name(statement);
     let target = context.next_u8_local_location()?;
     context.define_u8_local(target_name.clone());
@@ -1778,6 +2006,7 @@ pub(super) fn tag_only_if_is_as_control_flow(
             then_block: statement.then_block.clone(),
             else_block: statement.else_block.clone(),
         },
+        then_prologue,
     })
 }
 
@@ -1884,7 +2113,74 @@ fn tag_only_if_is_payload_pattern_is_supported(
 ) -> bool {
     matches!(
         (payload, payload_len),
+        (None, 0)
+            | (Some(SwitchPayloadPattern::Discard(_)), 1)
+            | (Some(SwitchPayloadPattern::Binding(_)), 1)
+    )
+}
+
+fn tag_only_switch_payload_pattern_is_supported(
+    payload: Option<&SwitchPayloadPattern>,
+    payload_len: usize,
+) -> bool {
+    matches!(
+        (payload, payload_len),
         (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1)
+    )
+}
+
+fn tag_only_if_is_then_prologue(
+    statement: &IfIsStmt,
+    source_slot: usize,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BranchPrologue, Vec<Diagnostic>> {
+    let Some(SwitchPayloadPattern::Binding(binding)) = &statement.payload else {
+        return Ok(BranchPrologue::empty());
+    };
+    let (payload_offset, payload_type) =
+        payload_enum_variant_payload_abi(&statement.expression, &statement.variant_name, context)
+            .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    if !payload_binding_abi_type_is_supported(&payload_type) {
+        return Err(unsupported_if_is_diagnostic(diagnostic_code));
+    }
+    Ok(BranchPrologue::single_binding(BranchPrologueBinding {
+        name: binding.name.clone(),
+        source_slot,
+        payload_offset,
+        payload_type,
+        diagnostic_code,
+    }))
+}
+
+fn payload_enum_variant_payload_abi(
+    expression: &Expr,
+    variant_name: &str,
+    context: &LoweringContext,
+) -> Option<(u32, AbiType)> {
+    let ty = context.expression_type_expr(expression.span())?;
+    let (_, resolved) = context.resolved_calls()?;
+    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+    let AbiType::Enum(enum_) = value.ty else {
+        return None;
+    };
+    let payload_offset = u32::try_from(enum_.payload_offset).ok()?;
+    let payload_type = enum_
+        .variants
+        .iter()
+        .find(|variant| variant.name == variant_name)?
+        .payload
+        .clone()?;
+    Some((payload_offset, payload_type))
+}
+
+fn payload_binding_abi_type_is_supported(payload_type: &AbiType) -> bool {
+    matches!(
+        payload_type,
+        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
     )
 }
 
@@ -1958,7 +2254,7 @@ fn payload_enum_tag_only_switch_variant_names(
         else {
             return false;
         };
-        tag_only_if_is_payload_pattern_is_supported(arm.payload.as_ref(), variant.payload.len())
+        tag_only_switch_payload_pattern_is_supported(arm.payload.as_ref(), variant.payload.len())
     });
     arms_are_supported.then(|| {
         target_symbol
@@ -2448,23 +2744,47 @@ fn lower_terminal_aggregate_if_statement(
     resolved: &ResolveOutput,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_aggregate_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        success_type,
+        function_name,
+        resolved,
+        sources,
+    )
+}
+
+fn lower_terminal_aggregate_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
     };
 
-    let then_instructions = lower_terminal_aggregate_return_block(
+    let then_instructions = lower_terminal_aggregate_return_block_with_prologue(
         &statement.then_block,
         context,
         &statement.condition,
+        then_prologue,
         success_type,
         function_name,
         resolved,
         sources,
     )?;
-    let else_instructions = lower_terminal_aggregate_return_block(
+    let else_instructions = lower_terminal_aggregate_return_block_with_prologue(
         else_block,
         context,
         &statement.condition,
+        else_prologue,
         success_type,
         function_name,
         resolved,
@@ -2511,10 +2831,11 @@ fn lower_terminal_aggregate_payloadless_switch_body(
     }
 }
 
-fn lower_terminal_aggregate_return_block(
+fn lower_terminal_aggregate_return_block_with_prologue(
     block: &Block,
     context: &LoweringContext,
     pre_moved_expression: &Expr,
+    prologue: &BranchPrologue,
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
@@ -2522,9 +2843,11 @@ fn lower_terminal_aggregate_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
-    lower_terminal_aggregate_return_block_with_context(
+    let initial_instructions = prologue.apply(&mut branch_context)?;
+    lower_terminal_aggregate_return_block_with_context_and_prefix(
         block,
         branch_context,
+        initial_instructions,
         success_type,
         function_name,
         resolved,
@@ -2552,7 +2875,27 @@ fn lower_terminal_aggregate_block(
 
 fn lower_terminal_aggregate_return_block_with_context(
     block: &Block,
+    branch_context: LoweringContext,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_aggregate_return_block_with_context_and_prefix(
+        block,
+        branch_context,
+        Vec::new(),
+        success_type,
+        function_name,
+        resolved,
+        sources,
+    )
+}
+
+fn lower_terminal_aggregate_return_block_with_context_and_prefix(
+    block: &Block,
     mut branch_context: LoweringContext,
+    mut instructions: Vec<Instruction>,
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
@@ -2560,14 +2903,14 @@ fn lower_terminal_aggregate_return_block_with_context(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) =
         split_terminal_branch_block(block, "E8007", "functions", "aggregate")?;
-    let mut instructions = lower_terminal_branch_leading_statements(
+    instructions.extend(lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         "E8007",
         "functions",
         "aggregate",
         sources,
-    )?;
+    )?);
 
     match terminal {
         TerminalBranch::Result(expression) => {
@@ -2640,9 +2983,11 @@ fn lower_terminal_aggregate_return_block_with_context(
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_is = tag_only_if_is_as_control_flow(statement, &mut branch_context, "E8007")?;
             instructions.extend(if_is.leading_instructions);
-            instructions.extend(lower_terminal_aggregate_if_statement(
+            instructions.extend(lower_terminal_aggregate_if_statement_with_branch_prologues(
                 &if_is.statement,
                 &branch_context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 success_type,
                 function_name,
                 resolved,
@@ -2698,9 +3043,11 @@ fn lower_terminal_aggregate_result_expression(
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007")?;
             let mut instructions = if_is.leading_instructions;
-            instructions.extend(lower_terminal_aggregate_if_statement(
+            instructions.extend(lower_terminal_aggregate_if_statement_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 success_type,
                 function_name,
                 resolved,
@@ -3066,9 +3413,11 @@ fn lower_leading_bindings(
                 )?;
                 instructions.extend(if_is.leading_instructions);
                 instructions.extend(
-                    lower_nonterminal_if_statement(
+                    lower_nonterminal_if_statement_with_branch_prologues(
                         &if_is.statement,
                         context,
+                        &if_is.then_prologue,
+                        &BranchPrologue::empty(),
                         None,
                         &[],
                         "E8007",

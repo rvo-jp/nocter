@@ -687,9 +687,13 @@ Rules:
   bindings and parameters in the current copy/no-drop payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
   statement forms.
-- Payload binding, payload-carrying enum `if is` / `match` over temporary
-  expressions, and active payload drop cleanup are typechecked in v0 but still
-  reject before build/run.
+- Payload-carrying enum `if is Enum.variant(binding)` statements and value
+  expressions lower over existing enum bindings and parameters when the payload
+  ABI is `i32`, `u8`, `usize`, `bool`, or `&str`. The binding is loaded only
+  inside the matching then branch.
+- Payload binding in `match`, payload-carrying enum `if is` / `match` over
+  temporary expressions, aggregate/slice/non-copy payload binding, and active
+  payload drop cleanup are typechecked in v0 but still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

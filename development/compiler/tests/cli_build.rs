@@ -5785,6 +5785,41 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
+fn build_command_accepts_payload_enum_if_is_binding_tag_only() {
+    let project = TempProject::new("cli-build-payload-enum-if-is-binding-tag-only");
+    let source = project.write_source(
+        "payload_enum_if_is_binding_tag_only.nct",
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
+}
+
+func main(): i32 {
+    let error = AppError.open_failed("input.nct")
+    return describe(move error)
+}
+
+func describe(error: AppError): i32 {
+    if error is AppError.open_failed(path) {
+        if path.len() == 9 {
+            return 42
+        }
+        return 1
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_if_is_discard_call_target_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-if-is-discard-call-target-boundary");
     let source = project.write_source(
@@ -5836,13 +5871,68 @@ func make_ok(): Result {
 }
 
 #[test]
-fn build_command_reports_payload_if_is_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-binding-boundary");
+fn build_command_reports_payload_if_is_binding_call_target_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-binding-call-target-boundary");
     let source = project.write_source(
-        "payload_if_is_binding_boundary.nct",
-        r#"enum AppError {
+        "payload_if_is_binding_call_target_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if make_ok() is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+
+func make_ok(): Result {
+    return Result.ok(10)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`if is` pattern branches"),
+        "expected if-is diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     if make_ok() is Result.ok(value) {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_payload_if_is_aggregate_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-aggregate-binding-boundary");
+    let source = project.write_source(
+        "payload_if_is_aggregate_binding_boundary.nct",
+        r#"copy struct Detail {
+    code: i32
+}
+
+enum AppError {
     missing_path
-    open_failed(path: &str)
+    open_failed(detail: Detail)
 }
 
 func main(): i32 {
@@ -5850,8 +5940,8 @@ func main(): i32 {
 }
 
 func describe(error: AppError): i32 {
-    if error is AppError.open_failed(path) {
-        return 1
+    if error is AppError.open_failed(detail) {
+        return detail.code
     }
 
     return 0
@@ -5873,7 +5963,7 @@ func describe(error: AppError): i32 {
         "expected if-is diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("11 |     if error is AppError.open_failed(path) {"),
+        stderr.contains("15 |     if error is AppError.open_failed(detail) {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

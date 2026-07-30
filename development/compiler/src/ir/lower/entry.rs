@@ -4,20 +4,23 @@ use super::context::{
 };
 use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
-    lower_nonterminal_loop_statement, lower_nonterminal_payloadless_switch_body,
-    lower_nonterminal_payloadless_switch_statement, lower_nonterminal_while_statement,
-    lower_terminal_i32_block, lower_terminal_i32_if_statement, lower_terminal_usize_block,
-    lower_terminal_usize_if_statement, lower_terminal_void_block, lower_terminal_void_if_statement,
+    lower_nonterminal_if_statement_with_branch_prologues, lower_nonterminal_loop_statement,
+    lower_nonterminal_payloadless_switch_body, lower_nonterminal_payloadless_switch_statement,
+    lower_nonterminal_while_statement, lower_terminal_i32_block,
+    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_usize_block,
+    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_void_block,
+    lower_terminal_void_if_statement_with_branch_prologues,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
-    LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
-    lower_drop_statement, lower_never_expression_with_scope_drops,
-    lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
-    reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody,
+    append_scope_end_drops_before_exit, lower_drop_statement,
+    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    payloadless_switch_as_control_flow, reachable_body_prefix, tag_only_if_is_as_control_flow,
+    tag_only_switch_as_control_flow,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
 use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
@@ -231,15 +234,18 @@ fn lower_entry_body(
                     attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                 },
             )?;
-            let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
-                &if_is.statement,
-                &context,
-                return_type,
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?
+            let Some(branch_instructions) =
+                lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
+                    &if_is.statement,
+                    &context,
+                    &if_is.then_prologue,
+                    &BranchPrologue::empty(),
+                    return_type,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?
             else {
                 return Err(attach_primary_span_if_absent(
                     unsupported_entry_body_diagnostic(),
@@ -410,15 +416,21 @@ fn lower_entry_control_body_result(
         Expr::If(statement) => lower_entry_if_body_result(statement, return_type, context, sources),
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, "E8002")?;
-            lower_entry_if_body_result(&if_is.statement, return_type, context, sources).map(
-                |result| {
-                    result.map(|branch_instructions| {
-                        let mut instructions = if_is.leading_instructions;
-                        instructions.extend(branch_instructions);
-                        instructions
-                    })
-                },
+            lower_entry_if_body_result_with_branch_prologues(
+                &if_is.statement,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
+                return_type,
+                context,
+                sources,
             )
+            .map(|result| {
+                result.map(|branch_instructions| {
+                    let mut instructions = if_is.leading_instructions;
+                    instructions.extend(branch_instructions);
+                    instructions
+                })
+            })
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, "E8002")?;
@@ -490,29 +502,60 @@ fn lower_entry_if_body_result(
     context: &mut LoweringContext,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    match lower_terminal_entry_if_statement_for_success_type(
+    lower_entry_if_body_result_with_branch_prologues(
+        statement,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        context,
+        sources,
+    )
+}
+
+fn lower_entry_if_body_result_with_branch_prologues(
+    statement: &IfStmt,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         return_type,
         sources,
     ) {
         Ok(instructions) => Ok(instructions),
         Err(_) if return_type.success_type() == &Type::Void => Ok(Some(
-            lower_void_nonterminal_entry_if_body_result(statement, return_type, context, sources)?,
+            lower_void_nonterminal_entry_if_body_result_with_branch_prologues(
+                statement,
+                then_prologue,
+                else_prologue,
+                return_type,
+                context,
+                sources,
+            )?,
         )),
         Err(diagnostics) => Err(diagnostics),
     }
 }
 
-fn lower_void_nonterminal_entry_if_body_result(
+fn lower_void_nonterminal_entry_if_body_result_with_branch_prologues(
     statement: &IfStmt,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
     return_type: &Type,
     context: &mut LoweringContext,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let mut instructions = lower_nonterminal_if_statement(
+    let mut instructions = lower_nonterminal_if_statement_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         None,
         &[],
         "E8002",
@@ -532,12 +575,33 @@ fn lower_terminal_entry_if_statement_for_success_type(
     return_type: &Type,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Some(branch_instructions) = lower_terminal_entry_if_statement_body_for_success_type(
+    lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
         statement,
         context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
         return_type,
         sources,
-    )?
+    )
+}
+
+fn lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(branch_instructions) =
+        lower_terminal_entry_if_statement_body_for_success_type_with_branch_prologues(
+            statement,
+            context,
+            then_prologue,
+            else_prologue,
+            return_type,
+            sources,
+        )?
     else {
         return Ok(None);
     };
@@ -554,26 +618,50 @@ fn lower_terminal_entry_if_statement_body_for_success_type(
     return_type: &Type,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    lower_terminal_entry_if_statement_body_for_success_type_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        sources,
+    )
+}
+
+fn lower_terminal_entry_if_statement_body_for_success_type_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let branch_instructions = match return_type.success_type() {
-        Type::I32 => lower_terminal_i32_if_statement(
+        Type::I32 => lower_terminal_i32_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             "E8002",
             "entry functions",
             sources,
         )?,
-        Type::Usize => lower_terminal_usize_if_statement(
+        Type::Usize => lower_terminal_usize_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             "E8002",
             "entry functions",
             sources,
         )?,
-        Type::Void => lower_terminal_void_if_statement(
+        Type::Void => lower_terminal_void_if_statement_with_branch_prologues(
             statement,
             context,
+            then_prologue,
+            else_prologue,
             return_type,
             "E8002",
             "entry functions",
@@ -773,9 +861,11 @@ fn lower_leading_bindings(
                 )?;
                 instructions.extend(if_is.leading_instructions);
                 instructions.extend(
-                    lower_nonterminal_if_statement(
+                    lower_nonterminal_if_statement_with_branch_prologues(
                         &if_is.statement,
                         context,
+                        &if_is.then_prologue,
+                        &BranchPrologue::empty(),
                         None,
                         &[],
                         "E8002",

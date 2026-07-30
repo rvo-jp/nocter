@@ -10466,6 +10466,132 @@ func score(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_i32_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-i32-binding");
+    let source = project.write_source(
+        "payload_enum_if_is_i32_binding.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(40)
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    if result is Result.ok(value) {
+        return value
+    }
+
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_i32_binding_expression_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-i32-binding-expression");
+    let source = project.write_source(
+        "payload_enum_if_is_i32_binding_expression.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(40)
+    let failed = Result.failed
+    return terminal(move ok) + value_score(move failed)
+}
+
+func terminal(result: Result): i32 {
+    return if result is Result.ok(value) {
+        value
+    } else {
+        1
+    }
+}
+
+func value_score(result: Result): i32 {
+    let scored = if result is Result.ok(value) {
+        value
+    } else {
+        2
+    }
+    return scored
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_str_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-str-binding");
+    let source = project.write_source(
+        "payload_enum_if_is_str_binding.nct",
+        r#"enum Message {
+    text(value: &str)
+    empty
+}
+
+func main(): i32 {
+    let text = Message.text("Nocter")
+    let empty = Message.empty
+    return score(move text) + score(move empty)
+}
+
+func score(message: Message): i32 {
+    if message is Message.text(text) {
+        if text.len() == 6 {
+            return 40
+        }
+        return 1
+    }
+
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_match_discard_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-discard");
     let source = project.write_source(

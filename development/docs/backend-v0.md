@@ -115,6 +115,9 @@ includes:
 - tag-only payload-carrying enum `if is Enum.variant(_)` statements over
   existing enum bindings and parameters in the current copy/no-drop payload
   subset
+- payload-carrying enum `if is Enum.variant(binding)` statements and value
+  expressions over existing enum bindings and parameters when the bound payload
+  ABI is `i32`, `u8`, `usize`, `bool`, or `&str`
 - tag-only payload-carrying enum `match` statements over existing enum bindings
   and parameters in the current copy/no-drop payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
@@ -130,9 +133,10 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-payload binding/drop cleanup, payload enum temporary-pattern control, broader
-field-level live-state tracking, non-copy aggregate collection elements, arrays,
-broad control-flow joins, and unsupported expression shapes.
+`match` binding, aggregate/slice/non-copy payload binding and drop cleanup,
+payload enum temporary-pattern control, broader field-level live-state tracking,
+non-copy aggregate collection elements, arrays, broad control-flow joins, and
+unsupported expression shapes.
 
 ## Safety Checks
 

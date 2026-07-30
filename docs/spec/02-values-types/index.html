@@ -383,9 +383,12 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   tag-only payload-carrying enum <code>match</code> statements lower over existing enum
   bindings and parameters in the current copy/no-drop payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
-  statement forms.</li><li>Payload binding, payload-carrying enum <code>if is</code> / <code>match</code> over temporary
-  expressions, and active payload drop cleanup are typechecked in v0 but still
-  reject before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
+  statement forms.</li><li>Payload-carrying enum <code>if is Enum.variant(binding)</code> statements and value
+  expressions lower over existing enum bindings and parameters when the payload
+  ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>, or <code>&amp;str</code>. The binding is loaded only
+  inside the matching then branch.</li><li>Payload binding in <code>match</code>, payload-carrying enum <code>if is</code> / <code>match</code> over
+  temporary expressions, aggregate/slice/non-copy payload binding, and active
+  payload drop cleanup are typechecked in v0 but still reject before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid
   <code>if is</code> pattern.</li></ul><p>Example value selection:</p><pre><code class="language-nct"><span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>
     <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span> <span class="token-function">missing_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>

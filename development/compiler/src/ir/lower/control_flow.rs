@@ -12,7 +12,7 @@ use super::expressions::{
     short_circuit_bool_expression_needs_branch, success_return_instruction,
 };
 use super::functions::{
-    LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
+    BranchPrologue, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
     expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
@@ -56,6 +56,28 @@ pub(super) fn lower_terminal_i32_if_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_i32_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_i32_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -66,19 +88,21 @@ pub(super) fn lower_terminal_i32_if_statement(
 
     lower_terminal_condition(
         &statement.condition,
-        lower_i32_return_block(
+        lower_i32_return_block_with_prologue(
             &statement.then_block,
             context,
             &statement.condition,
+            then_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        lower_i32_return_block(
+        lower_i32_return_block_with_prologue(
             else_block,
             context,
             &statement.condition,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
@@ -98,6 +122,28 @@ pub(super) fn lower_terminal_bool_if_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_bool_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_bool_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -108,19 +154,21 @@ pub(super) fn lower_terminal_bool_if_statement(
 
     lower_terminal_condition(
         &statement.condition,
-        lower_bool_return_block(
+        lower_bool_return_block_with_prologue(
             &statement.then_block,
             context,
             &statement.condition,
+            then_prologue,
             return_type,
             diagnostic_code,
             subject,
             sources,
         )?,
-        lower_bool_return_block(
+        lower_bool_return_block_with_prologue(
             else_block,
             context,
             &statement.condition,
+            else_prologue,
             return_type,
             diagnostic_code,
             subject,
@@ -132,17 +180,21 @@ pub(super) fn lower_terminal_bool_if_statement(
     )
 }
 
-pub(super) fn lower_terminal_u8_if_statement(
+pub(super) fn lower_terminal_u8_if_statement_with_branch_prologues(
     statement: &IfStmt,
     context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_terminal_scalar_if_statement(
+    lower_terminal_scalar_if_statement_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         return_type,
         diagnostic_code,
         subject,
@@ -152,17 +204,21 @@ pub(super) fn lower_terminal_u8_if_statement(
     )
 }
 
-pub(super) fn lower_terminal_usize_if_statement(
+pub(super) fn lower_terminal_usize_if_statement_with_branch_prologues(
     statement: &IfStmt,
     context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_terminal_scalar_if_statement(
+    lower_terminal_scalar_if_statement_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         return_type,
         diagnostic_code,
         subject,
@@ -172,47 +228,26 @@ pub(super) fn lower_terminal_usize_if_statement(
     )
 }
 
-pub(super) fn lower_terminal_str_if_statement(
+pub(super) fn lower_terminal_str_if_statement_with_branch_prologues(
     statement: &IfStmt,
     context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_terminal_scalar_if_statement(
+    lower_terminal_scalar_if_statement_with_branch_prologues(
         statement,
         context,
+        then_prologue,
+        else_prologue,
         return_type,
         diagnostic_code,
         subject,
         "&str",
         lower_str_return_expression,
-        sources,
-    )
-}
-
-pub(super) fn lower_terminal_slice_if_statement(
-    statement: &IfStmt,
-    context: &LoweringContext,
-    return_type: &Type,
-    diagnostic_code: &'static str,
-    subject: &str,
-    sources: &SourceMap,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let return_label = match return_type.success_type() {
-        Type::Slice { is_readwrite: true } => "&+[T]",
-        _ => "&[T]",
-    };
-
-    lower_terminal_scalar_if_statement(
-        statement,
-        context,
-        return_type,
-        diagnostic_code,
-        subject,
-        return_label,
-        lower_slice_return_expression,
         sources,
     )
 }
@@ -484,6 +519,61 @@ fn lower_terminal_scalar_if_statement(
     lower_return_expression: ReturnLowerer,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_scalar_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_slice_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let return_label = match return_type.success_type() {
+        Type::Slice { is_readwrite: true } => "&+[T]",
+        _ => "&[T]",
+    };
+
+    lower_terminal_scalar_if_statement_with_branch_prologues(
+        statement,
+        context,
+        then_prologue,
+        else_prologue,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_slice_return_expression,
+        sources,
+    )
+}
+
+fn lower_terminal_scalar_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -495,6 +585,7 @@ fn lower_terminal_scalar_if_statement(
         &statement.then_block,
         context,
         &statement.condition,
+        then_prologue,
         return_type,
         diagnostic_code,
         subject,
@@ -506,6 +597,7 @@ fn lower_terminal_scalar_if_statement(
         else_block,
         context,
         &statement.condition,
+        else_prologue,
         return_type,
         diagnostic_code,
         subject,
@@ -532,6 +624,28 @@ pub(super) fn lower_terminal_void_if_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_void_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_void_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -540,19 +654,21 @@ pub(super) fn lower_terminal_void_if_statement(
         ));
     };
 
-    let then_instructions = lower_void_return_block(
+    let then_instructions = lower_void_return_block_with_prologue(
         &statement.then_block,
         context,
         &statement.condition,
+        then_prologue,
         return_type,
         diagnostic_code,
         subject,
         sources,
     )?;
-    let else_instructions = lower_void_return_block(
+    let else_instructions = lower_void_return_block_with_prologue(
         else_block,
         context,
         &statement.condition,
+        else_prologue,
         return_type,
         diagnostic_code,
         subject,
@@ -776,6 +892,30 @@ pub(super) fn lower_nonterminal_if_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_nonterminal_if_statement_with_branch_prologues(
+        statement,
+        context,
+        &BranchPrologue::empty(),
+        &BranchPrologue::empty(),
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_nonterminal_if_statement_with_branch_prologues(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    then_prologue: &BranchPrologue,
+    else_prologue: &BranchPrologue,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if expression_contains_explicit_aggregate_move(&statement.condition, context) {
         return Err(attach_primary_span_if_absent(
             unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
@@ -784,9 +924,10 @@ pub(super) fn lower_nonterminal_if_statement(
         ));
     }
 
-    let then_instructions = lower_nonterminal_if_block(
+    let then_instructions = lower_nonterminal_if_block_with_prologue(
         &statement.then_block,
         context,
+        then_prologue,
         loop_scope_mark,
         continue_instructions,
         diagnostic_code,
@@ -794,9 +935,10 @@ pub(super) fn lower_nonterminal_if_statement(
         sources,
     )?;
     let else_instructions = if let Some(else_block) = &statement.else_block {
-        lower_nonterminal_if_block(
+        lower_nonterminal_if_block_with_prologue(
             else_block,
             context,
+            else_prologue,
             loop_scope_mark,
             continue_instructions,
             diagnostic_code,
@@ -1146,8 +1288,31 @@ fn lower_nonterminal_if_block(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_nonterminal_if_block_with_prologue(
+        block,
+        context,
+        &BranchPrologue::empty(),
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_nonterminal_if_block_with_prologue(
+    block: &Block,
+    context: &LoweringContext,
+    prologue: &BranchPrologue,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     let local_mark = branch_context.local_mark();
+    let mut instructions = prologue.apply(&mut branch_context)?;
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
         block.result.as_deref(),
@@ -1159,7 +1324,7 @@ fn lower_nonterminal_if_block(
         subject,
         sources,
     )?;
-    let mut instructions = lowered.instructions;
+    instructions.extend(lowered.instructions);
     if !lowered.ends_execution {
         instructions.extend(lower_scope_end_drops_for_locals_since(
             &mut branch_context,
@@ -1341,9 +1506,11 @@ fn lower_nonterminal_loop_block_statements(
                     .map_err(|diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                     })?;
-                let lowered = lower_nonterminal_if_statement(
+                let lowered = lower_nonterminal_if_statement_with_branch_prologues(
                     &if_is.statement,
                     context,
+                    &if_is.then_prologue,
+                    &BranchPrologue::empty(),
                     loop_scope_mark,
                     continue_instructions,
                     diagnostic_code,
@@ -1971,10 +2138,11 @@ pub(super) fn instruction_list_ends_execution(instructions: &[Instruction]) -> b
     }
 }
 
-fn lower_i32_return_block(
+fn lower_i32_return_block_with_prologue(
     block: &Block,
     context: &LoweringContext,
     pre_moved_expression: &Expr,
+    prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -1982,9 +2150,11 @@ fn lower_i32_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
-    lower_i32_return_block_with_context(
+    let initial_instructions = prologue.apply(&mut branch_context)?;
+    lower_i32_return_block_with_context_and_prefix(
         block,
         branch_context,
+        initial_instructions,
         return_type,
         diagnostic_code,
         subject,
@@ -2012,21 +2182,41 @@ fn lower_i32_return_block_without_pre_moved(
 
 fn lower_i32_return_block_with_context(
     block: &Block,
+    branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_i32_return_block_with_context_and_prefix(
+        block,
+        branch_context,
+        Vec::new(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_i32_return_block_with_context_and_prefix(
+    block: &Block,
     mut branch_context: LoweringContext,
+    mut instructions: Vec<Instruction>,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
-    let mut instructions = lower_terminal_branch_leading_statements(
+    instructions.extend(lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
         subject,
         "i32",
         sources,
-    )?;
+    )?);
 
     match terminal {
         TerminalBranch::Result(expression) => {
@@ -2066,9 +2256,11 @@ fn lower_i32_return_block_with_context(
             let if_is =
                 tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(if_is.leading_instructions);
-            instructions.extend(lower_terminal_i32_if_statement(
+            instructions.extend(lower_terminal_i32_if_statement_with_branch_prologues(
                 &if_is.statement,
                 &branch_context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2113,10 +2305,11 @@ fn lower_i32_return_block_with_context(
     }
 }
 
-fn lower_bool_return_block(
+fn lower_bool_return_block_with_prologue(
     block: &Block,
     context: &LoweringContext,
     pre_moved_expression: &Expr,
+    prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -2124,9 +2317,11 @@ fn lower_bool_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
-    lower_bool_return_block_with_context(
+    let initial_instructions = prologue.apply(&mut branch_context)?;
+    lower_bool_return_block_with_context_and_prefix(
         block,
         branch_context,
+        initial_instructions,
         return_type,
         diagnostic_code,
         subject,
@@ -2154,21 +2349,41 @@ fn lower_bool_return_block_without_pre_moved(
 
 fn lower_bool_return_block_with_context(
     block: &Block,
+    branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_bool_return_block_with_context_and_prefix(
+        block,
+        branch_context,
+        Vec::new(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_bool_return_block_with_context_and_prefix(
+    block: &Block,
     mut branch_context: LoweringContext,
+    mut instructions: Vec<Instruction>,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
-    let mut instructions = lower_terminal_branch_leading_statements(
+    instructions.extend(lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
         subject,
         "bool",
         sources,
-    )?;
+    )?);
 
     match terminal {
         TerminalBranch::Result(expression) => {
@@ -2208,9 +2423,11 @@ fn lower_bool_return_block_with_context(
             let if_is =
                 tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(if_is.leading_instructions);
-            instructions.extend(lower_terminal_bool_if_statement(
+            instructions.extend(lower_terminal_bool_if_statement_with_branch_prologues(
                 &if_is.statement,
                 &branch_context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2275,9 +2492,11 @@ fn lower_i32_result_expression(
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = if_is.leading_instructions;
-            instructions.extend(lower_terminal_i32_if_statement(
+            instructions.extend(lower_terminal_i32_if_statement_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2322,9 +2541,11 @@ fn lower_bool_result_expression(
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = if_is.leading_instructions;
-            instructions.extend(lower_terminal_bool_if_statement(
+            instructions.extend(lower_terminal_bool_if_statement_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2353,6 +2574,7 @@ fn lower_scalar_return_block(
     block: &Block,
     context: &LoweringContext,
     pre_moved_expression: &Expr,
+    prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -2362,9 +2584,11 @@ fn lower_scalar_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
-    lower_scalar_return_block_with_context(
+    let initial_instructions = prologue.apply(&mut branch_context)?;
+    lower_scalar_return_block_with_context_and_prefix(
         block,
         branch_context,
+        initial_instructions,
         return_type,
         diagnostic_code,
         subject,
@@ -2398,7 +2622,31 @@ fn lower_terminal_scalar_block(
 
 fn lower_scalar_return_block_with_context(
     block: &Block,
+    branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_scalar_return_block_with_context_and_prefix(
+        block,
+        branch_context,
+        Vec::new(),
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )
+}
+
+fn lower_scalar_return_block_with_context_and_prefix(
+    block: &Block,
     mut branch_context: LoweringContext,
+    mut instructions: Vec<Instruction>,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -2408,14 +2656,14 @@ fn lower_scalar_return_block_with_context(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) =
         split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
-    let mut instructions = lower_terminal_branch_leading_statements(
+    instructions.extend(lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
         subject,
         return_label,
         sources,
-    )?;
+    )?);
 
     match terminal {
         TerminalBranch::Result(expression) => {
@@ -2459,9 +2707,11 @@ fn lower_scalar_return_block_with_context(
             let if_is =
                 tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(if_is.leading_instructions);
-            instructions.extend(lower_terminal_scalar_if_statement(
+            instructions.extend(lower_terminal_scalar_if_statement_with_branch_prologues(
                 &if_is.statement,
                 &branch_context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2534,9 +2784,11 @@ fn lower_scalar_result_expression(
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = if_is.leading_instructions;
-            instructions.extend(lower_terminal_scalar_if_statement(
+            instructions.extend(lower_terminal_scalar_if_statement_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2565,10 +2817,11 @@ fn lower_scalar_result_expression(
     }
 }
 
-fn lower_void_return_block(
+fn lower_void_return_block_with_prologue(
     block: &Block,
     context: &LoweringContext,
     pre_moved_expression: &Expr,
+    prologue: &BranchPrologue,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -2576,9 +2829,11 @@ fn lower_void_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
-    lower_void_return_block_with_context(
+    let initial_instructions = prologue.apply(&mut branch_context)?;
+    lower_void_return_block_with_context_and_prefix(
         block,
         branch_context,
+        initial_instructions,
         return_type,
         diagnostic_code,
         subject,
@@ -2606,21 +2861,41 @@ fn lower_void_return_block_without_pre_moved(
 
 fn lower_void_return_block_with_context(
     block: &Block,
+    branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_void_return_block_with_context_and_prefix(
+        block,
+        branch_context,
+        Vec::new(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_void_return_block_with_context_and_prefix(
+    block: &Block,
     mut branch_context: LoweringContext,
+    mut instructions: Vec<Instruction>,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
-    let mut instructions = lower_terminal_branch_leading_statements(
+    instructions.extend(lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
         subject,
         "void",
         sources,
-    )?;
+    )?);
 
     match terminal {
         TerminalBranch::Result(expression) => {
@@ -2660,9 +2935,11 @@ fn lower_void_return_block_with_context(
             let if_is =
                 tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(if_is.leading_instructions);
-            instructions.extend(lower_terminal_void_if_statement(
+            instructions.extend(lower_terminal_void_if_statement_with_branch_prologues(
                 &if_is.statement,
                 &branch_context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,
@@ -2727,9 +3004,11 @@ fn lower_void_result_expression(
         Expr::IfIs(statement) => {
             let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = if_is.leading_instructions;
-            instructions.extend(lower_terminal_void_if_statement(
+            instructions.extend(lower_terminal_void_if_statement_with_branch_prologues(
                 &if_is.statement,
                 context,
+                &if_is.then_prologue,
+                &BranchPrologue::empty(),
                 return_type,
                 diagnostic_code,
                 subject,

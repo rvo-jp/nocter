@@ -1064,7 +1064,15 @@ fn collect_terminal_return_expression_diagnostics(
                 );
             }
         }
-        Expr::IfIs(expression) if terminal_if_is_expression_is_buildable(expression, resolved) => {
+        Expr::IfIs(expression)
+            if terminal_if_is_expression_is_buildable(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -1249,7 +1257,15 @@ fn collect_value_expression_diagnostics(
                 );
             }
         }
-        Expr::IfIs(expression) if value_if_is_expression_is_buildable(expression, resolved) => {
+        Expr::IfIs(expression)
+            if value_if_is_expression_is_buildable(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) =>
+        {
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -4455,9 +4471,17 @@ fn value_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
 fn value_if_is_expression_is_buildable(
     expression: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    terminal_if_is_expression_is_buildable(expression, resolved)
-        && value_block_is_buildable(&expression.then_block)
+    terminal_if_is_expression_is_buildable(
+        expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && value_block_is_buildable(&expression.then_block)
         && expression
             .else_block
             .as_ref()
@@ -4537,23 +4561,27 @@ fn void_effect_if_is_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    payloadless_if_is_statement_is_buildable(expression, resolved)
-        && void_effect_block_is_buildable(
-            &expression.then_block,
+    if_is_statement_is_buildable(
+        expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && void_effect_block_is_buildable(
+        &expression.then_block,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) && expression.else_block.as_ref().is_none_or(|block| {
+        void_effect_block_is_buildable(
+            block,
             resolved,
             resolved_sources,
             typecheck_facts,
             generic_substitutions,
         )
-        && expression.else_block.as_ref().is_none_or(|block| {
-            void_effect_block_is_buildable(
-                block,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-            )
-        })
+    })
 }
 
 fn void_effect_match_expression_is_buildable(
@@ -4653,9 +4681,18 @@ fn terminal_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool 
 fn terminal_if_is_expression_is_buildable(
     expression: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
     expression.else_block.is_some()
-        && payloadless_if_is_statement_is_buildable(expression, resolved)
+        && if_is_statement_is_buildable(
+            expression,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
 }
 
 fn terminal_match_expression_is_buildable(
@@ -4749,9 +4786,13 @@ fn tag_only_payload_enum_if_is_statement_is_buildable(
     else {
         return false;
     };
-    if !tag_only_if_is_payload_pattern_is_buildable(
-        statement.payload.as_ref(),
+    if !tag_only_if_is_payload_pattern_statement_is_buildable(
+        statement,
         variant.payload.len(),
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
     ) {
         return false;
     }
@@ -4769,7 +4810,58 @@ fn tag_only_payload_enum_if_is_statement_is_buildable(
     type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources)
 }
 
-fn tag_only_if_is_payload_pattern_is_buildable(
+fn tag_only_if_is_payload_pattern_statement_is_buildable(
+    statement: &crate::ast::IfIsStmt,
+    payload_len: usize,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    match (statement.payload.as_ref(), payload_len) {
+        (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1) => true,
+        (Some(SwitchPayloadPattern::Binding(binding)), 1) => payload_if_is_binding_is_buildable(
+            binding,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => false,
+    }
+}
+
+fn payload_if_is_binding_is_buildable(
+    binding: &crate::ast::SwitchPayloadBinding,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(ty) = typecheck_facts.binding_type_expr(binding.span) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    payload_if_is_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+}
+
+fn payload_if_is_binding_type_expr_is_buildable(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
+    else {
+        return false;
+    };
+    matches!(
+        value.ty,
+        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
+    )
+}
+
+fn tag_only_payload_discard_pattern_is_buildable(
     payload: Option<&SwitchPayloadPattern>,
     payload_len: usize,
 ) -> bool {
@@ -4901,7 +4993,7 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
         else {
             return false;
         };
-        tag_only_if_is_payload_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
+        tag_only_payload_discard_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
     })
 }
 
@@ -5127,8 +5219,11 @@ fn switch_statement_covers_all_tag_only_payload_variants(
                 .variants
                 .iter()
                 .find(|variant| variant.name == arm.variant_name)?;
-            tag_only_if_is_payload_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
-                .then_some(variant.name.as_str())
+            tag_only_payload_discard_pattern_is_buildable(
+                arm.payload.as_ref(),
+                variant.payload.len(),
+            )
+            .then_some(variant.name.as_str())
         })
         .collect::<HashSet<_>>();
 
