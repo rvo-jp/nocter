@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `e0e47ff Package v0.1.0 release archive`.
 - Current development version: `0.2.0-dev`
 - Latest known compiler-progress commits:
+  - `f195f5e Start v0.2.0 development`
   - `e0e47ff Package v0.1.0 release archive`
   - `4018f98 Declare v0.1.0 release scope`
   - `f84d4e7 Pin v0.1.0 release identity metadata`
@@ -89,7 +90,8 @@ Recommended order:
 - `v0.1.0` was verified with `./development/compiler/scripts/verify.sh`, tagged
   at `e0e47ff`, and packaged locally as
   `dist/nocter-v0.1.0-arm64-darwin.tar.gz`. The package script now writes both
-  `dist/.nocter/` and the host archive. Develop has moved on to `0.2.0-dev`.
+  `dist/.nocter/` and the host archive. Develop moved on to `0.2.0-dev` in
+  `f195f5e`.
 - `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
