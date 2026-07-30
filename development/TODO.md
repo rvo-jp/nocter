@@ -8,6 +8,11 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `e5a4111 Complete struct literal field completions`
+  - `4fffdba Recover member completion after trailing dots`
+  - `8e6ca70 Complete fields and methods in member contexts`
+  - `0c93e11 Cover type member completion in LSP`
+  - `3112fba Complete type members in expression contexts`
   - `4d1c676 Keep pattern member completion contextual`
   - `4a31d05 Cover payload if-is binding build boundary`
   - `2d93e2b Complete enum variants in pattern contexts`
@@ -69,7 +74,11 @@ Recommended order:
   into resolver, typecheck facts, hover, ownership, or buildability state.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
-  after `Enum.` in `match` and `if is` pattern contexts.
+  after `Enum.` in `match` and `if is` pattern contexts, enum variants and
+  associated functions after `Type.`, fields and methods after typed `value.`,
+  and struct fields inside struct literal field lists. Open-document completion
+  recovers `Type.`, `value.`, and pattern `Enum.` trailing-dot forms by
+  inserting a completion-only placeholder before single-file analysis.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
