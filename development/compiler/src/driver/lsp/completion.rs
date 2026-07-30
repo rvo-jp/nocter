@@ -14,6 +14,7 @@ const LSP_COMPLETION_ITEM_KIND_INTERFACE: u8 = 8;
 pub(super) const LSP_COMPLETION_ITEM_KIND_MODULE: u8 = 9;
 const LSP_COMPLETION_ITEM_KIND_ENUM: u8 = 13;
 const LSP_COMPLETION_ITEM_KIND_KEYWORD: u8 = 14;
+pub(super) const LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER: u8 = 20;
 pub(super) const LSP_COMPLETION_ITEM_KIND_STRUCT: u8 = 22;
 
 pub(super) fn completion_items_for_file_analysis_at_offset(
@@ -60,6 +61,7 @@ const fn lsp_completion_kind(kind: CompletionItemKind) -> u8 {
         CompletionItemKind::Interface => LSP_COMPLETION_ITEM_KIND_INTERFACE,
         CompletionItemKind::Module => LSP_COMPLETION_ITEM_KIND_MODULE,
         CompletionItemKind::Enum => LSP_COMPLETION_ITEM_KIND_ENUM,
+        CompletionItemKind::EnumMember => LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER,
         CompletionItemKind::Keyword => LSP_COMPLETION_ITEM_KIND_KEYWORD,
         CompletionItemKind::Struct => LSP_COMPLETION_ITEM_KIND_STRUCT,
     }

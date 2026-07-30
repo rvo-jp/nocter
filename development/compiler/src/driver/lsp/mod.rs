@@ -18,8 +18,8 @@ mod symbols;
 use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{
-    LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_MODULE,
-    LSP_COMPLETION_ITEM_KIND_STRUCT,
+    LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER, LSP_COMPLETION_ITEM_KIND_FUNCTION,
+    LSP_COMPLETION_ITEM_KIND_MODULE, LSP_COMPLETION_ITEM_KIND_STRUCT,
 };
 use completion::{
     completion_items_for_document_at_offset, completion_items_for_file_analysis_at_offset,
@@ -2405,6 +2405,64 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
             completion_item_with_label(items, "answer").and_then(|item| item["kind"].as_u64()),
             Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
         );
+    }
+
+    #[test]
+    fn returns_completion_items_for_enum_pattern_members() {
+        let project = TempProject::new("lsp-completion-enum-pattern-members");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    return match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss { 2 }
+    }
+}
+"#;
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+        let offset = text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
+        let position = byte_offset_to_lsp_position(text, offset);
+
+        let response = server.completion_response(
+            json!(14),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": position.line,
+                    "character": position.character
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+
+        assert_eq!(
+            completion_item_with_label(items, "hit").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+        );
+        assert_eq!(
+            completion_item_with_label(items, "miss").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+        );
+        assert!(completion_item_with_label(items, "Choice").is_none());
     }
 
     #[test]

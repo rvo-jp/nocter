@@ -343,6 +343,103 @@ func main(choice: Choice): i32 {
 }
 
 #[test]
+fn lsp_command_completes_enum_pattern_members() {
+    let project = TempProject::new("cli-lsp-enum-pattern-completion");
+    let source_text = r#"enum Choice {
+    hit(value: i32)
+    miss
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    return match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss { 2 }
+    }
+}
+"#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let completion_offset = source_text
+        .find("Choice.hit")
+        .expect("expected if-is pattern")
+        + "Choice.".len();
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": uri
+                    },
+                    "position": {
+                        "line": line,
+                        "character": character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let completion_items = response_with_id(&messages, 2)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+
+    assert_eq!(
+        completion_item_with_label(completion_items, "hit").and_then(|item| item["kind"].as_u64()),
+        Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+    );
+    assert_eq!(
+        completion_item_with_label(completion_items, "miss").and_then(|item| item["kind"].as_u64()),
+        Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+    );
+    assert!(completion_item_with_label(completion_items, "Choice").is_none());
+}
+
+#[test]
 fn lsp_command_serves_v0_editor_features() {
     let project = TempProject::new("cli-lsp-editor-features");
     let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";
@@ -695,6 +792,7 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 
 const SEMANTIC_TOKEN_TYPE: usize = 4;
 const SEMANTIC_TOKEN_PROPERTY: usize = 5;
+const LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER: usize = 20;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DecodedSemanticToken {
@@ -752,6 +850,22 @@ fn token_starting_at<'a>(
     tokens
         .iter()
         .find(|token| token.line == line && token.character == character)
+}
+
+fn completion_item_with_label<'a>(items: &'a [Value], label: &str) -> Option<&'a Value> {
+    items
+        .iter()
+        .find(|item| item["label"].as_str() == Some(label))
+}
+
+fn lsp_position_for_ascii_byte_offset(text: &str, start_byte: usize) -> (usize, usize) {
+    let prefix = text.get(..start_byte).expect("byte offset must be valid");
+    let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+    let character = prefix
+        .rsplit_once('\n')
+        .map(|(_, line)| line.len())
+        .unwrap_or(prefix.len());
+    (line, character)
 }
 
 fn file_uri(path: &Path) -> String {
