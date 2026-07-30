@@ -230,6 +230,60 @@ fn doc_comment_example_emits_ast_documentation() {
     ));
 }
 
+#[test]
+fn ast_json_emits_wildcard_and_discard_patterns() {
+    let project = TempProject::new("example-corpus-ast-patterns");
+    let source = project.root().join("patterns.nct");
+    fs::write(
+        &source,
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
+}
+
+func main(error: AppError): i32 {
+    match error {
+        AppError.open_failed(_) {
+            return 1
+        }
+        _ {
+            return 0
+        }
+    }
+}
+
+func code(error: AppError): i32 {
+    if error is AppError.open_failed(_) {
+        return 2
+    } else {
+        return 3
+    }
+}
+"#,
+    )
+    .unwrap();
+    let output = ast_json(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "pattern source failed AST JSON\nstdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "pattern source wrote stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let json: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["ok"], Value::Bool(true));
+    assert!(contains_ast_node(&json, "match_payload_discard", Some("_")));
+    assert!(contains_ast_node(&json, "match_wildcard_arm", None));
+    assert!(contains_ast_node(&json, "if_is_payload_discard", Some("_")));
+}
+
 fn check(project: &TempProject, source: &Path) -> Output {
     Command::new(NOCTER)
         .args(["check", source.to_str().unwrap()])
@@ -318,6 +372,33 @@ fn contains_documentation(value: &Value, expected: &str) -> bool {
         Value::Array(values) => values
             .iter()
             .any(|value| contains_documentation(value, expected)),
+        _ => false,
+    }
+}
+
+fn contains_ast_node(value: &Value, expected_kind: &str, expected_value: Option<&str>) -> bool {
+    match value {
+        Value::Object(object) => {
+            let kind_matches = object
+                .get("kind")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind == expected_kind);
+            let value_matches = match expected_value {
+                Some(expected) => object
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| value == expected),
+                None => true,
+            };
+
+            (kind_matches && value_matches)
+                || object
+                    .values()
+                    .any(|value| contains_ast_node(value, expected_kind, expected_value))
+        }
+        Value::Array(values) => values
+            .iter()
+            .any(|value| contains_ast_node(value, expected_kind, expected_value)),
         _ => false,
     }
 }
