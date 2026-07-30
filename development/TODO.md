@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `0e0a182 Lower tag-only payload enum if-is`
   - `d2738d5 Promote copy payload enum values`
   - `864230a Define payload enum ABI layout`
   - `2695752 Update handoff after docs merge`
