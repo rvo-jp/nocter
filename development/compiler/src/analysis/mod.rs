@@ -2,6 +2,7 @@
 
 pub(crate) mod call_specializations;
 pub(crate) mod completion;
+mod completion_recovery;
 pub(crate) mod definition;
 pub(crate) mod hover;
 pub(crate) mod references;
