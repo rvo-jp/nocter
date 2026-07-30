@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `ab2cbc1 Align payload enum match statement lowering`
   - `c1deabe Lower tag-only payload enum match`
   - `ccb2235 Update handoff after payload if-is lowering`
   - `0e0a182 Lower tag-only payload enum if-is`
@@ -307,8 +308,9 @@ Recommended order:
   temporary-pattern control outside the runtime subset.
 - Payload-carrying enum ABI layout now backs copy/no-drop payload enum
   construction, local slots, returns, value arguments, and tag-only `if is` /
-  `match` statements over existing values. Payload binding and active payload
-  drop cleanup remain the next promotion boundary.
+  `match` statements over existing values, including wildcard-only,
+  nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms. Payload
+  binding and active payload drop cleanup remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
