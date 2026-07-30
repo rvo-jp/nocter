@@ -10691,6 +10691,49 @@ func consume(result: Result): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_generic_payload_enum_payload_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-generic-active-payload");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_generic_active_payload.nct",
+        r#"use std/process.exit
+
+struct Box<T> {
+    code: i32
+    value: T
+}
+
+impl<T> Box<T> {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Maybe<T> {
+    some(value: T)
+    absent
+}
+
+func main(): i32 {
+    let result: Maybe<Box<i32>> = Maybe.some(Box<i32>{ code: 42, value: 0 })
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_if_is_discard_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-discard");
     let source = project.write_source(
