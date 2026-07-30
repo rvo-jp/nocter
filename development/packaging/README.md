@@ -6,6 +6,8 @@ generated from the repository root by
 
 - `VERSION` is copied to repository-root `dist/.nocter/VERSION`.
 - `MANIFEST.json` is copied to repository-root `dist/.nocter/MANIFEST.json`.
+- Repository-root `LICENSE` and `NOTICE` are copied to
+  repository-root `dist/.nocter/`.
 - Standard-library source is tracked separately in `../std/` and copied to
   repository-root `dist/.nocter/std/`.
 

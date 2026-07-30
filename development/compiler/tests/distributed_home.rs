@@ -46,10 +46,21 @@ fn distributed_release_identity_matches_packaging_metadata() {
     assert_eq!(manifest["release"], env!("CARGO_PKG_VERSION"));
     assert_eq!(manifest["host"], "arm64-darwin");
     assert_eq!(manifest["default_target"], "arm64-darwin");
+    assert_eq!(manifest["license"]["id"], "Apache-2.0");
+    assert_eq!(manifest["license"]["path"], "LICENSE");
+    assert_eq!(manifest["license"]["notice"], "NOTICE");
     assert_eq!(
         manifest["archive"]["name"],
         format!("nocter-v{}-arm64-darwin.tar.gz", env!("CARGO_PKG_VERSION"))
     );
+
+    let license = fs::read_to_string(home.join("LICENSE")).unwrap();
+    assert!(license.contains("Apache License"));
+    assert!(license.contains("Version 2.0, January 2004"));
+
+    let notice = fs::read_to_string(home.join("NOTICE")).unwrap();
+    assert!(notice.contains("Nocter"));
+    assert!(notice.contains("Copyright 2026 Rvo JP"));
 
     let output = Command::new(home.join("nocter"))
         .arg("--version")
@@ -91,6 +102,16 @@ fn installed_nocter_uses_executable_parent_as_home_without_env() {
     fs::write(
         home.join("MANIFEST.json"),
         fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        home.join("LICENSE"),
+        fs::read_to_string(distributed_home().join("LICENSE")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        home.join("NOTICE"),
+        fs::read_to_string(distributed_home().join("NOTICE")).unwrap(),
     )
     .unwrap();
     fs::create_dir_all(home.join("std")).unwrap();
@@ -4073,6 +4094,16 @@ fn write_minimal_nocter_home(home: &Path) {
         fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
     )
     .unwrap();
+    fs::write(
+        home.join("LICENSE"),
+        fs::read_to_string(distributed_home().join("LICENSE")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        home.join("NOTICE"),
+        fs::read_to_string(distributed_home().join("NOTICE")).unwrap(),
+    )
+    .unwrap();
     fs::write(home.join("std/prelude.nct"), "").unwrap();
 }
 
@@ -4153,6 +4184,16 @@ fn write_test_distributed_home() -> PathBuf {
     fs::copy(
         development_root().join("packaging/MANIFEST.json"),
         home.join("MANIFEST.json"),
+    )
+    .unwrap();
+    fs::copy(
+        development_root().parent().unwrap().join("LICENSE"),
+        home.join("LICENSE"),
+    )
+    .unwrap();
+    fs::copy(
+        development_root().parent().unwrap().join("NOTICE"),
+        home.join("NOTICE"),
     )
     .unwrap();
     let compiler = home.join("nocter");

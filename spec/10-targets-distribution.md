@@ -80,6 +80,8 @@ nocter-v<version>-arm64-darwin.tar.gz
     nocter
     VERSION
     MANIFEST.json
+    LICENSE
+    NOTICE
     std/
 ```
 
@@ -92,6 +94,8 @@ The installed layout is:
     nocter
     VERSION
     MANIFEST.json
+    LICENSE
+    NOTICE
     std/
         prelude.nct
         fmt.nct
@@ -119,6 +123,8 @@ Adopted: each Nocter home contains simple release metadata at its root.
     nocter
     VERSION
     MANIFEST.json
+    LICENSE
+    NOTICE
     std/
 ```
 
@@ -143,6 +149,11 @@ Adopted: each Nocter home contains simple release metadata at its root.
   "std": {
     "path": "std"
   },
+  "license": {
+    "id": "Apache-2.0",
+    "path": "LICENSE",
+    "notice": "NOTICE"
+  },
   "implemented_targets": [
     {
       "name": "arm64-darwin",
@@ -160,8 +171,12 @@ Adopted: each Nocter home contains simple release metadata at its root.
 
 Rules:
 
-- `VERSION` and `MANIFEST.json` are required in a release archive.
+- `VERSION`, `MANIFEST.json`, `LICENSE`, and `NOTICE` are required in a
+  release archive.
 - `VERSION` must match `MANIFEST.json`'s `release`.
+- `MANIFEST.json.license.id` is `Apache-2.0`.
+- `MANIFEST.json.license.path` and `MANIFEST.json.license.notice` are relative
+  to Nocter home.
 - `MANIFEST.json.host` identifies the host that runs the bundled `nocter` binary.
 - `MANIFEST.json.default_target` is the target used when `--target` is omitted.
 - `MANIFEST.json.implemented_targets` lists implemented targets bundled with this Nocter home, not merely reserved target names.

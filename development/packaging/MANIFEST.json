@@ -10,6 +10,11 @@
   "std": {
     "path": "std"
   },
+  "license": {
+    "id": "Apache-2.0",
+    "path": "LICENSE",
+    "notice": "NOTICE"
+  },
   "implemented_targets": [
     {
       "name": "arm64-darwin",

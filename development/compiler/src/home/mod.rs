@@ -57,6 +57,8 @@ pub(crate) fn validate_nocter_home(home: &Path) -> Vec<String> {
     };
 
     require_dir(home, "std", &mut errors);
+    require_file(home, "LICENSE", &mut errors);
+    require_file(home, "NOTICE", &mut errors);
 
     if let (Some(version), Some(manifest)) = (version.as_deref(), manifest.as_ref()) {
         validate_manifest(home, version, manifest, &mut errors);
@@ -69,6 +71,13 @@ fn require_dir(home: &Path, relative: &str, errors: &mut Vec<String>) {
     let path = home.join(relative);
     if !path.is_dir() {
         errors.push(format!("missing directory `{}`", path.display()));
+    }
+}
+
+fn require_file(home: &Path, relative: &str, errors: &mut Vec<String>) {
+    let path = home.join(relative);
+    if !path.is_file() {
+        errors.push(format!("missing file `{}`", path.display()));
     }
 }
 
@@ -198,6 +207,33 @@ fn validate_manifest(home: &Path, version: &str, manifest: &Manifest, errors: &m
         ));
     }
 
+    if manifest.license.id != "Apache-2.0" {
+        errors.push(format!(
+            "MANIFEST.json license.id must be `Apache-2.0`, got `{}`",
+            manifest.license.id
+        ));
+    }
+    if manifest.license.path.as_path() != Path::new("LICENSE") {
+        errors.push("MANIFEST.json license.path must be `LICENSE`".to_string());
+    }
+    validate_relative_path("license.path", &manifest.license.path, errors);
+    if !home.join(&manifest.license.path).is_file() {
+        errors.push(format!(
+            "license.path file is missing `{}`",
+            home.join(&manifest.license.path).display()
+        ));
+    }
+    if manifest.license.notice.as_path() != Path::new("NOTICE") {
+        errors.push("MANIFEST.json license.notice must be `NOTICE`".to_string());
+    }
+    validate_relative_path("license.notice", &manifest.license.notice, errors);
+    if !home.join(&manifest.license.notice).is_file() {
+        errors.push(format!(
+            "license.notice file is missing `{}`",
+            home.join(&manifest.license.notice).display()
+        ));
+    }
+
     let mut names = HashSet::new();
     for target in &manifest.implemented_targets {
         if !names.insert(target.name.as_str()) {
@@ -308,6 +344,8 @@ mod tests {
         let root = make_temp_home("home-shape");
         fs::create_dir_all(root.join("std")).unwrap();
         fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
+        fs::write(root.join("LICENSE"), "Apache License\n").unwrap();
+        fs::write(root.join("NOTICE"), "Nocter\nCopyright 2026 Rvo JP\n").unwrap();
         fs::write(
             root.join("MANIFEST.json"),
             r#"{
@@ -322,7 +360,12 @@ mod tests {
   "std": {
     "path": "std"
   },
-    "implemented_targets": [
+  "license": {
+    "id": "Apache-2.0",
+    "path": "LICENSE",
+    "notice": "NOTICE"
+  },
+  "implemented_targets": [
     {
       "name": "arm64-darwin",
       "backend": "arm64",

@@ -24,6 +24,8 @@ mkdir -p "$home_dir"
 install -m 755 "$compiler_dir/target/release/nocter" "$home_dir/nocter"
 install -m 644 "$packaging_dir/VERSION" "$home_dir/VERSION"
 install -m 644 "$packaging_dir/MANIFEST.json" "$home_dir/MANIFEST.json"
+install -m 644 "$repo_dir/LICENSE" "$home_dir/LICENSE"
+install -m 644 "$repo_dir/NOTICE" "$home_dir/NOTICE"
 cp -R "$std_source" "$home_dir/std"
 
 "$home_dir/nocter" doctor

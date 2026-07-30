@@ -12,6 +12,7 @@ pub(super) struct Manifest {
     pub default_target: String,
     pub compiler: Compiler,
     pub std: StandardLibrary,
+    pub license: License,
     pub implemented_targets: Vec<ImplementedTarget>,
     pub archive: Archive,
 }
@@ -26,6 +27,14 @@ pub(super) struct Compiler {
 #[serde(deny_unknown_fields)]
 pub(super) struct StandardLibrary {
     pub path: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct License {
+    pub id: String,
+    pub path: PathBuf,
+    pub notice: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]

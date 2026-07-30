@@ -83,6 +83,8 @@ directory:
 |-- nocter
 |-- VERSION
 |-- MANIFEST.json
+|-- LICENSE
+|-- NOTICE
 `-- std/
 ```
 
@@ -194,3 +196,7 @@ code is emitted. For the exact implementation boundary, see
 - [Development](development/README.md): Rust bootstrap compiler, tracked
   standard library, release packaging inputs, implementation status, tests, and
   maintenance notes.
+
+## License
+
+Nocter is licensed under the [Apache License, Version 2.0](LICENSE).
