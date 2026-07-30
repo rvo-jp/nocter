@@ -272,4 +272,47 @@ mod tests {
                 .expect("expected count declaration")
         );
     }
+
+    #[test]
+    fn definition_query_resolves_enum_pattern_variant_references() {
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss(value: i32)
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice.hit(_) {
+    }
+    let code = match choice {
+        Choice.hit(_) { 1 }
+        Choice.miss(_) { 2 }
+    }
+    return code
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+
+        for offset in [
+            text.find("hit(_)").expect("expected if-is hit pattern"),
+            text.rfind("hit(_)").expect("expected match hit pattern"),
+        ] {
+            let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+                .expect("expected hit definition span");
+            assert_eq!(&text[span.start..span.end], "hit");
+            assert_eq!(
+                span.start,
+                text.find("hit(value").expect("expected hit declaration")
+            );
+        }
+
+        let miss_offset = text.rfind("miss(_)").expect("expected match miss pattern");
+        let miss_span = definition_span_for_file_analysis(&sources, &analysis, file, miss_offset)
+            .expect("expected miss definition span");
+        assert_eq!(&text[miss_span.start..miss_span.end], "miss");
+        assert_eq!(
+            miss_span.start,
+            text.find("miss(value").expect("expected miss declaration")
+        );
+    }
 }
