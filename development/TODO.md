@@ -203,6 +203,8 @@ Recommended order:
 - `if is` and `match` payload bindings now inherit borrow return provenance from
   the matched enum value, so local borrows cannot escape through borrow-like
   payload bindings while parameter-carried borrows remain returnable.
+- Return provenance coverage also pins branch-local payload binding aliases that
+  are assigned into an outer borrow-like variable and returned after the branch.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.
