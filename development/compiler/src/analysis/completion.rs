@@ -143,9 +143,12 @@ fn contextual_completion_items(
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     let enum_name = enum_pattern_member_owner_at_offset(ast, offset)?;
-    Some(enum_variant_completion_items(
-        resolved.type_symbol_by_name(enum_name)?,
-    ))
+    Some(
+        resolved
+            .type_symbol_by_name(enum_name)
+            .map(enum_variant_completion_items)
+            .unwrap_or_default(),
+    )
 }
 
 fn enum_variant_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
@@ -544,5 +547,29 @@ func main(choice: Choice): i32 {
             }));
             assert!(!items.iter().any(|item| item.label == "Choice"));
         }
+    }
+
+    #[test]
+    fn completion_candidates_do_not_fall_back_to_globals_after_unknown_pattern_dot() {
+        let text = r#"enum Choice {
+    hit
+}
+
+func main(choice: Choice): i32 {
+    if choice is Missing.hit {
+    }
+    return 0
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("Missing.hit").expect("expected unknown pattern") + "Missing.".len();
+
+        let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+        assert!(
+            items.is_empty(),
+            "expected no global fallback, got {items:#?}"
+        );
     }
 }
