@@ -1809,6 +1809,20 @@ fn borrow_return_provenance_for_expression(
             environment,
             borrow_provenance,
         ),
+        Expr::Force(expression) => borrow_return_provenance_for_wrapped_expression(
+            &expression.expression,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
+        Expr::Propagate(expression) => borrow_return_provenance_for_wrapped_expression(
+            &expression.expression,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::StringLiteral(_) => Some(BorrowReturnProvenance::Static),
         Expr::StructLiteral(literal) => {
             let mut fields = BTreeMap::new();
@@ -2010,6 +2024,24 @@ fn borrow_return_provenance_for_expression(
         }
         _ => None,
     }
+}
+
+fn borrow_return_provenance_for_wrapped_expression(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let expression_type = expression_type(expression, resolved, environment);
+    borrow_return_provenance_for_expression(
+        expression,
+        &expression_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    )
 }
 
 fn borrow_return_provenance_for_member(

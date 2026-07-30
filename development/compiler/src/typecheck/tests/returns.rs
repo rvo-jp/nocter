@@ -1317,6 +1317,98 @@ func passthrough(value: &i32): &i32 {
 }
 
 #[test]
+fn diagnoses_return_force_unwrapped_optional_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func leak(): &i32 {
+    let value = 1
+    return maybe(&value)!
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_force_unwrapped_optional_borrow_from_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func passthrough(value: &i32): &i32 {
+    return maybe(value)!
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_force_unwrapped_fallible_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func okay(value: &i32): &i32! {
+    return value
+}
+
+func leak(): &i32 {
+    let value = 1
+    return okay(&value)!
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_propagated_optional_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func leak(): &i32? {
+    let value = 1
+    return maybe(&value)?
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
 fn diagnoses_return_nested_struct_literal_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {
