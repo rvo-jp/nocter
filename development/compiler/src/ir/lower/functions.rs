@@ -52,9 +52,9 @@ use crate::abi::{
 };
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
-    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr, MethodDecl, Parameter, ReturnStmt,
-    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
-    substitute_type_expr_parameters,
+    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralExpr, MemberExpr, MethodDecl, Parameter,
+    ReturnStmt, Stmt, StructLiteralExpr, SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr,
+    TypeReference, UnaryOperator, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -993,12 +993,13 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")
-                .map_err(|diagnostics| {
+            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007").map_err(
+                |diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
-                })?;
+                },
+            )?;
             let Some(branch_instructions) = lower_terminal_if_statement_for_success_type(
-                &if_statement,
+                &if_is.statement,
                 context,
                 function_name,
                 return_type,
@@ -1017,6 +1018,7 @@ fn lower_callable_body(
                     statement.span,
                 ));
             };
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(branch_instructions);
             Ok(instructions)
         }
@@ -1176,14 +1178,21 @@ fn lower_callable_control_body_result(
             lower_callable_if_body_result(statement, function_name, return_type, context, sources)
         }
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")?;
+            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007")?;
             lower_callable_if_body_result(
-                &if_statement,
+                &if_is.statement,
                 function_name,
                 return_type,
                 context,
                 sources,
             )
+            .map(|result| {
+                result.map(|branch_instructions| {
+                    let mut instructions = if_is.leading_instructions;
+                    instructions.extend(branch_instructions);
+                    instructions
+                })
+            })
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, "E8007")?;
@@ -1310,10 +1319,9 @@ fn lower_terminal_control_return_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
             lower_terminal_if_statement_for_success_type(
-                &if_statement,
+                &if_is.statement,
                 context,
                 &function_name,
                 &return_type,
@@ -1325,6 +1333,13 @@ fn lower_terminal_control_return_expression(
                     .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
                 sources,
             )
+            .map(|result| {
+                result.map(|branch_instructions| {
+                    let mut instructions = if_is.leading_instructions;
+                    instructions.extend(branch_instructions);
+                    instructions
+                })
+            })
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
@@ -1697,6 +1712,75 @@ pub(super) fn payloadless_if_is_as_if_statement(
     })
 }
 
+pub(super) struct LoweredTagOnlyIfIs {
+    pub(super) leading_instructions: Vec<Instruction>,
+    pub(super) statement: IfStmt,
+}
+
+pub(super) fn tag_only_if_is_as_control_flow(
+    statement: &IfIsStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<LoweredTagOnlyIfIs, Vec<Diagnostic>> {
+    let variant = payloadless_if_is_variant_expression(statement);
+    let Expr::Member(member) = &variant else {
+        unreachable!("if-is variant expression must be a member expression");
+    };
+
+    if context.payloadless_enum_variant_tag(member).is_some() {
+        return payloadless_if_is_as_if_statement(statement, context, diagnostic_code).map(
+            |statement| LoweredTagOnlyIfIs {
+                leading_instructions: Vec::new(),
+                statement,
+            },
+        );
+    }
+
+    let tag = context
+        .enum_variant_tag(member)
+        .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    let payload_len = context
+        .enum_variant_payload_len(member)
+        .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    if !tag_only_if_is_payload_pattern_is_supported(statement.payload.as_ref(), payload_len) {
+        return Err(unsupported_if_is_diagnostic(diagnostic_code));
+    }
+    if !expression_is_payload_enum_aggregate_value(&statement.expression, context) {
+        return Err(unsupported_if_is_diagnostic(diagnostic_code));
+    }
+    let source_slot = tag_only_if_is_aggregate_source_slot(&statement.expression, context)
+        .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    let target_name = tag_only_if_is_target_name(statement);
+    let target = context.next_u8_local_location()?;
+    context.define_u8_local(target_name.clone());
+
+    Ok(LoweredTagOnlyIfIs {
+        leading_instructions: vec![Instruction::LoadAggregateU8 {
+            destination: target,
+            source: AggregateLocation::Slot(source_slot),
+            offset: 0,
+        }],
+        statement: IfStmt {
+            span: statement.span,
+            condition: Expr::Binary(BinaryExpr {
+                span: statement.pattern_span,
+                left: Box::new(Expr::Identifier(IdentifierExpr {
+                    span: statement.expression.span(),
+                    name: target_name,
+                })),
+                operator: BinaryOperator::Equal,
+                operator_span: statement.pattern_span,
+                right: Box::new(Expr::IntegerLiteral(LiteralExpr {
+                    span: statement.variant_name_span,
+                    value: tag.to_string(),
+                })),
+            }),
+            then_block: statement.then_block.clone(),
+            else_block: statement.else_block.clone(),
+        },
+    })
+}
+
 pub(super) struct LoweredPayloadlessSwitch {
     pub(super) leading_instructions: Vec<Instruction>,
     pub(super) body: LoweredPayloadlessSwitchBody,
@@ -1749,6 +1833,51 @@ fn payloadless_if_is_variant_expression(statement: &IfIsStmt) -> Expr {
         member: statement.variant_name.clone(),
         member_span: statement.variant_name_span,
     })
+}
+
+fn tag_only_if_is_payload_pattern_is_supported(
+    payload: Option<&SwitchPayloadPattern>,
+    payload_len: usize,
+) -> bool {
+    matches!(
+        (payload, payload_len),
+        (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1)
+    )
+}
+
+fn expression_is_payload_enum_aggregate_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    let Some(ty) = context.expression_type_expr(expression.span()) else {
+        return false;
+    };
+    let Some((_, resolved)) = context.resolved_calls() else {
+        return false;
+    };
+    abi_value_from_type_expr_with_resolver(&ty, resolved, |source| context.resolved_source(source))
+        .is_ok_and(|value| matches!(value.ty, AbiType::Enum(_)))
+}
+
+fn tag_only_if_is_aggregate_source_slot(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<usize> {
+    let Expr::Identifier(identifier) = unwrap_group(expression) else {
+        return None;
+    };
+    context
+        .aggregate_local(&identifier.name)
+        .map(|local| local.slot_index)
+}
+
+fn tag_only_if_is_target_name(statement: &IfIsStmt) -> String {
+    format!(
+        "<if-is:{}:{}:{}>",
+        statement.span.source.raw(),
+        statement.span.start,
+        statement.span.end
+    )
 }
 
 fn payloadless_switch_variant_names(
@@ -1915,7 +2044,7 @@ fn payloadless_switch_target_name(statement: &SwitchStmt) -> String {
 fn unsupported_if_is_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless `if is` enum pattern branches",
+        "IR v0 can only lower payloadless `if is` branches or tag-only payload enum `if is` branches over existing enum values",
     )]
 }
 
@@ -2337,10 +2466,10 @@ fn lower_terminal_aggregate_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, &branch_context, "E8007")?;
+            let if_is = tag_only_if_is_as_control_flow(statement, &mut branch_context, "E8007")?;
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(lower_terminal_aggregate_if_statement(
-                &if_statement,
+                &if_is.statement,
                 &branch_context,
                 success_type,
                 function_name,
@@ -2396,15 +2525,17 @@ fn lower_terminal_aggregate_result_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")?;
-            lower_terminal_aggregate_if_statement(
-                &if_statement,
+            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007")?;
+            let mut instructions = if_is.leading_instructions;
+            instructions.extend(lower_terminal_aggregate_if_statement(
+                &if_is.statement,
                 context,
                 success_type,
                 function_name,
                 resolved,
                 sources,
-            )
+            )?);
+            Ok(instructions)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, "E8007")?;
@@ -2757,13 +2888,15 @@ fn lower_leading_bindings(
                 );
             }
             Stmt::IfIs(statement) => {
-                let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")
-                    .map_err(|diagnostics| {
-                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
-                })?;
+                let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007").map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                    },
+                )?;
+                instructions.extend(if_is.leading_instructions);
                 instructions.extend(
                     lower_nonterminal_if_statement(
-                        &if_statement,
+                        &if_is.statement,
                         context,
                         None,
                         &[],

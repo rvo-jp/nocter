@@ -10426,6 +10426,46 @@ func accept(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_discard_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-discard");
+    let source = project.write_source(
+        "payload_enum_if_is_discard.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(10)
+    let failed = Result.failed
+    let ok_score = score(move ok)
+    let failed_score = score(move failed)
+    return ok_score + failed_score
+}
+
+func score(result: Result): i32 {
+    if result is Result.ok(_) {
+        return 40
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_is_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-is");
     let source = project.write_source(

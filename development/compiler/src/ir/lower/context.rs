@@ -637,14 +637,7 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(super) fn payloadless_enum_variant_tag(&self, member: &MemberExpr) -> Option<u8> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Identifier(enum_name) = member.object.as_ref() else {
-            return None;
-        };
-        let symbol = resolution
-            .resolved
-            .type_symbol_by_name(&enum_name.name)
-            .filter(|symbol| symbol.kind == TypeSymbolKind::Enum)?;
+        let symbol = self.enum_symbol_for_member(member)?;
         if symbol
             .variants
             .iter()
@@ -652,11 +645,31 @@ impl<'a> LoweringContext<'a> {
         {
             return None;
         }
-        let index = symbol
+        enum_variant_index(symbol, &member.member)
+    }
+
+    pub(super) fn enum_variant_tag(&self, member: &MemberExpr) -> Option<u8> {
+        enum_variant_index(self.enum_symbol_for_member(member)?, &member.member)
+    }
+
+    pub(super) fn enum_variant_payload_len(&self, member: &MemberExpr) -> Option<usize> {
+        let symbol = self.enum_symbol_for_member(member)?;
+        symbol
             .variants
             .iter()
-            .position(|variant| variant.name == member.member)?;
-        u8::try_from(index).ok()
+            .find(|variant| variant.name == member.member)
+            .map(|variant| variant.payload.len())
+    }
+
+    fn enum_symbol_for_member(&self, member: &MemberExpr) -> Option<&'a TypeSymbol> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Identifier(enum_name) = member.object.as_ref() else {
+            return None;
+        };
+        resolution
+            .resolved
+            .type_symbol_by_name(&enum_name.name)
+            .filter(|symbol| symbol.kind == TypeSymbolKind::Enum)
     }
 
     pub(super) fn payloadless_enum_variant_names_for_expression(
@@ -1774,6 +1787,14 @@ where
         CallTarget::imported(symbol.declaration_span.source, target_name)
     };
     Some(DropGlue { target })
+}
+
+fn enum_variant_index(symbol: &TypeSymbol, variant_name: &str) -> Option<u8> {
+    let index = symbol
+        .variants
+        .iter()
+        .position(|variant| variant.name == variant_name)?;
+    u8::try_from(index).ok()
 }
 
 fn payloadless_enum_symbol_for_type_expr<'a, F>(

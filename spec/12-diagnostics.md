@@ -291,8 +291,9 @@ Required v0 diagnostic families:
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
 - Check-only construct used with `build` or `run`, such as string interpolation
   before interpolation lowering is implemented, `std/process.env(name)` before
-  environment runtime support is promoted, or payload-carrying enum pattern
-  control before payload binding/drop cleanup lowering is promoted.
+  environment runtime support is promoted, or payload-carrying enum `match`,
+  payload binding, and payload enum temporary-pattern control before matching
+  lowering and drop cleanup are promoted.
 - Standard-library runtime subset violation during buildability validation, such
   as an unsupported `Vec<T>` element storage path.
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.

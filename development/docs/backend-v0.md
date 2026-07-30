@@ -112,6 +112,9 @@ includes:
 - payload-carrying enum ABI layout as a tag byte plus aligned payload union
 - payload-carrying enum construction, local slots, returns, and value arguments
   for the current copy/no-drop payload subset
+- tag-only payload-carrying enum `if is Enum.variant(_)` statements over
+  existing enum bindings and parameters in the current copy/no-drop payload
+  subset
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -123,9 +126,9 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-pattern-control lowering, payload binding/drop cleanup, broader field-level
-live-state tracking, non-copy aggregate collection elements, arrays, broad
-control-flow joins, and unsupported expression shapes.
+`match`, payload binding/drop cleanup, payload enum temporary-pattern control,
+broader field-level live-state tracking, non-copy aggregate collection elements,
+arrays, broad control-flow joins, and unsupported expression shapes.
 
 ## Safety Checks
 

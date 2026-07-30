@@ -16,8 +16,8 @@ use super::functions::{
     LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
     lower_drop_statement, lower_never_expression_with_scope_drops,
     lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
-    payloadless_switch_as_control_flow, reachable_body_prefix,
+    mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
+    reachable_body_prefix, tag_only_if_is_as_control_flow,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
 use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
@@ -226,12 +226,13 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, &context, "E8002")
-                .map_err(|diagnostics| {
+            let if_is = tag_only_if_is_as_control_flow(statement, &mut context, "E8002").map_err(
+                |diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
-                })?;
+                },
+            )?;
             let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
-                &if_statement,
+                &if_is.statement,
                 &context,
                 return_type,
                 sources,
@@ -246,6 +247,7 @@ fn lower_entry_body(
                     statement.span,
                 ));
             };
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(branch_instructions);
             Ok(instructions)
         }
@@ -407,8 +409,16 @@ fn lower_entry_control_body_result(
     match unwrap_group(expression) {
         Expr::If(statement) => lower_entry_if_body_result(statement, return_type, context, sources),
         Expr::IfIs(statement) => {
-            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8002")?;
-            lower_entry_if_body_result(&if_statement, return_type, context, sources)
+            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8002")?;
+            lower_entry_if_body_result(&if_is.statement, return_type, context, sources).map(
+                |result| {
+                    result.map(|branch_instructions| {
+                        let mut instructions = if_is.leading_instructions;
+                        instructions.extend(branch_instructions);
+                        instructions
+                    })
+                },
+            )
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, "E8002")?;
@@ -756,13 +766,15 @@ fn lower_leading_bindings(
                 );
             }
             Stmt::IfIs(statement) => {
-                let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8002")
-                    .map_err(|diagnostics| {
-                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
-                })?;
+                let if_is = tag_only_if_is_as_control_flow(statement, context, "E8002").map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                    },
+                )?;
+                instructions.extend(if_is.leading_instructions);
                 instructions.extend(
                     lower_nonterminal_if_statement(
-                        &if_statement,
+                        &if_is.statement,
                         context,
                         None,
                         &[],

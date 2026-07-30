@@ -8,8 +8,8 @@ use crate::analysis::{
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
     FunctionDecl, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item, MemberExpr,
-    MethodDecl, OtherwiseExpr, Parameter, Stmt, StructLiteralField, TypeExpr, UnaryOperator,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    MethodDecl, OtherwiseExpr, Parameter, Stmt, StructLiteralField, SwitchPayloadPattern, TypeExpr,
+    UnaryOperator, substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -4537,7 +4537,7 @@ fn void_effect_if_is_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if_is_statement_is_buildable(expression, resolved)
+    payloadless_if_is_statement_is_buildable(expression, resolved)
         && void_effect_block_is_buildable(
             &expression.then_block,
             resolved,
@@ -4654,7 +4654,8 @@ fn terminal_if_is_expression_is_buildable(
     expression: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
 ) -> bool {
-    expression.else_block.is_some() && if_is_statement_is_buildable(expression, resolved)
+    expression.else_block.is_some()
+        && payloadless_if_is_statement_is_buildable(expression, resolved)
 }
 
 fn terminal_match_expression_is_buildable(
@@ -4674,7 +4675,7 @@ fn terminal_match_expression_is_buildable(
         || switch_statement_covers_all_payloadless_variants(expression, resolved))
 }
 
-fn if_is_statement_is_buildable(
+fn payloadless_if_is_statement_is_buildable(
     statement: &crate::ast::IfIsStmt,
     resolved: &ResolveOutput,
 ) -> bool {
@@ -4702,6 +4703,80 @@ fn if_is_statement_is_buildable(
         return false;
     };
     u8::try_from(index).is_ok()
+}
+
+fn if_is_statement_is_buildable(
+    statement: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    payloadless_if_is_statement_is_buildable(statement, resolved)
+        || tag_only_payload_enum_if_is_statement_is_buildable(
+            statement,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        )
+}
+
+fn tag_only_payload_enum_if_is_statement_is_buildable(
+    statement: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(symbol) = resolved.type_symbol_by_name(&statement.enum_name) else {
+        return false;
+    };
+    if symbol.kind != TypeSymbolKind::Enum
+        || symbol.variants.len() > 256
+        || symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    let Some(variant) = symbol
+        .variants
+        .iter()
+        .find(|variant| variant.name == statement.variant_name)
+    else {
+        return false;
+    };
+    if !tag_only_if_is_payload_pattern_is_buildable(
+        statement.payload.as_ref(),
+        variant.payload.len(),
+    ) {
+        return false;
+    }
+    if !matches!(
+        unwrap_group_expr(&statement.expression),
+        Expr::Identifier(_)
+    ) {
+        return false;
+    }
+
+    let Some(ty) = typecheck_facts.expression_type_expr(statement.expression.span()) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources)
+}
+
+fn tag_only_if_is_payload_pattern_is_buildable(
+    payload: Option<&SwitchPayloadPattern>,
+    payload_len: usize,
+) -> bool {
+    matches!(
+        (payload, payload_len),
+        (None, 0) | (Some(SwitchPayloadPattern::Discard(_)), 1)
+    )
 }
 
 fn switch_statement_is_buildable(
@@ -5261,12 +5336,18 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::IfIs(statement) => {
-            if !if_is_statement_is_buildable(statement, resolved) {
+            if !if_is_statement_is_buildable(
+                statement,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ) {
                 diagnostics.push(unsupported_v0_build_diagnostic(
                     sources,
                     statement.pattern_span,
                     "`if is` pattern branches",
-                    "use payloadless enum patterns, or keep payload pattern code on the `check` path",
+                    "use payloadless enum patterns or tag-only payload enum discard patterns over existing values, or keep payload binding code on the `check` path",
                 ));
             }
             collect_expression_diagnostics(

@@ -18,8 +18,8 @@ use super::functions::{
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_control_flow,
-    payloadless_switch_is_exhaustive,
+    payloadless_switch_as_control_flow, payloadless_switch_is_exhaustive,
+    tag_only_if_is_as_control_flow,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -1336,17 +1336,12 @@ fn lower_nonterminal_loop_block_statements(
                 instructions.extend(lowered);
             }
             Stmt::IfIs(statement) => {
-                let if_statement =
-                    payloadless_if_is_as_if_statement(statement, context, diagnostic_code)
-                        .map_err(|diagnostics| {
-                            attach_primary_span_if_absent(
-                                diagnostics,
-                                sources,
-                                statement.pattern_span,
-                            )
-                        })?;
+                let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                    })?;
                 let lowered = lower_nonterminal_if_statement(
-                    &if_statement,
+                    &if_is.statement,
                     context,
                     loop_scope_mark,
                     continue_instructions,
@@ -1357,8 +1352,10 @@ fn lower_nonterminal_loop_block_statements(
                 .map_err(|diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?;
-                ends_execution = instruction_list_ends_execution(&lowered);
-                instructions.extend(lowered);
+                let mut lowered_with_condition = if_is.leading_instructions;
+                lowered_with_condition.extend(lowered);
+                ends_execution = instruction_list_ends_execution(&lowered_with_condition);
+                instructions.extend(lowered_with_condition);
             }
             Stmt::Switch(statement) => {
                 let lowered = lower_nonterminal_payloadless_switch_statement(
@@ -2065,10 +2062,11 @@ fn lower_i32_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            let if_is =
+                tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(lower_terminal_i32_if_statement(
-                &if_statement,
+                &if_is.statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2209,10 +2207,11 @@ fn lower_bool_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            let if_is =
+                tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(lower_terminal_bool_if_statement(
-                &if_statement,
+                &if_is.statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2279,16 +2278,17 @@ fn lower_i32_result_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_terminal_i32_if_statement(
-                &if_statement,
+            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
+            let mut instructions = if_is.leading_instructions;
+            instructions.extend(lower_terminal_i32_if_statement(
+                &if_is.statement,
                 context,
                 return_type,
                 diagnostic_code,
                 subject,
                 sources,
-            )
+            )?);
+            Ok(instructions)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
@@ -2325,16 +2325,17 @@ fn lower_bool_result_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_terminal_bool_if_statement(
-                &if_statement,
+            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
+            let mut instructions = if_is.leading_instructions;
+            instructions.extend(lower_terminal_bool_if_statement(
+                &if_is.statement,
                 context,
                 return_type,
                 diagnostic_code,
                 subject,
                 sources,
-            )
+            )?);
+            Ok(instructions)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
@@ -2460,10 +2461,11 @@ fn lower_scalar_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            let if_is =
+                tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(lower_terminal_scalar_if_statement(
-                &if_statement,
+                &if_is.statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2538,10 +2540,10 @@ fn lower_scalar_result_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_terminal_scalar_if_statement(
-                &if_statement,
+            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
+            let mut instructions = if_is.leading_instructions;
+            instructions.extend(lower_terminal_scalar_if_statement(
+                &if_is.statement,
                 context,
                 return_type,
                 diagnostic_code,
@@ -2549,7 +2551,8 @@ fn lower_scalar_result_expression(
                 return_label,
                 lower_return_expression,
                 sources,
-            )
+            )?);
+            Ok(instructions)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
@@ -2662,10 +2665,11 @@ fn lower_void_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::IfIs(statement)) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            let if_is =
+                tag_only_if_is_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
+            instructions.extend(if_is.leading_instructions);
             instructions.extend(lower_terminal_void_if_statement(
-                &if_statement,
+                &if_is.statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2732,16 +2736,17 @@ fn lower_void_result_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_statement =
-                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
-            lower_terminal_void_if_statement(
-                &if_statement,
+            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
+            let mut instructions = if_is.leading_instructions;
+            instructions.extend(lower_terminal_void_if_statement(
+                &if_is.statement,
                 context,
                 return_type,
                 diagnostic_code,
                 subject,
                 sources,
-            )
+            )?);
+            Ok(instructions)
         }
         Expr::Match(statement) => {
             let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;

@@ -210,10 +210,10 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum pattern-control runtime lowering, including `match`,
-  `if is`, payload binding, and active payload drop cleanup; payload-carrying
-  enum construction, locals, returns, and value arguments are buildable only for
-  the current copy/no-drop payload subset
+- payload-carrying enum `match` runtime lowering, payload binding, and active
+  payload drop cleanup; payload-carrying enum construction, locals, returns,
+  value arguments, and tag-only `if is Enum.variant(_)` statements are buildable
+  only for the current copy/no-drop payload subset over existing enum values
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -254,9 +254,10 @@ Rules fixed for v0:
 - payloadless enum values use the explicit `u8` tag layout specified by ABI v0
 - payload-carrying enum values use the tag-plus-payload-union layout specified
   by ABI v0
-- payload-carrying enum construction, locals, returns, and value arguments may
-  lower in the copy/no-drop payload subset; payload pattern-control lowering and
-  active payload drop glue still reject before build/run
+- payload-carrying enum construction, locals, returns, value arguments, and
+  tag-only `if is Enum.variant(_)` statements may lower in the copy/no-drop
+  payload subset over existing enum values; payload `match`, payload binding,
+  and active payload drop glue still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification

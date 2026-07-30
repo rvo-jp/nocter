@@ -682,9 +682,12 @@ Rules:
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum construction, local storage, returns, and value
   arguments lower in the current copy/no-drop payload subset.
-- Payload-carrying enum `match` and `if is` are typechecked in v0, but
-  build/run lowering for payload pattern control, payload binding, and active
-  payload drop cleanup is still deferred.
+- Tag-only payload-carrying enum `if is Enum.variant(_)` statements lower over
+  existing enum bindings and parameters in the current copy/no-drop payload
+  subset.
+- Payload-carrying enum `match`, payload binding, payload-carrying enum `if is`
+  over temporary expressions, and active payload drop cleanup are typechecked in
+  v0 but still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

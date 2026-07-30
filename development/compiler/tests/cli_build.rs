@@ -5512,7 +5512,8 @@ fn build_command_reports_payload_match_before_ir_lowering() {
 }
 
 func main(): i32 {
-    return describe(AppError.missing_path)
+    let error = AppError.missing_path
+    return describe(move error)
 }
 
 func describe(error: AppError): i32 {
@@ -5545,7 +5546,7 @@ func describe(error: AppError): i32 {
         "expected match diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("11 |     match error {"),
+        stderr.contains("12 |     match error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -5559,17 +5560,18 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_if_is_discard_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-discard-boundary");
+fn build_command_accepts_payload_enum_if_is_discard_tag_only() {
+    let project = TempProject::new("cli-build-payload-enum-if-is-discard-tag-only");
     let source = project.write_source(
-        "payload_if_is_discard_boundary.nct",
+        "payload_enum_if_is_discard_tag_only.nct",
         r#"enum AppError {
     missing_path
     open_failed(path: &str)
 }
 
 func main(): i32 {
-    return describe(AppError.missing_path)
+    let error = AppError.missing_path
+    return describe(move error)
 }
 
 func describe(error: AppError): i32 {
@@ -5578,6 +5580,37 @@ func describe(error: AppError): i32 {
     }
 
     return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_payload_if_is_discard_call_target_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-discard-call-target-boundary");
+    let source = project.write_source(
+        "payload_if_is_discard_call_target_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if make_ok() is Result.ok(_) {
+        return 1
+    }
+
+    return 0
+}
+
+func make_ok(): Result {
+    return Result.ok(10)
 }
 "#,
     );
@@ -5596,7 +5629,7 @@ func describe(error: AppError): i32 {
         "expected if-is diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("11 |     if error is AppError.open_failed(_) {"),
+        stderr.contains("7 |     if make_ok() is Result.ok(_) {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
