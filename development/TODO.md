@@ -69,9 +69,9 @@ Recommended order:
    diagnostic.
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
-   copy/no-drop payloads and tag-only payload enum `if is` statements over
-   existing values; next, lower payload-carrying enum `match` control before
-   broader collection expansion.
+   copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
+   over existing values; next, design payload binding and active payload cleanup
+   before broader collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -301,12 +301,12 @@ Recommended order:
   preflighted nor lowered.
 - TypecheckFacts now records expression `TypeExpr` values. Buildability and IR
   lowering use the target expression type to accept wildcard-only payloadless
-  enum `match` forms while still keeping payload enum `match`, payload binding,
-  and temporary-pattern control outside the runtime subset.
+  enum `match` forms while still keeping payload enum payload binding and
+  temporary-pattern control outside the runtime subset.
 - Payload-carrying enum ABI layout now backs copy/no-drop payload enum
-  construction, local slots, returns, value arguments, and tag-only `if is`
-  statements over existing values. Payload enum `match`, payload binding, and
-  active payload drop cleanup remain the next promotion boundary.
+  construction, local slots, returns, value arguments, and tag-only `if is` /
+  `match` statements over existing values. Payload binding and active payload
+  drop cleanup remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

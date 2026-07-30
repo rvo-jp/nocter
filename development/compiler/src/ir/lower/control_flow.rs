@@ -19,7 +19,7 @@ use super::functions::{
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     payloadless_switch_as_control_flow, payloadless_switch_is_exhaustive,
-    tag_only_if_is_as_control_flow,
+    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -825,7 +825,7 @@ pub(super) fn lower_nonterminal_payloadless_switch_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
+    let switch = tag_only_switch_as_control_flow(statement, context, diagnostic_code)?;
     let mut instructions = switch.leading_instructions;
     instructions.extend(lower_nonterminal_payloadless_switch_body(
         switch.body,
@@ -2076,11 +2076,8 @@ fn lower_i32_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_control_flow(
-                statement,
-                &mut branch_context,
-                diagnostic_code,
-            )?;
+            let switch =
+                tag_only_switch_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(switch.leading_instructions);
             instructions.extend(lower_terminal_i32_payloadless_switch_body(
                 switch.body,
@@ -2221,11 +2218,8 @@ fn lower_bool_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_control_flow(
-                statement,
-                &mut branch_context,
-                diagnostic_code,
-            )?;
+            let switch =
+                tag_only_switch_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(switch.leading_instructions);
             instructions.extend(lower_terminal_bool_payloadless_switch_body(
                 switch.body,
@@ -2477,11 +2471,8 @@ fn lower_scalar_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_control_flow(
-                statement,
-                &mut branch_context,
-                diagnostic_code,
-            )?;
+            let switch =
+                tag_only_switch_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(switch.leading_instructions);
             instructions.extend(lower_terminal_scalar_payloadless_switch_body(
                 switch.body,
@@ -2679,11 +2670,8 @@ fn lower_void_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_control_flow(
-                statement,
-                &mut branch_context,
-                diagnostic_code,
-            )?;
+            let switch =
+                tag_only_switch_as_control_flow(statement, &mut branch_context, diagnostic_code)?;
             instructions.extend(switch.leading_instructions);
             instructions.extend(lower_terminal_void_payloadless_switch_body(
                 switch.body,

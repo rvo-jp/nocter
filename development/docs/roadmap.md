@@ -60,15 +60,15 @@ for v0.2.0:
 
 - Continue the v0.2.0 payload enum promotion. The first runtime slice is
   payload-carrying enum construction/local/return/value-argument support for
-  copy/no-drop payloads, followed by tag-only payload-carrying enum `if is`
-  statements over existing values; the next slice should lower payload-carrying
-  enum `match` control before broad collection expansion.
+  copy/no-drop payloads, followed by tag-only payload-carrying enum `if is` and
+  `match` statements over existing values; the next slice should design payload
+  binding and active payload cleanup before broad collection expansion.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.
 - Promote non-copy `Vec<T>` storage only after per-element drop behavior is
   designed and tested.
-- Promote payload enum `match`, payload binding, and temporary-pattern control
-  only after payload binding facts and drop cleanup are stable.
+- Promote payload enum binding and temporary-pattern control only after payload
+  binding facts and drop cleanup are stable.
 - Promote `std/process.env` only after nested fallible/optional return lowering
   and process-context storage are ready.

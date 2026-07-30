@@ -5560,6 +5560,42 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
+fn build_command_accepts_payload_enum_match_discard_tag_only() {
+    let project = TempProject::new("cli-build-payload-enum-match-discard-tag-only");
+    let source = project.write_source(
+        "payload_enum_match_discard_tag_only.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(10)
+    return score(move result)
+}
+
+func score(result: Result): i32 {
+    match result {
+        Result.ok(_) {
+            return 42
+        }
+
+        _ {
+            return 1
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_accepts_payload_enum_if_is_discard_tag_only() {
     let project = TempProject::new("cli-build-payload-enum-if-is-discard-tag-only");
     let source = project.write_source(

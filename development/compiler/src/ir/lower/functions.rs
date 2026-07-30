@@ -1023,7 +1023,7 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::Switch(statement) => {
-            let switch = payloadless_switch_as_control_flow(statement, context, "E8007").map_err(
+            let switch = tag_only_switch_as_control_flow(statement, context, "E8007").map_err(
                 |diagnostics| attach_primary_span_if_absent(diagnostics, sources, statement.span),
             )?;
             let Some(branch_instructions) = lower_terminal_payloadless_switch_for_success_type(
@@ -1823,6 +1823,49 @@ pub(super) fn payloadless_switch_as_control_flow(
     })
 }
 
+pub(super) fn tag_only_switch_as_control_flow(
+    statement: &SwitchStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<LoweredPayloadlessSwitch, Vec<Diagnostic>> {
+    if let Ok(switch) = payloadless_switch_as_control_flow(statement, context, diagnostic_code) {
+        return Ok(switch);
+    }
+
+    let Some(variant_names) = payload_enum_tag_only_switch_variant_names(statement, context) else {
+        return Err(unsupported_switch_diagnostic(diagnostic_code));
+    };
+    if !expression_is_payload_enum_aggregate_value(&statement.expression, context) {
+        return Err(unsupported_switch_diagnostic(diagnostic_code));
+    }
+    let source_slot = tag_only_if_is_aggregate_source_slot(&statement.expression, context)
+        .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))?;
+
+    let target_name = payloadless_switch_target_name(statement);
+    let target = context.next_u8_local_location()?;
+    context.define_u8_local(target_name.clone());
+    let target_expression = Expr::Identifier(IdentifierExpr {
+        span: statement.expression.span(),
+        name: target_name,
+    });
+    let body = tag_only_switch_body(
+        statement,
+        target_expression,
+        &variant_names,
+        context,
+        diagnostic_code,
+    )?;
+
+    Ok(LoweredPayloadlessSwitch {
+        leading_instructions: vec![Instruction::LoadAggregateU8 {
+            destination: target,
+            source: AggregateLocation::Slot(source_slot),
+            offset: 0,
+        }],
+        body,
+    })
+}
+
 fn payloadless_if_is_variant_expression(statement: &IfIsStmt) -> Expr {
     Expr::Member(MemberExpr {
         span: statement.pattern_span,
@@ -1878,6 +1921,115 @@ fn tag_only_if_is_target_name(statement: &IfIsStmt) -> String {
         statement.span.start,
         statement.span.end
     )
+}
+
+fn payload_enum_tag_only_switch_variant_names(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+) -> Option<Vec<String>> {
+    let first_arm = statement.arms.first()?;
+    let (_, resolved) = context.resolved_calls()?;
+    let target_symbol = resolved.type_symbol_by_name(&first_arm.enum_name)?;
+    if target_symbol.kind != crate::resolve::TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty())
+    {
+        return None;
+    }
+
+    let arms_are_supported = statement.arms.iter().all(|arm| {
+        let Some(arm_symbol) = resolved.type_symbol_by_name(&arm.enum_name) else {
+            return false;
+        };
+        if arm_symbol.canonical_name != target_symbol.canonical_name {
+            return false;
+        }
+        let Some(variant) = target_symbol
+            .variants
+            .iter()
+            .find(|variant| variant.name == arm.variant_name)
+        else {
+            return false;
+        };
+        tag_only_if_is_payload_pattern_is_supported(arm.payload.as_ref(), variant.payload.len())
+    });
+    arms_are_supported.then(|| {
+        target_symbol
+            .variants
+            .iter()
+            .map(|variant| variant.name.clone())
+            .collect()
+    })
+}
+
+fn tag_only_switch_body(
+    statement: &SwitchStmt,
+    target: Expr,
+    variant_names: &[String],
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<LoweredPayloadlessSwitchBody, Vec<Diagnostic>> {
+    let Some((condition_arms, fallback)) =
+        payloadless_switch_condition_arms_and_fallback(statement, variant_names)
+    else {
+        return Err(unsupported_switch_diagnostic(diagnostic_code));
+    };
+
+    if condition_arms.is_empty() {
+        return Ok(LoweredPayloadlessSwitchBody::Direct(fallback));
+    }
+
+    let mut next_else = Some(fallback);
+    let mut current = None;
+    for arm in condition_arms.iter().rev() {
+        let if_statement = IfStmt {
+            span: arm.span,
+            condition: Expr::Binary(BinaryExpr {
+                span: arm.span,
+                left: Box::new(target.clone()),
+                operator: BinaryOperator::Equal,
+                operator_span: arm.span,
+                right: Box::new(tag_only_switch_variant_tag_expression(
+                    arm,
+                    context,
+                    diagnostic_code,
+                )?),
+            }),
+            then_block: arm.body.clone(),
+            else_block: next_else,
+        };
+        next_else = Some(Block {
+            span: if_statement.span,
+            statements: Vec::new(),
+            result: Some(Box::new(Expr::If(Box::new(if_statement.clone())))),
+        });
+        current = Some(if_statement);
+    }
+
+    current
+        .map(LoweredPayloadlessSwitchBody::Conditional)
+        .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))
+}
+
+fn tag_only_switch_variant_tag_expression(
+    arm: &SwitchArm,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Expr, Vec<Diagnostic>> {
+    let variant = payloadless_switch_variant_expression(arm);
+    let Expr::Member(member) = &variant else {
+        unreachable!("switch variant expression must be a member expression");
+    };
+    let tag = context
+        .enum_variant_tag(member)
+        .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))?;
+    Ok(Expr::IntegerLiteral(LiteralExpr {
+        span: arm.variant_name_span,
+        value: tag.to_string(),
+    }))
 }
 
 fn payloadless_switch_variant_names(
@@ -2051,7 +2203,7 @@ fn unsupported_if_is_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic
 fn unsupported_switch_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless enum `match` statements",
+        "IR v0 can only lower payloadless enum `match` statements or tag-only payload enum `match` statements over existing enum values",
     )]
 }
 
@@ -2479,8 +2631,7 @@ fn lower_terminal_aggregate_return_block_with_context(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch =
-                payloadless_switch_as_control_flow(statement, &mut branch_context, "E8007")?;
+            let switch = tag_only_switch_as_control_flow(statement, &mut branch_context, "E8007")?;
             instructions.extend(switch.leading_instructions);
             instructions.extend(lower_terminal_aggregate_payloadless_switch_body(
                 switch.body,

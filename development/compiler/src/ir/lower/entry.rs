@@ -17,7 +17,7 @@ use super::functions::{
     lower_drop_statement, lower_never_expression_with_scope_drops,
     lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
     mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
-    reachable_body_prefix, tag_only_if_is_as_control_flow,
+    reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
 use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
@@ -252,7 +252,7 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Switch(statement) => {
-            let switch = payloadless_switch_as_control_flow(statement, &mut context, "E8002")
+            let switch = tag_only_switch_as_control_flow(statement, &mut context, "E8002")
                 .map_err(|diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?;

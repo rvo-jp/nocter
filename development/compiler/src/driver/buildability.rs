@@ -4563,7 +4563,7 @@ fn void_effect_match_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    switch_statement_is_buildable(
+    payloadless_switch_statement_is_buildable(
         expression,
         resolved,
         resolved_sources,
@@ -4665,7 +4665,7 @@ fn terminal_match_expression_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    switch_statement_is_buildable(
+    payloadless_switch_statement_is_buildable(
         expression,
         resolved,
         resolved_sources,
@@ -4786,6 +4786,28 @@ fn switch_statement_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
+    payloadless_switch_statement_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) || tag_only_payload_enum_switch_statement_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn payloadless_switch_statement_is_buildable(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
     let Some(first_arm) = statement.arms.first() else {
         return statement.wildcard_arm.is_some()
             && switch_target_payloadless_enum_symbol(
@@ -4822,6 +4844,64 @@ fn switch_statement_is_buildable(
                 .variants
                 .iter()
                 .any(|variant| variant.name == arm.variant_name)
+    })
+}
+
+fn tag_only_payload_enum_switch_statement_is_buildable(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.wildcard_arm.is_none() {
+        return false;
+    }
+    let Some(first_arm) = statement.arms.first() else {
+        return false;
+    };
+    if !matches!(
+        unwrap_group_expr(&statement.expression),
+        Expr::Identifier(_)
+    ) {
+        return false;
+    }
+    let Some(ty) = typecheck_facts.expression_type_expr(statement.expression.span()) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    if !type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources) {
+        return false;
+    }
+
+    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
+        return false;
+    };
+    if target_symbol.kind != TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    statement.arms.iter().all(|arm| {
+        let Some(arm_symbol) = resolved.type_symbol_by_name(&arm.enum_name) else {
+            return false;
+        };
+        if arm_symbol.canonical_name != target_symbol.canonical_name {
+            return false;
+        }
+        let Some(variant) = target_symbol
+            .variants
+            .iter()
+            .find(|variant| variant.name == arm.variant_name)
+        else {
+            return false;
+        };
+        tag_only_if_is_payload_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
     })
 }
 
@@ -5446,7 +5526,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.span,
                     "`match` statements",
-                    "use payloadless enum `match` arms, or keep payload pattern code on the `check` path",
+                    "use payloadless enum `match` arms or tag-only payload enum discard arms over existing values, or keep payload binding code on the `check` path",
                 ));
             }
             collect_expression_diagnostics(
