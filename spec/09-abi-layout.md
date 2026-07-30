@@ -153,15 +153,13 @@ Rules:
 
 ### Enum Layout
 
-The v0 backend only ships payloadless enum values. They are represented as a
-single tag byte.
+Payloadless enum values are represented as a single tag byte.
 
 ```text
 payloadless enum = u8 tag
 ```
 
-Payload-carrying enum values are reserved for a later backend phase and will use
-a tag plus a payload union once promoted.
+Payload-carrying enum values use the same tag byte followed by a payload union.
 
 ```text
 enum = tag + payload union
@@ -169,13 +167,25 @@ enum = tag + payload union
 
 Rules:
 
-- Payloadless enums in the v0 backend use a `u8` tag and may have at most 256
-  variants.
+- All enum values use a `u8` tag and may have at most 256 variants.
 - Variant tag values are assigned by declaration order starting at `0`.
-- Payload-carrying enum runtime layout is deferred until the backend promotes
-  payload enum values. That promotion must define the tag width, payload
-  alignment, inactive-byte behavior, and active-payload drop rules in this
-  document before code generation relies on them.
+- For a payload-carrying enum, the tag is stored at byte offset `0`.
+- The payload union starts at the next offset after the tag that satisfies the
+  maximum payload alignment of all variants.
+- The enum alignment is the maximum of `1` and the maximum payload alignment.
+- The enum size is the payload-union end offset rounded up to the enum
+  alignment.
+- A payloadless variant has no live payload.
+- A variant with one payload field uses that field's layout as its payload
+  layout.
+- A variant with multiple payload fields uses an anonymous struct payload with
+  fields laid out in declaration order using normal struct layout.
+- The payload union size is the maximum payload size across variants.
+- Payload and padding bytes outside the active payload have unspecified
+  contents and must not be inspected by safe source code.
+- Drop glue drops only the active payload. Multi-field payloads drop their
+  fields according to ordinary aggregate drop order.
+- No niche optimization is part of ABI v0.
 
 ### Built-In Error Layout
 

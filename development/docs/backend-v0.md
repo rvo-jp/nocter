@@ -109,6 +109,7 @@ includes:
 - direct aggregate values up to 16 bytes, including partial final ABI words
 - indirect aggregate values larger than 16 bytes through slot pointers or hidden
   return storage
+- payload-carrying enum ABI layout as a tag byte plus aligned payload union
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -120,8 +121,9 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-runtime, broader field-level live-state tracking, non-copy aggregate collection
-elements, arrays, broad control-flow joins, and unsupported expression shapes.
+construction and pattern-control lowering, broader field-level live-state
+tracking, non-copy aggregate collection elements, arrays, broad control-flow
+joins, and unsupported expression shapes.
 
 ## Safety Checks
 

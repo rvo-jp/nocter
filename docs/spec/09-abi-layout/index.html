@@ -174,13 +174,15 @@ pointer, borrow    align 8
 </code></pre><p>Aggregates use their computed aggregate alignment.</p><h3 id="fixed-size-array-layout">Fixed-Size Array Layout</h3><p><code>[T; N]</code> stores <code>N</code> elements of <code>T</code> contiguously in index order.</p><p>Rules:</p><ul><li>The element type <code>T</code> must have a sized ABI layout.</li><li>The array alignment is the element alignment.</li><li>The element stride is the element size rounded up to the element alignment.</li><li>Element <code>i</code> starts at byte offset <code>i * stride</code>.</li><li>The array size is <code>stride * N</code>.</li><li><code>[T; 0]</code> has size <code>0</code> and the same alignment as <code>T</code>.</li><li>Array ABI classification uses the total array size and alignment, following the
   ordinary direct-versus-indirect rules.</li><li>Drop glue for a fixed array drops initialized owned elements in reverse index
   order.</li><li>Fixed arrays of copy element types are copyable. Fixed arrays of move-only
-  element types are move-only.</li></ul><h3 id="enum-layout">Enum Layout</h3><p>The v0 backend only ships payloadless enum values. They are represented as a single tag byte.</p><pre><code class="language-text">payloadless enum = u8 tag
-</code></pre><p>Payload-carrying enum values are reserved for a later backend phase and will use a tag plus a payload union once promoted.</p><pre><code class="language-text">enum = tag + payload union
-</code></pre><p>Rules:</p><ul><li>Payloadless enums in the v0 backend use a <code>u8</code> tag and may have at most 256
-  variants.</li><li>Variant tag values are assigned by declaration order starting at <code>0</code>.</li><li>Payload-carrying enum runtime layout is deferred until the backend promotes
-  payload enum values. That promotion must define the tag width, payload
-  alignment, inactive-byte behavior, and active-payload drop rules in this
-  document before code generation relies on them.</li></ul><h3 id="built-in-error-layout">Built-In Error Layout</h3><p>The built-in <code>error</code> payload is represented as two borrowed string slices:</p><pre><code class="language-text">error:
+  element types are move-only.</li></ul><h3 id="enum-layout">Enum Layout</h3><p>Payloadless enum values are represented as a single tag byte.</p><pre><code class="language-text">payloadless enum = u8 tag
+</code></pre><p>Payload-carrying enum values use the same tag byte followed by a payload union.</p><pre><code class="language-text">enum = tag + payload union
+</code></pre><p>Rules:</p><ul><li>All enum values use a <code>u8</code> tag and may have at most 256 variants.</li><li>Variant tag values are assigned by declaration order starting at <code>0</code>.</li><li>For a payload-carrying enum, the tag is stored at byte offset <code>0</code>.</li><li>The payload union starts at the next offset after the tag that satisfies the
+  maximum payload alignment of all variants.</li><li>The enum alignment is the maximum of <code>1</code> and the maximum payload alignment.</li><li>The enum size is the payload-union end offset rounded up to the enum
+  alignment.</li><li>A payloadless variant has no live payload.</li><li>A variant with one payload field uses that field's layout as its payload
+  layout.</li><li>A variant with multiple payload fields uses an anonymous struct payload with
+  fields laid out in declaration order using normal struct layout.</li><li>The payload union size is the maximum payload size across variants.</li><li>Payload and padding bytes outside the active payload have unspecified
+  contents and must not be inspected by safe source code.</li><li>Drop glue drops only the active payload. Multi-field payloads drop their
+  fields according to ordinary aggregate drop order.</li><li>No niche optimization is part of ABI v0.</li></ul><h3 id="built-in-error-layout">Built-In Error Layout</h3><p>The built-in <code>error</code> payload is represented as two borrowed string slices:</p><pre><code class="language-text">error:
   code:    &amp;str
   message: &amp;str
 </code></pre><p>Layout:</p><pre><code class="language-text">word 0: code.ptr

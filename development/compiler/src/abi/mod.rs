@@ -29,6 +29,7 @@ pub enum AbiType {
     SliceView,
     Array { element: Box<AbiType>, length: u64 },
     Struct(Vec<AbiField>),
+    Enum(AbiEnum),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +43,30 @@ impl AbiField {
         Self {
             name: name.into(),
             ty,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbiEnum {
+    pub variants: Vec<AbiEnumVariant>,
+    pub payload_offset: u64,
+    pub payload_layout: ValueLayout,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbiEnumVariant {
+    pub name: String,
+    pub tag: u8,
+    pub payload: Option<AbiType>,
+}
+
+impl AbiEnumVariant {
+    pub fn new(name: impl Into<String>, tag: u8, payload: Option<AbiType>) -> Self {
+        Self {
+            name: name.into(),
+            tag,
+            payload,
         }
     }
 }
@@ -239,6 +264,7 @@ pub fn layout_of(ty: &AbiType) -> Result<ValueLayout, LayoutError> {
             let layout = layout_struct(fields)?;
             Ok(ValueLayout::new(layout.size, layout.align))
         }
+        AbiType::Enum(enum_) => layout_enum(enum_),
     }
 }
 
@@ -281,6 +307,16 @@ pub fn layout_struct(fields: &[AbiField]) -> Result<StructLayout, LayoutError> {
         align: struct_align,
         fields: laid_out_fields,
     })
+}
+
+pub fn layout_enum(enum_: &AbiEnum) -> Result<ValueLayout, LayoutError> {
+    let align = enum_.payload_layout.align.max(1);
+    let payload_end = enum_
+        .payload_offset
+        .checked_add(enum_.payload_layout.size)
+        .ok_or(LayoutError::SizeOverflow)?;
+    let size = align_to(payload_end, align)?;
+    Ok(ValueLayout::new(size, align))
 }
 
 pub fn classify_value(ty: &AbiType) -> Result<ValueClassification, LayoutError> {
@@ -871,7 +907,13 @@ where
             }
             Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
         }
-        TypeSymbolKind::Enum => payloadless_enum_tag_type(symbol),
+        TypeSymbolKind::Enum => enum_abi_type(
+            symbol,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        ),
         TypeSymbolKind::Interface => {
             Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
         }
@@ -881,25 +923,118 @@ where
     result
 }
 
-fn payloadless_enum_tag_type(symbol: &TypeSymbol) -> Result<AbiTypeKind, AbiTypeError> {
-    if symbol
-        .variants
-        .iter()
-        .any(|variant| !variant.payload.is_empty())
-        || symbol.variants.len() > u8::MAX as usize + 1
-    {
+fn enum_abi_type<'a, F>(
+    symbol: &TypeSymbol,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> Result<AbiTypeKind, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    if symbol.variants.len() > u8::MAX as usize + 1 {
         return Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()));
     }
 
-    Ok(AbiTypeKind::Value(AbiType::U8))
+    if symbol
+        .variants
+        .iter()
+        .all(|variant| variant.payload.is_empty())
+    {
+        return Ok(AbiTypeKind::Value(AbiType::U8));
+    }
+
+    let mut variants = Vec::with_capacity(symbol.variants.len());
+    let mut payload_size = 0_u64;
+    let mut payload_align = 1_u64;
+
+    for (tag, variant) in symbol.variants.iter().enumerate() {
+        let payload = enum_variant_payload_abi_type(
+            &variant.payload,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        )?;
+        if let Some(payload) = &payload {
+            let layout = layout_of(payload)?;
+            payload_size = payload_size.max(layout.size);
+            payload_align = payload_align.max(layout.align);
+        }
+        variants.push(AbiEnumVariant::new(
+            variant.name.clone(),
+            u8::try_from(tag)
+                .map_err(|_| AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))?,
+            payload,
+        ));
+    }
+
+    Ok(AbiTypeKind::Value(AbiType::Enum(AbiEnum {
+        variants,
+        payload_offset: align_to(1, payload_align)?,
+        payload_layout: ValueLayout::new(payload_size, payload_align),
+    })))
+}
+
+fn enum_variant_payload_abi_type<'a, F>(
+    payload: &[crate::resolve::ParameterSignature],
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+    resolving_names: &mut HashSet<String>,
+) -> Result<Option<AbiType>, AbiTypeError>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match payload {
+        [] => Ok(None),
+        [parameter] => match abi_type_kind_from_type_expr(
+            &parameter.ty,
+            fallback_resolved,
+            resolver,
+            substitutions,
+            resolving_names,
+        )? {
+            AbiTypeKind::Value(ty) => Ok(Some(ty)),
+            AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
+            AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                &parameter.ty,
+            ))),
+        },
+        parameters => {
+            let mut fields = Vec::with_capacity(parameters.len());
+            for parameter in parameters {
+                let ty = match abi_type_kind_from_type_expr(
+                    &parameter.ty,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                    resolving_names,
+                )? {
+                    AbiTypeKind::Value(ty) => ty,
+                    AbiTypeKind::UnsizedStr => {
+                        return Err(AbiTypeError::UnsizedValue("str".to_string()));
+                    }
+                    AbiTypeKind::UnsizedArray => {
+                        return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                            &parameter.ty,
+                        )));
+                    }
+                };
+                fields.push(AbiField::new(parameter.name.clone(), ty));
+            }
+            Ok(Some(AbiType::Struct(fields)))
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
-        ValueLayout, abi_type_from_type_expr, abi_value_from_type_expr_with_resolver,
-        classify_value, function_abi_from_signature,
+        AbiEnum, AbiEnumVariant, AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing,
+        ValueClassification, ValueLayout, abi_type_from_type_expr,
+        abi_value_from_type_expr_with_resolver, classify_value, function_abi_from_signature,
         function_parameter_abi_word_count_from_signature, function_parameters_abi_from_signature,
         function_success_return_passing_from_signature, layout_of, layout_struct,
     };
@@ -1306,7 +1441,7 @@ func choose(): Choice {
     }
 
     #[test]
-    fn rejects_payload_enum_type_expr_as_abi_value() {
+    fn maps_payload_enum_type_expr_to_tag_union_layout() {
         let (ast, resolved) = parse_and_resolve(
             r#"enum Status {
     missing
@@ -1328,7 +1463,62 @@ func status(): Status {
             })
             .expect("expected status function");
 
-        assert!(abi_type_from_type_expr(return_type, &resolved).is_err());
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(
+            ty,
+            AbiType::Enum(AbiEnum {
+                variants: vec![
+                    AbiEnumVariant::new("missing", 0, None),
+                    AbiEnumVariant::new("found", 1, Some(AbiType::I32)),
+                ],
+                payload_offset: 4,
+                payload_layout: ValueLayout::new(4, 4),
+            })
+        );
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(8, 4));
+        assert_eq!(
+            classify_value(&ty).unwrap(),
+            ValueClassification::Direct { words: 1 }
+        );
+    }
+
+    #[test]
+    fn substitutes_generic_payload_enum_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"enum Maybe<T> {
+    absent
+    some(value: T)
+}
+
+func maybe(): Maybe<&str> {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "maybe" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected maybe function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(
+            ty,
+            AbiType::Enum(AbiEnum {
+                variants: vec![
+                    AbiEnumVariant::new("absent", 0, None),
+                    AbiEnumVariant::new("some", 1, Some(AbiType::StrView)),
+                ],
+                payload_offset: 8,
+                payload_layout: ValueLayout::new(16, 8),
+            })
+        );
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(24, 8));
+        assert_eq!(classify_value(&ty).unwrap(), ValueClassification::Indirect);
     }
 
     #[test]

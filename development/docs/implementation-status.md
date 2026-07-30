@@ -93,6 +93,10 @@ concrete type arguments before copyability is decided, so `Box<i32>` can be copy
 while `Box<Text>` remains move-only when the field stores `T` by value. The same
 substituted copyability feeds backend copy-aggregate classification and
 `Vec<T>` element-storage buildability.
+Payload-carrying enum ABI layout is now defined as a tag byte plus aligned
+payload union, including concrete generic payload substitution. Runtime
+construction and payload pattern control-flow lowering are still promoted
+separately from that layout fact.
 Return provenance also treats `error` as borrow-like, so an `error` value
 derived from a local borrow cannot escape through a return while parameter-borrow
 derived errors can be forwarded.
@@ -108,7 +112,7 @@ derived errors can be forwarded.
 | Blocks and control expressions | Blocks can produce a value from the final expression. `if`, payloadless enum `if is`, and payloadless enum `match` can be value expressions in the supported subset, including wildcard-only payloadless enum `match` from the target expression type and branch-local leading bindings, assignments, and buildable expression statements before the final value. Return/terminal-control analysis tracks block-local bindings before later terminal statements, so exhaustive local-enum `match` statements are recognized inside nested blocks. Loops remain statement-oriented in v0. |
 | Errors and optionals | `T!`, `T?`, postfix `?`, postfix `!`, `catch`, `none`, and `otherwise` are parsed and checked. `error` is copyable but participates in borrow-like return provenance through its borrowed fields. `catch` blocks that can fall through are rejected by typechecking. Direct `(&str, &str) -> error` constructor calls such as `Error.new(...)`, input-free static `error` helper wrappers, and `error` parameters build and run in the supported fallible subset. Ordinary `error` success-return helper calls with runtime inputs, including function parameters or method receivers, remain outside the runtime ABI subset and reject before IR lowering. Scalar/view and supported aggregate paths build and run when `catch` failure blocks use the current direct-return/effect-only terminal subset and `otherwise` is applied directly to optional-returning calls in supported scalar/view value, binding, assignment, or return positions, and supported aggregate/fixed-array member-root projection, binding, argument, aggregate-field initializer, whole-local or aggregate-field assignment, or return positions. Broader catch/otherwise control-flow endings and nested/general `otherwise` expression positions reject before IR lowering. Nested fallible/optional return shapes remain limited. |
 | Struct aggregates | Struct literals, fields including optional-call `otherwise` member roots, copies, explicit moves, direct and indirect aggregate parameters and returns, call-result slots, selected assignments, numeric field compound assignment, replacement drops, and cleanup paths are implemented for the current subset. |
-| Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. `match` fallback uses `_ { ... }`; enum payload discard uses `Enum.variant(_)` in `match` and `if is`. Payload enum construction and checking exist in the frontend; broad payload pattern lowering is still not runtime-shipped. |
+| Enum values | Payloadless enum tag equality, `if is`, and `match` are runtime-shipped. `match` fallback uses `_ { ... }`; enum payload discard uses `Enum.variant(_)` in `match` and `if is`. Payload enum construction and checking exist in the frontend. Payload-carrying enum ABI layout is implemented as a tag byte plus aligned payload union; construction/control lowering is still not runtime-shipped. |
 | Ownership and drop | The typechecker rejects common use-after-move, double move/drop, invalid drop, borrow conflicts, escaping local borrows, and implicit copies of move-only owned values such as non-copy structs, non-copy concrete generic `copy struct` instantiations, fixed arrays with non-copy elements, optionals, fallibles, and payload-carrying enums. Borrow last-use tracking stops at typed terminal control statements, including terminal `if`/`if is` and exhaustive `match`, so unreachable later uses do not extend active borrows. Lowering inserts drop glue for the documented aggregate/control-flow subset. Buildability rejects unsupported explicit aggregate moves in control-flow conditions and outer aggregate moves/drops inside non-terminal control-flow branches/bodies unless that path is one of the current immediate-function-exit forms. |
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
@@ -145,7 +149,7 @@ non-zero sentinel when it needs an empty view that will not be dereferenced.
 
 - targets other than `arm64-darwin`
 - broad control-flow lowering outside the documented subset
-- payload-carrying enum `if is` and `match` runtime lowering
+- payload-carrying enum construction, `if is`, and `match` runtime lowering
 - ordinary input-dependent `error` success-return helper ABI outside direct
   `(&str, &str) -> error` constructors or input-free static failure-payload
   wrappers
