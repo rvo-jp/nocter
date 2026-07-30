@@ -1,5 +1,6 @@
 <div align="center">
-  <img src="./assets/logo.svg" alt="Nocter Logo" width="128">
+  <img src="./docs/assets/logo.svg" alt="Nocter Logo" width="128">
+  <p>A self-contained systems language built around simplicity, encapsulation, and foolproof design.</p>
 </div>
 
 # Nocter

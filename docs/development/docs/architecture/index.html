@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocter Compiler Architecture - Nocter</title>
+    <meta name="description" content="This document describes the Rust bootstrap compiler architecture. It is for compiler engineers and AI coding agents. It is not the source of truth for Noct">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/architecture/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Nocter Compiler Architecture - Nocter">
+    <meta property="og:description" content="This document describes the Rust bootstrap compiler architecture. It is for compiler engineers and AI coding agents. It is not the source of truth for Noct">
+    <meta property="og:url" content="https://nocter.dev/development/docs/architecture/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-07-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nocter Compiler Architecture - Nocter">
+    <meta name="twitter:description" content="This document describes the Rust bootstrap compiler architecture. It is for compiler engineers and AI coding agents. It is not the source of truth for Noct">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Compiler Architecture - Nocter","description":"This document describes the Rust bootstrap compiler architecture. It is for compiler engineers and AI coding agents. It is not the source of truth for Noct","url":"https://nocter.dev/development/docs/architecture/","mainEntityOfPage":"https://nocter.dev/development/docs/architecture/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Architecture","item":"https://nocter.dev/development/docs/architecture/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">../../spec</a></li>
+                <li><a href="./index.html#content" aria-current="page">Architecture</a></li>
+                <li><a href="../implementation-status/index.html#content">Implementation Status</a></li>
+                <li><a href="../v0-closure/index.html#content">v0 Closure Definition</a></li>
+                <li><a href="../backend-v0/index.html#content">Backend V0</a></li>
+                <li><a href="../std-runtime-status/index.html#content">Std Runtime Status</a></li>
+                <li><a href="../interpolation-lowering/index.html#content">Interpolation Lowering</a></li>
+                <li><a href="../roadmap/index.html#content">Roadmap</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
+                <li><a href="../../../spec/00-design-principles/index.html#content">Design Principles</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/architecture.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="nocter-compiler-architecture">Nocter Compiler Architecture</h1><p>This document describes the Rust bootstrap compiler architecture. It is for compiler engineers and AI coding agents. It is not the source of truth for Nocter source-language rules; those live in <a href="../../../spec/index.html#content">../../spec</a>.</p><h2 id="design-goal">Design Goal</h2><p>The compiler should remain self-contained:</p><pre><code class="language-text">.nct source
+  -&gt; source map
+  -&gt; lexer
+  -&gt; parser
+  -&gt; import loading and resolution
+  -&gt; type checking, ownership, and buildability checks
+  -&gt; IR lowering
+  -&gt; ABI classification
+  -&gt; ARM64 Darwin code generation
+  -&gt; Mach-O executable image
+</code></pre><p>Normal user builds must not depend on LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, Xcode Command Line Tools, or an external runtime library.</p><h2 id="phase-ownership">Phase Ownership</h2><p>Each phase owns one kind of fact. Later phases may consume facts from earlier phases, but they should not reimplement earlier decisions.</p><table><thead><tr><th>Area</th><th>Owns</th></tr></thead><tbody><tr><td><code>source</code></td><td>loaded source files, canonical file identity, byte spans, line mapping</td></tr><tr><td><code>lexer</code></td><td>tokenization and lexical diagnostics</td></tr><tr><td><code>parser</code></td><td>AST construction, parser recovery, removed-syntax diagnostics</td></tr><tr><td><code>ast</code></td><td>syntax tree data, AST JSON, syntax documentation extraction helpers</td></tr><tr><td><code>resolve</code></td><td>use graph loading, visibility, scopes, symbols, declaration identity</td></tr><tr><td><code>typecheck</code></td><td>expression types, signatures, ownership, borrow, drop, interface conformance</td></tr><tr><td><code>driver/buildability</code></td><td>source-backed rejection of checked forms outside the runtime subset</td></tr><tr><td><code>ir</code></td><td>compiler IR and source-to-IR lowering</td></tr><tr><td><code>abi</code></td><td>layout, ABI values, call/return classification</td></tr><tr><td><code>backend</code></td><td>ARM64 Darwin code generation and Mach-O output</td></tr><tr><td><code>diagnostics</code></td><td>structured diagnostic data and rendering</td></tr><tr><td><code>driver</code></td><td>CLI orchestration, JSON output, LSP server integration</td></tr></tbody></table><p>The LSP server belongs in <code>driver/lsp</code>, but language facts must come from <code>resolve</code> and <code>typecheck</code>. LSP code may translate facts into protocol objects; it must not define separate lookup, type, ownership, or visibility rules.</p><h2 id="source-and-compile-unit-model">Source And Compile Unit Model</h2><p>The source root, import resolution rules, synthetic prelude rules, and Nocter home rules are specified in <a href="../../../spec/01-modules-use/index.html#content">Modules and Use Declarations</a> and <a href="../../../spec/10-targets-distribution/index.html#content">Targets and Distribution</a>.</p><p>Compiler implementation rules:</p><ul><li><code>SourceMap</code> is the shared source identity layer.</li><li>Diagnostics should carry source-backed spans when the source location is
+  known.</li><li>Import loading must produce one canonical source identity per loaded file.</li><li>Open LSP documents may override on-disk text for compile-unit analysis, but
+  must still follow the same source identity rules.</li></ul><h2 id="frontend-boundary">Frontend Boundary</h2><p>The parser may accept syntax that is not yet runtime-buildable, but accepted syntax must eventually reach one of these states:</p><ul><li>resolved and typechecked with compiler-owned facts</li><li>rejected by parser, resolver, typechecker, or buildability with a stable
+  user-facing diagnostic</li><li>explicitly deferred in the v0 closure document</li></ul><p>The backend must not infer missing language semantics from raw AST structure. If lowering needs a fact, that fact belongs in resolver or typechecker output.</p><h2 id="buildability-boundary">Buildability Boundary</h2><p>The current compiler intentionally separates "checkable" from "buildable". <code>driver/buildability</code> is the source-backed preflight for code that has valid frontend facts but is outside the v0 runtime subset.</p><p>This boundary exists to avoid accidental backend errors such as:</p><ul><li>unsupported IR instruction paths reached by normal user source</li><li>backend diagnostics phrased in machine-code implementation terms</li><li>implicit semantic decisions made after type checking</li></ul><p>When a feature is promoted to runtime support:</p><ol><li>1. update the relevant <code>spec/</code> chapter if user behavior changes</li><li>update <code>v0-closure.md</code> when a <code>ship</code> or <code>reject</code> decision changes</li><li>update <code>implementation-status.md</code></li><li>add parser, resolver, typecheck, buildability, lowering, backend, std, CLI,
+   or LSP tests at the narrowest sufficient layers</li></ol><h2 id="ir-and-abi-boundary">IR And ABI Boundary</h2><p>IR lowering should consume typed facts and emit explicit operations. ABI classification should be centralized in <code>abi</code> and reused by lowering and backend validation.</p><p>Backend rules:</p><ul><li>validate IR shape before emission when drift would otherwise corrupt codegen</li><li>use source-backed buildability diagnostics for ordinary user source outside
+  the runtime subset</li><li>keep target-specific machine details in backend and target-gated std
+  internals</li><li>keep Nocter ABI updates synchronized with
+  <a href="../../../spec/09-abi-layout/index.html#content">ABI and Layout</a> and
+  <a href="../backend-v0/index.html#content">Backend V0</a></li></ul><h2 id="standard-library-boundary">Standard Library Boundary</h2><p>The public standard-library specification lives in <a href="../../../spec/11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a>.</p><p>Compiler docs may describe:</p><ul><li>which public std APIs currently build and run</li><li>which APIs are check-only or recoverably unsupported</li><li>which primitives are trusted active-home boundaries</li><li>which target-gated declarations are required by the current backend</li></ul><p>Compiler docs must not become a second public std specification. The runtime status is tracked in <a href="../std-runtime-status/index.html#content">Std Runtime Status</a>.</p><h2 id="diagnostics">Diagnostics</h2><p>Diagnostic text should describe Nocter source concepts, not compiler internals.</p><p>Required behavior:</p><ul><li>malformed user source must not panic the compiler</li><li>source-backed diagnostics should include file, line, column, source snippet,
+  primary marker, and help when useful</li><li>JSON diagnostics must preserve stable machine-readable spans</li><li>LSP diagnostics must be derived from the same diagnostics pipeline</li><li>backend validation diagnostics are acceptable for hand-built or drifted IR,
+  but ordinary user source should be stopped earlier when possible</li></ul><h2 id="testing-strategy">Testing Strategy</h2><p>Use the narrowest test layer that proves the behavior:</p><ul><li>parser tests for syntax shape and removed syntax</li><li>resolver tests for use, visibility, symbol identity, and source loading</li><li>typecheck tests for typing, ownership, borrowing, interfaces, and diagnostics</li><li>buildability tests for stable rejection before IR/backend</li><li>IR lowering tests for instruction shape and ABI handoff</li><li>backend unit tests for instruction encoding, frame layout, and emission</li><li>CLI integration tests for user-visible build/run/check behavior</li><li>distributed-home tests for packaged <code>std/</code> visibility and public API behavior</li><li>LSP tests for protocol behavior backed by compiler facts</li></ul><p>Broad language promotions should include at least one CLI or distributed-home test when they are user-visible.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

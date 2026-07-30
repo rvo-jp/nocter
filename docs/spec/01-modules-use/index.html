@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modules and Use Declarations - Nocter</title>
+    <meta name="description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/01-modules-use/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Modules and Use Declarations - Nocter">
+    <meta property="og:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta property="og:url" content="https://nocter.dev/spec/01-modules-use/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-07-30">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Modules and Use Declarations - Nocter">
+    <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Modules and Use Declarations - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/01-modules-use/","mainEntityOfPage":"https://nocter.dev/spec/01-modules-use/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"01 Modules Use","item":"https://nocter.dev/spec/01-modules-use/"}]}]</script>
+
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../00-overview/index.html#content">Overview</a></li>
+                <li><a href="../00-v0-contract/index.html#content">Nocter v0 Contract</a></li>
+                <li><a href="./index.html#content" aria-current="page">Modules and Use Declarations</a></li>
+                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
+                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
+                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
+                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
+                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
+                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
+                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
+                <li><a href="../17-future-literal-definitions-spread/index.html#content">Future Literal Definitions and Spread</a></li>
+                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/01-modules-use.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="modules-and-use-declarations">Modules and Use Declarations</h1><p>This file is part of the Nocter language specification. The specification entry point is <a href="../index.html#content">README.md</a>.</p><h2 id="modules">Modules</h2><p>Adopted: Nocter modules are derived from file paths. The language does not have a <code>module</code> declaration.</p><p>A module identity is derived from the canonical source file path. One <code>.nct</code> file defines one module.</p><p>Import paths use <code>/</code> as the path separator:</p><pre><code class="language-text">examples/word_count.nct                                  =&gt; examples/word_count
+~/.nocter/std/io.nct                                     =&gt; std/io
+~/.nocter/std/os.nct                                     =&gt; std/os
+</code></pre><p>The file path is the source of truth. There is no separate module name inside the file.</p><p><code>use</code> declarations make names from another module available. A <code>use</code> declaration is lexical compile-time syntax, not a runtime statement.</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> stdout<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">Allocator</span>
+</code></pre><p>Adopted <code>use</code> forms:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">Allocator</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> stdout<span class="token-operator">,</span> stderr<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span> <span class="token-keyword">as</span> <span class="token-type">StdFile</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>config<span class="token-operator">.</span><span class="token-type">AppConfig</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>config
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span>shared<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Path</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io <span class="token-keyword">as</span> console
+</code></pre><p>Top-level <code>use</code> declarations must appear at the start of the source file before non-<code>use</code> declarations. Block-scope <code>use</code> declarations must appear at the start of a <code>{ ... }</code> block before executable statements, bindings, or result expressions:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre><p>The scope of a block-scope <code>use</code> starts after the declaration and ends at the end of that block. Nested blocks may use their own block-scope imports:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">process</span><span class="token-operator">(</span>debug<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> debug <span class="token-operator">{</span>
+        <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"debug mode"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"done"</span><span class="token-operator">)</span>
+    <span class="token-comment">// error: print is not visible outside the if block</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>pub use</code> is allowed only at the top level. A block-scope <code>use</code> cannot re-export anything.</p><p>Even inside <code>if</code>, <code>match</code>, <code>while</code>, or <code>loop</code>, a block-scope <code>use</code> is not a conditional dependency. The imported module is loaded as part of the compile unit whenever the containing file is compiled.</p><p>Meaning:</p><ul><li><code>use path</code> imports the module namespace under its default name.</li><li><code>use path.Name</code> imports one exported name into the current file.</li><li><code>use path.Name as Alias</code> imports one exported name under an alias.</li><li><code>use path.{Name}</code> is accepted as the braced single-name spelling.</li><li><code>use path.{NameA, NameB}</code> imports multiple exported names from one file.</li><li>Each imported item in a braced <code>use</code> list may independently use <code>as Alias</code>.</li><li><code>pub use path.Name</code> or <code>pub use path.{Name}</code> imports and re-exports one public name.</li><li><code>use path as alias</code> imports the module namespace under an alias.</li><li>The default namespace name is the final non-relative segment of the module path. <code>use std/io</code> introduces <code>io</code>; <code>use ./path/to/dir</code> introduces <code>dir</code>, even when the path resolves to <code>./path/to/dir/index.nct</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io <span class="token-keyword">as</span> console
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span> <span class="token-keyword">as</span> <span class="token-type">StdFile</span>
+
+<span class="token-keyword">var</span> out <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">var</span> err <span class="token-operator">=</span> console<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> file<span class="token-operator">:</span> <span class="token-type">StdFile</span> <span class="token-operator">=</span> <span class="token-type">StdFile</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+</code></pre><p>Relative and absolute module path prefixes are valid only inside <code>use</code> declarations. Code must not call a module by writing a relative or absolute path-like expression:</p><pre><code class="language-nct"><span class="token-operator">.</span><span class="token-operator">/</span>path<span class="token-operator">/</span>to<span class="token-operator">/</span>file<span class="token-operator">.</span><span class="token-function">something</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span>shared<span class="token-operator">/</span>file<span class="token-operator">.</span><span class="token-function">something</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">/</span>absolute<span class="token-operator">/</span>path<span class="token-operator">/</span>file<span class="token-operator">.</span><span class="token-function">something</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-comment">// invalid: import the module namespace first, then call file.something()</span>
+</code></pre><p>This rule does not give special expression meaning to non-relative module paths. Outside <code>use</code>, text such as <code>std/io.print("hello")</code> is parsed as ordinary expression tokens, the same as <code>std / io.print("hello")</code>. If <code>std</code> and <code>io</code> are not ordinary visible values, normal name resolution fails.</p><p><code>use std/prelude</code> is not a source-level import form. User project modules receive the standard prelude synthetically as described in <a href="#synthetic-standard-prelude">Synthetic Standard Prelude</a>.</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>prelude
+<span class="token-comment">// invalid: the prelude is compiler-managed</span>
+</code></pre><p>Name collisions are compile errors.</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>my<span class="token-operator">/</span>fs<span class="token-operator">.</span><span class="token-type">File</span>
+<span class="token-comment">// error: File is imported twice</span>
+</code></pre><p>Use aliases to resolve collisions.</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span> <span class="token-keyword">as</span> <span class="token-type">StdFile</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>my<span class="token-operator">/</span>fs<span class="token-operator">.</span><span class="token-type">File</span> <span class="token-keyword">as</span> <span class="token-type">MyFile</span>
+</code></pre><p>Block-scope imports follow the same collision rule. They must not shadow an outer visible name, a parameter, a local binding, another import, a top-level declaration, a prelude name, or a built-in type name:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">debug</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">use</span> debug<span class="token-operator">/</span>console<span class="token-operator">.</span>print
+    <span class="token-comment">// error: print is already visible; write `as debug_print`</span>
+<span class="token-operator">}</span>
+</code></pre><p>Not adopted:</p><pre><code class="language-nct">import std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">*</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">*</span>
+import std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>io <span class="token-keyword">as</span> io
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>prelude
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>prelude<span class="token-operator">.</span><span class="token-type">Error</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>config<span class="token-operator">.</span>nct<span class="token-operator">.</span><span class="token-type">Config</span>
+include std<span class="token-operator">/</span>prelude
+<span class="token-operator">.</span><span class="token-operator">/</span>path<span class="token-operator">/</span>to<span class="token-operator">/</span>file<span class="token-operator">.</span><span class="token-function">something</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><p>Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, source-level prelude imports, explicit <code>.nct</code> extensions in import paths, textual include, and relative or absolute path-like module expressions are not part of the initial language.</p><h2 id="re-exports">Re-exports</h2><p>Adopted: public re-export uses <code>pub use path.Name</code> or <code>pub use path.{...}</code>.</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">File</span> <span class="token-keyword">as</span> <span class="token-type">StdFile</span>
+</code></pre><p><code>pub use path.Name</code> and <code>pub use path.{Name}</code> mean:</p><ul><li>load the module at <code>path</code></li><li>import the public name <code>Name</code> into the current module</li><li>expose that imported name as part of the current module's public API</li></ul><p>Rules:</p><ul><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> are allowed only at top level.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> can re-export only public names from the source module.</li><li><code>pub(nocter)</code> names are not public names for <code>pub use path.Name</code> or <code>pub use path.{...}</code>.</li><li>Each item in a <code>pub use</code> list may independently use <code>as Alias</code>.</li><li>Re-exported names participate in the same name collision checks as other imports and top-level declarations.</li><li><code>pub use path.*</code> is invalid.</li><li><code>pub use path as alias</code> is invalid in v0.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> do not make private names public.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> do not create a namespace alias.</li><li>Import cycles involving <code>pub use path.Name</code> or <code>pub use path.{...}</code> are still import cycles and are errors in the initial design.</li></ul><h2 id="synthetic-standard-prelude">Synthetic Standard Prelude</h2><p>Adopted: user project modules receive a compiler-managed synthetic standard prelude loaded from <code>std/prelude.nct</code> in the active Nocter home.</p><p>The compiler does not rewrite source text and does not model the prelude as a source-level <code>use std/prelude</code> item. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.</p><p>The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for ordinary standard-library names. Built-in forms such as <code>str</code>, <code>&amp;str</code>, <code>[T]</code>, <code>&amp;[T]</code>, and <code>&amp;+[T]</code> are not provided by the prelude.</p><p>Initial rules:</p><ul><li>Every user project module receives a synthetic file-local prelude import from <code>std/prelude.nct</code>.</li><li>The synthetic prelude is applied independently to each user project module.</li><li>The synthetic prelude does not propagate from one file to another; each user project file gets its own synthetic prelude.</li><li>The synthetic prelude is not applied to files inside the active Nocter home.</li><li>The synthetic prelude is not applied to common standard-library files under <code>std/</code>.</li><li>The synthetic prelude is not applied to <code>std/prelude.nct</code> itself.</li><li>The synthetic prelude path is resolved directly under the active Nocter home;
+  a user project file such as <code>std/prelude.nct</code> does not shadow it.</li><li>A source-level <code>use std/prelude</code>, <code>use std/prelude.Name</code>, <code>use std/prelude.{...}</code>, or <code>use std/prelude as name</code> is invalid in v0.</li><li>The prelude imports all public exported names from <code>std/prelude.nct</code> into the current file.</li><li>Source-level <code>use path</code> does not import every public exported name from <code>path</code>; it imports only the module namespace.</li><li><code>include std/prelude</code> is invalid.</li><li>Names introduced by the synthetic prelude participate in the same collision checks as explicit imports.</li><li>If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.</li><li>Diagnostics should identify collisions with the synthetic prelude as prelude collisions, not as hidden compiler built-ins.</li><li>Project-wide prelude configuration is not part of the initial design.</li></ul><p>Initial prelude surface direction:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>error<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Error</span><span class="token-operator">,</span> <span class="token-type">ErrorCode</span><span class="token-operator">}</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+</code></pre><p>The prelude must remain small. <code>Int</code> is not part of v0; write <code>i32</code> or define a project-local alias. <code>Vec</code> is not re-exported by the prelude in v0 because collections remain an explicit domain module surface. Names such as <code>Vec</code>, <code>File</code>, <code>Allocator</code>, <code>Layout</code>, <code>RawBuffer</code>, <code>print</code>, <code>stdout</code>, <code>stderr</code>, <code>args</code>, <code>env</code>, <code>cwd</code>, <code>exit</code>, and <code>abort</code> should be imported explicitly from their domain modules.</p><h2 id="package-layout">Package Layout</h2><p>Adopted: v0 has no package manifest and no project-root discovery.</p><p>The source file passed to <code>build</code>, <code>run</code>, or <code>check</code> is the root file for that command.</p><pre><code class="language-text">project/
+    app.nct
+    src/
+        config.nct
+        parser.nct
+</code></pre><pre><code class="language-sh"><span class="token-function">nocter</span> build app.nct <span class="token-option">-o</span> app
+<span class="token-function">nocter</span> build
+<span class="token-function">nocter</span> run app.nct
+<span class="token-function">nocter</span> run
+<span class="token-function">nocter</span> check app.nct
+<span class="token-function">nocter</span> check
+</code></pre><p>Rules:</p><ul><li>A package manifest such as <code>nocter.toml</code> is not part of v0.</li><li>The compiler does not search upward for a project root.</li><li>The compiler does not infer a package name from a directory name.</li><li>If a file is named on the command line, that file is the entry file.</li><li>If no file is named, <code>main.nct</code> is the entry file.</li><li>The source root is the canonical parent directory of the entry file.</li><li>Relative imports are resolved from the directory containing the importing file, not from the root file directory.</li><li>Absolute imports are resolved from the filesystem root.</li><li>Non-relative imports from user project files are resolved from the source
+  root first, then the active Nocter home, as specified in
+  <a href="#import-path-resolution">Import Path Resolution</a>. Files inside the active
+  Nocter home resolve non-relative imports from that home.</li><li>Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.</li></ul><p>Example:</p><pre><code class="language-nct"><span class="token-comment">// app.nct</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>src<span class="token-operator">/</span>config<span class="token-operator">.</span><span class="token-type">Config</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> config <span class="token-operator">=</span> <span class="token-type">Config</span><span class="token-operator">.</span><span class="token-function">default</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-function">print</span><span class="token-operator">(</span>config<span class="token-operator">.</span>name<span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-comment">// src/config.nct</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Config</span><span class="token-operator">.</span><span class="token-function">default</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Config</span><span class="token-operator">{</span>
+        name<span class="token-operator">:</span> <span class="token-string">"Nocter"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><h2 id="compile-unit">Compile Unit</h2><p><code>nocter build app.nct</code>, <code>nocter run app.nct</code>, and <code>nocter check app.nct</code> treat <code>app.nct</code> as the root file. The CLI contract is specified in <a href="../15-command-line-interface/index.html#content">Command Line Interface</a>.</p><p>The compile unit is the root file plus every <code>.nct</code> file reached by following top-level <code>use</code>, block-scope <code>use</code>, public re-export, and eligible synthetic prelude loads recursively.</p><p>Rules:</p><ul><li>Top-level <code>use</code> and <code>pub use</code> declarations are allowed only at the start of a
+  source file. Block-scope <code>use</code> declarations are allowed only at the start of
+  a block.</li><li><code>pub use</code> is allowed only at top level.</li><li>The synthetic prelude load is compiler-internal and behaves as if its names are introduced before source-level imports for eligible user project modules.</li><li>Top-level executable statements are not allowed.</li><li>A root executable must define top-level <code>main</code> in the root file.</li><li>Entry lookup does not select imported functions.</li><li>Imported files may define ordinary functions named <code>main</code>, subject to normal name visibility and duplicate-name rules.</li><li>The same canonical file path is loaded at most once, even if reached through different relative paths.</li><li>Import cycles are errors in the initial design.</li><li>The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.</li><li>Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not part of v0.</li></ul><h2 id="source-file-identity">Source File Identity</h2><p>Adopted: compiler-internal source file identity is the canonical absolute path.</p><p>Rules:</p><ul><li>Every loaded source file has a canonical absolute path.</li><li>Canonicalization resolves <code>.</code> and <code>..</code> path components.</li><li>Canonicalization resolves symlinks when the host filesystem can report the real path.</li><li>The import graph uses canonical absolute paths for duplicate detection.</li><li>The same canonical absolute path is one source file, even if reached through multiple relative import paths.</li><li>A symlink path and its real path refer to the same source file when canonicalization resolves them to the same path.</li><li>Import cycles are detected using canonical absolute paths.</li><li>Filesystem errors during canonicalization are reported as command-line, filesystem, or import diagnostics depending on which path triggered the failure.</li><li>The language does not expose canonical file paths to Nocter source code.</li></ul><p>Diagnostic display path rules:</p><ul><li>Diagnostics keep both a display path and a canonical absolute path.</li><li>The display path is intended for humans.</li><li>The canonical absolute path is intended for editor integrations, LSP document mapping, and compiler de-duplication.</li><li>If a file is under the command working directory, the display path is relative to that working directory.</li><li>If a file is under the common Nocter home <code>std/</code>, the display path starts with <code>std/</code>.</li><li>Otherwise, the display path is the canonical absolute path.</li><li>Display paths use <code>/</code> as the separator in diagnostics, even on future non-macOS hosts.</li></ul><p>Examples:</p><pre><code class="language-text">cwd:          /Users/me/project
+source file:  /Users/me/project/src/parser.nct
+display:      src/parser.nct
+absolute:     /Users/me/project/src/parser.nct
+</code></pre><pre><code class="language-text">Nocter home:  /Users/me/.nocter
+source file:  /Users/me/.nocter/std/io.nct
+display:      std/io.nct
+absolute:     /Users/me/.nocter/std/io.nct
+</code></pre><h2 id="import-path-resolution">Import Path Resolution</h2><p>Import paths are source paths, not package names. The <code>.nct</code> extension is omitted.</p><p>Relative import paths start with <code>./</code> or <code>../</code>.</p><pre><code class="language-nct"><span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>config<span class="token-operator">.</span><span class="token-type">AppConfig</span>
+<span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">/</span>shared<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Path</span>
+</code></pre><p>Relative paths are resolved from the directory containing the current file:</p><pre><code class="language-text">current file: app/main.nct
+import path:  ./config
+resolved:     app/config.nct
+</code></pre><p>Non-relative import paths start with a directory or file name.</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span><span class="token-type">File</span>
+<span class="token-keyword">use</span> app<span class="token-operator">/</span>config<span class="token-operator">.</span><span class="token-type">Config</span>
+</code></pre><p>Absolute import paths start with <code>/</code> and are resolved from the filesystem root.</p><pre><code class="language-nct"><span class="token-keyword">use</span> <span class="token-operator">/</span>opt<span class="token-operator">/</span>nocter<span class="token-operator">/</span>shared<span class="token-operator">.</span><span class="token-type">Config</span>
+</code></pre><p>Non-relative paths from user project files are resolved from the source root first and the active Nocter home second. This means a user project can intentionally shadow standard-library paths such as <code>std/io</code> for its own source imports.</p><p>Non-relative paths from files inside the active Nocter home are resolved from the active Nocter home. They do not search the user source root. Distributed standard-library internals must not bind to user project shadow modules.</p><p>For an entry file at <code>/work/app/main.nct</code> and active Nocter home <code>/opt/nocter</code>, import path <code>std/io</code> searches:</p><pre><code class="language-text">/work/app/std/io.nct
+/work/app/std/io/index.nct
+/opt/nocter/std/io.nct
+/opt/nocter/std/io/index.nct
+</code></pre><p>Each module path first tries <code>path.nct</code>, then <code>path/index.nct</code>. If both exist in the same import root, the import is ambiguous and must be reported as an error.</p><pre><code class="language-text">use vendor/json.Parser
+/work/app/vendor/json.nct
+/work/app/vendor/json/index.nct
+</code></pre><p>Rules:</p><ul><li>Local project imports may use <code>./</code> or <code>../</code> from the importing file, or a non-relative path from the source root.</li><li><code>use config.Config</code> does not search next to the current file; it searches the source root first and the active Nocter home second.</li><li>Inside the active Nocter home, <code>use config.Config</code> searches from the active
+  Nocter home and does not search the user source root.</li><li><code>/absolute/path</code> imports are resolved from the filesystem root.</li><li><code>.</code> is not a module separator in import paths.</li><li><code>.nct</code> is not written in import declarations.</li><li>Directory modules use <code>index.nct</code>; <code>mod.nct</code> directory modules are not part of v0.</li><li>The compiler locates Nocter home from <code>NOCTER_HOME</code> if set, otherwise from the resolved real path of the running <code>nocter</code> executable and its parent directory. This supports normal installs where a <code>PATH</code> directory contains a symlink to <code>~/.nocter/nocter</code>.</li><li>The compiler does not automatically search <code>cwd/.nocter</code> or <code>~/.nocter</code>.</li><li>The repository local release image <code>dist/.nocter/</code> may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.</li></ul><h2 id="name-resolution">Name Resolution</h2><p>Unqualified names are resolved inside one file after imports are loaded and visibility is checked.</p><p>Lookup order:</p><ol><li>1. Current lexical block bindings.</li><li>Outer lexical block bindings.</li><li>Function parameters.</li><li>Same-file top-level declarations.</li><li>Explicitly imported names and names introduced by the synthetic prelude.</li><li>Built-in types and reserved syntax forms.</li></ol><p>Initial rules:</p><ul><li>Shadowing is not allowed.</li><li>Function parameter names must be unique within the parameter list.</li><li>A function parameter must not reuse a visible local, parameter, top-level, imported, prelude, or built-in type name.</li><li>A local binding must not reuse a visible local, parameter, top-level, imported, or built-in type name.</li><li>Two imports, a re-export, or a prelude name introducing the same local name are errors.</li><li>A same-file top-level declaration and an imported name must not have the same local name.</li><li><code>use path</code> introduces only the default namespace name.</li><li><code>use path as alias</code> introduces only the explicit namespace alias name.</li><li>Names inside an imported namespace are accessed with member syntax, such as <code>io.stdout()</code>.</li><li>There is no wildcard import.</li><li>There is no implicit import of every name from <code>std</code>.</li><li>The synthetic prelude is limited to <code>std/prelude</code>; it is not a general implicit import facility.</li></ul><h2 id="visibility">Visibility</h2><p>Adopted: definitions are private by default. Public API is marked with <code>pub</code>. Nocter-distribution-internal API is marked with <code>pub(nocter)</code>.</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    fd<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">impl</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">raw_fd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>fd
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">pub</span><span class="token-operator">(</span>nocter<span class="token-operator">)</span> <span class="token-keyword">primitive</span> from_addr<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">T</span>
+</code></pre><p>Rules:</p><ul><li>Top-level definitions are private to their module by default.</li><li><code>pub</code> on a top-level definition makes it importable from other modules.</li><li><code>pub(nocter)</code> on a top-level definition makes it importable only from modules inside the active Nocter home.</li><li>The active Nocter home includes the common <code>std/</code> tree.</li><li><code>pub(nocter)</code> is intended for distributed standard-library internals such as restricted pointer APIs and target primitive boundaries.</li><li><code>pub(nocter)</code> may be written only in modules inside the active Nocter home.</li><li><code>pub(nocter)</code> is not user-project package visibility.</li><li><code>nocter</code> is contextual inside the <code>pub(nocter)</code> modifier. It is not a globally reserved keyword.</li><li>Type aliases are top-level definitions. <code>type Name = Target</code> is private by default, <code>pub type Name = Target</code> makes the alias importable and re-exportable, and <code>pub(nocter) type Name = Target</code> makes the alias importable only inside the active Nocter home.</li><li>Interfaces are top-level definitions. <code>interface Name { ... }</code> is private by
+  default, <code>pub interface Name { ... }</code> makes the contract importable and
+  re-exportable, and <code>pub(nocter) interface Name { ... }</code> makes the contract
+  importable only inside the active Nocter home.</li><li><code>use</code> can import <code>pub</code> names from any module.</li><li><code>use</code> can import <code>pub(nocter)</code> names only when the importing module is inside the active Nocter home.</li><li>User project modules cannot import <code>pub(nocter)</code> names.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> can re-export only <code>pub</code> names from the source module as part of the current module's public API.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> cannot re-export <code>pub(nocter)</code> names as public API.</li><li><code>pub use path.Name</code> and <code>pub use path.{...}</code> re-export the imported name as part of the current module's public API.</li><li>Struct fields are private by default.</li><li>Public struct fields must be marked with <code>pub</code>.</li><li><code>pub(nocter)</code> struct fields are visible only to modules inside the active Nocter home.</li><li>Functions and methods are private by default.</li><li>Public associated functions declared as <code>func Type.name</code> and public methods inside <code>impl</code> blocks must be marked with <code>pub</code>.</li><li>Nocter-distribution-internal associated functions and methods may be marked with <code>pub(nocter)</code>.</li><li><code>impl</code> blocks themselves are not marked <code>pub</code>.</li><li>Enum variants follow the visibility of their enum in the initial design.</li><li>Interface members must be explicitly marked <code>pub</code>.</li><li>There is no <code>private</code> keyword in the initial design.</li><li>There is no standalone <code>export</code> declaration in the initial design.</li><li><code>pub(package)</code>, <code>pub(crate)</code>, <code>pub(std)</code>, <code>pub(home)</code>, and <code>pub(trusted)</code> are not part of v0.</li></ul><p>Example:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    <span class="token-keyword">pub</span> y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">Direction</span> <span class="token-operator">{</span>
+    north
+    south
+    east
+    west
+<span class="token-operator">}</span>
+</code></pre><p>Initial rules:</p><ul><li>One <code>.nct</code> file defines one module.</li><li>The <code>.nct</code> extension is removed.</li><li>File and directory names used for modules must be snake_case identifiers as defined by <a href="../13-lexical-grammar/index.html#identifiers">Lexical Grammar</a>.</li><li><code>module</code> is not a keyword.</li><li>Directory modules use <code>index.nct</code>.</li><li>Standard library modules live under <code>std</code>.</li><li><code>/work/app/std/io.nct</code> resolves from import path <code>std/io</code> before <code>/opt/nocter/std/io.nct</code> when the entry file is under <code>/work/app</code>.</li><li>Target-dependent standard-library declarations are selected by <code>#target("...")</code> inside stable module files such as <code>~/.nocter/std/os.nct</code>; target names are not required in import paths.</li></ul><p>Import roots:</p><ol><li>1. The current file directory for <code>./</code> and <code>../</code> paths.</li><li>The filesystem root for <code>/...</code> paths.</li><li>The source root, then the active Nocter home, for non-relative paths from
+   user project files.</li><li>The active Nocter home for non-relative paths from files inside that home.</li></ol><p>The compiler locates Nocter home in this order:</p><ol><li>1. <code>NOCTER_HOME</code>, if set.</li><li>The directory containing the running <code>nocter</code> executable.</li><li>Otherwise, report a clear configuration error.</li></ol>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../script.js" defer></script>
+</body>
+</html>
