@@ -2,7 +2,8 @@ use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr_with_resolver,
     aggregate_type_layout, lower_aggregate_array_literal_to_location,
     lower_aggregate_struct_literal_to_location,
-    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
+    lower_aggregate_struct_literal_to_location_with_temporaries,
+    lower_payload_enum_constructor_to_location, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_aggregate_value_with_resolver,
 };
@@ -690,14 +691,16 @@ fn lower_scalar_parameter_kind(
             resolved,
             resolved_sources,
         ),
-        AbiType::Struct(_) | AbiType::Array { .. } => lower_aggregate_parameter_kind(
-            parameter,
-            function_name,
-            root_source,
-            resolved,
-            resolved_sources,
-            &value,
-        ),
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) => {
+            lower_aggregate_parameter_kind(
+                parameter,
+                function_name,
+                root_source,
+                resolved,
+                resolved_sources,
+                &value,
+            )
+        }
         _ => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
 }
@@ -832,7 +835,10 @@ fn lower_aggregate_parameter_kind(
     resolved_sources: &ResolvedSources<'_>,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    if !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. }) {
+    if !matches!(
+        value.ty,
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_)
+    ) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
     let fields = aggregate_fields_from_type_expr_with_resolver(
@@ -3508,13 +3514,25 @@ fn lower_aggregate_return_expression_to_location(
             resolved,
             context,
         ),
-        Expr::Call(call) => lower_aggregate_call_return_to_location(
-            call,
-            return_type,
-            destination,
-            function_name,
-            context,
-        ),
+        Expr::Call(call) => {
+            if let Some(instructions) = lower_payload_enum_constructor_return_to_location(
+                expression,
+                return_type,
+                destination,
+                function_name,
+                resolved,
+                context,
+            )? {
+                return Ok(instructions);
+            }
+            lower_aggregate_call_return_to_location(
+                call,
+                return_type,
+                destination,
+                function_name,
+                context,
+            )
+        }
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
@@ -3570,13 +3588,25 @@ fn lower_aggregate_return_expression_to_location(
             function_name,
             context,
         ),
-        Expr::Member(_) => lower_aggregate_member_return_to_location(
-            expression,
-            return_type,
-            destination,
-            function_name,
-            context,
-        ),
+        Expr::Member(_) => {
+            if let Some(instructions) = lower_payload_enum_constructor_return_to_location(
+                expression,
+                return_type,
+                destination,
+                function_name,
+                resolved,
+                context,
+            )? {
+                return Ok(instructions);
+            }
+            lower_aggregate_member_return_to_location(
+                expression,
+                return_type,
+                destination,
+                function_name,
+                context,
+            )
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let Expr::Identifier(identifier) = unary.operand.as_ref() else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
@@ -3998,6 +4028,118 @@ fn fixed_array_return_abi_value(
             }
         }
     }
+}
+
+fn payload_enum_return_abi_value(
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Option<AbiValue> {
+    let mut ty = context.function_return_type_expr()?;
+    loop {
+        match ty {
+            TypeExpr::Fallible(fallible) => ty = &fallible.success,
+            TypeExpr::Optional(optional) => ty = &optional.inner,
+            _ => {
+                let value = abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .ok()?;
+                return matches!(value.ty, AbiType::Enum(_)).then_some(value);
+            }
+        }
+    }
+}
+
+fn lower_payload_enum_constructor_return_to_location(
+    expression: &Expr,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
+    let Some(value) = payload_enum_return_abi_value(resolved, context) else {
+        return Ok(None);
+    };
+    if value.layout != expected_layout {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let subject = format!("returns from function `{function_name}`");
+    let aggregate_slot_mark = context.aggregate_slot_mark();
+    let lowered_direct = lower_payload_enum_constructor_to_location(
+        expression,
+        &value.ty,
+        expected_layout,
+        destination,
+        "E8007",
+        &subject,
+        resolved,
+        context,
+    );
+    let instructions = match lowered_direct {
+        Ok(Some(instructions)) => instructions,
+        Ok(None) => return Ok(None),
+        Err(error) if matches!(destination, AggregateLocation::DirectReturn) => {
+            context.restore_aggregate_slot_mark(aggregate_slot_mark);
+            lower_direct_payload_enum_constructor_return_through_slot(
+                expression,
+                &value.ty,
+                expected_layout,
+                &subject,
+                resolved,
+                context,
+            )
+            .map_err(|_| error)?
+        }
+        Err(error) => return Err(error),
+    };
+    Ok(Some(instructions))
+}
+
+fn lower_direct_payload_enum_constructor_return_through_slot(
+    expression: &Expr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(expected_layout) {
+        return Err(unsupported_aggregate_return_diagnostic(
+            context.function_name(),
+        ));
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    let Some(mut constructor_instructions) = lower_payload_enum_constructor_to_location(
+        expression,
+        expected_type,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        subject,
+        resolved,
+        context,
+    )?
+    else {
+        return Err(unsupported_aggregate_return_diagnostic(
+            context.function_name(),
+        ));
+    };
+    instructions.append(&mut constructor_instructions);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
+    Ok(instructions)
 }
 
 fn lower_direct_aggregate_array_literal_return_through_slot(

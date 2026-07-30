@@ -7358,8 +7358,18 @@ fn build_command_reports_scope_drop_body_before_ir_lowering() {
     let project = TempProject::new("cli-build-scope-drop-body-boundary");
     let source = project.write_source(
         "scope_drop_body_boundary.nct",
-        r#"enum Result {
-    ok(value: i32)
+        r#"struct Payload {
+    value: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
     failed
 }
 
@@ -7369,7 +7379,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(1)
+        let result = Result.ok(Payload{ value: 1 })
         return
     }
 }
@@ -7395,7 +7405,7 @@ func main(): i32 {
         "expected payload enum diagnostic from drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("12 |         let result = Result.ok(1)"),
+        stderr.contains("let result = Result.ok(Payload{ value: 1 })"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -7413,8 +7423,18 @@ fn build_command_reports_field_replacement_drop_body_before_ir_lowering() {
     let project = TempProject::new("cli-build-field-replacement-drop-body-boundary");
     let source = project.write_source(
         "field_replacement_drop_body_boundary.nct",
-        r#"enum Result {
-    ok(value: i32)
+        r#"struct Payload {
+    value: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
     failed
 }
 
@@ -7424,7 +7444,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(1)
+        let result = Result.ok(Payload{ value: 1 })
         return
     }
 }
@@ -7455,7 +7475,7 @@ func main(): i32 {
         "expected payload enum diagnostic from field drop body, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("12 |         let result = Result.ok(1)"),
+        stderr.contains("let result = Result.ok(Payload{ value: 1 })"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -8508,10 +8528,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_enum_construction_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-enum-construction-boundary");
+fn build_command_accepts_copy_payload_enum_construction() {
+    let project = TempProject::new("cli-build-copy-payload-enum-construction");
     let source = project.write_source(
-        "payload_enum_construction_boundary.nct",
+        "copy_payload_enum_construction.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -8527,35 +8547,15 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("payload enum values"),
-        "expected payload enum diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     let result = Result.ok(10)"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_enum_member_value_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-enum-member-value-boundary");
+fn build_command_accepts_payload_enum_empty_variant_construction() {
+    let project = TempProject::new("cli-build-payload-enum-empty-variant-construction");
     let source = project.write_source(
-        "payload_enum_member_value_boundary.nct",
+        "payload_enum_empty_variant_construction.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -8563,6 +8563,40 @@ fn build_command_reports_payload_enum_member_value_before_ir_lowering() {
 
 func main(): i32 {
     let result = Result.failed
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_payload_enum_drop_payload_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-enum-drop-payload-boundary");
+    let source = project.write_source(
+        "payload_enum_drop_payload_boundary.nct",
+        r#"struct Payload {
+    value: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ value: 10 })
     return 0
 }
 "#,
@@ -8582,7 +8616,7 @@ func main(): i32 {
         "expected payload enum diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("7 |     let result = Result.failed"),
+        stderr.contains("let result = Result.ok(Payload{ value: 10 })"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

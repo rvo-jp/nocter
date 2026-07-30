@@ -63,9 +63,10 @@ Recommended order:
 2. Preserve the v0.1.0 boundary: reachable accepted source
    that cannot run must fail before IR or backend emission with a source-backed
    diagnostic.
-3. Pick the v0.2.0 runtime-promotion theme. The default recommendation is
-   payload-carrying enum `if is` / `match` runtime lowering before broader
-   collection expansion.
+3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
+   payload-carrying enum construction/local/return/value-argument support for
+   copy/no-drop payloads; next, lower payload-carrying enum `if is` / `match`
+   control before broader collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -297,6 +298,10 @@ Recommended order:
   lowering use the target expression type to accept wildcard-only payloadless
   enum `match` forms while still keeping payload enum patterns outside the
   runtime subset.
+- Payload-carrying enum ABI layout now backs copy/no-drop payload enum
+  construction, local slots, returns, and value arguments. Payload enum
+  `match` / `if is` control, payload binding, and active payload drop cleanup
+  remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

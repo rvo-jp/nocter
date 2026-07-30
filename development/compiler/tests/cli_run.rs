@@ -10382,6 +10382,50 @@ func stack_passed(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_copy_payload_enum_construction_exit_code() {
+    let project = TempProject::new("cli-run-copy-payload-enum-construction");
+    let source = project.write_source(
+        "copy_payload_enum_construction.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let local = Result.ok(10)
+    let returned = make_ok()
+    let direct_empty = Result.failed
+    let empty = make_failed()
+    return accept(move local) + accept(move returned) + accept(move direct_empty) + accept(move empty) + 38
+}
+
+func make_ok(): Result {
+    return Result.ok(20)
+}
+
+func make_failed(): Result {
+    return Result.failed
+}
+
+func accept(result: Result): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_payloadless_if_is_exit_code() {
     let project = TempProject::new("cli-run-payloadless-if-is");
     let source = project.write_source(

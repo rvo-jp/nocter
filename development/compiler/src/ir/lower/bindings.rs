@@ -4,10 +4,11 @@ use super::aggregates::{
     lower_aggregate_array_literal_to_location, lower_aggregate_array_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset,
-    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
-    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct,
-    type_expr_is_copy_struct_with_resolver,
+    lower_aggregate_struct_literal_to_location_with_temporaries,
+    lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,
+    push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
+    supported_aggregate_copy_layout, type_expr_is_copy_aggregate_value_with_resolver,
+    type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
 };
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;
@@ -94,6 +95,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_aggregate_array_literal_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_payload_enum_constructor_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -732,6 +737,61 @@ fn lower_aggregate_array_literal_binding(
         resolved,
         context,
     )?);
+    Ok(Some(instructions))
+}
+
+fn lower_payload_enum_constructor_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if payload_enum_constructor_member_and_arguments(&statement.initializer).is_none() {
+        return Ok(None);
+    }
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower payload enum bindings without resolved type information",
+        ));
+    };
+    let Some(ty) = context
+        .binding_type_expr(statement.name_span)
+        .or_else(|| statement.ty.clone())
+    else {
+        return Ok(None);
+    };
+    let Ok(value) = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    }) else {
+        return Ok(None);
+    };
+    if !matches!(value.ty, AbiType::Enum(_)) {
+        return Ok(None);
+    }
+
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        value.layout,
+        false,
+        context.drop_glue_for_type_expr(&ty),
+        Vec::new(),
+    );
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    }];
+    let Some(mut constructor_instructions) = lower_payload_enum_constructor_to_location(
+        &statement.initializer,
+        &value.ty,
+        value.layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "local bindings",
+        resolved,
+        context,
+    )?
+    else {
+        return Ok(None);
+    };
+    instructions.append(&mut constructor_instructions);
     Ok(Some(instructions))
 }
 

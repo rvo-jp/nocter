@@ -2825,6 +2825,95 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_direct_payload_enum_value_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(8, 4),
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func accept(result: Result): i32 {
+    return 1
+}
+
+func make_ok(): Result {
+    return Result.ok(20)
+}
+
+func main(): i32 {
+    let local = Result.ok(10)
+    let returned = make_ok()
+    return accept(move local) + accept(move returned)
+}
+"#,
+        "main",
+        function_signatures(vec![
+            ("accept", Type::I32, vec![aggregate_type.clone()]),
+            ("make_ok", aggregate_type.clone(), vec![]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(8, 4),
+            },
+            Instruction::StoreAggregateU8 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: u8_const(0),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: i32_const(10),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(8, 4),
+            },
+            Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_ok"),
+                arguments: vec![],
+                layout: ValueLayout::new(8, 4),
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Local(0),
+                target: CallTarget::same_file("accept"),
+                arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(8, 4),
+                    words: 1,
+                })],
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Local(1),
+                target: CallTarget::same_file("accept"),
+                arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(1),
+                    layout: ValueLayout::new(8, 4),
+                    words: 1,
+                })],
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: i32_local(0),
+                right: i32_local(1),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_value_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

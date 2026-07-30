@@ -210,8 +210,10 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum values in runtime positions, including payload enum
-  construction, `match`, and `if is` lowering
+- payload-carrying enum pattern-control runtime lowering, including `match`,
+  `if is`, payload binding, and active payload drop cleanup; payload-carrying
+  enum construction, locals, returns, and value arguments are buildable only for
+  the current copy/no-drop payload subset
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -250,8 +252,11 @@ Rules fixed for v0:
 - struct fields are laid out in declaration order
 - struct layout does not change when a `drop` member exists
 - payloadless enum values use the explicit `u8` tag layout specified by ABI v0
-- payload-carrying enum values are typechecked in v0 but rejected before
-  build/run lowering until their runtime layout is promoted into ABI v0
+- payload-carrying enum values use the tag-plus-payload-union layout specified
+  by ABI v0
+- payload-carrying enum construction, locals, returns, and value arguments may
+  lower in the copy/no-drop payload subset; payload pattern-control lowering and
+  active payload drop glue still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification

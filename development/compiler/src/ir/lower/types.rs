@@ -408,7 +408,10 @@ where
 }
 
 pub(super) fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
-    if !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. }) {
+    if !matches!(
+        value.ty,
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_)
+    ) {
         return None;
     }
 
@@ -448,7 +451,9 @@ where
         AbiType::U8 => Some(Type::U8),
         AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
         AbiType::Bool => Some(Type::Bool),
-        AbiType::Struct(_) | AbiType::Array { .. } => aggregate_type_from_abi_value(&value),
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) => {
+            aggregate_type_from_abi_value(&value)
+        }
         _ => None,
     }
 }

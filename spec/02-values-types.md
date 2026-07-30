@@ -680,10 +680,11 @@ Rules:
 - `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
 - In the v0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
-- Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
-- `build` and `run` reject payload-carrying enum runtime positions during v0
-  buildability validation. `check` may still accept them for source-level
-  typechecking.
+- Payload-carrying enum construction, local storage, returns, and value
+  arguments lower in the current copy/no-drop payload subset.
+- Payload-carrying enum `match` and `if is` are typechecked in v0, but
+  build/run lowering for payload pattern control, payload binding, and active
+  payload drop cleanup is still deferred.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.
