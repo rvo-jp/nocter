@@ -8,6 +8,9 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `91fa4c9 Use canonical enum coverage for match buildability`
+  - `978c99e Extract completion recovery helpers`
+  - `6e28464 Document struct literal completion recovery`
   - `bd3a0c5 Recover struct literal field completions`
   - `e5a4111 Complete struct literal field completions`
   - `4fffdba Recover member completion after trailing dots`
@@ -81,6 +84,10 @@ Recommended order:
   recovers `Type.`, `value.`, and pattern `Enum.` trailing-dot forms, plus
   empty or unclosed struct literal field lists, by inserting a completion-only
   placeholder before single-file analysis.
+- Buildability now checks wildcard-free payloadless `match` coverage using the
+  resolved canonical enum and covered variant set. Exhaustive `match`
+  expressions remain buildable when different visible names, such as an import
+  name and an import alias, are used across arms.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
