@@ -351,6 +351,62 @@ func leak(value: &i32, condition: bool): &i32 {
 }
 
 #[test]
+fn diagnoses_body_result_if_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(condition: bool): &i32 {
+    let local = 1
+    if condition {
+        &local
+    } else {
+        &local
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_body_result_match_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Choice {
+    left
+    right
+}
+
+func leak(choice: Choice): &i32 {
+    let local = 1
+    match choice {
+        Choice.left {
+            &local
+        }
+        _ {
+            &local
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
 fn accepts_borrow_alias_after_all_if_branches_reassign_to_parameter() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -432,6 +488,27 @@ func identity(value: &i32): &i32 {
 
 func same(value: &i32): &i32 {
     return identity(value)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_borrow_like_call_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(value: &i32): &str {
+    return "static"
+}
+
+func ok(): &str {
+    let local = 1
+    return label(&local)
 }
 "#,
     );

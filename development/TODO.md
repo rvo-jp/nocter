@@ -193,6 +193,10 @@ Recommended order:
 - Return provenance now distinguishes static, input-borrow, and escaping sources
   internally and merges aggregate/call inputs, so a static borrow before a local
   borrow cannot hide the escaping local source.
+- Return provenance now inspects value-producing `if`, `if is`, `match`, and
+  `otherwise` expressions and uses shallow same-AST callable return summaries,
+  so local borrows cannot escape through control-expression body results while
+  static-returning helpers do not inherit unrelated local borrow arguments.
 - Resolver diagnostics now identify synthetic standard prelude name collisions
   explicitly across top-level definitions, parameters, local bindings, and
   block imports, instead of reporting them as ordinary hidden duplicate names.

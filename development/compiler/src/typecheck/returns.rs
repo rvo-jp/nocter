@@ -25,13 +25,15 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
-use crate::source::SourceMap;
+use crate::source::{ByteSpan, SourceMap};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 struct BorrowReturnEnvironment {
     bindings: HashMap<String, BorrowReturnProvenance>,
 }
+
+type BorrowReturnSummaries = HashMap<ByteSpan, BorrowReturnProvenance>;
 
 impl BorrowReturnEnvironment {
     fn get(&self, name: &str) -> Option<&BorrowReturnProvenance> {
@@ -126,6 +128,7 @@ pub(super) fn check_return_types(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let summaries = borrow_return_summaries(ast, resolved);
     for item in &ast.items {
         match item {
             Item::Function(function) => {
@@ -149,12 +152,286 @@ pub(super) fn check_return_types(
                     diagnostics,
                     &mut environment,
                     &mut borrow_provenance,
+                    &summaries,
                 );
             }
             Item::Impl(impl_) => {
-                check_impl_member_return_types(sources, impl_, resolved, diagnostics);
+                check_impl_member_return_types(sources, impl_, resolved, diagnostics, &summaries);
             }
             _ => {}
+        }
+    }
+}
+
+fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowReturnSummaries {
+    let empty_summaries = BorrowReturnSummaries::new();
+    let mut summaries = BorrowReturnSummaries::new();
+    for item in &ast.items {
+        match item {
+            Item::Function(function) => {
+                let environment = environment_for_function(function, resolved);
+                let return_type =
+                    type_expr_to_type_in_environment(&function.return_type, resolved, &environment);
+                if let Some(provenance) = borrow_return_provenance_for_callable_body(
+                    &function.body,
+                    &return_type,
+                    resolved,
+                    &environment,
+                    &empty_summaries,
+                ) {
+                    summaries.insert(function_summary_key(function), provenance);
+                }
+            }
+            Item::Impl(impl_) => {
+                for member in &impl_.members {
+                    let ImplMember::Method(method) = member else {
+                        continue;
+                    };
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let environment = environment_for_method(method, resolved, impl_);
+                    let return_type = type_expr_to_type_in_environment(
+                        &method.return_type,
+                        resolved,
+                        &environment,
+                    );
+                    if let Some(provenance) = borrow_return_provenance_for_callable_body(
+                        body,
+                        &return_type,
+                        resolved,
+                        &environment,
+                        &empty_summaries,
+                    ) {
+                        summaries.insert(method.name_span, provenance);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    summaries
+}
+
+fn function_summary_key(function: &crate::ast::FunctionDecl) -> ByteSpan {
+    if function.owner.is_some() {
+        function.member_name_span
+    } else {
+        function.name_span
+    }
+}
+
+fn borrow_return_provenance_for_callable_body(
+    block: &Block,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    if !type_contains_borrow_like(return_type, resolved) {
+        return None;
+    }
+
+    let mut provenance = None;
+    let mut body_environment = environment.clone();
+    let mut body_borrow_provenance = BorrowReturnEnvironment::default();
+    collect_return_statement_provenance(
+        block,
+        resolved,
+        &mut body_environment,
+        &mut body_borrow_provenance,
+        summaries,
+        &mut provenance,
+    );
+    merge_borrow_return_provenance(
+        &mut provenance,
+        borrow_return_provenance_for_block_result(
+            block,
+            resolved,
+            environment,
+            &BorrowReturnEnvironment::default(),
+            summaries,
+        ),
+    );
+    provenance
+}
+
+fn collect_return_statement_provenance(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    provenance: &mut Option<BorrowReturnProvenance>,
+) {
+    for statement in &block.statements {
+        match statement {
+            Stmt::Return(statement) => {
+                if let Some(expression) = &statement.expression {
+                    let actual = expression_type(expression, resolved, environment);
+                    merge_borrow_return_provenance(
+                        provenance,
+                        borrow_return_provenance_for_expression(
+                            expression,
+                            &actual,
+                            resolved,
+                            environment,
+                            borrow_provenance,
+                            summaries,
+                        ),
+                    );
+                }
+            }
+            Stmt::If(if_statement) => {
+                let mut then_environment = environment.clone();
+                let mut then_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &if_statement.then_block,
+                    resolved,
+                    &mut then_environment,
+                    &mut then_borrow_provenance,
+                    summaries,
+                    provenance,
+                );
+                if let Some(else_block) = &if_statement.else_block {
+                    let mut else_environment = environment.clone();
+                    let mut else_borrow_provenance = borrow_provenance.clone();
+                    collect_return_statement_provenance(
+                        else_block,
+                        resolved,
+                        &mut else_environment,
+                        &mut else_borrow_provenance,
+                        summaries,
+                        provenance,
+                    );
+                }
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            Stmt::IfIs(if_is_statement) => {
+                let mut then_environment =
+                    environment_for_if_is_binding(if_is_statement, resolved, environment);
+                let mut then_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &if_is_statement.then_block,
+                    resolved,
+                    &mut then_environment,
+                    &mut then_borrow_provenance,
+                    summaries,
+                    provenance,
+                );
+                if let Some(else_block) = &if_is_statement.else_block {
+                    let mut else_environment = environment.clone();
+                    let mut else_borrow_provenance = borrow_provenance.clone();
+                    collect_return_statement_provenance(
+                        else_block,
+                        resolved,
+                        &mut else_environment,
+                        &mut else_borrow_provenance,
+                        summaries,
+                        provenance,
+                    );
+                }
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            Stmt::Switch(switch_statement) => {
+                for arm in &switch_statement.arms {
+                    let mut arm_environment = environment_for_switch_arm(
+                        arm,
+                        &switch_statement.expression,
+                        resolved,
+                        environment,
+                    );
+                    let mut arm_borrow_provenance = borrow_provenance.clone();
+                    collect_return_statement_provenance(
+                        &arm.body,
+                        resolved,
+                        &mut arm_environment,
+                        &mut arm_borrow_provenance,
+                        summaries,
+                        provenance,
+                    );
+                }
+                if let Some(wildcard_arm) = &switch_statement.wildcard_arm {
+                    let mut wildcard_environment = environment.clone();
+                    let mut wildcard_borrow_provenance = borrow_provenance.clone();
+                    collect_return_statement_provenance(
+                        &wildcard_arm.body,
+                        resolved,
+                        &mut wildcard_environment,
+                        &mut wildcard_borrow_provenance,
+                        summaries,
+                        provenance,
+                    );
+                }
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            Stmt::While(statement) => {
+                let mut body_environment = environment.clone();
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    provenance,
+                );
+            }
+            Stmt::ForRange(statement) => {
+                let mut body_environment =
+                    environment_for_for_range_binding(statement, resolved, environment);
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    provenance,
+                );
+            }
+            Stmt::Loop(statement) => {
+                let mut body_environment = environment.clone();
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    provenance,
+                );
+            }
+            _ => {
+                apply_borrow_return_statement_effect(
+                    statement,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+        }
+        if statement_guarantees_return_or_never(statement, resolved, environment) {
+            return;
         }
     }
 }
@@ -164,6 +441,7 @@ fn check_impl_member_return_types(
     impl_: &ImplDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    summaries: &BorrowReturnSummaries,
 ) {
     for member in &impl_.members {
         match member {
@@ -187,6 +465,7 @@ fn check_impl_member_return_types(
                     diagnostics,
                     &mut environment,
                     &mut borrow_provenance,
+                    summaries,
                 );
             }
             ImplMember::Drop(drop_) => {
@@ -209,6 +488,7 @@ fn check_impl_member_return_types(
                     diagnostics,
                     &mut environment,
                     &mut borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -245,6 +525,7 @@ fn check_block_returns(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) {
     if context.success_type().first_unsized_part().is_some() {
         return;
@@ -258,6 +539,7 @@ fn check_block_returns(
         diagnostics,
         environment,
         borrow_provenance,
+        summaries,
     );
 
     if block_exits {
@@ -273,6 +555,7 @@ fn check_block_returns(
             diagnostics,
             environment,
             borrow_provenance,
+            summaries,
         );
         return;
     }
@@ -292,6 +575,7 @@ fn check_block_return_statements(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) -> bool {
     for statement in &block.statements {
         check_statement_returns(
@@ -302,6 +586,7 @@ fn check_block_return_statements(
             diagnostics,
             environment,
             borrow_provenance,
+            summaries,
         );
         if statement_guarantees_return_or_never(statement, resolved, environment) {
             return true;
@@ -316,6 +601,7 @@ fn check_block_return_statements(
             diagnostics,
             environment,
             borrow_provenance,
+            summaries,
         );
         return expression_type(result, resolved, environment) == Type::Never;
     }
@@ -331,6 +617,7 @@ fn check_statement_returns(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => {}
@@ -344,6 +631,7 @@ fn check_statement_returns(
                     diagnostics,
                     environment,
                     borrow_provenance,
+                    summaries,
                 );
             }
             check_return_statement(
@@ -354,6 +642,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Stmt::Binding(statement) => {
@@ -365,6 +654,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let initializer_type = expression_type(&statement.initializer, resolved, environment);
             let binding_type =
@@ -375,6 +665,7 @@ fn check_statement_returns(
                 resolved,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             environment.define_binding(
                 statement.name.clone(),
@@ -396,6 +687,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -405,6 +697,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             if let Some(identifier) = whole_identifier(&statement.target)
                 && let Some(target_type) = environment.get(&identifier.name)
@@ -415,6 +708,7 @@ fn check_statement_returns(
                     resolved,
                     environment,
                     borrow_provenance,
+                    summaries,
                 );
                 borrow_provenance.define_binding(
                     identifier.name.clone(),
@@ -432,6 +726,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut then_environment = environment.clone();
             let mut then_borrow_provenance = borrow_provenance.clone();
@@ -443,6 +738,7 @@ fn check_statement_returns(
                 diagnostics,
                 &mut then_environment,
                 &mut then_borrow_provenance,
+                summaries,
             );
             let mut incoming = Vec::new();
             if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
@@ -460,6 +756,7 @@ fn check_statement_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
                 if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
                     incoming.push(else_borrow_provenance);
@@ -480,6 +777,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut then_environment =
                 environment_for_if_is_binding(statement, resolved, environment);
@@ -492,6 +790,7 @@ fn check_statement_returns(
                 diagnostics,
                 &mut then_environment,
                 &mut then_borrow_provenance,
+                summaries,
             );
             let mut incoming = Vec::new();
             if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
@@ -509,6 +808,7 @@ fn check_statement_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
                 if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
                     incoming.push(else_borrow_provenance);
@@ -529,6 +829,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut incoming = Vec::new();
             for arm in &statement.arms {
@@ -543,6 +844,7 @@ fn check_statement_returns(
                     diagnostics,
                     &mut arm_environment,
                     &mut arm_borrow_provenance,
+                    summaries,
                 );
                 if !block_guarantees_return_or_never(&arm.body, resolved, &arm_environment) {
                     incoming.push(arm_borrow_provenance);
@@ -559,6 +861,7 @@ fn check_statement_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
                 if !block_guarantees_return_or_never(
                     &wildcard_arm.body,
@@ -583,6 +886,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut body_environment = environment.clone();
             let mut body_borrow_provenance = borrow_provenance.clone();
@@ -594,6 +898,7 @@ fn check_statement_returns(
                 diagnostics,
                 &mut body_environment,
                 &mut body_borrow_provenance,
+                summaries,
             );
         }
         Stmt::ForRange(statement) => {
@@ -605,6 +910,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -614,6 +920,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut body_environment =
                 environment_for_for_range_binding(statement, resolved, environment);
@@ -626,6 +933,7 @@ fn check_statement_returns(
                 diagnostics,
                 &mut body_environment,
                 &mut body_borrow_provenance,
+                summaries,
             );
         }
         Stmt::Loop(statement) => {
@@ -639,6 +947,7 @@ fn check_statement_returns(
                 diagnostics,
                 &mut body_environment,
                 &mut body_borrow_provenance,
+                summaries,
             );
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
@@ -651,6 +960,7 @@ fn check_statement_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
     }
@@ -664,6 +974,7 @@ fn check_expression_for_nested_returns(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) {
     match expression {
         Expr::Propagate(expression) => {
@@ -684,6 +995,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Catch(expression) => {
@@ -703,6 +1015,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut catch_environment = environment_for_catch(
                 expression.error_name.clone(),
@@ -719,6 +1032,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 &mut catch_environment,
                 &mut catch_borrow_provenance,
+                summaries,
             );
             if !block_guarantees_control_exit_or_never(
                 &expression.catch_block,
@@ -740,6 +1054,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Borrow(expression) => {
@@ -751,6 +1066,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Binary(expression) => {
@@ -762,6 +1078,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -771,6 +1088,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Unary(expression) => {
@@ -782,6 +1100,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::TypeConversion(expression) => {
@@ -793,6 +1112,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Call(expression) => {
@@ -804,6 +1124,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             for argument in &expression.arguments {
                 check_expression_for_nested_returns(
@@ -814,6 +1135,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     environment,
                     borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -826,6 +1148,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::Index(expression) => {
@@ -837,6 +1160,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -846,6 +1170,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::ArrayLiteral(expression) => {
@@ -858,6 +1183,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     environment,
                     borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -871,6 +1197,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     environment,
                     borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -883,6 +1210,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
         }
         Expr::InterpolatedString(expression) => {
@@ -896,6 +1224,7 @@ fn check_expression_for_nested_returns(
                         diagnostics,
                         environment,
                         borrow_provenance,
+                        summaries,
                     );
                 }
             }
@@ -909,6 +1238,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let present_borrow_provenance = borrow_provenance.clone();
             let mut fallback_environment = environment.clone();
@@ -921,6 +1251,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 &mut fallback_environment,
                 &mut fallback_borrow_provenance,
+                summaries,
             );
             let mut incoming = vec![present_borrow_provenance];
             if !block_guarantees_control_exit_or_never(
@@ -941,6 +1272,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut then_environment = environment.clone();
             let mut then_borrow_provenance = borrow_provenance.clone();
@@ -952,6 +1284,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 &mut then_environment,
                 &mut then_borrow_provenance,
+                summaries,
             );
             if let Some(else_block) = &expression.else_block {
                 let mut else_environment = environment.clone();
@@ -964,6 +1297,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -976,6 +1310,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             let mut then_environment =
                 environment_for_if_is_binding(expression, resolved, environment);
@@ -988,6 +1323,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 &mut then_environment,
                 &mut then_borrow_provenance,
+                summaries,
             );
             if let Some(else_block) = &expression.else_block {
                 let mut else_environment = environment.clone();
@@ -1000,6 +1336,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -1012,6 +1349,7 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
                 borrow_provenance,
+                summaries,
             );
             for arm in &expression.arms {
                 let mut arm_environment =
@@ -1025,6 +1363,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     &mut arm_environment,
                     &mut arm_borrow_provenance,
+                    summaries,
                 );
             }
             if let Some(wildcard_arm) = &expression.wildcard_arm {
@@ -1038,6 +1377,7 @@ fn check_expression_for_nested_returns(
                     diagnostics,
                     &mut else_environment,
                     &mut else_borrow_provenance,
+                    summaries,
                 );
             }
         }
@@ -1058,6 +1398,7 @@ fn check_body_result_return(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) {
     let expected = context.success_type();
     let actual = expression_type(expression, resolved, environment);
@@ -1109,6 +1450,7 @@ fn check_body_result_return(
         resolved,
         environment,
         borrow_provenance,
+        summaries,
         diagnostics,
     );
 
@@ -1132,6 +1474,7 @@ fn check_return_statement(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) {
     let expected = context.success_type();
     if expected == &Type::Never {
@@ -1195,6 +1538,7 @@ fn check_return_statement(
                 resolved,
                 environment,
                 borrow_provenance,
+                summaries,
                 diagnostics,
             );
 
@@ -1222,6 +1566,7 @@ fn check_borrow_return_provenance(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(provenance) = borrow_return_provenance_for_expression(
@@ -1230,6 +1575,7 @@ fn check_borrow_return_provenance(
         resolved,
         environment,
         borrow_provenance,
+        summaries,
     ) else {
         return;
     };
@@ -1248,6 +1594,7 @@ fn borrow_return_provenance_for_expression(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) -> Option<BorrowReturnProvenance> {
     if !type_contains_borrow_like(ty, resolved) {
         return None;
@@ -1274,6 +1621,7 @@ fn borrow_return_provenance_for_expression(
                         resolved,
                         environment,
                         borrow_provenance,
+                        summaries,
                     ),
                 );
             }
@@ -1291,6 +1639,7 @@ fn borrow_return_provenance_for_expression(
                         resolved,
                         environment,
                         borrow_provenance,
+                        summaries,
                     ),
                 );
             }
@@ -1308,13 +1657,116 @@ fn borrow_return_provenance_for_expression(
                         resolved,
                         environment,
                         borrow_provenance,
+                        summaries,
                     ),
                 );
             }
             provenance
         }
-        Expr::Call(call) => {
-            borrow_return_provenance_for_call(call, resolved, environment, borrow_provenance)
+        Expr::Call(call) => borrow_return_provenance_for_call(
+            call,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
+        Expr::Otherwise(expression) => {
+            let mut provenance = borrow_return_provenance_for_expression(
+                &expression.value,
+                &expression_type(&expression.value, resolved, environment),
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            merge_borrow_return_provenance(
+                &mut provenance,
+                borrow_return_provenance_for_block_result(
+                    &expression.fallback,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ),
+            );
+            provenance
+        }
+        Expr::If(expression) => {
+            let Some(else_block) = &expression.else_block else {
+                return None;
+            };
+            let mut provenance = borrow_return_provenance_for_block_result(
+                &expression.then_block,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            merge_borrow_return_provenance(
+                &mut provenance,
+                borrow_return_provenance_for_block_result(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ),
+            );
+            provenance
+        }
+        Expr::IfIs(expression) => {
+            let Some(else_block) = &expression.else_block else {
+                return None;
+            };
+            let then_environment = environment_for_if_is_binding(expression, resolved, environment);
+            let mut provenance = borrow_return_provenance_for_block_result(
+                &expression.then_block,
+                resolved,
+                &then_environment,
+                borrow_provenance,
+                summaries,
+            );
+            merge_borrow_return_provenance(
+                &mut provenance,
+                borrow_return_provenance_for_block_result(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ),
+            );
+            provenance
+        }
+        Expr::Match(expression) => {
+            let mut provenance = None;
+            for arm in &expression.arms {
+                let arm_environment =
+                    environment_for_switch_arm(arm, &expression.expression, resolved, environment);
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_block_result(
+                        &arm.body,
+                        resolved,
+                        &arm_environment,
+                        borrow_provenance,
+                        summaries,
+                    ),
+                );
+            }
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_block_result(
+                        &wildcard_arm.body,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                        summaries,
+                    ),
+                );
+            }
+            provenance
         }
         _ => None,
     }
@@ -1325,7 +1777,23 @@ fn borrow_return_provenance_for_call(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) -> Option<BorrowReturnProvenance> {
+    let signature = resolved_call_signature(resolved, call, environment)?;
+    if let Some(declaration_span) = signature.declaration_span
+        && let Some(summary) = summaries.get(&declaration_span)
+    {
+        return borrow_return_provenance_for_call_summary(
+            summary,
+            call,
+            &signature,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        );
+    }
+
     let mut provenance = None;
     if let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
         && method_receiver_is_borrow(method)
@@ -1335,12 +1803,12 @@ fn borrow_return_provenance_for_call(
             resolved,
             environment,
             borrow_provenance,
+            summaries,
         )
     {
         merge_borrow_return_provenance(&mut provenance, Some(receiver_provenance));
     }
 
-    let signature = resolved_call_signature(resolved, call, environment)?;
     for (argument, parameter) in call.arguments.iter().zip(&signature.signature.parameters) {
         let argument_type = expression_type(argument, resolved, environment);
         if !type_contains_borrow_like(&argument_type, resolved)
@@ -1361,11 +1829,85 @@ fn borrow_return_provenance_for_call(
                 resolved,
                 environment,
                 borrow_provenance,
+                summaries,
             ),
         );
     }
 
     provenance
+}
+
+fn borrow_return_provenance_for_call_summary(
+    summary: &BorrowReturnProvenance,
+    call: &crate::ast::CallExpr,
+    signature: &super::calls::CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    match summary {
+        BorrowReturnProvenance::Static => Some(BorrowReturnProvenance::Static),
+        BorrowReturnProvenance::Escaping { .. } => None,
+        BorrowReturnProvenance::InputBorrow { sources } => {
+            let mut provenance = None;
+            for source in sources {
+                merge_borrow_return_provenance(
+                    &mut provenance,
+                    borrow_return_provenance_for_call_input(
+                        source,
+                        call,
+                        signature,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                        summaries,
+                    ),
+                );
+            }
+            provenance
+        }
+    }
+}
+
+fn borrow_return_provenance_for_call_input(
+    source: &str,
+    call: &crate::ast::CallExpr,
+    signature: &super::calls::CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    if signature.kind == super::calls::CheckedCallKind::Method
+        && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
+        && method.receiver.name == source
+        && let Some(member) = method_member_for_call(call)
+    {
+        return borrow_return_provenance_for_borrowed_input(
+            &member.object,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        );
+    }
+
+    for (index, parameter) in signature.signature.parameters.iter().enumerate() {
+        if parameter.name == source {
+            return call.arguments.get(index).and_then(|argument| {
+                borrow_return_provenance_for_borrowed_input(
+                    argument,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            });
+        }
+    }
+
+    None
 }
 
 fn merge_borrow_return_provenance(
@@ -1382,6 +1924,194 @@ fn merge_borrow_return_provenance(
     }
 }
 
+fn borrow_return_provenance_for_block_result(
+    block: &crate::ast::Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let Some(result) = &block.result else {
+        return None;
+    };
+    let mut result_environment = environment.clone();
+    let mut result_borrow_provenance = borrow_provenance.clone();
+    apply_borrow_return_statement_effects(
+        block,
+        resolved,
+        &mut result_environment,
+        &mut result_borrow_provenance,
+        summaries,
+    );
+    let result_type = expression_type(result, resolved, &result_environment);
+    borrow_return_provenance_for_expression(
+        result,
+        &result_type,
+        resolved,
+        &result_environment,
+        &result_borrow_provenance,
+        summaries,
+    )
+}
+
+fn apply_borrow_return_statement_effects(
+    block: &crate::ast::Block,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    for statement in &block.statements {
+        apply_borrow_return_statement_effect(
+            statement,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        );
+    }
+}
+
+fn apply_borrow_return_statement_effect(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+    borrow_provenance: &mut BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    match statement {
+        Stmt::Binding(statement) => {
+            let initializer_type = expression_type(&statement.initializer, resolved, environment);
+            let binding_type =
+                continuing_binding_type(statement, initializer_type, resolved, environment);
+            let provenance = borrow_return_provenance_for_expression(
+                &statement.initializer,
+                &binding_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            environment.define_binding(
+                statement.name.clone(),
+                binding_type.clone(),
+                binding_kind_is_mutable(statement.kind),
+            );
+            borrow_provenance.define_binding(
+                statement.name.clone(),
+                type_contains_borrow_like(&binding_type, resolved),
+                provenance,
+            );
+        }
+        Stmt::Assignment(statement) => {
+            if let Some(identifier) = whole_identifier(&statement.target)
+                && let Some(target_type) = environment.get(&identifier.name)
+            {
+                let provenance = borrow_return_provenance_for_expression(
+                    &statement.value,
+                    target_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+                borrow_provenance.define_binding(
+                    identifier.name.clone(),
+                    type_contains_borrow_like(target_type, resolved),
+                    provenance,
+                );
+            }
+        }
+        Stmt::If(statement) => {
+            let mut then_environment = environment.clone();
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.then_block,
+                resolved,
+                &mut then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
+            let mut incoming = vec![then_borrow_provenance];
+            if let Some(else_block) = &statement.else_block {
+                let mut else_environment = environment.clone();
+                let mut else_borrow_provenance = borrow_provenance.clone();
+                apply_borrow_return_statement_effects(
+                    else_block,
+                    resolved,
+                    &mut else_environment,
+                    &mut else_borrow_provenance,
+                    summaries,
+                );
+                incoming.push(else_borrow_provenance);
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            borrow_provenance.join_reachable(&incoming);
+        }
+        Stmt::IfIs(statement) => {
+            let mut then_environment =
+                environment_for_if_is_binding(statement, resolved, environment);
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            apply_borrow_return_statement_effects(
+                &statement.then_block,
+                resolved,
+                &mut then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
+            let mut incoming = vec![then_borrow_provenance];
+            if let Some(else_block) = &statement.else_block {
+                let mut else_environment = environment.clone();
+                let mut else_borrow_provenance = borrow_provenance.clone();
+                apply_borrow_return_statement_effects(
+                    else_block,
+                    resolved,
+                    &mut else_environment,
+                    &mut else_borrow_provenance,
+                    summaries,
+                );
+                incoming.push(else_borrow_provenance);
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            borrow_provenance.join_reachable(&incoming);
+        }
+        Stmt::Switch(statement) => {
+            let mut incoming = Vec::new();
+            for arm in &statement.arms {
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &statement.expression, resolved, environment);
+                let mut arm_borrow_provenance = borrow_provenance.clone();
+                apply_borrow_return_statement_effects(
+                    &arm.body,
+                    resolved,
+                    &mut arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
+                incoming.push(arm_borrow_provenance);
+            }
+            if let Some(wildcard_arm) = &statement.wildcard_arm {
+                let mut wildcard_environment = environment.clone();
+                let mut wildcard_borrow_provenance = borrow_provenance.clone();
+                apply_borrow_return_statement_effects(
+                    &wildcard_arm.body,
+                    resolved,
+                    &mut wildcard_environment,
+                    &mut wildcard_borrow_provenance,
+                    summaries,
+                );
+                incoming.push(wildcard_borrow_provenance);
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            borrow_provenance.join_reachable(&incoming);
+        }
+        _ => {}
+    }
+}
+
 fn method_receiver_is_borrow(method: &crate::resolve::MethodSignature) -> bool {
     matches!(&method.receiver.ty, TypeExpr::Borrow(_))
 }
@@ -1391,6 +2121,7 @@ fn borrow_return_provenance_for_borrowed_input(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
 ) -> Option<BorrowReturnProvenance> {
     let ty = expression_type(expression, resolved, environment);
     if type_contains_borrow_like(&ty, resolved) {
@@ -1400,6 +2131,7 @@ fn borrow_return_provenance_for_borrowed_input(
             resolved,
             environment,
             borrow_provenance,
+            summaries,
         );
     }
 
