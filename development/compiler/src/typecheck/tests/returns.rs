@@ -1069,6 +1069,130 @@ func leak(): View {
 }
 
 #[test]
+fn diagnoses_return_struct_member_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func leak(): &i32 {
+    let value = 1
+    let view = View{ value: &value }
+    return view.value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_struct_member_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func passthrough(view: View): &i32 {
+    return view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_struct_member_after_local_borrow_field() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func label(): &str {
+    let value = 1
+    let view = View{ label: "static", value: &value }
+    return view.label
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_struct_member_borrow_from_local_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func make(value: &i32): View {
+    return View{ label: "static", value: value }
+}
+
+func leak(): &i32 {
+    let value = 1
+    let view = make(&value)
+    return view.value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_struct_member_borrow_from_parameter_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func make(value: &i32): View {
+    return View{ label: "static", value: value }
+}
+
+func passthrough(value: &i32): &i32 {
+    let view = make(value)
+    return view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_nested_struct_literal_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

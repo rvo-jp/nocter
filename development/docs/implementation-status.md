@@ -106,9 +106,11 @@ bindings, and whole-local replacement now drop only the active single
 direct-drop aggregate payload. Temporary-pattern control, non-copy aggregate
 payload binding, and multi-field droppable payload cleanup remain separate
 work.
-Return provenance also treats `error` as borrow-like, so an `error` value
-derived from a local borrow cannot escape through a return while parameter-borrow
-derived errors can be forwarded.
+Return provenance treats `error` and borrow-like aggregate fields as tracked
+borrow carriers. Values derived from local borrows cannot escape through whole
+aggregate returns, struct field projection returns, same-AST helper summaries,
+or `if is` / `match` payload bindings, while parameter-derived borrows can be
+forwarded.
 
 ## Implemented Capability
 

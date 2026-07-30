@@ -26,7 +26,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 struct BorrowReturnEnvironment {
@@ -74,8 +74,16 @@ impl BorrowReturnEnvironment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum BorrowReturnProvenance {
     Static,
-    InputBorrow { sources: BTreeSet<String> },
-    Escaping { source: String },
+    InputBorrow {
+        sources: BTreeSet<String>,
+    },
+    Escaping {
+        source: String,
+    },
+    Aggregate {
+        fallback: Option<Box<BorrowReturnProvenance>>,
+        fields: BTreeMap<String, BorrowReturnProvenance>,
+    },
 }
 
 impl BorrowReturnProvenance {
@@ -92,7 +100,26 @@ impl BorrowReturnProvenance {
     fn escaping_source(&self) -> Option<&str> {
         match self {
             Self::Escaping { source } => Some(source),
+            Self::Aggregate { fallback, fields } => fallback
+                .as_deref()
+                .and_then(BorrowReturnProvenance::escaping_source)
+                .or_else(|| {
+                    fields
+                        .values()
+                        .find_map(BorrowReturnProvenance::escaping_source)
+                }),
             Self::Static | Self::InputBorrow { .. } => None,
+        }
+    }
+
+    fn field_provenance(&self, field: &str) -> Option<BorrowReturnProvenance> {
+        match self {
+            Self::Aggregate { fallback, fields } => {
+                let mut provenance = fallback.as_deref().cloned();
+                merge_borrow_return_provenance(&mut provenance, fields.get(field).cloned());
+                provenance
+            }
+            _ => Some(self.clone()),
         }
     }
 
@@ -102,6 +129,40 @@ impl BorrowReturnProvenance {
             (_, Self::Escaping { source }) => {
                 *self = Self::Escaping {
                     source: source.clone(),
+                };
+            }
+            (
+                Self::Aggregate { fallback, fields },
+                Self::Aggregate {
+                    fallback: other_fallback,
+                    fields: other_fields,
+                },
+            ) => {
+                merge_borrow_return_boxed_provenance(fallback, other_fallback.as_deref().cloned());
+                for (field, other_field_provenance) in other_fields {
+                    fields
+                        .entry(field.clone())
+                        .and_modify(|field_provenance| {
+                            field_provenance.merge(other_field_provenance)
+                        })
+                        .or_insert_with(|| other_field_provenance.clone());
+                }
+            }
+            (
+                Self::Aggregate {
+                    fallback,
+                    fields: _,
+                },
+                other,
+            ) => {
+                merge_borrow_return_boxed_provenance(fallback, Some(other.clone()));
+            }
+            (existing, Self::Aggregate { fallback, fields }) => {
+                let mut merged_fallback = fallback.as_deref().cloned();
+                merge_borrow_return_provenance(&mut merged_fallback, Some(existing.clone()));
+                *existing = Self::Aggregate {
+                    fallback: merged_fallback.map(Box::new),
+                    fields: fields.clone(),
                 };
             }
             (
@@ -1693,23 +1754,32 @@ fn borrow_return_provenance_for_expression(
         ),
         Expr::StringLiteral(_) => Some(BorrowReturnProvenance::Static),
         Expr::StructLiteral(literal) => {
-            let mut provenance = None;
+            let mut fields = BTreeMap::new();
             for field in &literal.fields {
                 let field_type = expression_type(&field.value, resolved, environment);
-                merge_borrow_return_provenance(
-                    &mut provenance,
-                    borrow_return_provenance_for_expression(
-                        &field.value,
-                        &field_type,
-                        resolved,
-                        environment,
-                        borrow_provenance,
-                        summaries,
-                    ),
-                );
+                if let Some(field_provenance) = borrow_return_provenance_for_expression(
+                    &field.value,
+                    &field_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ) {
+                    fields.insert(field.name.clone(), field_provenance);
+                }
             }
-            provenance
+            (!fields.is_empty()).then_some(BorrowReturnProvenance::Aggregate {
+                fallback: None,
+                fields,
+            })
         }
+        Expr::Member(member) => borrow_return_provenance_for_member(
+            member,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::ArrayLiteral(literal) => {
             let mut provenance = None;
             for element in &literal.elements {
@@ -1874,6 +1944,25 @@ fn borrow_return_provenance_for_expression(
     }
 }
 
+fn borrow_return_provenance_for_member(
+    member: &crate::ast::MemberExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let object_type = expression_type(&member.object, resolved, environment);
+    borrow_return_provenance_for_expression(
+        &member.object,
+        &object_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    )
+    .and_then(|provenance| provenance.field_provenance(&member.member))
+}
+
 fn borrow_return_provenance_for_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
@@ -1951,6 +2040,41 @@ fn borrow_return_provenance_for_call_summary(
     match summary {
         BorrowReturnProvenance::Static => Some(BorrowReturnProvenance::Static),
         BorrowReturnProvenance::Escaping { .. } => None,
+        BorrowReturnProvenance::Aggregate { fallback, fields } => {
+            let mapped_fallback = fallback.as_deref().and_then(|provenance| {
+                borrow_return_provenance_for_call_summary(
+                    provenance,
+                    call,
+                    signature,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            });
+            let mut mapped_fields = BTreeMap::new();
+            for (field, field_provenance) in fields {
+                if let Some(mapped_field) = borrow_return_provenance_for_call_summary(
+                    field_provenance,
+                    call,
+                    signature,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ) {
+                    mapped_fields.insert(field.clone(), mapped_field);
+                }
+            }
+            if mapped_fallback.is_none() && mapped_fields.is_empty() {
+                None
+            } else {
+                Some(BorrowReturnProvenance::Aggregate {
+                    fallback: mapped_fallback.map(Box::new),
+                    fields: mapped_fields,
+                })
+            }
+        }
         BorrowReturnProvenance::InputBorrow { sources } => {
             let mut provenance = None;
             for source in sources {
@@ -2024,6 +2148,15 @@ fn merge_borrow_return_provenance(
     } else {
         *provenance = Some(next);
     }
+}
+
+fn merge_borrow_return_boxed_provenance(
+    provenance: &mut Option<Box<BorrowReturnProvenance>>,
+    next: Option<BorrowReturnProvenance>,
+) {
+    let mut unboxed = provenance.take().map(|provenance| *provenance);
+    merge_borrow_return_provenance(&mut unboxed, next);
+    *provenance = unboxed.map(Box::new);
 }
 
 fn borrow_return_provenance_for_block_result(
