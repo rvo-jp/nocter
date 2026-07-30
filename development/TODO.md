@@ -8,6 +8,7 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `4d1c676 Keep pattern member completion contextual`
   - `4a31d05 Cover payload if-is binding build boundary`
   - `2d93e2b Complete enum variants in pattern contexts`
   - `3ba1ec4 Cover pattern variants in definition queries`
