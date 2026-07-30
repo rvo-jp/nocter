@@ -8,10 +8,12 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
-  - `c8144be Cover payload if-is discard build boundary`
-  - `8339743 Cover imported wildcard-only payloadless match`
-  - `2a023b8 Cover wildcard patterns in formatter CLI`
-  - `96f5a63 Support wildcard-only payloadless match`
+  - `4a31d05 Cover payload if-is binding build boundary`
+  - `2d93e2b Complete enum variants in pattern contexts`
+  - `3ba1ec4 Cover pattern variants in definition queries`
+  - `3b65bd8 Track enum variants in patterns for editor facts`
+  - `6c73219 Cover wildcard patterns in AST JSON`
+  - `a2a2d12 Lower wildcard-only match without synthetic if`
 - The repository root is user-facing. `development/` is the development root.
 - The canonical standard-library source lives under `development/std`; local
   release packaging generates `dist/.nocter/std`.
@@ -64,6 +66,9 @@ Recommended order:
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
   into resolver, typecheck facts, hover, ownership, or buildability state.
+  Pattern enum variants are recorded in typecheck facts for semantic tokens,
+  hover, definition, and references. Completion now offers enum variant members
+  after `Enum.` in `match` and `if is` pattern contexts.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
