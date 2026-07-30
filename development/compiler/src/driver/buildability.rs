@@ -4678,6 +4678,7 @@ fn switch_statement_covers_all_payloadless_variants(
         return false;
     };
     if target_symbol.kind != TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
         || target_symbol
             .variants
             .iter()
@@ -4686,13 +4687,29 @@ fn switch_statement_covers_all_payloadless_variants(
         return false;
     }
 
-    target_symbol.variants.iter().all(|variant| {
-        statement.arms.iter().any(|arm| {
-            arm.enum_name == first_arm.enum_name
-                && arm.payload.is_none()
-                && arm.variant_name == variant.name
+    let covered = statement
+        .arms
+        .iter()
+        .filter_map(|arm| {
+            let pattern_symbol = resolved.type_symbol_by_name(&arm.enum_name)?;
+            if pattern_symbol.kind != TypeSymbolKind::Enum
+                || pattern_symbol.canonical_name != target_symbol.canonical_name
+                || arm.payload.is_some()
+            {
+                return None;
+            }
+
+            target_symbol
+                .variants
+                .iter()
+                .find(|variant| variant.name == arm.variant_name)
+                .map(|variant| variant.name.as_str())
         })
-    })
+        .collect::<HashSet<_>>();
+    target_symbol
+        .variants
+        .iter()
+        .all(|variant| covered.contains(variant.name.as_str()))
 }
 
 fn collect_statement_diagnostics(

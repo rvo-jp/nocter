@@ -7803,6 +7803,39 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_accepts_payloadless_match_expression_with_import_alias_arms() {
+    let project = TempProject::new("cli-build-payloadless-match-expression-import-alias-arms");
+    project.write_source(
+        "choice.nct",
+        r#"pub enum Choice {
+    yes
+    no
+}
+"#,
+    );
+    let source = project.write_source(
+        "payloadless_match_expression_import_alias_arms.nct",
+        r#"use ./choice.Choice
+use ./choice.Choice as Pick
+
+func main(): i32 {
+    let choice = Choice.yes
+    return match choice {
+        Choice.yes { 1 }
+        Pick.no { 2 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_accepts_terminal_control_return_expressions() {
     let project = TempProject::new("cli-build-terminal-control-return-expressions");
     let source = project.write_source(
