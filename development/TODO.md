@@ -7,10 +7,12 @@ in `spec/`.
 ## Current Repository State
 
 - Branch: `develop`
-- Release tag: `v0.1.0` points at `e0e47ff Package v0.1.0 release archive`.
+- Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known compiler-progress commits:
-  - `f195f5e Start v0.2.0 development`
+  - `99d1306 Update handoff after v0.2.0 development start`
+  - `d817c99 Start v0.2.0 development`
+  - `660aba7 License Nocter under Apache-2.0`
   - `e0e47ff Package v0.1.0 release archive`
   - `4018f98 Declare v0.1.0 release scope`
   - `f84d4e7 Pin v0.1.0 release identity metadata`
@@ -88,10 +90,10 @@ Recommended order:
 ## Recent Notes
 
 - `v0.1.0` was verified with `./development/compiler/scripts/verify.sh`, tagged
-  at `e0e47ff`, and packaged locally as
-  `dist/nocter-v0.1.0-arm64-darwin.tar.gz`. The package script now writes both
-  `dist/.nocter/` and the host archive. Develop moved on to `0.2.0-dev` in
-  `f195f5e`.
+  at `660aba7`, and packaged locally as
+  `dist/nocter-v0.1.0-arm64-darwin.tar.gz`. The package script writes
+  `LICENSE` and `NOTICE` into `dist/.nocter/` and the host archive. Develop
+  moved on to `0.2.0-dev` in `d817c99`.
 - `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
