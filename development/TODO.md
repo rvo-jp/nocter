@@ -7,7 +7,13 @@ in `spec/`.
 ## Current Repository State
 
 - Branch: `develop`
+- Release tag: `v0.1.0` points at `e0e47ff Package v0.1.0 release archive`.
+- Current development version: `0.2.0-dev`
 - Latest known compiler-progress commits:
+  - `e0e47ff Package v0.1.0 release archive`
+  - `4018f98 Declare v0.1.0 release scope`
+  - `f84d4e7 Pin v0.1.0 release identity metadata`
+  - `6b60cd5 Update handoff after fixed array diagnostics`
   - `967ef88 Avoid generic fixed array literal diagnostics`
   - `f722275 Contextualize unsupported fixed array literals`
   - `a31858c Clarify unsupported fixed array literal bindings`
@@ -38,21 +44,24 @@ in `spec/`.
 
 ## Current Priority
 
-Keep improving Nocter toward a usable v0 standard-library-driven compiler.
+Continue `v0.2.0-dev` after the narrow `v0.1.0` release.
 
 Recommended order:
 
 1. Keep `spec/`, `development/docs/v0-closure.md`, and
    `development/docs/implementation-status.md` consistent whenever source
    syntax, standard-library API, ABI behavior, or runtime support changes.
-2. Close buildability gaps before broadening syntax: reachable accepted source
+2. Preserve the v0.1.0 boundary: reachable accepted source
    that cannot run must fail before IR or backend emission with a source-backed
    diagnostic.
-3. Continue backend and ABI work around aggregates, ownership cleanup, direct
+3. Pick the v0.2.0 runtime-promotion theme. The default recommendation is
+   payload-carrying enum `if is` / `match` runtime lowering before broader
+   collection expansion.
+4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
-4. Continue std runtime work only when the public API is stable in
+5. Continue std runtime work only when the public API is stable in
    `spec/11-stdlib-primitives-os.md`.
-5. Keep LSP behavior backed by compiler facts. Do not add editor-only semantic
+6. Keep LSP behavior backed by compiler facts. Do not add editor-only semantic
    rules.
 
 ## Known Boundaries
@@ -77,6 +86,10 @@ Recommended order:
 
 ## Recent Notes
 
+- `v0.1.0` was verified with `./development/compiler/scripts/verify.sh`, tagged
+  at `e0e47ff`, and packaged locally as
+  `dist/nocter-v0.1.0-arm64-darwin.tar.gz`. The package script now writes both
+  `dist/.nocter/` and the host archive. Develop has moved on to `0.2.0-dev`.
 - `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding

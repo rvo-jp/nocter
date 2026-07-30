@@ -7,14 +7,16 @@ semantics or move the v0 finish line. Source-language rules live in
 
 ## Current Priority
 
-The current priority is to make the standard-library-driven v0 subset reliable
-end to end:
+The current priority is `v0.2.0-dev` work after the narrow v0.1.0 release.
+Keep the v0.1.0 subset stable while choosing one or two promoted runtime themes
+for v0.2.0:
 
 1. keep docs, spec, implementation status, and tests consistent
 2. close accepted-but-not-buildable frontend/backend gaps with source-backed
    rejection diagnostics
-3. continue aggregate ABI, ownership, and drop cleanup work
-4. promote only stable std APIs into runtime support
+3. promote payload-carrying enum runtime or collection behavior only with
+   matching ABI, ownership, buildability, and CLI/distributed-home tests
+4. continue aggregate ABI, ownership, and drop cleanup work
 5. keep LSP behavior tied to compiler facts
 
 ## Recommended Work Order
@@ -56,6 +58,10 @@ end to end:
 
 ## Near-Term Open Work
 
+- Pick the v0.2.0 implementation theme. The default recommendation is
+  payload-carrying enum `if is` / `match` runtime lowering before broad
+  collection expansion, because it sharpens control-flow facts without changing
+  the public standard-library API.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.

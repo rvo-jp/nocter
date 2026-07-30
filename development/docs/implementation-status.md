@@ -22,10 +22,10 @@ It can load a v0 compile unit, typecheck a meaningful language subset, lower the
 runtime subset to IR, emit ARM64 Darwin machine code, write a Mach-O executable,
 and run that executable.
 
-The v0.1.0 release scope is this documented runtime subset plus stable
-source-backed rejection for checked forms outside it. Known runtime gaps below
-are intentionally deferred to v0.2.0 or later unless a future release plan
-promotes one with matching spec, closure-matrix, and test updates.
+The v0.1.0 release scope was this documented runtime subset plus stable
+source-backed rejection for checked forms outside it. The current development
+line is `v0.2.0-dev`; known runtime gaps below remain deferred unless a future
+release plan promotes one with matching spec, closure-matrix, and test updates.
 
 The buildable subset remains narrower than the checked subset. Reachable code
 outside the runtime subset should fail through buildability diagnostics before

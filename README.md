@@ -7,8 +7,8 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.1.0 is the first narrow v0 release. The implementation target is
-`arm64-darwin`.
+Nocter v0.1.0 is the first narrow v0 release. The current development line is
+`v0.2.0-dev`. The implementation target is `arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -125,7 +125,7 @@ For repository-local release testing, the canonical standard-library source is
 tracked in `development/std/` and release metadata lives in
 `development/packaging/`. Generate a local installation image under
 `dist/.nocter/` plus the archive
-`dist/nocter-v0.1.0-arm64-darwin.tar.gz` with:
+`dist/nocter-v<version>-arm64-darwin.tar.gz` with:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
@@ -174,13 +174,14 @@ nocter fmt main.nct
 
 ## Current Status
 
-The v0.1.0 compiler can parse, check, build, and run a meaningful v0 subset on
-`arm64-darwin`. It emits ARM64 Mach-O executables directly.
+The v0.1.0 release and current v0.2.0-dev compiler can parse, check, build,
+and run a meaningful v0 subset on `arm64-darwin`. They emit ARM64 Mach-O
+executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
-Unsupported runtime forms are part of the v0.2.0+ roadmap unless promoted
-later; v0.1.0 should reject them with source-backed diagnostics before machine
-code is emitted. For the exact implementation boundary, see
+Unsupported runtime forms are part of the post-v0.1.0 roadmap unless promoted;
+they should reject with source-backed diagnostics before machine code is
+emitted. For the exact implementation boundary, see
 [development/docs/implementation-status.md](development/docs/implementation-status.md).
 
 ## Learn More
