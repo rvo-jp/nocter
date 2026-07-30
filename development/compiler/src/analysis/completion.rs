@@ -4,8 +4,8 @@ use super::FileAnalysis;
 use super::scoped_imports::visible_scoped_import_spans_at_offset;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, SwitchArm, SwitchStmt,
-    TypeExpr,
+    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, StructLiteralExpr,
+    SwitchArm, SwitchStmt, TypeExpr,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
@@ -46,6 +46,10 @@ enum CompletionContext<'a> {
     MemberAccess {
         owner_name: &'a str,
         owner_span: ByteSpan,
+    },
+    StructLiteralFields {
+        literal: &'a StructLiteralExpr,
+        offset: usize,
     },
 }
 
@@ -207,6 +211,9 @@ fn contextual_completion_items(
         } => Some(member_completion_items(
             resolved, facts, owner_name, owner_span,
         )),
+        CompletionContext::StructLiteralFields { literal, offset } => Some(
+            struct_literal_field_completion_items(resolved, literal, offset),
+        ),
     }
 }
 
@@ -261,6 +268,29 @@ fn value_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo>
             .map(method_completion_item),
     );
     items
+}
+
+fn struct_literal_field_completion_items(
+    resolved: &ResolveOutput,
+    literal: &StructLiteralExpr,
+    offset: usize,
+) -> Vec<CompletionItemInfo> {
+    let Some(symbol) = type_symbol_for_value_member_completion(resolved, &literal.ty) else {
+        return Vec::new();
+    };
+    let used_fields = literal
+        .fields
+        .iter()
+        .filter(|field| !span_contains(field.name_span, offset))
+        .map(|field| field.name.as_str())
+        .collect::<HashSet<_>>();
+
+    symbol
+        .fields
+        .iter()
+        .filter(|field| field.is_accessible && !used_fields.contains(field.name.as_str()))
+        .map(struct_field_completion_item)
+        .collect()
 }
 
 fn enum_variant_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
@@ -450,7 +480,8 @@ fn completion_context_in_expression_at_offset(
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()
-            .find_map(|field| completion_context_in_expression_at_offset(&field.value, offset)),
+            .find_map(|field| completion_context_in_expression_at_offset(&field.value, offset))
+            .or_else(|| struct_literal_field_completion_context_at_offset(expression, offset)),
         Expr::Propagate(expression) => {
             completion_context_in_expression_at_offset(&expression.expression, offset)
         }
@@ -591,8 +622,30 @@ fn member_completion_context_in_member_expression_at_offset(
     )
 }
 
+fn struct_literal_field_completion_context_at_offset(
+    literal: &StructLiteralExpr,
+    offset: usize,
+) -> Option<CompletionContext<'_>> {
+    if !span_contains(literal.fields_span, offset) {
+        return None;
+    }
+    if literal
+        .fields
+        .iter()
+        .any(|field| span_contains(field.value.span(), offset))
+    {
+        return None;
+    }
+
+    Some(CompletionContext::StructLiteralFields { literal, offset })
+}
+
 fn offset_in_member_completion(owner_span: ByteSpan, member_span: ByteSpan, offset: usize) -> bool {
     owner_span.source == member_span.source && owner_span.end < offset && offset <= member_span.end
+}
+
+fn span_contains(span: ByteSpan, offset: usize) -> bool {
+    span.start <= offset && offset < span.end
 }
 
 #[cfg(test)]
@@ -909,6 +962,67 @@ func main(): i32 {
                 && item.kind == CompletionItemKind::Method
                 && item.detail.as_deref() == Some("method")
         }));
+        assert!(!items.iter().any(|item| item.label == "File"));
+    }
+
+    #[test]
+    fn completion_candidates_include_struct_fields_inside_struct_literal_field_name() {
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+func main(): i32 {
+    let file = File{ fd: 1 }
+    return 0
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("fd: 1").expect("expected struct literal field");
+
+        let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+        assert!(items.iter().any(|item| {
+            item.label == "fd"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "size"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(!items.iter().any(|item| item.label == "File"));
+    }
+
+    #[test]
+    fn completion_candidates_skip_used_struct_fields_inside_struct_literal() {
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+func main(): i32 {
+    let file = File{ fd: 1,  }
+    return 0
+}
+"#;
+        let (_, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text
+            .find("File{ fd: 1,  }")
+            .expect("expected struct literal")
+            + "File{ fd: 1, ".len();
+
+        let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+        assert!(items.iter().any(|item| {
+            item.label == "size"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(!items.iter().any(|item| item.label == "fd"));
         assert!(!items.iter().any(|item| item.label == "File"));
     }
 

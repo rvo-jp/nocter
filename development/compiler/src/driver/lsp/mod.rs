@@ -2677,6 +2677,56 @@ func main(): i32 {
     }
 
     #[test]
+    fn returns_completion_items_for_struct_literal_fields() {
+        let uri = "file:///tmp/nocter-struct-literal-field-completion.nct".to_string();
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+func main(): i32 {
+    let file = File{ fd: 1,  }
+    return 0
+}
+"#;
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let offset = text
+            .find("File{ fd: 1,  }")
+            .expect("expected struct literal")
+            + "File{ fd: 1, ".len();
+        let position = byte_offset_to_lsp_position(text, offset);
+        let response = server.completion_response(
+            json!(19),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": position.line,
+                    "character": position.character
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected struct literal field completion items");
+
+        assert_eq!(
+            completion_item_with_label(items, "size").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
+        );
+        assert!(completion_item_with_label(items, "fd").is_none());
+        assert!(completion_item_with_label(items, "File").is_none());
+    }
+
+    #[test]
     fn returns_completion_items_for_namespace_import_without_member_leakage() {
         let project = TempProject::new("lsp-completion-namespace-import");
         let home = project.write_nocter_home();
