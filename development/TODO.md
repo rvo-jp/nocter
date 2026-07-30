@@ -203,6 +203,9 @@ Recommended order:
 - Return provenance now keeps field-sensitive aggregate provenance for struct
   literals and same-AST callable summaries, so `return view.field` diagnoses a
   local borrow in that field without falsely rejecting an unrelated static field.
+- Return provenance also keeps element-sensitive fixed-array provenance for
+  array literals and same-AST callable summaries, so constant index returns use
+  the selected element while dynamic index returns merge all tracked elements.
 - `if is` and `match` payload bindings now inherit borrow return provenance from
   the matched enum value, so local borrows cannot escape through borrow-like
   payload bindings while parameter-carried borrows remain returnable.

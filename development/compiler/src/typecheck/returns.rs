@@ -16,6 +16,7 @@ use super::environments::{
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
+use super::numeric::integer_literal_expr_value;
 use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
@@ -83,6 +84,7 @@ enum BorrowReturnProvenance {
     Aggregate {
         fallback: Option<Box<BorrowReturnProvenance>>,
         fields: BTreeMap<String, BorrowReturnProvenance>,
+        elements: BTreeMap<usize, BorrowReturnProvenance>,
     },
 }
 
@@ -100,11 +102,20 @@ impl BorrowReturnProvenance {
     fn escaping_source(&self) -> Option<&str> {
         match self {
             Self::Escaping { source } => Some(source),
-            Self::Aggregate { fallback, fields } => fallback
+            Self::Aggregate {
+                fallback,
+                fields,
+                elements,
+            } => fallback
                 .as_deref()
                 .and_then(BorrowReturnProvenance::escaping_source)
                 .or_else(|| {
                     fields
+                        .values()
+                        .find_map(BorrowReturnProvenance::escaping_source)
+                })
+                .or_else(|| {
+                    elements
                         .values()
                         .find_map(BorrowReturnProvenance::escaping_source)
                 }),
@@ -114,9 +125,33 @@ impl BorrowReturnProvenance {
 
     fn field_provenance(&self, field: &str) -> Option<BorrowReturnProvenance> {
         match self {
-            Self::Aggregate { fallback, fields } => {
+            Self::Aggregate {
+                fallback, fields, ..
+            } => {
                 let mut provenance = fallback.as_deref().cloned();
                 merge_borrow_return_provenance(&mut provenance, fields.get(field).cloned());
+                provenance
+            }
+            _ => Some(self.clone()),
+        }
+    }
+
+    fn element_provenance(&self, index: Option<usize>) -> Option<BorrowReturnProvenance> {
+        match self {
+            Self::Aggregate {
+                fallback, elements, ..
+            } => {
+                let mut provenance = fallback.as_deref().cloned();
+                if let Some(index) = index {
+                    merge_borrow_return_provenance(&mut provenance, elements.get(&index).cloned());
+                } else {
+                    for element_provenance in elements.values() {
+                        merge_borrow_return_provenance(
+                            &mut provenance,
+                            Some(element_provenance.clone()),
+                        );
+                    }
+                }
                 provenance
             }
             _ => Some(self.clone()),
@@ -132,10 +167,15 @@ impl BorrowReturnProvenance {
                 };
             }
             (
-                Self::Aggregate { fallback, fields },
+                Self::Aggregate {
+                    fallback,
+                    fields,
+                    elements,
+                },
                 Self::Aggregate {
                     fallback: other_fallback,
                     fields: other_fields,
+                    elements: other_elements,
                 },
             ) => {
                 merge_borrow_return_boxed_provenance(fallback, other_fallback.as_deref().cloned());
@@ -147,22 +187,39 @@ impl BorrowReturnProvenance {
                         })
                         .or_insert_with(|| other_field_provenance.clone());
                 }
+                for (index, other_element_provenance) in other_elements {
+                    elements
+                        .entry(*index)
+                        .and_modify(|element_provenance| {
+                            element_provenance.merge(other_element_provenance)
+                        })
+                        .or_insert_with(|| other_element_provenance.clone());
+                }
             }
             (
                 Self::Aggregate {
                     fallback,
                     fields: _,
+                    elements: _,
                 },
                 other,
             ) => {
                 merge_borrow_return_boxed_provenance(fallback, Some(other.clone()));
             }
-            (existing, Self::Aggregate { fallback, fields }) => {
+            (
+                existing,
+                Self::Aggregate {
+                    fallback,
+                    fields,
+                    elements,
+                },
+            ) => {
                 let mut merged_fallback = fallback.as_deref().cloned();
                 merge_borrow_return_provenance(&mut merged_fallback, Some(existing.clone()));
                 *existing = Self::Aggregate {
                     fallback: merged_fallback.map(Box::new),
                     fields: fields.clone(),
+                    elements: elements.clone(),
                 };
             }
             (
@@ -1771,6 +1828,7 @@ fn borrow_return_provenance_for_expression(
             (!fields.is_empty()).then_some(BorrowReturnProvenance::Aggregate {
                 fallback: None,
                 fields,
+                elements: BTreeMap::new(),
             })
         }
         Expr::Member(member) => borrow_return_provenance_for_member(
@@ -1780,23 +1838,33 @@ fn borrow_return_provenance_for_expression(
             borrow_provenance,
             summaries,
         ),
+        Expr::Index(index) => borrow_return_provenance_for_index(
+            index,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::ArrayLiteral(literal) => {
-            let mut provenance = None;
-            for element in &literal.elements {
+            let mut elements = BTreeMap::new();
+            for (index, element) in literal.elements.iter().enumerate() {
                 let element_type = expression_type(element, resolved, environment);
-                merge_borrow_return_provenance(
-                    &mut provenance,
-                    borrow_return_provenance_for_expression(
-                        element,
-                        &element_type,
-                        resolved,
-                        environment,
-                        borrow_provenance,
-                        summaries,
-                    ),
-                );
+                if let Some(element_provenance) = borrow_return_provenance_for_expression(
+                    element,
+                    &element_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ) {
+                    elements.insert(index, element_provenance);
+                }
             }
-            provenance
+            (!elements.is_empty()).then_some(BorrowReturnProvenance::Aggregate {
+                fallback: None,
+                fields: BTreeMap::new(),
+                elements,
+            })
         }
         Expr::Call(call) if is_enum_variant_call(call, resolved) => {
             let mut provenance = None;
@@ -1963,6 +2031,29 @@ fn borrow_return_provenance_for_member(
     .and_then(|provenance| provenance.field_provenance(&member.member))
 }
 
+fn borrow_return_provenance_for_index(
+    index: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let object_type = expression_type(&index.object, resolved, environment);
+    borrow_return_provenance_for_expression(
+        &index.object,
+        &object_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    )
+    .and_then(|provenance| provenance.element_provenance(index_literal_value(&index.index)))
+}
+
+fn index_literal_value(expression: &Expr) -> Option<usize> {
+    integer_literal_expr_value(expression).and_then(|value| usize::try_from(value).ok())
+}
+
 fn borrow_return_provenance_for_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
@@ -2040,7 +2131,11 @@ fn borrow_return_provenance_for_call_summary(
     match summary {
         BorrowReturnProvenance::Static => Some(BorrowReturnProvenance::Static),
         BorrowReturnProvenance::Escaping { .. } => None,
-        BorrowReturnProvenance::Aggregate { fallback, fields } => {
+        BorrowReturnProvenance::Aggregate {
+            fallback,
+            fields,
+            elements,
+        } => {
             let mapped_fallback = fallback.as_deref().and_then(|provenance| {
                 borrow_return_provenance_for_call_summary(
                     provenance,
@@ -2066,12 +2161,27 @@ fn borrow_return_provenance_for_call_summary(
                     mapped_fields.insert(field.clone(), mapped_field);
                 }
             }
-            if mapped_fallback.is_none() && mapped_fields.is_empty() {
+            let mut mapped_elements = BTreeMap::new();
+            for (index, element_provenance) in elements {
+                if let Some(mapped_element) = borrow_return_provenance_for_call_summary(
+                    element_provenance,
+                    call,
+                    signature,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ) {
+                    mapped_elements.insert(*index, mapped_element);
+                }
+            }
+            if mapped_fallback.is_none() && mapped_fields.is_empty() && mapped_elements.is_empty() {
                 None
             } else {
                 Some(BorrowReturnProvenance::Aggregate {
                     fallback: mapped_fallback.map(Box::new),
                     fields: mapped_fields,
+                    elements: mapped_elements,
                 })
             }
         }

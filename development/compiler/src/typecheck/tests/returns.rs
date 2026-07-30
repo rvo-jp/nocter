@@ -1193,6 +1193,130 @@ func passthrough(value: &i32): &i32 {
 }
 
 #[test]
+fn diagnoses_return_array_index_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &i32 {
+    let value = 1
+    let values: [&i32; 1] = [&value]
+    return values[0]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_array_index_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func passthrough(value: &i32): &i32 {
+    let values: [&i32; 1] = [value]
+    return values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_array_index_after_local_borrow_element() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(): &str {
+    let value = 1
+    let labels: [&str; 2] = ["static", "also-static"]
+    let values: [&i32; 1] = [&value]
+    return labels[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_dynamic_array_index_with_local_borrow_element() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(fallback: &i32, index: usize): &i32 {
+    let value = 1
+    let values: [&i32; 2] = [fallback, &value]
+    return values[index]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_array_index_borrow_from_local_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func make(value: &i32): [&i32; 1] {
+    return [value]
+}
+
+func leak(): &i32 {
+    let value = 1
+    let values = make(&value)
+    return values[0]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_array_index_borrow_from_parameter_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func make(value: &i32): [&i32; 1] {
+    return [value]
+}
+
+func passthrough(value: &i32): &i32 {
+    let values = make(value)
+    return values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_nested_struct_literal_borrow_of_local_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {
