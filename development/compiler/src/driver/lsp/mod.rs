@@ -2466,6 +2466,96 @@ func main(choice: Choice): i32 {
     }
 
     #[test]
+    fn returns_completion_items_for_type_members() {
+        let uri = "file:///tmp/nocter-type-member-completion.nct".to_string();
+        let text = r#"enum Choice {
+    yes
+    no
+}
+
+struct File {
+    fd: i32
+}
+
+func File.open(): File {
+    return File{ fd: 1 }
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    let file = File.open()
+    return file.fd
+}
+"#;
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let variant_offset =
+            text.find("Choice.yes").expect("expected enum member") + "Choice.".len();
+        let variant_position = byte_offset_to_lsp_position(text, variant_offset);
+        let variant_response = server.completion_response(
+            json!(15),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": variant_position.line,
+                    "character": variant_position.character
+                }
+            })),
+        );
+        let variant_items = variant_response["result"]["items"]
+            .as_array()
+            .expect("expected enum member completion items");
+
+        assert_eq!(
+            completion_item_with_label(variant_items, "yes").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+        );
+        assert_eq!(
+            completion_item_with_label(variant_items, "no").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
+        );
+        assert!(completion_item_with_label(variant_items, "Choice").is_none());
+
+        let function_offset = text
+            .rfind("File.open")
+            .expect("expected associated function call")
+            + "File.".len();
+        let function_position = byte_offset_to_lsp_position(text, function_offset);
+        let function_response = server.completion_response(
+            json!(16),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": function_position.line,
+                    "character": function_position.character
+                }
+            })),
+        );
+        let function_items = function_response["result"]["items"]
+            .as_array()
+            .expect("expected associated function completion items");
+        let open_item =
+            completion_item_with_label(function_items, "open").expect("expected open completion");
+
+        assert_eq!(
+            open_item["kind"].as_u64(),
+            Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        );
+        assert_eq!(open_item["detail"].as_str(), Some("associated function"));
+        assert!(completion_item_with_label(function_items, "File").is_none());
+    }
+
+    #[test]
     fn returns_completion_items_for_namespace_import_without_member_leakage() {
         let project = TempProject::new("lsp-completion-namespace-import");
         let home = project.write_nocter_home();
