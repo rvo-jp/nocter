@@ -4,21 +4,23 @@ use super::context::{
 };
 use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
-    lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
-    lower_terminal_i32_if_statement, lower_terminal_usize_if_statement,
-    lower_terminal_void_if_statement,
+    lower_nonterminal_loop_statement, lower_nonterminal_payloadless_switch_body,
+    lower_nonterminal_payloadless_switch_statement, lower_nonterminal_while_statement,
+    lower_terminal_i32_block, lower_terminal_i32_if_statement, lower_terminal_usize_block,
+    lower_terminal_usize_if_statement, lower_terminal_void_block, lower_terminal_void_if_statement,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement, reachable_body_prefix,
+    LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
+    lower_drop_statement, lower_never_expression_with_scope_drops,
+    lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
+    payloadless_switch_as_control_flow, reachable_body_prefix,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
-use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
+use crate::ast::{Block, Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -248,20 +250,20 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Switch(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, &mut context, "E8002")
+            let switch = payloadless_switch_as_control_flow(statement, &mut context, "E8002")
                 .map_err(|diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?;
-            instructions.extend(switch.leading_instructions);
-            let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
-                &switch.if_statement,
-                &context,
-                return_type,
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?
+            let Some(branch_instructions) =
+                lower_terminal_entry_payloadless_switch_for_success_type(
+                    switch,
+                    &context,
+                    return_type,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?
             else {
                 return Err(attach_primary_span_if_absent(
                     unsupported_entry_body_diagnostic(),
@@ -409,18 +411,67 @@ fn lower_entry_control_body_result(
             lower_entry_if_body_result(&if_statement, return_type, context, sources)
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, context, "E8002")?;
-            let Some(mut branch_instructions) =
-                lower_entry_if_body_result(&switch.if_statement, return_type, context, sources)?
-            else {
-                return Ok(None);
-            };
-            let mut instructions = switch.leading_instructions;
-            instructions.append(&mut branch_instructions);
-            Ok(Some(instructions))
+            let switch = payloadless_switch_as_control_flow(statement, context, "E8002")?;
+            lower_entry_payloadless_switch_body_result(switch, return_type, context, sources)
         }
         _ => Ok(None),
     }
+}
+
+fn lower_entry_payloadless_switch_body_result(
+    switch: LoweredPayloadlessSwitch,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match lower_terminal_entry_payloadless_switch_body_for_success_type(
+        switch.body.clone(),
+        context,
+        return_type,
+        sources,
+    ) {
+        Ok(Some(mut branch_instructions)) => {
+            let mut instructions = switch.leading_instructions;
+            instructions.append(&mut branch_instructions);
+            Ok(Some(mark_fallible_success_returns(
+                return_type,
+                instructions,
+            )))
+        }
+        Ok(None) => Ok(None),
+        Err(_) if return_type.success_type() == &Type::Void => Ok(Some(
+            lower_void_nonterminal_entry_payloadless_switch_body_result(
+                switch,
+                return_type,
+                context,
+                sources,
+            )?,
+        )),
+        Err(diagnostics) => Err(diagnostics),
+    }
+}
+
+fn lower_void_nonterminal_entry_payloadless_switch_body_result(
+    switch: LoweredPayloadlessSwitch,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = switch.leading_instructions;
+    instructions.extend(lower_nonterminal_payloadless_switch_body(
+        switch.body,
+        context,
+        None,
+        &[],
+        "E8002",
+        "entry functions",
+        sources,
+    )?);
+    instructions.extend(append_scope_end_drops_before_exit(
+        vec![success_return_instruction(return_type)],
+        context,
+    )?);
+    Ok(instructions)
 }
 
 fn lower_entry_if_body_result(
@@ -471,6 +522,28 @@ fn lower_terminal_entry_if_statement_for_success_type(
     return_type: &Type,
     sources: &SourceMap,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(branch_instructions) = lower_terminal_entry_if_statement_body_for_success_type(
+        statement,
+        context,
+        return_type,
+        sources,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(mark_fallible_success_returns(
+        return_type,
+        branch_instructions,
+    )))
+}
+
+fn lower_terminal_entry_if_statement_body_for_success_type(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let branch_instructions = match return_type.success_type() {
         Type::I32 => lower_terminal_i32_if_statement(
             statement,
@@ -499,10 +572,89 @@ fn lower_terminal_entry_if_statement_for_success_type(
         _ => return Ok(None),
     };
 
+    Ok(Some(branch_instructions))
+}
+
+fn lower_terminal_entry_payloadless_switch_for_success_type(
+    switch: LoweredPayloadlessSwitch,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(branch_instructions) = lower_terminal_entry_payloadless_switch_body_for_success_type(
+        switch.body,
+        context,
+        return_type,
+        sources,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    let mut instructions = switch.leading_instructions;
+    instructions.extend(branch_instructions);
     Ok(Some(mark_fallible_success_returns(
         return_type,
-        branch_instructions,
+        instructions,
     )))
+}
+
+fn lower_terminal_entry_payloadless_switch_body_for_success_type(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => {
+            lower_terminal_entry_block_for_success_type(&block, context, return_type, sources)
+        }
+        LoweredPayloadlessSwitchBody::Conditional(statement) => {
+            lower_terminal_entry_if_statement_body_for_success_type(
+                &statement,
+                context,
+                return_type,
+                sources,
+            )
+        }
+    }
+}
+
+fn lower_terminal_entry_block_for_success_type(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let branch_instructions = match return_type.success_type() {
+        Type::I32 => lower_terminal_i32_block(
+            block,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        Type::Usize => lower_terminal_usize_block(
+            block,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        Type::Void => lower_terminal_void_block(
+            block,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        _ => return Ok(None),
+    };
+
+    Ok(Some(branch_instructions))
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {
@@ -624,14 +776,9 @@ fn lower_leading_bindings(
                 );
             }
             Stmt::Switch(statement) => {
-                let switch = payloadless_switch_as_if_statement(statement, context, "E8002")
-                    .map_err(|diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                    })?;
-                instructions.extend(switch.leading_instructions);
                 instructions.extend(
-                    lower_nonterminal_if_statement(
-                        &switch.if_statement,
+                    lower_nonterminal_payloadless_switch_statement(
+                        statement,
                         context,
                         None,
                         &[],

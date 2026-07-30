@@ -14,12 +14,13 @@ use super::bindings::{
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
-    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
+    LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
+    expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_aggregate_return_expression,
     lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_control_flow,
     propagating_failure_mode,
 };
 use super::literals::{
@@ -659,8 +660,8 @@ fn lower_i32_match_expression_to_location(
         context,
         reserved_local_abi_words,
         "E8008",
-        |if_statement, switch_context| {
-            lower_i32_if_expression_to_location(if_statement, destination, switch_context)
+        |expression, switch_context| {
+            lower_i32_expression_to_location(expression, destination, switch_context)
         },
     )
 }
@@ -676,8 +677,8 @@ fn lower_u8_match_expression_to_location(
         context,
         reserved_local_abi_words,
         "E8008",
-        |if_statement, switch_context| {
-            lower_u8_if_expression_to_location(if_statement, destination, switch_context)
+        |expression, switch_context| {
+            lower_u8_expression_to_location(expression, destination, switch_context)
         },
     )
 }
@@ -693,8 +694,8 @@ fn lower_usize_match_expression_to_location(
         context,
         reserved_local_abi_words,
         "E8008",
-        |if_statement, switch_context| {
-            lower_usize_if_expression_to_location(if_statement, destination, switch_context)
+        |expression, switch_context| {
+            lower_usize_expression_to_location(expression, destination, switch_context)
         },
     )
 }
@@ -711,9 +712,9 @@ fn lower_bool_match_expression_to_location(
         context,
         reserved_local_abi_words,
         diagnostic_code,
-        |if_statement, switch_context| {
-            lower_bool_if_expression_to_location(
-                if_statement,
+        |expression, switch_context| {
+            lower_bool_expression_to_location(
+                expression,
                 destination,
                 switch_context,
                 diagnostic_code,
@@ -733,8 +734,8 @@ fn lower_str_match_expression_to_location(
         context,
         reserved_local_abi_words,
         "E8008",
-        |if_statement, switch_context| {
-            lower_str_if_expression_to_location(if_statement, destination, switch_context)
+        |expression, switch_context| {
+            lower_str_expression_to_location(expression, destination, switch_context)
         },
     )
 }
@@ -750,8 +751,8 @@ fn lower_slice_match_expression_to_location(
         context,
         reserved_local_abi_words,
         "E8008",
-        |if_statement, switch_context| {
-            lower_slice_if_expression_to_location(if_statement, destination, switch_context)
+        |expression, switch_context| {
+            lower_slice_expression_to_location(expression, destination, switch_context)
         },
     )
 }
@@ -761,13 +762,20 @@ fn lower_match_expression_to_location(
     context: &LoweringContext,
     reserved_local_abi_words: usize,
     diagnostic_code: &'static str,
-    lower_if: impl FnOnce(&IfStmt, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+    lower_result: impl Fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut switch_context = context.with_reserved_local_abi_words(reserved_local_abi_words);
     let switch =
-        payloadless_switch_as_if_statement(statement, &mut switch_context, diagnostic_code)?;
+        payloadless_switch_as_control_flow(statement, &mut switch_context, diagnostic_code)?;
     let mut instructions = switch.leading_instructions;
-    instructions.extend(lower_if(&switch.if_statement, &switch_context)?);
+    instructions.extend(match switch.body {
+        LoweredPayloadlessSwitchBody::Direct(block) => {
+            lower_value_control_block_to_location(&block, &switch_context, &lower_result)?
+        }
+        LoweredPayloadlessSwitchBody::Conditional(statement) => {
+            lower_if_expression_to_location(&statement, &switch_context, &lower_result)?
+        }
+    });
     Ok(instructions)
 }
 

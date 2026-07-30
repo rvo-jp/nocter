@@ -12,17 +12,18 @@ use super::expressions::{
     short_circuit_bool_expression_needs_branch, success_return_instruction,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
+    LoweredPayloadlessSwitchBody, append_scope_end_drops_before_exit,
+    expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_control_flow,
     payloadless_switch_is_exhaustive,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    ReturnStmt, Stmt, UnaryOperator, WhileStmt,
+    ReturnStmt, Stmt, SwitchStmt, UnaryOperator, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -213,6 +214,263 @@ pub(super) fn lower_terminal_slice_if_statement(
         lower_slice_return_expression,
         sources,
     )
+}
+
+pub(super) fn lower_terminal_i32_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_i32_return_block_without_pre_moved(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_bool_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_bool_return_block_without_pre_moved(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_u8_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_scalar_block(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        "u8",
+        lower_u8_return_expression,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_usize_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_scalar_block(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        "usize",
+        lower_usize_return_expression,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_str_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_terminal_scalar_block(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        "&str",
+        lower_str_return_expression,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_slice_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let return_label = match return_type.success_type() {
+        Type::Slice { is_readwrite: true } => "&+[T]",
+        _ => "&[T]",
+    };
+
+    lower_terminal_scalar_block(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_slice_return_expression,
+        sources,
+    )
+}
+
+pub(super) fn lower_terminal_void_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_void_return_block_without_pre_moved(
+        block,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_terminal_i32_payloadless_switch_body(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => lower_terminal_i32_block(
+            &block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        LoweredPayloadlessSwitchBody::Conditional(statement) => lower_terminal_i32_if_statement(
+            &statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+    }
+}
+
+fn lower_terminal_bool_payloadless_switch_body(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => lower_terminal_bool_block(
+            &block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        LoweredPayloadlessSwitchBody::Conditional(statement) => lower_terminal_bool_if_statement(
+            &statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+    }
+}
+
+fn lower_terminal_scalar_payloadless_switch_body(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => lower_terminal_scalar_block(
+            &block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            return_label,
+            lower_return_expression,
+            sources,
+        ),
+        LoweredPayloadlessSwitchBody::Conditional(statement) => lower_terminal_scalar_if_statement(
+            &statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            return_label,
+            lower_return_expression,
+            sources,
+        ),
+    }
+}
+
+fn lower_terminal_void_payloadless_switch_body(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => lower_terminal_void_block(
+            &block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        LoweredPayloadlessSwitchBody::Conditional(statement) => lower_terminal_void_if_statement(
+            &statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+    }
 }
 
 fn lower_terminal_scalar_if_statement(
@@ -556,6 +814,60 @@ pub(super) fn lower_nonterminal_if_statement(
         diagnostic_code,
         sources,
     )
+}
+
+pub(super) fn lower_nonterminal_payloadless_switch_statement(
+    statement: &SwitchStmt,
+    context: &mut LoweringContext,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
+    let mut instructions = switch.leading_instructions;
+    instructions.extend(lower_nonterminal_payloadless_switch_body(
+        switch.body,
+        context,
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )?);
+    Ok(instructions)
+}
+
+pub(super) fn lower_nonterminal_payloadless_switch_body(
+    body: LoweredPayloadlessSwitchBody,
+    context: &LoweringContext,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match body {
+        LoweredPayloadlessSwitchBody::Direct(block) => lower_nonterminal_if_block(
+            &block,
+            context,
+            loop_scope_mark,
+            continue_instructions,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        LoweredPayloadlessSwitchBody::Conditional(statement) => lower_nonterminal_if_statement(
+            &statement,
+            context,
+            loop_scope_mark,
+            continue_instructions,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+    }
 }
 
 pub(super) fn lower_nonterminal_while_statement(
@@ -1049,14 +1361,8 @@ fn lower_nonterminal_loop_block_statements(
                 instructions.extend(lowered);
             }
             Stmt::Switch(statement) => {
-                let switch =
-                    payloadless_switch_as_if_statement(statement, context, diagnostic_code)
-                        .map_err(|diagnostics| {
-                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                        })?;
-                instructions.extend(switch.leading_instructions);
-                let lowered = lower_nonterminal_if_statement(
-                    &switch.if_statement,
+                let lowered = lower_nonterminal_payloadless_switch_statement(
+                    statement,
                     context,
                     loop_scope_mark,
                     continue_instructions,
@@ -1676,9 +1982,45 @@ fn lower_i32_return_block(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
+    lower_i32_return_block_with_context(
+        block,
+        branch_context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_i32_return_block_without_pre_moved(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_i32_return_block_with_context(
+        block,
+        context.clone(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_i32_return_block_with_context(
+    block: &Block,
+    mut branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -1736,14 +2078,14 @@ fn lower_i32_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_if_statement(
+            let switch = payloadless_switch_as_control_flow(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
             )?;
             instructions.extend(switch.leading_instructions);
-            instructions.extend(lower_terminal_i32_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_i32_payloadless_switch_body(
+                switch.body,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -1784,9 +2126,45 @@ fn lower_bool_return_block(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
+    lower_bool_return_block_with_context(
+        block,
+        branch_context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_bool_return_block_without_pre_moved(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_bool_return_block_with_context(
+        block,
+        context.clone(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_bool_return_block_with_context(
+    block: &Block,
+    mut branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -1844,14 +2222,14 @@ fn lower_bool_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_if_statement(
+            let switch = payloadless_switch_as_control_flow(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
             )?;
             instructions.extend(switch.leading_instructions);
-            instructions.extend(lower_terminal_bool_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_bool_payloadless_switch_body(
+                switch.body,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -1913,10 +2291,10 @@ fn lower_i32_result_expression(
             )
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = switch.leading_instructions;
-            instructions.extend(lower_terminal_i32_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_i32_payloadless_switch_body(
+                switch.body,
                 context,
                 return_type,
                 diagnostic_code,
@@ -1959,10 +2337,10 @@ fn lower_bool_result_expression(
             )
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = switch.leading_instructions;
-            instructions.extend(lower_terminal_bool_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_bool_payloadless_switch_body(
+                switch.body,
                 context,
                 return_type,
                 diagnostic_code,
@@ -1986,10 +2364,54 @@ fn lower_scalar_return_block(
     lower_return_expression: ReturnLowerer,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (terminal, leading) =
-        split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
+    lower_scalar_return_block_with_context(
+        block,
+        branch_context,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )
+}
+
+fn lower_terminal_scalar_block(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_scalar_return_block_with_context(
+        block,
+        context.clone(),
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )
+}
+
+fn lower_scalar_return_block_with_context(
+    block: &Block,
+    mut branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (terminal, leading) =
+        split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -2053,14 +2475,14 @@ fn lower_scalar_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_if_statement(
+            let switch = payloadless_switch_as_control_flow(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
             )?;
             instructions.extend(switch.leading_instructions);
-            instructions.extend(lower_terminal_scalar_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_scalar_payloadless_switch_body(
+                switch.body,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2130,10 +2552,10 @@ fn lower_scalar_result_expression(
             )
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = switch.leading_instructions;
-            instructions.extend(lower_terminal_scalar_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_scalar_payloadless_switch_body(
+                switch.body,
                 context,
                 return_type,
                 diagnostic_code,
@@ -2157,9 +2579,45 @@ fn lower_void_return_block(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
     let mut branch_context = context.clone();
     mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
+    lower_void_return_block_with_context(
+        block,
+        branch_context,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_void_return_block_without_pre_moved(
+    block: &Block,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_void_return_block_with_context(
+        block,
+        context.clone(),
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_void_return_block_with_context(
+    block: &Block,
+    mut branch_context: LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -2217,14 +2675,14 @@ fn lower_void_return_block(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Switch(statement)) => {
-            let switch = payloadless_switch_as_if_statement(
+            let switch = payloadless_switch_as_control_flow(
                 statement,
                 &mut branch_context,
                 diagnostic_code,
             )?;
             instructions.extend(switch.leading_instructions);
-            instructions.extend(lower_terminal_void_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_void_payloadless_switch_body(
+                switch.body,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -2286,10 +2744,10 @@ fn lower_void_result_expression(
             )
         }
         Expr::Match(statement) => {
-            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let switch = payloadless_switch_as_control_flow(statement, context, diagnostic_code)?;
             let mut instructions = switch.leading_instructions;
-            instructions.extend(lower_terminal_void_if_statement(
-                &switch.if_statement,
+            instructions.extend(lower_terminal_void_payloadless_switch_body(
+                switch.body,
                 context,
                 return_type,
                 diagnostic_code,

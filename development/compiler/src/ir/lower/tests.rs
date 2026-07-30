@@ -29319,6 +29319,77 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_wildcard_only_payloadless_match_statement_without_branch() {
+    let ir = lower_text(
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    match choice {
+        _ {
+            return 7
+        }
+    }
+}
+"#,
+    );
+
+    let instructions = &ir.functions[0].instructions;
+    assert!(
+        instructions
+            .iter()
+            .all(|instruction| !matches!(instruction, Instruction::If { .. })),
+        "{instructions:?}"
+    );
+    assert!(
+        instructions.contains(&set_return_i32(7)),
+        "{instructions:?}"
+    );
+}
+
+#[test]
+fn lowers_wildcard_only_payloadless_match_expression_without_branch() {
+    let ir = lower_text(
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    let result = match choice {
+        _ {
+            7
+        }
+    }
+    return result
+}
+"#,
+    );
+
+    let instructions = &ir.functions[0].instructions;
+    assert!(
+        instructions
+            .iter()
+            .all(|instruction| !matches!(instruction, Instruction::If { .. })),
+        "{instructions:?}"
+    );
+    assert!(
+        instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::SetI32 {
+                destination: I32Location::Local(_),
+                value: I32Value::Const(7)
+            }
+        )),
+        "{instructions:?}"
+    );
+}
+
+#[test]
 fn skips_unreachable_callable_tail_after_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
