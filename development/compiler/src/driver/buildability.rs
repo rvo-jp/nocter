@@ -920,7 +920,7 @@ fn collect_terminal_return_expression_diagnostics(
             );
         }
         Expr::ArrayLiteral(_)
-            if fixed_array_literal_return_is_buildable(
+            if fixed_array_literal_return_has_fixed_array_type(
                 expression,
                 return_type,
                 resolved,
@@ -1921,7 +1921,7 @@ fn collect_otherwise_value_fallback_block_diagnostics(
         );
     }
     if let Some(result) = &block.result {
-        if fixed_array_literal_for_type_is_buildable(
+        if fixed_array_literal_for_type_has_fixed_array_type(
             result,
             expected_aggregate_type,
             resolved,
@@ -2742,40 +2742,31 @@ fn local_binding_type_expr_is_buildable(
         || type_expr_is_supported_aggregate_value_for_sources(ty, resolved, resolved_sources)
 }
 
-fn fixed_array_literal_return_is_buildable(
+fn fixed_array_literal_return_has_fixed_array_type(
     expression: &Expr,
     return_type: Option<&TypeExpr>,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
+    let Expr::ArrayLiteral(_) = unwrap_group_expr(expression) else {
         return false;
     };
-    let Some((element, length, _layout)) =
-        return_type.and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+    return_type
+        .and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
+        .is_some()
 }
 
-fn fixed_array_literal_for_type_is_buildable(
+fn fixed_array_literal_for_type_has_fixed_array_type(
     expression: &Expr,
     ty: Option<&TypeExpr>,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
+    let Expr::ArrayLiteral(_) = unwrap_group_expr(expression) else {
         return false;
     };
-    let Some((element, length, _layout)) =
-        ty.and_then(|ty| fixed_array_type_abi_for_sources(ty, resolved, resolved_sources))
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+    ty.and_then(|ty| fixed_array_type_abi_for_sources(ty, resolved, resolved_sources))
+        .is_some()
 }
 
 fn fixed_array_literal_binding_is_buildable(
@@ -3284,18 +3275,16 @@ fn unsupported_fixed_array_assignment_diagnostic(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
-    if statement.operator != AssignmentOperator::Assign
-        || fixed_array_assignment_target_abi(
-            &statement.target,
-            resolved,
-            resolved_sources,
-            typecheck_facts,
-            generic_substitutions,
-        )
-        .is_none()
-    {
+    if statement.operator != AssignmentOperator::Assign {
         return None;
     }
+    fixed_array_assignment_target_abi(
+        &statement.target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )?;
 
     if fixed_array_literal_assignment_is_buildable(
         statement,
@@ -3331,12 +3320,20 @@ fn unsupported_fixed_array_assignment_diagnostic(
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
-        sources,
-        statement.target.span(),
-        "fixed array assignments outside supported replacement values",
-        "assign a matching fixed array literal, copy another matching local or aggregate-field fixed array, or assign a matching fixed array call result until broader fixed array expression lowering is promoted",
-    ))
+    Some(match unwrap_group_expr(&statement.value) {
+        Expr::ArrayLiteral(_) => unsupported_v0_build_diagnostic(
+            sources,
+            statement.value.span(),
+            "fixed array assignments outside supported literal values",
+            "match the target fixed array length and use `i32`, `u8`, `usize`, `bool`, or `&str` elements until broader fixed array element storage is promoted",
+        ),
+        _ => unsupported_v0_build_diagnostic(
+            sources,
+            statement.target.span(),
+            "fixed array assignments outside supported replacement values",
+            "assign a matching fixed array literal, copy another matching local or aggregate-field fixed array, or assign a matching fixed array call result until broader fixed array expression lowering is promoted",
+        ),
+    })
 }
 
 fn fixed_array_assignment_target_abi(
@@ -4912,6 +4909,14 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
+            let assignment_targets_fixed_array = fixed_array_assignment_target_abi(
+                &statement.target,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
+            .is_some();
             let assignment_aggregate_type = aggregate_assignment_target_type_expr(
                 &statement.target,
                 resolved,
@@ -4960,7 +4965,10 @@ fn collect_statement_diagnostics(
                     queue,
                     diagnostics,
                 );
-            } else if assignment_is_fixed_array_literal {
+            } else if assignment_is_fixed_array_literal
+                || (assignment_targets_fixed_array
+                    && matches!(unwrap_group_expr(&statement.value), Expr::ArrayLiteral(_)))
+            {
                 collect_fixed_array_literal_elements_diagnostics(
                     unwrap_group_expr(&statement.value),
                     sources,

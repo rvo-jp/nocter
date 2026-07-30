@@ -5192,6 +5192,66 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_unsupported_fixed_array_literal_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-unsupported-fixed-array-literal-assignment-boundary");
+    let source = project.write_source(
+        "unsupported_fixed_array_literal_assignment_boundary.nct",
+        r#"struct Text {
+    value: i32
+}
+
+func main(): i32 {
+    var texts: [Text; 1] = make_texts()
+    texts = [Text{ value: 1 }]
+    return 0
+}
+
+func make_texts(): [Text; 1] {
+    return [Text{ value: 0 }]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("fixed array assignments outside supported literal values"),
+        "expected fixed array literal assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        "expected unsupported return signature diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     texts = [Text{ value: 1 }]"),
+        "expected assignment source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("11 | func make_texts(): [Text; 1] {"),
+        "expected return signature source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_scalar_function_signature_before_ir_lowering() {
     let project = TempProject::new("cli-build-unsupported-scalar-signature-boundary");
     let source = project.write_source(
