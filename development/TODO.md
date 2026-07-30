@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known compiler-progress commits:
+  - `811a78b Update handoff after Apache release retag`
   - `99d1306 Update handoff after v0.2.0 development start`
   - `d817c99 Start v0.2.0 development`
   - `660aba7 License Nocter under Apache-2.0`
@@ -94,6 +95,11 @@ Recommended order:
   `dist/nocter-v0.1.0-arm64-darwin.tar.gz`. The package script writes
   `LICENSE` and `NOTICE` into `dist/.nocter/` and the host archive. Develop
   moved on to `0.2.0-dev` in `d817c99`.
+- `develop` and `v0.1.0` have been pushed to `origin`. Local release assets are
+  ready under `dist/`: `nocter-v0.1.0-arm64-darwin.tar.gz` and `SHA256SUMS`.
+  GitHub Release asset upload still needs an explicit GitHub API token or an
+  installed `gh` CLI; reusing the macOS keychain git credential for API upload
+  was not used.
 - `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
