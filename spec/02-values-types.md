@@ -684,7 +684,9 @@ Rules:
   arguments lower in the current copy/no-drop payload subset.
 - Tag-only payload-carrying enum `if is Enum.variant(_)` statements and
   tag-only payload-carrying enum `match` statements lower over existing enum
-  bindings and parameters in the current copy/no-drop payload subset.
+  bindings and parameters in the current copy/no-drop payload subset, including
+  wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
+  statement forms.
 - Payload binding, payload-carrying enum `if is` / `match` over temporary
   expressions, and active payload drop cleanup are typechecked in v0 but still
   reject before build/run.

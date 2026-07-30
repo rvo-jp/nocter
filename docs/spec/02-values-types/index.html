@@ -381,7 +381,9 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   payloadless enum <code>match</code> expressions lower through the enum tag ABI.</li><li>Payload-carrying enum construction, local storage, returns, and value
   arguments lower in the current copy/no-drop payload subset.</li><li>Tag-only payload-carrying enum <code>if is Enum.variant(_)</code> statements and
   tag-only payload-carrying enum <code>match</code> statements lower over existing enum
-  bindings and parameters in the current copy/no-drop payload subset.</li><li>Payload binding, payload-carrying enum <code>if is</code> / <code>match</code> over temporary
+  bindings and parameters in the current copy/no-drop payload subset, including
+  wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
+  statement forms.</li><li>Payload binding, payload-carrying enum <code>if is</code> / <code>match</code> over temporary
   expressions, and active payload drop cleanup are typechecked in v0 but still
   reject before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid

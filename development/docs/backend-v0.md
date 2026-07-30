@@ -116,7 +116,9 @@ includes:
   existing enum bindings and parameters in the current copy/no-drop payload
   subset
 - tag-only payload-carrying enum `match` statements over existing enum bindings
-  and parameters in the current copy/no-drop payload subset
+  and parameters in the current copy/no-drop payload subset, including
+  wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
+  statement forms
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset

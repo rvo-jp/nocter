@@ -17,9 +17,10 @@ use super::functions::{
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_switch_as_control_flow, payloadless_switch_is_exhaustive,
-    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    lowerable_switch_is_exhaustive, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
+    payloadless_switch_is_exhaustive, tag_only_if_is_as_control_flow,
+    tag_only_switch_as_control_flow,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -1556,7 +1557,7 @@ pub(super) fn statement_exits_function(statement: &Stmt, context: &LoweringConte
         }
         Stmt::Switch(statement) => {
             if statement.wildcard_arm.is_none()
-                && !payloadless_switch_is_exhaustive(statement, context)
+                && !lowerable_switch_is_exhaustive(statement, context)
             {
                 return false;
             }

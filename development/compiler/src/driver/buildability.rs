@@ -4854,12 +4854,6 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if statement.wildcard_arm.is_none() {
-        return false;
-    }
-    let Some(first_arm) = statement.arms.first() else {
-        return false;
-    };
     if !matches!(
         unwrap_group_expr(&statement.expression),
         Expr::Identifier(_)
@@ -4873,6 +4867,12 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
     if !type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources) {
         return false;
     }
+
+    let Some(first_arm) = statement.arms.first() else {
+        let source_resolver = |source| resolved_sources.get(&source).copied();
+        return statement.wildcard_arm.is_some()
+            && payload_enum_symbol_for_type_expr(&ty, resolved, &source_resolver).is_some();
+    };
 
     let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
         return false;
@@ -4926,18 +4926,59 @@ fn payloadless_enum_symbol_for_type_expr<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    payloadless_enum_symbol_for_type_expr_inner(
+    enum_symbol_for_type_expr(
         ty,
         fallback_resolved,
         resolver,
+        EnumPayloadRequirement::Payloadless,
+    )
+}
+
+fn payload_enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    enum_symbol_for_type_expr(
+        ty,
+        fallback_resolved,
+        resolver,
+        EnumPayloadRequirement::Payload,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum EnumPayloadRequirement {
+    Payloadless,
+    Payload,
+}
+
+fn enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    payload_requirement: EnumPayloadRequirement,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    enum_symbol_for_type_expr_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        payload_requirement,
         &mut HashSet::new(),
     )
 }
 
-fn payloadless_enum_symbol_for_type_expr_inner<'a, F>(
+fn enum_symbol_for_type_expr_inner<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
+    payload_requirement: EnumPayloadRequirement,
     resolving_names: &mut HashSet<String>,
 ) -> Option<&'a TypeSymbol>
 where
@@ -4973,23 +5014,38 @@ where
             return None;
         }
         let target = substitute_type_expr_parameters(target, &substitutions);
-        let result = payloadless_enum_symbol_for_type_expr_inner(
+        let result = enum_symbol_for_type_expr_inner(
             &target,
             fallback_resolved,
             resolver,
+            payload_requirement,
             resolving_names,
         );
         resolving_names.remove(&symbol.canonical_name);
         return result;
     }
 
-    (symbol.kind == TypeSymbolKind::Enum
-        && symbol.variants.len() <= 256
-        && symbol
+    enum_symbol_matches_payload_requirement(symbol, payload_requirement).then_some(symbol)
+}
+
+fn enum_symbol_matches_payload_requirement(
+    symbol: &TypeSymbol,
+    payload_requirement: EnumPayloadRequirement,
+) -> bool {
+    if symbol.kind != TypeSymbolKind::Enum || symbol.variants.len() > 256 {
+        return false;
+    }
+
+    match payload_requirement {
+        EnumPayloadRequirement::Payloadless => symbol
             .variants
             .iter()
-            .all(|variant| variant.payload.is_empty()))
-    .then_some(symbol)
+            .all(|variant| variant.payload.is_empty()),
+        EnumPayloadRequirement::Payload => symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty()),
+    }
 }
 
 fn switch_statement_covers_all_payloadless_variants(
@@ -5031,6 +5087,51 @@ fn switch_statement_covers_all_payloadless_variants(
                 .map(|variant| variant.name.as_str())
         })
         .collect::<HashSet<_>>();
+    target_symbol
+        .variants
+        .iter()
+        .all(|variant| covered.contains(variant.name.as_str()))
+}
+
+fn switch_statement_covers_all_tag_only_payload_variants(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    let Some(first_arm) = statement.arms.first() else {
+        return false;
+    };
+    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
+        return false;
+    };
+    if target_symbol.kind != TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .all(|variant| variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    let covered = statement
+        .arms
+        .iter()
+        .filter_map(|arm| {
+            let arm_symbol = resolved.type_symbol_by_name(&arm.enum_name)?;
+            if arm_symbol.kind != TypeSymbolKind::Enum
+                || arm_symbol.canonical_name != target_symbol.canonical_name
+            {
+                return None;
+            }
+            let variant = target_symbol
+                .variants
+                .iter()
+                .find(|variant| variant.name == arm.variant_name)?;
+            tag_only_if_is_payload_pattern_is_buildable(arm.payload.as_ref(), variant.payload.len())
+                .then_some(variant.name.as_str())
+        })
+        .collect::<HashSet<_>>();
+
     target_symbol
         .variants
         .iter()
@@ -7077,6 +7178,7 @@ fn switch_statement_exits_function_for_buildability(
 ) -> bool {
     if statement.wildcard_arm.is_none()
         && !switch_statement_covers_all_payloadless_variants(statement, resolved)
+        && !switch_statement_covers_all_tag_only_payload_variants(statement, resolved)
     {
         return false;
     }

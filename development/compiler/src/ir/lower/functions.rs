@@ -1927,7 +1927,11 @@ fn payload_enum_tag_only_switch_variant_names(
     statement: &SwitchStmt,
     context: &LoweringContext,
 ) -> Option<Vec<String>> {
-    let first_arm = statement.arms.first()?;
+    let Some(first_arm) = statement.arms.first() else {
+        return statement.wildcard_arm.as_ref().and_then(|_| {
+            context.payload_enum_variant_names_for_expression(&statement.expression)
+        });
+    };
     let (_, resolved) = context.resolved_calls()?;
     let target_symbol = resolved.type_symbol_by_name(&first_arm.enum_name)?;
     if target_symbol.kind != crate::resolve::TypeSymbolKind::Enum
@@ -2087,6 +2091,22 @@ pub(super) fn payloadless_switch_is_exhaustive(
     payloadless_switch_variant_names(statement, context).is_some_and(|variant_names| {
         payloadless_switch_covers_all_variants(statement, &variant_names)
     })
+}
+
+pub(super) fn lowerable_switch_is_exhaustive(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.wildcard_arm.is_some() {
+        return payloadless_switch_variant_names(statement, context).is_some()
+            || payload_enum_tag_only_switch_variant_names(statement, context).is_some();
+    }
+
+    payloadless_switch_variant_names(statement, context).is_some_and(|variant_names| {
+        payloadless_switch_covers_all_variants(statement, &variant_names)
+    }) || payload_enum_tag_only_switch_variant_names(statement, context).is_some_and(
+        |variant_names| payloadless_switch_covers_all_variants(statement, &variant_names),
+    )
 }
 
 fn payloadless_switch_body(

@@ -690,6 +690,24 @@ impl<'a> LoweringContext<'a> {
         )
     }
 
+    pub(super) fn payload_enum_variant_names_for_expression(
+        &self,
+        expression: &Expr,
+    ) -> Option<Vec<String>> {
+        let resolution = self.call_resolution.as_ref()?;
+        let ty = self.expression_type_expr(expression.span())?;
+        let symbol = payload_enum_symbol_for_type_expr(&ty, resolution.resolved, &|source| {
+            self.resolved_source(source)
+        })?;
+        Some(
+            symbol
+                .variants
+                .iter()
+                .map(|variant| variant.name.clone())
+                .collect(),
+        )
+    }
+
     pub(super) fn binding_scalar_view_kind(
         &self,
         name_span: ByteSpan,
@@ -1805,18 +1823,59 @@ fn payloadless_enum_symbol_for_type_expr<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    payloadless_enum_symbol_for_type_expr_inner(
+    enum_symbol_for_type_expr(
         ty,
         fallback_resolved,
         resolver,
+        EnumPayloadRequirement::Payloadless,
+    )
+}
+
+fn payload_enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    enum_symbol_for_type_expr(
+        ty,
+        fallback_resolved,
+        resolver,
+        EnumPayloadRequirement::Payload,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum EnumPayloadRequirement {
+    Payloadless,
+    Payload,
+}
+
+fn enum_symbol_for_type_expr<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    payload_requirement: EnumPayloadRequirement,
+) -> Option<&'a TypeSymbol>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    enum_symbol_for_type_expr_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        payload_requirement,
         &mut HashSet::new(),
     )
 }
 
-fn payloadless_enum_symbol_for_type_expr_inner<'a, F>(
+fn enum_symbol_for_type_expr_inner<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
+    payload_requirement: EnumPayloadRequirement,
     resolving_names: &mut HashSet<String>,
 ) -> Option<&'a TypeSymbol>
 where
@@ -1852,23 +1911,38 @@ where
             return None;
         }
         let target = substitute_type_expr_parameters(target, &substitutions);
-        let symbol = payloadless_enum_symbol_for_type_expr_inner(
+        let symbol = enum_symbol_for_type_expr_inner(
             &target,
             fallback_resolved,
             resolver,
+            payload_requirement,
             resolving_names,
         );
         resolving_names.remove(&type_symbol.canonical_name);
         return symbol;
     }
 
-    (type_symbol.kind == TypeSymbolKind::Enum
-        && type_symbol.variants.len() <= 256
-        && type_symbol
+    enum_symbol_matches_payload_requirement(type_symbol, payload_requirement).then_some(type_symbol)
+}
+
+fn enum_symbol_matches_payload_requirement(
+    symbol: &TypeSymbol,
+    payload_requirement: EnumPayloadRequirement,
+) -> bool {
+    if symbol.kind != TypeSymbolKind::Enum || symbol.variants.len() > 256 {
+        return false;
+    }
+
+    match payload_requirement {
+        EnumPayloadRequirement::Payloadless => symbol
             .variants
             .iter()
-            .all(|variant| variant.payload.is_empty()))
-    .then_some(type_symbol)
+            .all(|variant| variant.payload.is_empty()),
+        EnumPayloadRequirement::Payload => symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty()),
+    }
 }
 
 fn resolved_for_type_expr<'a, F>(
