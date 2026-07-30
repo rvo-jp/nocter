@@ -122,7 +122,8 @@ changes before cutting an archive. Development setup lives in
 For repository-local release testing, the canonical standard-library source is
 tracked in `development/std/` and release metadata lives in
 `development/packaging/`. Generate a local installation image under
-`dist/.nocter/` with:
+`dist/.nocter/` plus the archive
+`dist/nocter-v0.1.0-arm64-darwin.tar.gz` with:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh

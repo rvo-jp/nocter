@@ -253,11 +253,13 @@ resolution is unavailable or intentionally bypassed.
 The repository keeps the canonical standard-library source in
 `development/std/` and release metadata templates in `development/packaging/`.
 The local release packaging script generates the distributable Nocter home image
-at `dist/.nocter/`.
+at `dist/.nocter/` and the host archive at
+`dist/nocter-v<version>-arm64-darwin.tar.gz`.
 
 Rules:
 
 - `development/std/` is edited as source.
 - `development/packaging/VERSION` and `development/packaging/MANIFEST.json` are
   edited as release metadata inputs.
-- `dist/.nocter/` is generated output and is not committed to git.
+- `dist/.nocter/` and `dist/nocter-v<version>-arm64-darwin.tar.gz` are
+  generated output and are not committed to git.

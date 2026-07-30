@@ -1,7 +1,7 @@
 # Release Packaging Inputs
 
-This directory contains metadata inputs for the local release image generated
-from the repository root by
+This directory contains metadata inputs for the local release image and archive
+generated from the repository root by
 `development/compiler/scripts/package-local-release.sh`.
 
 - `VERSION` is copied to repository-root `dist/.nocter/VERSION`.
@@ -9,4 +9,5 @@ from the repository root by
 - Standard-library source is tracked separately in `../std/` and copied to
   repository-root `dist/.nocter/std/`.
 
-Generated repository-root `dist/.nocter/` output is not committed to git.
+Generated repository-root `dist/.nocter/` and
+`dist/nocter-v<version>-arm64-darwin.tar.gz` outputs are not committed to git.
