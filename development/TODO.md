@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `8dd1740 Lower match payload expressions`
   - `c96914c Lower match payload bindings`
   - `514a587 Lower if-is payload bindings`
   - `ab2cbc1 Align payload enum match statement lowering`
@@ -129,6 +130,12 @@ Recommended order:
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
   into resolver, typecheck facts, hover, ownership, or buildability state.
+  Runtime lowering now supports tag-only payload enum `if is` statements and
+  value expressions plus `match` statement and value-expression arms over
+  existing enum locals/parameters for scalar/view payload bindings and `_`
+  discards. Aggregate, slice, and non-copy payload bindings still reject before
+  IR lowering. Full `./development/compiler/scripts/verify.sh` passed after
+  `8dd1740`.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and
