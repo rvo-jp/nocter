@@ -14,7 +14,10 @@ use crate::resolve::{
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use std::borrow::Cow;
 use std::collections::HashSet;
+
+const COMPLETION_PLACEHOLDER_IDENT: &str = "__nocter_completion_placeholder";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
@@ -71,8 +74,20 @@ pub(crate) fn completion_items_for_text_at_offset(
     text: &str,
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
-    let parsed = parse_single_file_text("completion.nct", text)?;
-    let resolved = resolve_single_file_ast("completion.nct", text, parsed.source, &parsed.ast);
+    let (completion_text, parsed) = match parse_single_file_text("completion.nct", text) {
+        Some(parsed) => (Cow::Borrowed(text), parsed),
+        None => {
+            let completion_text = incomplete_member_completion_text(text, offset)?;
+            let parsed = parse_single_file_text("completion.nct", &completion_text)?;
+            (Cow::Owned(completion_text), parsed)
+        }
+    };
+    let resolved = resolve_single_file_ast(
+        "completion.nct",
+        completion_text.as_ref(),
+        parsed.source,
+        &parsed.ast,
+    );
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
     if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, &facts, offset) {
@@ -83,6 +98,23 @@ pub(crate) fn completion_items_for_text_at_offset(
         &resolved,
         visible_scoped_import_spans_at_offset(&parsed.ast, offset),
     ))
+}
+
+fn incomplete_member_completion_text(text: &str, offset: usize) -> Option<String> {
+    if !offset_is_after_member_dot(text, offset) {
+        return None;
+    }
+
+    let mut completion_text =
+        String::with_capacity(text.len() + COMPLETION_PLACEHOLDER_IDENT.len());
+    completion_text.push_str(&text[..offset]);
+    completion_text.push_str(COMPLETION_PLACEHOLDER_IDENT);
+    completion_text.push_str(&text[offset..]);
+    Some(completion_text)
+}
+
+fn offset_is_after_member_dot(text: &str, offset: usize) -> bool {
+    offset > 0 && text.is_char_boundary(offset) && text.as_bytes().get(offset - 1) == Some(&b'.')
 }
 
 pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
@@ -739,6 +771,39 @@ func main(): i32 {
     }
 
     #[test]
+    fn completion_candidates_include_type_members_after_incomplete_member_dot() {
+        let text = r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.
+    return 0
+}
+"#;
+        let offset = text
+            .find("Choice.")
+            .expect("expected incomplete enum member")
+            + "Choice.".len();
+
+        let items =
+            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
+
+        assert!(items.iter().any(|item| {
+            item.label == "yes"
+                && item.kind == CompletionItemKind::EnumMember
+                && item.detail.as_deref() == Some("enum variant")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "no"
+                && item.kind == CompletionItemKind::EnumMember
+                && item.detail.as_deref() == Some("enum variant")
+        }));
+        assert!(!items.iter().any(|item| item.label == "Choice"));
+    }
+
+    #[test]
     fn completion_candidates_do_not_fall_back_to_globals_after_unknown_type_member_dot() {
         let text = r#"enum Choice {
     yes
@@ -804,6 +869,50 @@ func main(): i32 {
     }
 
     #[test]
+    fn completion_candidates_include_fields_and_methods_after_incomplete_value_member_dot() {
+        let text = r#"struct File {
+    fd: i32
+    size: i32
+}
+
+impl File {
+    method &self.describe(): i32 {
+        return self.size
+    }
+}
+
+func main(): i32 {
+    let file = File{ fd: 1, size: 2 }
+    return file.
+}
+"#;
+        let offset = text
+            .rfind("file.")
+            .expect("expected incomplete field access")
+            + "file.".len();
+
+        let items =
+            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
+
+        assert!(items.iter().any(|item| {
+            item.label == "fd"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "size"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "describe"
+                && item.kind == CompletionItemKind::Method
+                && item.detail.as_deref() == Some("method")
+        }));
+        assert!(!items.iter().any(|item| item.label == "File"));
+    }
+
+    #[test]
     fn completion_candidates_include_fields_and_methods_after_borrowed_value_member_dot() {
         let text = r#"struct File {
     fd: i32
@@ -836,6 +945,37 @@ func inspect(file: &File): i32 {
                 && item.detail.as_deref() == Some("method")
         }));
         assert!(!items.iter().any(|item| item.label == "File"));
+    }
+
+    #[test]
+    fn completion_candidates_include_pattern_members_after_incomplete_pattern_dot() {
+        let text = r#"enum Choice {
+    hit(value: i32)
+    miss
+}
+
+func main(choice: Choice): i32 {
+    if choice is Choice. {
+    }
+    return 0
+}
+"#;
+        let offset = text.find("Choice.").expect("expected incomplete pattern") + "Choice.".len();
+
+        let items =
+            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
+
+        assert!(items.iter().any(|item| {
+            item.label == "hit"
+                && item.kind == CompletionItemKind::EnumMember
+                && item.detail.as_deref() == Some("enum variant")
+        }));
+        assert!(items.iter().any(|item| {
+            item.label == "miss"
+                && item.kind == CompletionItemKind::EnumMember
+                && item.detail.as_deref() == Some("enum variant")
+        }));
+        assert!(!items.iter().any(|item| item.label == "Choice"));
     }
 
     #[test]

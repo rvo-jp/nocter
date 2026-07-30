@@ -2618,6 +2618,65 @@ func main(): i32 {
     }
 
     #[test]
+    fn returns_completion_items_for_incomplete_value_member_dot() {
+        let uri = "file:///tmp/nocter-incomplete-value-member-completion.nct".to_string();
+        let text = r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method &self.describe(): i32 {
+        return self.fd
+    }
+}
+
+func main(): i32 {
+    let file = File{ fd: 1 }
+    return file.
+}
+"#;
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let offset = text
+            .rfind("file.")
+            .expect("expected incomplete field access")
+            + "file.".len();
+        let position = byte_offset_to_lsp_position(text, offset);
+        let response = server.completion_response(
+            json!(18),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": position.line,
+                    "character": position.character
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected value member completion items");
+
+        assert_eq!(
+            completion_item_with_label(items, "fd").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
+        );
+        assert_eq!(
+            completion_item_with_label(items, "describe").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_METHOD as u64)
+        );
+        assert!(completion_item_with_label(items, "File").is_none());
+        assert!(completion_item_with_label(items, "return").is_none());
+    }
+
+    #[test]
     fn returns_completion_items_for_namespace_import_without_member_leakage() {
         let project = TempProject::new("lsp-completion-namespace-import");
         let home = project.write_nocter_home();
