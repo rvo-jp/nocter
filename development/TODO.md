@@ -8,6 +8,7 @@ in `spec/`.
 
 - Branch: `develop`
 - Latest known compiler-progress commits:
+  - `bd3a0c5 Recover struct literal field completions`
   - `e5a4111 Complete struct literal field completions`
   - `4fffdba Recover member completion after trailing dots`
   - `8e6ca70 Complete fields and methods in member contexts`
@@ -77,8 +78,9 @@ Recommended order:
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and
   associated functions after `Type.`, fields and methods after typed `value.`,
   and struct fields inside struct literal field lists. Open-document completion
-  recovers `Type.`, `value.`, and pattern `Enum.` trailing-dot forms by
-  inserting a completion-only placeholder before single-file analysis.
+  recovers `Type.`, `value.`, and pattern `Enum.` trailing-dot forms, plus
+  empty or unclosed struct literal field lists, by inserting a completion-only
+  placeholder before single-file analysis.
 - Parser diagnostics now reject the reserved `_` and `Self` spellings across
   v0 name-introducing syntax, including declarations, parameters, local
   bindings, payload bindings, import-introduced names, and import aliases.
