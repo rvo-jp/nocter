@@ -10599,6 +10599,44 @@ func same(value: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_payloadless_match_expression_with_import_alias_arms_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-match-expression-import-alias-arms");
+    project.write_source(
+        "choice.nct",
+        r#"pub enum Choice {
+    yes
+    no
+}
+"#,
+    );
+    let source = project.write_source(
+        "payloadless_match_expression_import_alias_arms.nct",
+        r#"use ./choice.Choice
+use ./choice.Choice as Pick
+
+func main(): i32 {
+    let choice = Pick.no
+    return match choice {
+        Choice.yes { 11 }
+        Pick.no { 22 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(22),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_alias_payloadless_wildcard_only_match_exit_code() {
     let project = TempProject::new("cli-run-imported-alias-payloadless-wildcard-only-match");
     fs::create_dir_all(project.root().join("std")).unwrap();
