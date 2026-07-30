@@ -5544,10 +5544,10 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_aggregate_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-aggregate-binding-boundary");
+fn build_command_accepts_payload_enum_match_copy_aggregate_binding() {
+    let project = TempProject::new("cli-build-payload-enum-match-copy-aggregate-binding");
     let source = project.write_source(
-        "payload_match_aggregate_binding_boundary.nct",
+        "payload_enum_match_copy_aggregate_binding.nct",
         r#"copy struct Detail {
     code: i32
 }
@@ -5581,28 +5581,8 @@ func describe(error: AppError): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` statements"),
-        "expected match diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("16 |     match error {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -5866,6 +5846,39 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
+fn build_command_accepts_payload_enum_if_is_copy_aggregate_binding() {
+    let project = TempProject::new("cli-build-payload-enum-if-is-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_if_is_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail{ code: 40, bonus: 2 })
+    if result is Result.ok(value) {
+        return value.code + value.bonus
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_payload_if_is_discard_call_target_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-if-is-discard-call-target-boundary");
     let source = project.write_source(
@@ -5968,12 +5981,18 @@ func make_ok(): Result {
 }
 
 #[test]
-fn build_command_reports_payload_if_is_aggregate_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-aggregate-binding-boundary");
+fn build_command_reports_payload_if_is_non_copy_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-non-copy-binding-boundary");
     let source = project.write_source(
-        "payload_if_is_aggregate_binding_boundary.nct",
-        r#"copy struct Detail {
+        "payload_if_is_non_copy_binding_boundary.nct",
+        r#"struct Detail {
     code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
 }
 
 enum AppError {
@@ -6009,7 +6028,7 @@ func describe(error: AppError): i32 {
         "expected if-is diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("15 |     if error is AppError.open_failed(detail) {"),
+        stderr.contains("21 |     if error is AppError.open_failed(detail) {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -9053,6 +9072,39 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_accepts_payload_enum_match_expression_copy_aggregate_binding() {
+    let project =
+        TempProject::new("cli-build-payload-enum-match-expression-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_match_expression_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail{ code: 40, bonus: 2 })
+    return match result {
+        Result.ok(value) { value.code + value.bonus }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_accepts_payload_enum_match_expression_discard_tag_only() {
     let project = TempProject::new("cli-build-payload-enum-match-expression-discard-tag-only");
     let source = project.write_source(
@@ -9080,12 +9132,18 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_expression_aggregate_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-expression-aggregate-binding-boundary");
+fn build_command_reports_payload_match_expression_non_copy_binding_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-match-expression-non-copy-binding-boundary");
     let source = project.write_source(
-        "payload_match_expression_aggregate_binding_boundary.nct",
-        r#"copy struct Detail {
+        "payload_match_expression_non_copy_binding_boundary.nct",
+        r#"struct Detail {
     code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
 }
 
 enum Result {
@@ -9117,7 +9175,7 @@ func main(): i32 {
         "expected match expression diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("12 |     return match result {"),
+        stderr.contains("18 |     return match result {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

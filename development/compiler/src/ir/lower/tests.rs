@@ -2914,6 +2914,58 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_payload_enum_copy_aggregate_payload_binding() {
+    let ir = lower_text(
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail{ code: 42, bonus: 1 })
+    if result is Result.ok(value) {
+        return value.code
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let main = &ir.functions[0];
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::If {
+                    then_instructions,
+                    ..
+                } if then_instructions.contains(&Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(8, 4),
+                }) && then_instructions.contains(&Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 4,
+                    layout: ValueLayout::new(8, 4),
+                }) && then_instructions.contains(&Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(1),
+                    offset: 0,
+                })
+            )
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_value_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

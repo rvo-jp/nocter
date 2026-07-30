@@ -163,14 +163,15 @@
   Treat them as post-v0 language design, not as std or LSP shortcuts.</li><li>Keep bare string interpolation rejected by buildability until an explicit
   allocator source is designed.</li><li>Keep LSP semantic tokens, hovers, definitions, references, symbols, and
   completions backed by resolver/typechecker facts.</li></ul><h2 id="near-term-open-work">Near-Term Open Work</h2><ul><li>Continue the v0.2.0 payload enum promotion. Construction/local/return/value
-  arguments, tag-only control flow, scalar/view payload binding over existing
-  values, and single direct-drop aggregate active cleanup are runtime-shipped in
-  the current subset. The next slice should design aggregate/slice/non-copy
-  payload binding, temporary-pattern control, and multi-field droppable payload
-  cleanup before broad collection expansion.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
+  arguments, tag-only control flow, scalar/view/copy aggregate payload binding
+  over existing values, and single direct-drop aggregate active cleanup are
+  runtime-shipped in the current subset. The next slice should design slice and
+  non-copy aggregate payload binding, temporary-pattern control, and multi-field
+  droppable payload cleanup before broad collection expansion.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.</li><li>Promote non-copy <code>Vec&lt;T&gt;</code> storage only after per-element drop behavior is
   designed and tested.</li><li>Promote broader payload enum binding and temporary-pattern control only after
-  aggregate payload binding facts and multi-field drop cleanup are stable.</li><li>Promote <code>std/process.env</code> only after nested fallible/optional return lowering
+  non-copy aggregate payload binding facts and multi-field drop cleanup are
+  stable.</li><li>Promote <code>std/process.env</code> only after nested fallible/optional return lowering
   and process-context storage are ready.</li></ul>
             </div>
         </main>

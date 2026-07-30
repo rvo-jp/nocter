@@ -76,9 +76,10 @@ Recommended order:
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
-   over existing values, plus scalar/view payload binding in `if is` statements
-   and value expressions and `match` statement/value-expression arms; next,
-   design active payload cleanup before broader collection expansion.
+   over existing values, plus scalar/view/copy aggregate payload binding in
+   `if is` statements and value expressions and `match`
+   statement/value-expression arms; next, design non-copy payload binding and
+   broader cleanup before collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -133,9 +134,11 @@ Recommended order:
   Runtime lowering now supports tag-only payload enum `if is` statements and
   value expressions plus `match` statement and value-expression arms over
   existing enum locals/parameters for scalar/view payload bindings and `_`
-  discards. Aggregate, slice, and non-copy payload bindings still reject before
-  IR lowering. Full `./development/compiler/scripts/verify.sh` passed after
-  `8dd1740`.
+  discards. Copy aggregate payload binding is promoted for `if is` statements
+  and value expressions and `match` statement/value-expression arms over
+  existing enum values. Slice and non-copy aggregate payload bindings still
+  reject before IR lowering. Full `./development/compiler/scripts/verify.sh`
+  passed after `8dd1740`.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and
@@ -322,10 +325,11 @@ Recommended order:
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
-  `bool`, and `&str` payloads over existing enum bindings and parameters.
+  `bool`, `&str`, and copy aggregate payloads over existing enum bindings and
+  parameters.
   Single direct-drop aggregate payload variants now drop only the active payload
   in scope, parameter, discarded call-result, call-result binding, and
-  whole-local replacement cleanup paths. Aggregate/slice/non-copy payload
+  whole-local replacement cleanup paths. Slice and non-copy aggregate payload
   binding, temporary-pattern control, and multi-field droppable payload cleanup
   remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or

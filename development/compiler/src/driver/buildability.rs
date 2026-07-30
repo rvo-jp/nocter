@@ -4487,7 +4487,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok()
-        && (type_expr_is_copy_value_for_vec_element_with_resolver(
+        && (type_expr_is_runtime_copy_value_with_resolver(
             ty,
             fallback_resolved,
             resolver,
@@ -5002,6 +5002,29 @@ fn payload_if_is_binding_type_expr_is_buildable(
     matches!(
         value.ty,
         AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
+    ) || payload_binding_type_expr_is_supported_copy_aggregate(
+        ty,
+        &value,
+        fallback_resolved,
+        resolved_sources,
+    )
+}
+
+fn payload_binding_type_expr_is_supported_copy_aggregate(
+    ty: &TypeExpr,
+    value: &AbiValue,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    if !abi_value_is_supported_aggregate_value(value) {
+        return false;
+    }
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_runtime_copy_value_with_resolver(
+        ty,
+        fallback_resolved,
+        &source_resolver,
+        &mut HashSet::new(),
     )
 }
 
@@ -10182,7 +10205,7 @@ where
     if !matches!(value.ty, AbiType::Struct(_)) || value.layout.size == 0 {
         return false;
     }
-    type_expr_is_copy_struct_for_vec_element_with_resolver(
+    type_expr_is_runtime_copy_struct_with_resolver(
         ty,
         fallback_resolved,
         resolver,
@@ -10190,7 +10213,7 @@ where
     )
 }
 
-fn type_expr_is_copy_struct_for_vec_element_with_resolver<'a, F>(
+fn type_expr_is_runtime_copy_struct_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -10208,7 +10231,7 @@ where
             if symbol.generic_arity > 0 {
                 return false;
             }
-            type_symbol_is_copy_struct_for_vec_element_with_resolver(
+            type_symbol_is_runtime_copy_struct_with_resolver(
                 symbol,
                 fallback_resolved,
                 resolver,
@@ -10230,7 +10253,7 @@ where
                 .cloned()
                 .zip(generic.arguments.iter().cloned())
                 .collect();
-            type_symbol_is_copy_struct_for_vec_element_with_resolver(
+            type_symbol_is_runtime_copy_struct_with_resolver(
                 symbol,
                 fallback_resolved,
                 resolver,
@@ -10238,13 +10261,13 @@ where
                 resolving_names,
             )
         }
-        TypeExpr::Fallible(fallible) => type_expr_is_copy_struct_for_vec_element_with_resolver(
+        TypeExpr::Fallible(fallible) => type_expr_is_runtime_copy_struct_with_resolver(
             &fallible.success,
             fallback_resolved,
             resolver,
             resolving_names,
         ),
-        TypeExpr::Optional(optional) => type_expr_is_copy_struct_for_vec_element_with_resolver(
+        TypeExpr::Optional(optional) => type_expr_is_runtime_copy_struct_with_resolver(
             &optional.inner,
             fallback_resolved,
             resolver,
@@ -10254,7 +10277,7 @@ where
     }
 }
 
-fn type_symbol_is_copy_struct_for_vec_element_with_resolver<'a, F>(
+fn type_symbol_is_runtime_copy_struct_with_resolver<'a, F>(
     symbol: &TypeSymbol,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -10272,7 +10295,7 @@ where
         TypeSymbolKind::Struct if !symbol.is_copy => false,
         TypeSymbolKind::Struct => symbol.fields.iter().all(|field| {
             let field_ty = substitute_type_expr_parameters(&field.ty, substitutions);
-            type_expr_is_copy_value_for_vec_element_with_resolver(
+            type_expr_is_runtime_copy_value_with_resolver(
                 &field_ty,
                 fallback_resolved,
                 resolver,
@@ -10281,7 +10304,7 @@ where
         }),
         TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
             let target = substitute_type_expr_parameters(target, substitutions);
-            type_expr_is_copy_struct_for_vec_element_with_resolver(
+            type_expr_is_runtime_copy_struct_with_resolver(
                 &target,
                 fallback_resolved,
                 resolver,
@@ -10295,7 +10318,7 @@ where
     is_copy
 }
 
-fn type_expr_is_copy_value_for_vec_element_with_resolver<'a, F>(
+fn type_expr_is_runtime_copy_value_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -10317,7 +10340,7 @@ where
                 if symbol.generic_arity > 0 {
                     return false;
                 }
-                type_symbol_is_copy_value_for_vec_element_with_resolver(
+                type_symbol_is_runtime_copy_value_with_resolver(
                     symbol,
                     fallback_resolved,
                     resolver,
@@ -10340,7 +10363,7 @@ where
                 .cloned()
                 .zip(generic.arguments.iter().cloned())
                 .collect();
-            type_symbol_is_copy_value_for_vec_element_with_resolver(
+            type_symbol_is_runtime_copy_value_with_resolver(
                 symbol,
                 fallback_resolved,
                 resolver,
@@ -10350,25 +10373,25 @@ where
         }
         TypeExpr::Borrow(borrow) => !borrow.is_readwrite,
         TypeExpr::Pointer(_) => true,
-        TypeExpr::Array(array) => type_expr_is_copy_value_for_vec_element_with_resolver(
+        TypeExpr::Array(array) => type_expr_is_runtime_copy_value_with_resolver(
             &array.element,
             fallback_resolved,
             resolver,
             resolving_names,
         ),
-        TypeExpr::Optional(optional) => type_expr_is_copy_value_for_vec_element_with_resolver(
+        TypeExpr::Optional(optional) => type_expr_is_runtime_copy_value_with_resolver(
             &optional.inner,
             fallback_resolved,
             resolver,
             resolving_names,
         ),
         TypeExpr::Fallible(fallible) => {
-            type_expr_is_copy_value_for_vec_element_with_resolver(
+            type_expr_is_runtime_copy_value_with_resolver(
                 &fallible.success,
                 fallback_resolved,
                 resolver,
                 resolving_names,
-            ) && type_expr_is_copy_value_for_vec_element_with_resolver(
+            ) && type_expr_is_runtime_copy_value_with_resolver(
                 &fallible.error,
                 fallback_resolved,
                 resolver,
@@ -10379,7 +10402,7 @@ where
     }
 }
 
-fn type_symbol_is_copy_value_for_vec_element_with_resolver<'a, F>(
+fn type_symbol_is_runtime_copy_value_with_resolver<'a, F>(
     symbol: &TypeSymbol,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -10390,7 +10413,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match symbol.kind {
-        TypeSymbolKind::Struct => type_symbol_is_copy_struct_for_vec_element_with_resolver(
+        TypeSymbolKind::Struct => type_symbol_is_runtime_copy_struct_with_resolver(
             symbol,
             fallback_resolved,
             resolver,
@@ -10407,7 +10430,7 @@ where
             }
             let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
                 let target = substitute_type_expr_parameters(target, substitutions);
-                type_expr_is_copy_value_for_vec_element_with_resolver(
+                type_expr_is_runtime_copy_value_with_resolver(
                     &target,
                     fallback_resolved,
                     resolver,
@@ -11330,10 +11353,16 @@ func main(): i32 {
     }
 
     #[test]
-    fn reports_reachable_payload_match_expression_aggregate_binding_before_ir_lowering() {
+    fn reports_reachable_payload_match_expression_non_copy_binding_before_ir_lowering() {
         let (sources, analysis) = analyze_text(
-            r#"copy struct Detail {
+            r#"struct Detail {
     code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
 }
 
 enum Result {

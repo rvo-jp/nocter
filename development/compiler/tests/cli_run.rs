@@ -10900,6 +10900,93 @@ func score(message: Message): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_copy_aggregate_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_if_is_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(Detail{ code: 40, bonus: 1 })
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    if result is Result.ok(value) {
+        return value.code + value.bonus
+    }
+
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_expression_copy_aggregate_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-expression-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_if_is_expression_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(Detail{ code: 40, bonus: 1 })
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    let scored = if result is Result.ok(value) {
+        value.code + value.bonus
+    } else {
+        1
+    }
+    return scored
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_match_discard_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-discard");
     let source = project.write_source(
@@ -10986,6 +11073,53 @@ func score(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_match_copy_aggregate_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_match_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(Detail{ code: 40, bonus: 1 })
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    match result {
+        Result.ok(value) {
+            return value.code + value.bonus
+        }
+
+        _ {
+            return 1
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_match_str_binding_exhaustive_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-str-binding-exhaustive");
     let source = project.write_source(
@@ -11051,6 +11185,48 @@ func score(result: Result): i32 {
     return match result {
         Result.ok(value) { value }
         _ { 2 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_match_expression_copy_aggregate_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-expression-copy-aggregate-binding");
+    let source = project.write_source(
+        "payload_enum_match_expression_copy_aggregate_binding.nct",
+        r#"copy struct Detail {
+    code: i32
+    bonus: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let ok = Result.ok(Detail{ code: 40, bonus: 1 })
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): i32 {
+    return match result {
+        Result.ok(value) { value.code + value.bonus }
+        _ { 1 }
     }
 }
 "#,

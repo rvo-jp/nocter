@@ -9,10 +9,11 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateDrop, AggregateParameterSource, BorrowParameter,
-    ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
-    LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropVariant, PendingAggregateDrop,
-    ResolvedSources, SliceTypeInfo, aggregate_drop_for_type_expr_with_resolver,
+    AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource,
+    BorrowParameter, ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter,
+    LoweringContext, LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropVariant,
+    PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
+    aggregate_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
@@ -50,7 +51,7 @@ use super::types::{
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr_with_resolver,
-    function_parameter_abi_word_count_from_signature_with_resolver,
+    function_parameter_abi_word_count_from_signature_with_resolver, layout_of,
 };
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
@@ -1885,84 +1886,124 @@ struct BranchPrologueBinding {
     name: String,
     source_slot: usize,
     payload_offset: u32,
-    payload_type: AbiType,
+    kind: BranchPrologueBindingKind,
     diagnostic_code: &'static str,
+}
+
+#[derive(Clone)]
+enum BranchPrologueBindingKind {
+    ScalarOrView(AbiType),
+    CopyAggregate {
+        layout: ValueLayout,
+        fields: Vec<AggregateField>,
+    },
 }
 
 impl BranchPrologueBinding {
     fn lower(&self, context: &mut LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
         let source = AggregateLocation::Slot(self.source_slot);
-        match &self.payload_type {
-            AbiType::I32 => {
-                let destination = context.next_i32_local_location()?;
-                context.define_i32_local(self.name.clone());
-                Ok(vec![Instruction::LoadAggregateI32 {
-                    destination,
-                    source,
-                    offset: self.payload_offset,
-                }])
-            }
-            AbiType::U8 => {
-                let destination = context.next_u8_local_location()?;
-                context.define_u8_local(self.name.clone());
-                Ok(vec![Instruction::LoadAggregateU8 {
-                    destination,
-                    source,
-                    offset: self.payload_offset,
-                }])
-            }
-            AbiType::Usize => {
-                let destination = context.next_usize_local_location()?;
-                context.define_usize_local(self.name.clone());
-                Ok(vec![Instruction::LoadAggregateUsize {
-                    destination,
-                    source,
-                    offset: self.payload_offset,
-                }])
-            }
-            AbiType::Bool => {
-                let destination = context.next_bool_local_location()?;
-                context.define_bool_local(self.name.clone());
-                Ok(vec![Instruction::LoadAggregateBool {
-                    destination,
-                    source,
-                    offset: self.payload_offset,
-                }])
-            }
-            AbiType::StrView => {
-                let destination = context.next_str_local_location()?;
-                let StrLocation::Local(index) = destination else {
-                    unreachable!("local str binding locations are local pairs");
-                };
-                let len_index = index.checked_add(1).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        self.diagnostic_code,
-                        "IR v0 cannot lower payload enum bindings with overflowing local indexes",
-                    )]
-                })?;
-                let len_offset = self.payload_offset.checked_add(8).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        self.diagnostic_code,
-                        "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
-                    )]
-                })?;
-                context.define_str_local(self.name.clone());
+        match &self.kind {
+            BranchPrologueBindingKind::CopyAggregate { layout, fields } => {
+                let slot_index = context.define_aggregate_local(
+                    self.name.clone(),
+                    *layout,
+                    true,
+                    None,
+                    fields.clone(),
+                );
                 Ok(vec![
-                    Instruction::LoadAggregateUsize {
-                        destination: UsizeLocation::Local(index),
-                        source,
-                        offset: self.payload_offset,
+                    Instruction::ReserveAggregateSlot {
+                        slot_index,
+                        layout: *layout,
                     },
-                    Instruction::LoadAggregateUsize {
-                        destination: UsizeLocation::Local(len_index),
+                    Instruction::CopyAggregateRange {
+                        destination: AggregateLocation::Slot(slot_index),
+                        destination_offset: 0,
                         source,
-                        offset: len_offset,
+                        source_offset: self.payload_offset,
+                        layout: *layout,
                     },
                 ])
             }
-            _ => Err(unsupported_if_is_diagnostic(self.diagnostic_code)),
+            BranchPrologueBindingKind::ScalarOrView(payload_type) => match payload_type {
+                AbiType::I32 => {
+                    let destination = context.next_i32_local_location()?;
+                    context.define_i32_local(self.name.clone());
+                    Ok(vec![Instruction::LoadAggregateI32 {
+                        destination,
+                        source,
+                        offset: self.payload_offset,
+                    }])
+                }
+                AbiType::U8 => {
+                    let destination = context.next_u8_local_location()?;
+                    context.define_u8_local(self.name.clone());
+                    Ok(vec![Instruction::LoadAggregateU8 {
+                        destination,
+                        source,
+                        offset: self.payload_offset,
+                    }])
+                }
+                AbiType::Usize => {
+                    let destination = context.next_usize_local_location()?;
+                    context.define_usize_local(self.name.clone());
+                    Ok(vec![Instruction::LoadAggregateUsize {
+                        destination,
+                        source,
+                        offset: self.payload_offset,
+                    }])
+                }
+                AbiType::Bool => {
+                    let destination = context.next_bool_local_location()?;
+                    context.define_bool_local(self.name.clone());
+                    Ok(vec![Instruction::LoadAggregateBool {
+                        destination,
+                        source,
+                        offset: self.payload_offset,
+                    }])
+                }
+                AbiType::StrView => {
+                    let destination = context.next_str_local_location()?;
+                    let StrLocation::Local(index) = destination else {
+                        unreachable!("local str binding locations are local pairs");
+                    };
+                    let len_index = index.checked_add(1).ok_or_else(|| {
+                        payload_binding_overflow_diagnostic(
+                            self.diagnostic_code,
+                            "IR v0 cannot lower payload enum bindings with overflowing local indexes",
+                        )
+                    })?;
+                    let len_offset = self.payload_offset.checked_add(8).ok_or_else(|| {
+                        payload_binding_overflow_diagnostic(
+                            self.diagnostic_code,
+                            "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
+                        )
+                    })?;
+                    context.define_str_local(self.name.clone());
+                    Ok(vec![
+                        Instruction::LoadAggregateUsize {
+                            destination: UsizeLocation::Local(index),
+                            source,
+                            offset: self.payload_offset,
+                        },
+                        Instruction::LoadAggregateUsize {
+                            destination: UsizeLocation::Local(len_index),
+                            source,
+                            offset: len_offset,
+                        },
+                    ])
+                }
+                _ => Err(unsupported_if_is_diagnostic(self.diagnostic_code)),
+            },
         }
     }
+}
+
+fn payload_binding_overflow_diagnostic(
+    diagnostic_code: &'static str,
+    message: &'static str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(diagnostic_code, message)]
 }
 
 pub(super) fn tag_only_if_is_as_control_flow(
@@ -2180,14 +2221,13 @@ fn tag_only_if_is_then_prologue(
     let (payload_offset, payload_type) =
         payload_enum_variant_payload_abi(&statement.expression, &statement.variant_name, context)
             .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
-    if !payload_binding_abi_type_is_supported(&payload_type) {
-        return Err(unsupported_if_is_diagnostic(diagnostic_code));
-    }
+    let kind = payload_branch_prologue_binding_kind(binding, payload_type, context)
+        .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
     Ok(BranchPrologue::single_binding(BranchPrologueBinding {
         name: binding.name.clone(),
         source_slot,
         payload_offset,
-        payload_type,
+        kind,
         diagnostic_code,
     }))
 }
@@ -2221,6 +2261,48 @@ fn payload_binding_abi_type_is_supported(payload_type: &AbiType) -> bool {
         payload_type,
         AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
     )
+}
+
+fn payload_branch_prologue_binding_kind(
+    binding: &crate::ast::SwitchPayloadBinding,
+    payload_type: AbiType,
+    context: &LoweringContext,
+) -> Option<BranchPrologueBindingKind> {
+    if payload_binding_abi_type_is_supported(&payload_type) {
+        return Some(BranchPrologueBindingKind::ScalarOrView(payload_type));
+    }
+
+    if !matches!(payload_type, AbiType::Struct(_) | AbiType::Array { .. }) {
+        return None;
+    }
+    let payload_layout = layout_of(&payload_type).ok()?;
+    if !supported_aggregate_copy_layout(payload_layout) {
+        return None;
+    }
+    let ty = context.binding_type_expr(binding.span)?;
+    let (_, resolved) = context.resolved_calls()?;
+    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+    if value.layout != payload_layout
+        || !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        || !type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
+            context.resolved_source(source)
+        })
+    {
+        return None;
+    }
+    let (root_source, _) = context.resolved_calls()?;
+    let fields =
+        aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .unwrap_or_default();
+    Some(BranchPrologueBindingKind::CopyAggregate {
+        layout: payload_layout,
+        fields,
+    })
 }
 
 fn expression_is_payload_enum_aggregate_value(
@@ -2446,14 +2528,13 @@ fn tag_only_switch_arm_prologue(
     let (payload_offset, payload_type) =
         payload_enum_variant_payload_abi(target_expression, &arm.variant_name, context)
             .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))?;
-    if !payload_binding_abi_type_is_supported(&payload_type) {
-        return Err(unsupported_switch_diagnostic(diagnostic_code));
-    }
+    let kind = payload_branch_prologue_binding_kind(binding, payload_type, context)
+        .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))?;
     Ok(BranchPrologue::single_binding(BranchPrologueBinding {
         name: binding.name.clone(),
         source_slot,
         payload_offset,
-        payload_type,
+        kind,
         diagnostic_code,
     }))
 }
