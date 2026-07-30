@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `c96914c Lower match payload bindings`
   - `514a587 Lower if-is payload bindings`
   - `ab2cbc1 Align payload enum match statement lowering`
   - `c1deabe Lower tag-only payload enum match`
