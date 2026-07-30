@@ -164,7 +164,39 @@ pub(super) fn check_return_types(
 }
 
 fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowReturnSummaries {
-    let empty_summaries = BorrowReturnSummaries::new();
+    let mut summaries = BorrowReturnSummaries::new();
+    for _ in 0..=borrow_return_callable_count(ast) {
+        let next = collect_borrow_return_summaries(ast, resolved, &summaries);
+        if next == summaries {
+            return summaries;
+        }
+        summaries = next;
+    }
+    summaries
+}
+
+fn borrow_return_callable_count(ast: &AstFile) -> usize {
+    ast.items
+        .iter()
+        .map(|item| match item {
+            Item::Function(_) => 1,
+            Item::Impl(impl_) => impl_
+                .members
+                .iter()
+                .filter(
+                    |member| matches!(member, ImplMember::Method(method) if method.body.is_some()),
+                )
+                .count(),
+            _ => 0,
+        })
+        .sum()
+}
+
+fn collect_borrow_return_summaries(
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    previous: &BorrowReturnSummaries,
+) -> BorrowReturnSummaries {
     let mut summaries = BorrowReturnSummaries::new();
     for item in &ast.items {
         match item {
@@ -177,7 +209,7 @@ fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowRet
                     &return_type,
                     resolved,
                     &environment,
-                    &empty_summaries,
+                    previous,
                 ) {
                     summaries.insert(function_summary_key(function), provenance);
                 }
@@ -201,7 +233,7 @@ fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowRet
                         &return_type,
                         resolved,
                         &environment,
-                        &empty_summaries,
+                        previous,
                     ) {
                         summaries.insert(method.name_span, provenance);
                     }

@@ -517,6 +517,31 @@ func ok(): &str {
 }
 
 #[test]
+fn accepts_return_transitive_static_borrow_like_call_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(value: &i32): &str {
+    return "static"
+}
+
+func label2(value: &i32): &str {
+    return label(value)
+}
+
+func ok(): &str {
+    let local = 1
+    return label2(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_borrow_like_call_alias_from_local_borrow() {
     let diagnostics = check_text(
         r#"func main(): i32 {
