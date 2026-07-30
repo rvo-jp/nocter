@@ -9,7 +9,11 @@ in `spec/`.
 - Branch: `develop`
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
-- Latest known compiler-progress commits:
+- Latest known repository-state commits:
+  - `e9cba2b Regenerate docs for v0.2.0 development`
+  - `e21231b Merge branch 'main' into develop`
+  - `885f3b7 Add GitHub Pages documentation site`
+  - `b4510a5 Update handoff after GitHub release publish`
   - `cc1ee22 Update handoff after publishing v0.1.0 tag`
   - `811a78b Update handoff after Apache release retag`
   - `99d1306 Update handoff after v0.2.0 development start`
@@ -101,6 +105,14 @@ Recommended order:
   `nocter-v0.1.0-arm64-darwin.tar.gz` and `SHA256SUMS` attached. The uploaded
   tarball digest is
   `sha256:88bc55f353f0d78beeb8a953a4e8d65b8a7d43a10860aa04df48d5e6ed1263cb`.
+- `main` now contains the v0.1.0 GitHub Pages site under `docs/` in
+  `885f3b7`. `assets/logo.svg` moved to `docs/assets/logo.svg`, and the root
+  `README.md` uses that logo path. The docs generator intentionally skips
+  `development/TODO.md` and `AGENTS.md` as generated pages and maps links to
+  skipped source files, such as `development/TODO.md` and `LICENSE`, to their
+  GitHub source URLs. After merging `main` into `develop`, `e9cba2b`
+  regenerated the HTML from the `v0.2.0-dev` Markdown sources so development
+  docs do not present stale v0.1.0-only status text.
 - `match` fallback arms now use `_ { ... }`; legacy `match` `else` arms
   reject at parse time. Enum payload discard patterns use `Enum.variant(_)` in
   both `match` and `if is`, and the discard does not introduce a local binding
