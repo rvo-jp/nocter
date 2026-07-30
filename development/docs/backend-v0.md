@@ -141,10 +141,10 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-slice payload binding, non-copy aggregate payload binding, multi-field droppable
-payload cleanup, payload enum temporary-pattern control, broader field-level
-live-state tracking, non-copy aggregate collection elements, arrays, broad
-control-flow joins, and unsupported expression shapes.
+non-copy aggregate payload binding, multi-field droppable payload cleanup,
+payload enum temporary-pattern control, broader field-level live-state tracking,
+non-copy aggregate collection elements, arrays, broad control-flow joins, and
+unsupported expression shapes.
 
 ## Safety Checks
 

@@ -692,16 +692,15 @@ Rules:
 - Payload-carrying enum `if is Enum.variant(binding)` statements/value
   expressions and `match` statement/value-expression arms lower over existing
   enum bindings and parameters when the payload ABI is `i32`, `u8`, `usize`,
-  `bool`, `&str`, or a copy aggregate value. The binding is loaded only inside
-  the matching branch.
+  `bool`, `&str`, a slice view, or a copy aggregate value. The binding is
+  loaded only inside the matching branch.
 - Payload-carrying enum active payload cleanup lowers for runtime-supported enum
   values whose droppable variants each have exactly one direct-drop aggregate
   payload. Scope-end cleanup, parameter cleanup, discarded call results,
   call-result bindings, and whole-local replacement drop only the active payload.
 - Payload-carrying enum `if is` / `match` over temporary expressions,
-  slice payload binding, non-copy aggregate payload binding, and multi-field
-  droppable payload cleanup are typechecked in v0 but still reject before
-  build/run.
+  non-copy aggregate payload binding, and multi-field droppable payload cleanup
+  are typechecked in v0 but still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

@@ -5001,7 +5001,12 @@ fn payload_if_is_binding_type_expr_is_buildable(
     };
     matches!(
         value.ty,
-        AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::StrView
+        AbiType::I32
+            | AbiType::U8
+            | AbiType::Usize
+            | AbiType::Bool
+            | AbiType::StrView
+            | AbiType::SliceView
     ) || payload_binding_type_expr_is_supported_copy_aggregate(
         ty,
         &value,

@@ -10900,6 +10900,105 @@ func score(message: Message): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_slice_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-slice-binding");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "payload_enum_if_is_slice_binding.nct",
+        r#"use std/string.bytes
+
+enum Result {
+    ok(value: &[u8])
+    failed
+}
+
+func main(): usize {
+    let ok = Result.ok(bytes("Nocter"))
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): usize {
+    if result is Result.ok(value) {
+        return value.len()
+    }
+
+    return 36
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_expression_slice_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-expression-slice-binding");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "payload_enum_if_is_expression_slice_binding.nct",
+        r#"use std/string.bytes
+
+enum Result {
+    ok(value: &[u8])
+    failed
+}
+
+func main(): usize {
+    let ok = Result.ok(bytes("Nocter"))
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): usize {
+    let scored = if result is Result.ok(value) {
+        value.len()
+    } else {
+        36
+    }
+    return scored
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_if_is_copy_aggregate_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-copy-aggregate-binding");
     let source = project.write_source(
@@ -11120,6 +11219,59 @@ func score(result: Result): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_match_slice_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-slice-binding");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "payload_enum_match_slice_binding.nct",
+        r#"use std/string.bytes
+
+enum Result {
+    ok(value: &[u8])
+    failed
+}
+
+func main(): usize {
+    let ok = Result.ok(bytes("Nocter"))
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): usize {
+    match result {
+        Result.ok(value) {
+            return value.len()
+        }
+
+        _ {
+            return 36
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_match_str_binding_exhaustive_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-match-str-binding-exhaustive");
     let source = project.write_source(
@@ -11227,6 +11379,54 @@ func score(result: Result): i32 {
     return match result {
         Result.ok(value) { value.code + value.bonus }
         _ { 1 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_match_expression_slice_binding_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-expression-slice-binding");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "payload_enum_match_expression_slice_binding.nct",
+        r#"use std/string.bytes
+
+enum Result {
+    ok(value: &[u8])
+    failed
+}
+
+func main(): usize {
+    let ok = Result.ok(bytes("Nocter"))
+    let failed = Result.failed
+    return score(move ok) + score(move failed)
+}
+
+func score(result: Result): usize {
+    return match result {
+        Result.ok(value) { value.len() }
+        _ { 36 }
     }
 }
 "#,

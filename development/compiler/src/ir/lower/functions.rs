@@ -708,14 +708,15 @@ fn lower_scalar_parameter_kind(
     }
 }
 
-fn slice_element_kind_from_type_expr(
+fn slice_element_kind_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> TypecheckSliceElementKind {
-    match view_element_type_from_type_expr_with_resolver(ty, resolved, |source| {
-        resolved_sources.get(&source).copied()
-    }) {
+    resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> TypecheckSliceElementKind
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match view_element_type_from_type_expr_with_resolver(ty, resolved, resolver) {
         Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
@@ -730,21 +731,33 @@ fn slice_type_info_from_type_expr(
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> SliceTypeInfo {
+    slice_type_info_from_type_expr_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    })
+}
+
+fn slice_type_info_from_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    resolved: &'a ResolveOutput,
+    resolver: F,
+) -> SliceTypeInfo
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     SliceTypeInfo {
-        element_kind: slice_element_kind_from_type_expr(ty, resolved, resolved_sources),
-        element_type: view_element_type_expr_from_type_expr_with_resolver(
-            ty,
-            resolved,
-            resolved_sources,
-        ),
+        element_kind: slice_element_kind_from_type_expr_with_resolver(ty, resolved, &resolver),
+        element_type: view_element_type_expr_from_type_expr_with_resolver(ty, resolved, &resolver),
     }
 }
 
-fn view_element_type_expr_from_type_expr_with_resolver(
+fn view_element_type_expr_from_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> Option<TypeExpr> {
+    resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     match ty {
         TypeExpr::Borrow(borrow) => {
             let TypeExpr::View(view) = borrow.inner.as_ref() else {
@@ -753,17 +766,13 @@ fn view_element_type_expr_from_type_expr_with_resolver(
             Some(*view.element.clone())
         }
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let source_resolved = resolver(ty.span().source).unwrap_or(resolved);
+            let symbol = source_resolved
+                .type_symbol_by_reference_name(&reference.name)
+                .or_else(|| resolved.type_symbol_by_reference_name(&reference.name))?;
             let target = symbol.alias_target.as_ref()?;
-            let target_resolved = resolved_sources
-                .get(&target.span().source)
-                .copied()
-                .unwrap_or(resolved);
-            view_element_type_expr_from_type_expr_with_resolver(
-                target,
-                target_resolved,
-                resolved_sources,
-            )
+            let target_resolved = resolver(target.span().source).unwrap_or(source_resolved);
+            view_element_type_expr_from_type_expr_with_resolver(target, target_resolved, resolver)
         }
         _ => None,
     }
@@ -1892,7 +1901,8 @@ struct BranchPrologueBinding {
 
 #[derive(Clone)]
 enum BranchPrologueBindingKind {
-    ScalarOrView(AbiType),
+    ScalarOrStrView(AbiType),
+    SliceView(SliceTypeInfo),
     CopyAggregate {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
@@ -1925,7 +1935,25 @@ impl BranchPrologueBinding {
                     },
                 ])
             }
-            BranchPrologueBindingKind::ScalarOrView(payload_type) => match payload_type {
+            BranchPrologueBindingKind::SliceView(info) => {
+                let destination = context.next_slice_local_location()?;
+                let SliceLocation::Local(index) = destination else {
+                    unreachable!("local slice binding locations are local pairs");
+                };
+                let instructions = payload_view_binding_loads(
+                    index,
+                    source,
+                    self.payload_offset,
+                    self.diagnostic_code,
+                )?;
+                context.define_slice_local(
+                    self.name.clone(),
+                    info.element_kind,
+                    info.element_type.clone(),
+                );
+                Ok(instructions)
+            }
+            BranchPrologueBindingKind::ScalarOrStrView(payload_type) => match payload_type {
                 AbiType::I32 => {
                     let destination = context.next_i32_local_location()?;
                     context.define_i32_local(self.name.clone());
@@ -1967,36 +1995,51 @@ impl BranchPrologueBinding {
                     let StrLocation::Local(index) = destination else {
                         unreachable!("local str binding locations are local pairs");
                     };
-                    let len_index = index.checked_add(1).ok_or_else(|| {
-                        payload_binding_overflow_diagnostic(
-                            self.diagnostic_code,
-                            "IR v0 cannot lower payload enum bindings with overflowing local indexes",
-                        )
-                    })?;
-                    let len_offset = self.payload_offset.checked_add(8).ok_or_else(|| {
-                        payload_binding_overflow_diagnostic(
-                            self.diagnostic_code,
-                            "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
-                        )
-                    })?;
+                    let instructions = payload_view_binding_loads(
+                        index,
+                        source,
+                        self.payload_offset,
+                        self.diagnostic_code,
+                    )?;
                     context.define_str_local(self.name.clone());
-                    Ok(vec![
-                        Instruction::LoadAggregateUsize {
-                            destination: UsizeLocation::Local(index),
-                            source,
-                            offset: self.payload_offset,
-                        },
-                        Instruction::LoadAggregateUsize {
-                            destination: UsizeLocation::Local(len_index),
-                            source,
-                            offset: len_offset,
-                        },
-                    ])
+                    Ok(instructions)
                 }
                 _ => Err(unsupported_if_is_diagnostic(self.diagnostic_code)),
             },
         }
     }
+}
+
+fn payload_view_binding_loads(
+    index: usize,
+    source: AggregateLocation,
+    payload_offset: u32,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let len_index = index.checked_add(1).ok_or_else(|| {
+        payload_binding_overflow_diagnostic(
+            diagnostic_code,
+            "IR v0 cannot lower payload enum bindings with overflowing local indexes",
+        )
+    })?;
+    let len_offset = payload_offset.checked_add(8).ok_or_else(|| {
+        payload_binding_overflow_diagnostic(
+            diagnostic_code,
+            "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
+        )
+    })?;
+    Ok(vec![
+        Instruction::LoadAggregateUsize {
+            destination: UsizeLocation::Local(index),
+            source,
+            offset: payload_offset,
+        },
+        Instruction::LoadAggregateUsize {
+            destination: UsizeLocation::Local(len_index),
+            source,
+            offset: len_offset,
+        },
+    ])
 }
 
 fn payload_binding_overflow_diagnostic(
@@ -2269,7 +2312,27 @@ fn payload_branch_prologue_binding_kind(
     context: &LoweringContext,
 ) -> Option<BranchPrologueBindingKind> {
     if payload_binding_abi_type_is_supported(&payload_type) {
-        return Some(BranchPrologueBindingKind::ScalarOrView(payload_type));
+        return Some(BranchPrologueBindingKind::ScalarOrStrView(payload_type));
+    }
+
+    let ty = context.binding_type_expr(binding.span)?;
+    let (_, resolved) = context.resolved_calls()?;
+    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok()?;
+
+    if matches!(payload_type, AbiType::SliceView) {
+        if !matches!(value.ty, AbiType::SliceView)
+            || value.layout != layout_of(&payload_type).ok()?
+        {
+            return None;
+        }
+        return Some(BranchPrologueBindingKind::SliceView(
+            slice_type_info_from_type_expr_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            }),
+        ));
     }
 
     if !matches!(payload_type, AbiType::Struct(_) | AbiType::Array { .. }) {
@@ -2279,12 +2342,6 @@ fn payload_branch_prologue_binding_kind(
     if !supported_aggregate_copy_layout(payload_layout) {
         return None;
     }
-    let ty = context.binding_type_expr(binding.span)?;
-    let (_, resolved) = context.resolved_calls()?;
-    let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
-        context.resolved_source(source)
-    })
-    .ok()?;
     if value.layout != payload_layout
         || !matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
         || !type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {

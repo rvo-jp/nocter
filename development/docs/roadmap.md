@@ -59,11 +59,12 @@ for v0.2.0:
 ## Near-Term Open Work
 
 - Continue the v0.2.0 payload enum promotion. Construction/local/return/value
-  arguments, tag-only control flow, scalar/view/copy aggregate payload binding
-  over existing values, and single direct-drop aggregate active cleanup are
-  runtime-shipped in the current subset. The next slice should design slice and
-  non-copy aggregate payload binding, temporary-pattern control, and multi-field
-  droppable payload cleanup before broad collection expansion.
+  arguments, tag-only control flow, scalar, string/slice view, and copy
+  aggregate payload binding over existing values, and single direct-drop
+  aggregate active cleanup are runtime-shipped in the current subset. The next
+  slice should design non-copy aggregate payload binding, temporary-pattern
+  control, and multi-field droppable payload cleanup before broad collection
+  expansion.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.

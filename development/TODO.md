@@ -76,8 +76,8 @@ Recommended order:
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
-   over existing values, plus scalar/view/copy aggregate payload binding in
-   `if is` statements and value expressions and `match`
+   over existing values, plus scalar, string/slice view, and copy aggregate
+   payload binding in `if is` statements and value expressions and `match`
    statement/value-expression arms; next, design non-copy payload binding and
    broader cleanup before collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
@@ -133,12 +133,12 @@ Recommended order:
   into resolver, typecheck facts, hover, ownership, or buildability state.
   Runtime lowering now supports tag-only payload enum `if is` statements and
   value expressions plus `match` statement and value-expression arms over
-  existing enum locals/parameters for scalar/view payload bindings and `_`
-  discards. Copy aggregate payload binding is promoted for `if is` statements
-  and value expressions and `match` statement/value-expression arms over
-  existing enum values. Slice and non-copy aggregate payload bindings still
-  reject before IR lowering. Full `./development/compiler/scripts/verify.sh`
-  passed after `8dd1740`.
+  existing enum locals/parameters for scalar/string/slice view payload bindings
+  and `_` discards. Copy aggregate payload binding is promoted for `if is`
+  statements and value expressions and `match` statement/value-expression arms
+  over existing enum values. Non-copy aggregate payload binding still rejects
+  before IR lowering. Full `./development/compiler/scripts/verify.sh` passes for
+  the current payload binding subset.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and

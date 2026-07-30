@@ -2966,6 +2966,55 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_payload_enum_slice_payload_binding() {
+    let score = lower_named_function(
+        r#"enum Result {
+    ok(value: &[u8])
+    failed
+}
+
+func main(): void {
+    return
+}
+
+func score(bytes: &[u8]): usize {
+    let result = Result.ok(bytes)
+    if result is Result.ok(value) {
+        return value.len()
+    }
+
+    return 0
+}
+"#,
+        "score",
+    );
+
+    assert!(
+        score.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::If {
+                    then_instructions,
+                    ..
+                } if then_instructions.contains(&Instruction::LoadAggregateUsize {
+                    destination: UsizeLocation::Local(1),
+                    source: AggregateLocation::Slot(0),
+                    offset: 8,
+                }) && then_instructions.contains(&Instruction::LoadAggregateUsize {
+                    destination: UsizeLocation::Local(2),
+                    source: AggregateLocation::Slot(0),
+                    offset: 16,
+                }) && then_instructions.contains(&Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Local(1)),
+                })
+            )
+        }),
+        "{score:?}"
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_value_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
