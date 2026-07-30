@@ -13,7 +13,7 @@
     "
     fill="#4a648f"
     stroke="#4a648f"
-    stroke-width="0.2"
+    stroke-width="0.1"
   />
 
   <path
@@ -25,17 +25,17 @@
     "
     fill="#e3e365"
     stroke="#e3e365"
-    stroke-width="2"
+    stroke-width="2.5"
     stroke-linejoin="round"
   />
 
   <path
     d="
-    m3 22.5
+    m3 23
     a2.5 2.5 0 1 1 0 -5
-    h8
+    h9
     a2.5 2.5 0 1 1 0 5
-    h5
+    h4
     a3.5 3.5 0 1 1 0 7
     h-10
     a3.5 3.5 0 1 1 0 -7
@@ -43,19 +43,19 @@
     "
     fill="#6480ad"
     stroke="#6480ad"
-    stroke-width="0.2"
+    stroke-width="0.3"
   />
 
   <path
     d="
-    m26 8
-    l 0.7 -2.5
-    l 0.7 2.5
-    l 2.5 0.7
-    l -2.5 0.7
-    l -0.7 2.5
-    l -0.7 -2.5
-    l -2.5 -0.7
+    m26 7.5
+    l 0.7 -2.6
+    l 0.7 2.6
+    l 2.6 0.7
+    l -2.6 0.7
+    l -0.7 2.6
+    l -0.7 -2.6
+    l -2.6 -0.7
     z
     "
     fill="#e3e365"

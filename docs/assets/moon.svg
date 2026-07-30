@@ -1,0 +1,31 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <!-- <path
+    d="
+    m18 5.5
+    a5 5 0 1 1 0 10
+    h7.5
+    a6 6 0 1 1 0 12
+    h-11
+    a6 6 0 1 1 0 -12
+    h-8.5
+    a5 5 0 1 1 0 -10
+    z
+    "
+    fill="#4a648f"
+    stroke="#4a648f"
+    stroke-width="0.3"
+  /> -->
+
+  <path
+    d="
+    m27 16
+    A11 11 0 1 1 19.76, 5.66
+    A8 8 0 1 0 27 16
+    z
+    "
+    fill="#e3e365"
+    stroke="#e3e365"
+    stroke-width="3"
+    stroke-linejoin="round"
+  />
+</svg>
