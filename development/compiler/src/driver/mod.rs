@@ -52,7 +52,7 @@ where
             }
         },
         Ok(Command::Version) => {
-            println!("nocter {VERSION}");
+            println!("Nocter {VERSION}");
             println!("host: {HOST}");
             println!("default target: {DEFAULT_TARGET}");
             ExitCode::SUCCESS

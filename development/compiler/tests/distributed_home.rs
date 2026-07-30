@@ -72,7 +72,7 @@ fn distributed_release_identity_matches_packaging_metadata() {
 
     let stdout = text(&output.stdout);
     assert!(
-        stdout.contains(&format!("nocter {}", env!("CARGO_PKG_VERSION")))
+        stdout.contains(&format!("Nocter {}", env!("CARGO_PKG_VERSION")))
             && stdout.contains("host: arm64-darwin")
             && stdout.contains("default target: arm64-darwin"),
         "unexpected version output:\n{stdout}"

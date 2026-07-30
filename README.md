@@ -7,7 +7,8 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter is still pre-v0. The first implementation target is `arm64-darwin`.
+Nocter v0.1.0 is the first narrow v0 release. The implementation target is
+`arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -89,7 +90,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.1.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -113,9 +114,10 @@ rm /usr/local/bin/nocter
 rm -rf "$HOME/.nocter"
 ```
 
-The current repository is pre-v0, so source builds are still the main way to
-try the compiler before an official release archive exists. Development setup
-lives in [development/](development/README.md).
+Release archives use the `.nocter/` layout above. During repository-local
+development, source builds and the local release image remain the way to test
+changes before cutting an archive. Development setup lives in
+[development/](development/README.md).
 
 For repository-local release testing, the canonical standard-library source is
 tracked in `development/std/` and release metadata lives in
@@ -169,11 +171,12 @@ nocter fmt main.nct
 
 ## Current Status
 
-The current compiler can parse, check, build, and run a meaningful v0 subset on
+The v0.1.0 compiler can parse, check, build, and run a meaningful v0 subset on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
-The buildable subset is still narrower than the checkable language. Unsupported
-runtime forms should be rejected with source-backed diagnostics before machine
+The buildable subset is intentionally narrower than the checkable language.
+Unsupported runtime forms are part of the v0.2.0+ roadmap unless promoted
+later; v0.1.0 should reject them with source-backed diagnostics before machine
 code is emitted. For the exact implementation boundary, see
 [development/docs/implementation-status.md](development/docs/implementation-status.md).
 
