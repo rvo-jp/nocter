@@ -38,7 +38,10 @@ use super::functions::{
     lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
     propagating_failure_mode, replacement_drop_for_aggregate_slot,
 };
-use super::literals::{lower_u16_literal, lower_u32_literal};
+use super::literals::{
+    lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
+    lower_u64_literal,
+};
 use super::types::{
     return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr,
     top_level_optional_success_abi_value_with_resolver, view_element_type_from_type_expr,

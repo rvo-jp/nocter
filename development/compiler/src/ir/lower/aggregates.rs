@@ -12,7 +12,10 @@ use super::expressions::{
     push_store_str_view_to_aggregate_field,
 };
 use super::functions::propagating_failure_mode;
-use super::literals::{lower_u16_literal, lower_u32_literal};
+use super::literals::{
+    lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
+    lower_u64_literal,
+};
 use super::types::view_element_type_from_type_expr_with_resolver;
 use crate::abi::{
     AbiType, AbiValue, ValueLayout, abi_value_from_type_expr,
@@ -52,7 +55,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values (u8, u16, u32, bool, i32, usize/u64, pointer, &str, or slice views), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values, storage-only integer literals, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

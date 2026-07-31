@@ -13,7 +13,20 @@ pub(super) fn lower_aggregate_field_to_location(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match field_type {
-        AbiType::U64 | AbiType::Usize => {
+        AbiType::I64 | AbiType::Isize => {
+            let value = lower_i64_literal(expression)? as u64;
+            Ok(vec![Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value: UsizeValue::Const(value),
+            }])
+        }
+        AbiType::U64 => Ok(vec![Instruction::StoreAggregateUsize {
+            destination,
+            offset,
+            value: UsizeValue::Const(lower_u64_literal(expression)?),
+        }]),
+        AbiType::Usize => {
             let (mut instructions, value) = lower_usize_expression_to_word(expression, context)?;
             instructions.push(Instruction::StoreAggregateUsize {
                 destination,
@@ -31,6 +44,22 @@ pub(super) fn lower_aggregate_field_to_location(
                 value,
             });
             Ok(instructions)
+        }
+        AbiType::I8 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            Ok(vec![Instruction::StoreAggregateU8 {
+                destination,
+                offset,
+                value: U8Value::Const(lower_i8_literal(expression)? as u8),
+            }])
+        }
+        AbiType::I16 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            Ok(vec![Instruction::StoreAggregateU16 {
+                destination,
+                offset,
+                value: lower_i16_literal(expression)? as u16,
+            }])
         }
         AbiType::U16 => {
             validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;

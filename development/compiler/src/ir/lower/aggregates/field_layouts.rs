@@ -282,12 +282,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        AbiType::I8 => Some(AggregateFieldKind::I8),
+        AbiType::I16 => Some(AggregateFieldKind::I16),
         AbiType::I32 => Some(AggregateFieldKind::I32),
+        AbiType::I64 => Some(AggregateFieldKind::I64),
+        AbiType::Isize => Some(AggregateFieldKind::Isize),
         AbiType::U16 => Some(AggregateFieldKind::U16),
         AbiType::U32 => Some(AggregateFieldKind::U32),
+        AbiType::U64 => Some(AggregateFieldKind::U64),
         AbiType::U8 => Some(AggregateFieldKind::U8),
         AbiType::Bool => Some(AggregateFieldKind::Bool),
-        AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
+        AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
         AbiType::Array { element, length }
             if fixed_array_element_abi_is_runtime_copy(element.as_ref()) =>

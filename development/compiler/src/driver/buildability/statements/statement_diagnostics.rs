@@ -177,8 +177,24 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
+            let target_expression = match unwrap_group_expr(&statement.target) {
+                Expr::Member(member)
+                    if field_type_expr_for_member(member, resolved, typecheck_facts)
+                        .map(|ty| substitute_type_expr_parameters(&ty, generic_substitutions))
+                        .is_some_and(|ty| {
+                            type_expr_has_storage_only_scalar_abi_for_sources(
+                                &ty,
+                                resolved,
+                                resolved_sources,
+                            )
+                        }) =>
+                {
+                    &member.object
+                }
+                _ => &statement.target,
+            };
             collect_expression_diagnostics(
-                &statement.target,
+                target_expression,
                 sources,
                 resolved,
                 typecheck_facts,

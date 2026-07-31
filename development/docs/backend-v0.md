@@ -38,8 +38,10 @@ Nocter ABI v0 is register-first:
 - public raw pointer conversions lower raw pointers as address-carrying `usize`
   ABI words; pointer dereference is not part of v0 backend support
 - ABI layout recognizes additional integer widths for aggregate storage, but
-  standalone runtime scalar values are currently limited to the documented
-  buildable scalar subset
+  `i8`, `i16`, `i64`, `isize`, `u16`, `u32`, and `u64` currently accept only
+  literal initialization and replacement inside supported aggregates;
+  standalone runtime scalar values remain limited to the documented buildable
+  subset
 - `&str`, `&[T]`, and `&+[T]` occupy two ABI words: pointer then length
 - direct aggregates are aggregate values of 16 bytes or less
 - indirect aggregates are aggregate values larger than 16 bytes
@@ -140,6 +142,8 @@ includes:
   moves, and terminal branches in the supported subset
 - copy aggregate fields loaded from non-copy owners when the field type is
   `copy struct`
+- literal initialization and replacement of storage-only integer aggregate
+  fields, including signed minimum values
 - drop-aware whole-binding and field replacement in supported paths
 - optional and fallible aggregate call results in supported positions
 - copy aggregate storage and slice indexing through current `Vec<T>` and

@@ -512,6 +512,53 @@ func make(): Header {
 }
 
 #[test]
+fn build_command_lowers_storage_only_integer_literal_fields() {
+    let project = TempProject::new("cli-build-storage-only-integer-literal-fields");
+    let source = project.write_source(
+        "storage_only_integer_literal_fields.nct",
+        r#"copy struct Stored {
+    tiny: i8
+    narrow: i16
+    wide: i64
+    signed_word: isize
+    unsigned_word: u64
+}
+
+func main(): i32 {
+    var stored = make()
+    stored.tiny = -6 as i8
+    stored.narrow = -7 as i16
+    stored.wide = -8 as i64
+    stored.signed_word = -9 as isize
+    stored.unsigned_word = 10 as u64
+    consume(stored)
+    return 0
+}
+
+func make(): Stored {
+    return Stored {
+        tiny: -128,
+        narrow: -32768,
+        wide: -9223372036854775808,
+        signed_word: -9223372036854775808,
+        unsigned_word: 5 as u64,
+    }
+}
+
+func consume(value: Stored): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_moved_aggregate_slot_assignment() {
     let project = TempProject::new("cli-build-moved-aggregate-slot-assignment");
     let source = project.write_source(

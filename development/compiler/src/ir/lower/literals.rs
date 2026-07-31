@@ -74,8 +74,69 @@ pub(super) fn lower_u16_literal(expression: &Expr) -> Result<u16, Vec<Diagnostic
     }
 }
 
+pub(super) fn lower_i8_literal(expression: &Expr) -> Result<i8, Vec<Diagnostic>> {
+    let value = lower_signed_integer_literal(expression, i8::MAX as u64, (i8::MAX as u64) + 1)?;
+    i8::try_from(value).map_err(|_| storage_integer_out_of_range_diagnostic())
+}
+
+pub(super) fn lower_i16_literal(expression: &Expr) -> Result<i16, Vec<Diagnostic>> {
+    let value = lower_signed_integer_literal(expression, i16::MAX as u64, (i16::MAX as u64) + 1)?;
+    i16::try_from(value).map_err(|_| storage_integer_out_of_range_diagnostic())
+}
+
+pub(super) fn lower_i64_literal(expression: &Expr) -> Result<i64, Vec<Diagnostic>> {
+    lower_signed_integer_literal(expression, i64::MAX as u64, (i64::MAX as u64) + 1)
+}
+
+pub(super) fn lower_u64_literal(expression: &Expr) -> Result<u64, Vec<Diagnostic>> {
+    lower_unsigned_u64_literal(expression)
+}
+
 pub(super) fn lower_u32_literal(expression: &Expr) -> Result<u32, Vec<Diagnostic>> {
     lower_unsigned_integer_literal(expression)
+}
+
+fn lower_signed_integer_literal(
+    expression: &Expr,
+    positive_limit: u64,
+    negative_limit: u64,
+) -> Result<i64, Vec<Diagnostic>> {
+    match expression {
+        Expr::IntegerLiteral(literal) => {
+            let value = parse_u64_literal(&literal.value)?;
+            if value > positive_limit {
+                return Err(storage_integer_out_of_range_diagnostic());
+            }
+            Ok(value as i64)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Negate => {
+            let value = lower_unsigned_u64_literal(&unary.operand)?;
+            if value > negative_limit {
+                return Err(storage_integer_out_of_range_diagnostic());
+            }
+            if value == (i64::MAX as u64) + 1 {
+                Ok(i64::MIN)
+            } else {
+                Ok(-(value as i64))
+            }
+        }
+        Expr::Group(group) => {
+            lower_signed_integer_literal(&group.expression, positive_limit, negative_limit)
+        }
+        Expr::TypeConversion(conversion) => {
+            lower_signed_integer_literal(&conversion.expression, positive_limit, negative_limit)
+        }
+        _ => Err(storage_integer_literal_diagnostic()),
+    }
+}
+
+fn lower_unsigned_u64_literal(expression: &Expr) -> Result<u64, Vec<Diagnostic>> {
+    match expression {
+        Expr::IntegerLiteral(literal) => parse_u64_literal(&literal.value),
+        Expr::Group(group) => lower_unsigned_u64_literal(&group.expression),
+        Expr::TypeConversion(conversion) => lower_unsigned_u64_literal(&conversion.expression),
+        _ => Err(storage_integer_literal_diagnostic()),
+    }
 }
 
 fn lower_unsigned_integer_literal(expression: &Expr) -> Result<u32, Vec<Diagnostic>> {
@@ -135,5 +196,19 @@ fn integer_out_of_range_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8003",
         "IR v0 integer literal return is outside the `i32` range",
+    )]
+}
+
+fn storage_integer_literal_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8003",
+        "IR v0 can only lower storage-only integer field values from literals",
+    )]
+}
+
+fn storage_integer_out_of_range_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8003",
+        "IR v0 storage-only integer literal is outside the target type range",
     )]
 }

@@ -19,6 +19,16 @@ pub(super) fn lower_aggregate_field_assignment(
     let field_is_copy = field.is_copy;
     let field_drop_glue = field.drop_glue.clone();
     match field.kind {
+        AggregateFieldKind::I8 => Ok(vec![Instruction::StoreAggregateU8 {
+            destination,
+            offset,
+            value: U8Value::Const(lower_i8_literal(value)? as u8),
+        }]),
+        AggregateFieldKind::I16 => Ok(vec![Instruction::StoreAggregateU16 {
+            destination,
+            offset,
+            value: lower_i16_literal(value)? as u16,
+        }]),
         AggregateFieldKind::I32 => {
             if let Some(instructions) =
                 lower_i32_otherwise_aggregate_field_assignment(value, destination, offset, context)?
@@ -33,6 +43,13 @@ pub(super) fn lower_aggregate_field_assignment(
             });
             Ok(instructions)
         }
+        AggregateFieldKind::I64 | AggregateFieldKind::Isize => {
+            Ok(vec![Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value: UsizeValue::Const(lower_i64_literal(value)? as u64),
+            }])
+        }
         AggregateFieldKind::U16 => Ok(vec![Instruction::StoreAggregateU16 {
             destination,
             offset,
@@ -42,6 +59,11 @@ pub(super) fn lower_aggregate_field_assignment(
             destination,
             offset,
             value: lower_u32_literal(value)?,
+        }]),
+        AggregateFieldKind::U64 => Ok(vec![Instruction::StoreAggregateUsize {
+            destination,
+            offset,
+            value: UsizeValue::Const(lower_u64_literal(value)?),
         }]),
         AggregateFieldKind::U8 => {
             if let Some(instructions) =

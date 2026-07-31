@@ -1059,6 +1059,49 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_computed_value_converted_to_storage_only_field_before_ir_lowering() {
+    let project = TempProject::new("cli-build-computed-storage-only-field");
+    let source = project.write_source(
+        "computed_storage_only_field.nct",
+        r#"copy struct Stored {
+    value: u64
+}
+
+func main(): i32 {
+    let stored = Stored { value: (runtime_value() + 1) as u64 }
+    return 0
+}
+
+func runtime_value(): usize {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("computed values converted to storage-only scalar types"),
+        "expected storage-only conversion diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     let stored = Stored { value: (runtime_value() + 1) as u64 }"),
+        "expected source-backed conversion diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_imported_nested_alias_unsupported_scalar_local_binding_before_ir_lowering()
 {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-local");

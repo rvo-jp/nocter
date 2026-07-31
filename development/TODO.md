@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `424e3a9 Guard storage-only integer computations`
   - `54a795a Reject stored wrapper locals before IR lowering`
   - `5f0d2aa Split buildability variant rules by responsibility`
   - `e8b36fe Split expression predicates by responsibility`
@@ -414,6 +415,11 @@ Recommended order:
   Runtime integer conversions lower computed identity conversions by their
   typechecker facts, while explicit integer literal conversions remain valid in
   `u16`/`u32` aggregate fields.
+- Aggregate storage now consistently lowers literal initialization and simple
+  literal assignment for `i8`, `i16`, `i64`, `isize`, `u16`, `u32`, and `u64`,
+  including signed minimum values. Computed conversions into those storage-only
+  widths reject with source-backed E0435; field reads remain encapsulated until
+  standalone scalar lowering is promoted.
 
 ## Session Start
 

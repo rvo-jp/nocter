@@ -301,6 +301,19 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                     "use `i32`, `u8`, or `usize` before computation; storage-only integers are currently supported only as aggregate field values",
                 ));
             }
+            if conversion_stores_computed_value_in_storage_only_scalar(
+                expression,
+                resolved,
+                generic_substitutions,
+                resolved_sources,
+            ) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.as_span,
+                    "computed values converted to storage-only scalar types",
+                    "store an integer literal in the aggregate field, or keep computed values as `i32`, `u8`, or `usize` until broader storage-only scalar lowering is promoted",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -861,4 +874,29 @@ fn conversion_uses_computed_storage_only_scalar_value(
     };
     let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
     type_expr_has_storage_only_scalar_abi_for_sources(&source_ty, resolved, resolved_sources)
+}
+
+fn conversion_stores_computed_value_in_storage_only_scalar(
+    expression: &crate::ast::TypeConversionExpr,
+    resolved: &ResolveOutput,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let target_ty = substitute_type_expr_parameters(&expression.ty, generic_substitutions);
+    type_expr_has_storage_only_scalar_abi_for_sources(&target_ty, resolved, resolved_sources)
+        && !expression_is_integer_literal_shape(&expression.expression)
+}
+
+fn expression_is_integer_literal_shape(expression: &Expr) -> bool {
+    match expression {
+        Expr::IntegerLiteral(_) => true,
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Negate => {
+            expression_is_integer_literal_shape(&unary.operand)
+        }
+        Expr::Group(group) => expression_is_integer_literal_shape(&group.expression),
+        Expr::TypeConversion(conversion) => {
+            expression_is_integer_literal_shape(&conversion.expression)
+        }
+        _ => false,
+    }
 }
