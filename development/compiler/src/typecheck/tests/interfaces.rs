@@ -69,7 +69,7 @@ struct User {
 
 impl User {
     pub method &self.clone(): User {
-        return User{ id: self.id }
+        return User { id: self.id }
     }
 }
 

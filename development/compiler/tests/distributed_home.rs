@@ -820,7 +820,7 @@ func main(): i32! {
     values.push(1)?
     values.push(2)?
 
-    var buffer = Buffer{ data: values.view_mut() }
+    var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] = 9
     buffer.data[1] = 7
 
@@ -866,7 +866,7 @@ func main(): i32! {
     values.push(10)?
     values.push(20)?
 
-    var buffer = Buffer{ data: values.view_mut() }
+    var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] += 5
     buffer.data[1] *= 2
 
@@ -1444,7 +1444,7 @@ fn distributed_std_vec_fields_are_private() {
         r#"use std/vec.Vec
 
 func main(): i32 {
-    let values = Vec<usize>{
+    let values = Vec<usize> {
         len: 0,
     }
     return 0
@@ -1568,7 +1568,7 @@ impl Checker {
 func main(): void! {
     var values: Vec<i32> = Vec.empty()
     values.push(1)?
-    let checker = Checker{ seed: 0 }
+    let checker = Checker { seed: 0 }
     checker.touch(&+values.view_mut()[0])
     return
 }
@@ -1789,7 +1789,7 @@ use ./factory.make
 use ./types.{Box, Text}
 
 func main(): i32! {
-    let values: Vec<Box<Text>> = make(Box<Text>{ value: Text{ value: "x" } })?
+    let values: Vec<Box<Text>> = make(Box<Text> { value: Text { value: "x" } })?
     return 0
 }
 "#,
@@ -2337,7 +2337,7 @@ fn distributed_std_string_representation_is_private() {
         r#"use std/string.String
 
 func main(): i32 {
-    let text = String{ len: 0 }
+    let text = String { len: 0 }
     return 0
 }
 "#,
@@ -2729,7 +2729,7 @@ fn distributed_io_file_representation_is_private() {
         r#"use std/io.File
 
 func main(): i32 {
-    let file = File{ close_on_drop: false }
+    let file = File { close_on_drop: false }
     return 0
 }
 "#,

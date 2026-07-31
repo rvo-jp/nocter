@@ -250,7 +250,7 @@ impl File {
 }
 
 func main(): i32 {
-    let holder = Holder{ tag: 1, file: File{ fd: 42 } }
+    let holder = Holder { tag: 1, file: File { fd: 42 } }
     return holder.file.value()
 }
 "#,
@@ -302,7 +302,7 @@ impl File {
 }
 
 func main(): i32 {
-    var holder = Holder{ tag: 1, file: File{ fd: 42 } }
+    var holder = Holder { tag: 1, file: File { fd: 42 } }
     holder.file.touch()
     return holder.file.fd
 }
@@ -349,7 +349,7 @@ impl Box<i32> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return box.read()
 }
 "#,
@@ -435,7 +435,7 @@ func Box.unwrap<T>(box: Box<T>): T {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return Box.unwrap(move box)
 }
 "#,
@@ -479,7 +479,7 @@ fn lowers_generic_function_call_inferred_from_binding_annotation() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func main(): i32 {
@@ -523,11 +523,11 @@ fn lowers_generic_function_call_inferred_from_catch_block_return_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func source(): Marker<u8>! {
-    return Marker<u8>{ code: 1 }
+    return Marker<u8> { code: 1 }
 }
 
 func recover(): Marker<u8> {
@@ -586,7 +586,7 @@ fn lowers_generic_function_call_inferred_from_parameter_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func consume(marker: Marker<u8>): i32 {
@@ -631,7 +631,7 @@ fn lowers_nested_generic_function_call_inferred_from_parameter_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func forward<T>(value: T): T {
@@ -752,7 +752,7 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return (move box).into_identity()
 }
 "#,
@@ -805,7 +805,7 @@ func forward<T>(box: Box<T>): T {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return forward(move box)
 }
 "#,
@@ -854,7 +854,7 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return (move box).into_value()
 }
 "#,
@@ -904,8 +904,8 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let first_box = Box<i32>{ value: 42 }
-    let second_box = Box<u8>{ value: 7 }
+    let first_box = Box<i32> { value: 42 }
+    let second_box = Box<u8> { value: 7 }
     let first = (move first_box).into_value()
     let second = (move second_box).into_value()
     return first + (second as i32)
@@ -945,7 +945,7 @@ func main(): i32 {
 }
 
 func make_file(): File {
-    return File{ fd: 42 }
+    return File { fd: 42 }
 }
 "#,
     );
@@ -2230,7 +2230,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 0, len: 0, capacity: 0 }
+    return Text { start: 0, len: 0, capacity: 0 }
 }
 "#,
     );
@@ -2263,7 +2263,7 @@ func main(): i32 {
 }
 
 func page_allocator(): Allocator {
-    return Allocator{ state: 0, kind: 0 }
+    return Allocator { state: 0, kind: 0 }
 }
 "#,
     );
@@ -2765,7 +2765,7 @@ func consume(header: Header): i32 {
 }
 
 func main(): i32 {
-    let result = consume(Header{ tag: 7, ok: true, code: 42, len: 11 })
+    let result = consume(Header { tag: 7, ok: true, code: 42, len: 11 })
     return result
 }
 "#,
@@ -2927,7 +2927,7 @@ enum Result {
 }
 
 func main(): i32 {
-    let result = Result.ok(Detail{ code: 42, bonus: 1 })
+    let result = Result.ok(Detail { code: 42, bonus: 1 })
     if result is Result.ok(value) {
         return value.code
     }
@@ -3027,7 +3027,7 @@ fn lowers_propagated_indirect_aggregate_call_value_argument() {
 }
 
 func make(): Text! {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func consume(text: Text): i32 {
@@ -3093,7 +3093,7 @@ fn lowers_propagated_direct_aggregate_call_value_argument() {
 }
 
 func make(): Allocator! {
-    return Allocator{ state: 1, kind: 2 }
+    return Allocator { state: 1, kind: 2 }
 }
 
 func consume(allocator: Allocator): i32 {
@@ -3170,7 +3170,7 @@ func consume(text: Text): usize {
 }
 
 func caller(): usize {
-    let text = Text{ start: 1, len: 2, capacity: 3 }
+    let text = Text { start: 1, len: 2, capacity: 3 }
     let result: usize = consume(move text)
     return result
 }
@@ -3237,7 +3237,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 "#,
         "make",
@@ -3288,9 +3288,9 @@ func main(): i32 {
 
 func choose(flag: bool): Text {
     if flag {
-        return Text{ start: 1, len: 2, capacity: 3 }
+        return Text { start: 1, len: 2, capacity: 3 }
     } else {
-        return Text{ start: 4, len: 5, capacity: 6 }
+        return Text { start: 4, len: 5, capacity: 6 }
     }
 }
 "#,
@@ -3364,7 +3364,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, ok: true, code: 42, len: 11, capacity: 12 }
+    return Header { tag: 7, ok: true, code: 42, len: 11, capacity: 12 }
 }
 "#,
         "make",
@@ -3427,7 +3427,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func forward(): Text {
@@ -3474,7 +3474,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func forward(): Text {
@@ -3542,11 +3542,11 @@ func main(): i32 {
 }
 
 func wrap(header: Header): Packet {
-    return Packet{ prefix: 1, header: header, tail: 2 }
+    return Packet { prefix: 1, header: header, tail: 2 }
 }
 
 func build(): i32 {
-    let packet = wrap(Header{ tag: 7, ok: true, code: 42, len: 11 })
+    let packet = wrap(Header { tag: 7, ok: true, code: 42, len: 11 })
     return packet.header.code
 }
 "#,
@@ -3624,7 +3624,7 @@ func main(): i32 {
 }
 
 func forward(): Text {
-    let value = Text{ start: 1, len: 2, capacity: 3 }
+    let value = Text { start: 1, len: 2, capacity: 3 }
     return move value
 }
 "#,
@@ -3685,7 +3685,7 @@ func main(): i32 {
 }
 
 func forward(): Text {
-    let value = Text{ start: 1, len: 2, capacity: 3 }
+    let value = Text { start: 1, len: 2, capacity: 3 }
     return move value
 }
 "#,
@@ -3753,7 +3753,7 @@ func touch(value: &+Text): void {
 }
 
 func forward(): Text {
-    var value = Text{ start: 1, len: 2, capacity: 3 }
+    var value = Text { start: 1, len: 2, capacity: 3 }
     touch(&+value)
     return move value
 }
@@ -3830,7 +3830,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func touch(value: &+Text): void {
@@ -3905,7 +3905,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     drop file
     return 0
 }
@@ -3963,7 +3963,7 @@ impl Box<i32> {
 }
 
 func main(): i32 {
-    var box = Box<i32>{ value: 3 }
+    var box = Box<i32> { value: 3 }
     drop box
     return 0
 }
@@ -4013,7 +4013,7 @@ fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
         r#"use std/file.File
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     drop file
     return 0
 }
@@ -4100,7 +4100,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     return 0
 }
 "#,
@@ -4169,7 +4169,7 @@ enum Result {
 }
 
 func main(): i32 {
-    let result = Result.ok(Payload{ code: 42 })
+    let result = Result.ok(Payload { code: 42 })
     return 0
 }
 "#,
@@ -4261,7 +4261,7 @@ enum Result {
 }
 
 func main(): i32 {
-    let result = Result.ok(Payload{ code: 10 }, Payload{ code: 20 })
+    let result = Result.ok(Payload { code: 10 }, Payload { code: 20 })
     return 0
 }
 "#,
@@ -4417,7 +4417,7 @@ impl Box<i32> {
 }
 
 func main(): i32 {
-    var box = Box<i32>{ value: 3 }
+    var box = Box<i32> { value: 3 }
     return 0
 }
 "#,
@@ -4501,7 +4501,7 @@ impl<U> Box<U> {
 }
 
 pub func run(): i32 {
-    var box = Box<u8>{ ptr: from_addr(1), size: 0 }
+    var box = Box<u8> { ptr: from_addr(1), size: 0 }
     return 0
 }
 "#,
@@ -4572,7 +4572,7 @@ func main(): i32 {
 }
 
 func make_file(): File {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     return move file
 }
 "#,
@@ -4618,7 +4618,7 @@ func main(): i32 {
 }
 
 func use_pair(): i32 {
-    let source = Pair{ left: 40, right: 2 }
+    let source = Pair { left: 40, right: 2 }
     let target = source
     return target.left + target.right
 }
@@ -4691,7 +4691,7 @@ impl File {
 }
 
 func main(): i32 {
-    let source = File{ fd: 3 }
+    let source = File { fd: 3 }
     let target = move source
     return target.fd
 }
@@ -4759,9 +4759,9 @@ impl File {
 
 func main(): i32 {
     if true {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
     } else {
-        var file = File{ fd: 2 }
+        var file = File { fd: 2 }
     }
     return 0
 }
@@ -4850,9 +4850,9 @@ impl Wide {
 
 func main(): i32 {
     if true {
-        var small = Small{ value: 1 }
+        var small = Small { value: 1 }
     } else {
-        var wide = Wide{ left: 2, right: 3 }
+        var wide = Wide { left: 2, right: 3 }
     }
     return 0
 }
@@ -4935,7 +4935,7 @@ impl File {
 
 func main(): i32 {
     if true {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         drop file
     }
     return 0
@@ -4996,7 +4996,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
         drop file
         return 1
@@ -5069,7 +5069,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
         drop file
         if false {
@@ -5158,7 +5158,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
         drop file
         touch()
@@ -5240,7 +5240,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         var moved = move file
         return moved.fd
@@ -5333,7 +5333,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         var moved = move file
         touch()
@@ -5435,9 +5435,9 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
-        file = File{ fd: 2 }
+        file = File { fd: 2 }
         touch()
         return file.fd
     }
@@ -5537,8 +5537,8 @@ impl File {
 }
 
 func main(): i32 {
-    var target = File{ fd: 1 }
-    var source = File{ fd: 2 }
+    var target = File { fd: 1 }
+    var source = File { fd: 2 }
     if true {
         target = move source
         touch()
@@ -5656,8 +5656,8 @@ impl File {
 }
 
 func main(): i32 {
-    var target = File{ fd: 1 }
-    var source = File{ fd: 2 }
+    var target = File { fd: 1 }
+    var source = File { fd: 2 }
     if true {
         target = move source
         if choose() {
@@ -5792,7 +5792,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
         drop file
         abort()
@@ -5868,8 +5868,8 @@ impl File {
 }
 
 func main(): i32 {
-    var target = File{ fd: 1 }
-    var source = File{ fd: 2 }
+    var target = File { fd: 1 }
+    var source = File { fd: 2 }
     if true {
         target = move source
         abort()
@@ -5976,7 +5976,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     return abort()
 }
 
@@ -6037,7 +6037,7 @@ impl File {
 
 func main(): i32 {
     if true {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         abort()
     } else {
         return 0
@@ -6116,10 +6116,10 @@ func main(): i32 {
 
 func make(): File {
     if true {
-        var temp = File{ fd: 2 }
+        var temp = File { fd: 2 }
         abort()
     } else {
-        return File{ fd: 1 }
+        return File { fd: 1 }
     }
 }
 
@@ -6202,9 +6202,9 @@ impl File {
 }
 
 func main(): i32 {
-    var source = File{ fd: 2 }
+    var source = File { fd: 2 }
     if true {
-        var target = File{ fd: 1 }
+        var target = File { fd: 1 }
         target = move source
         touch()
         return target.fd
@@ -6366,7 +6366,7 @@ impl File {
 
 func main(): i32 {
     if true {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         var moved = move file
     }
     return 0
@@ -6435,7 +6435,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if ready() {
         return 7
     }
@@ -6517,7 +6517,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         touch()
     }
     return 0
@@ -6748,7 +6748,7 @@ impl File {
 
 func main(): i32 {
     loop {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         break
     }
     return 0
@@ -6842,7 +6842,7 @@ impl File {
 
 func main(): i32 {
     loop {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         if done() {
             break
         } else {
@@ -6927,7 +6927,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         drop file
     }
     return 0
@@ -7041,8 +7041,8 @@ impl File {
 
 func main(): i32 {
     while false {
-        var file = File{ fd: 1 }
-        file = File{ fd: 2 }
+        var file = File { fd: 1 }
+        file = File { fd: 2 }
     }
     return 0
 }
@@ -7176,7 +7176,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         return 7
     }
     return 0
@@ -7250,7 +7250,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while false {
         drop file
     }
@@ -7277,7 +7277,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while false {
         drop file
         break
@@ -7306,7 +7306,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while false {
         drop file
         if true {
@@ -7421,9 +7421,9 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while false {
-        file = File{ fd: 2 }
+        file = File { fd: 2 }
     }
     return 0
 }
@@ -7502,9 +7502,9 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
-        file = File{ fd: 2 }
+        file = File { fd: 2 }
     }
     return file.fd
 }
@@ -7570,9 +7570,9 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while false {
-        file = File{ fd: 2 }
+        file = File { fd: 2 }
         break
         return 1
     }
@@ -7633,8 +7633,8 @@ impl File {
 }
 
 func main(): i32 {
-    var target = File{ fd: 1 }
-    var source = File{ fd: 2 }
+    var target = File { fd: 1 }
+    var source = File { fd: 2 }
     while false {
         target = move source
         break
@@ -7663,9 +7663,9 @@ impl File {
 }
 
 func main(): i32 {
-    var source = File{ fd: 2 }
+    var source = File { fd: 2 }
     while false {
-        var target = File{ fd: 1 }
+        var target = File { fd: 1 }
         target = move source
         break
         return 1
@@ -7693,7 +7693,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if true {
         var moved = move file
     }
@@ -7721,7 +7721,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         break
     }
     return 0
@@ -7787,7 +7787,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         continue
     }
     return 0
@@ -7853,7 +7853,7 @@ impl File {
 
 func main(): i32 {
     while ready() {
-        var file = File{ fd: 1 }
+        var file = File { fd: 1 }
         if done() {
             break
         } else {
@@ -7945,7 +7945,7 @@ func consume(file: File): bool {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if consume(move file) {
         return 0
     } else {
@@ -8020,7 +8020,7 @@ func consume(file: File): bool {
 }
 
 func pick(): bool {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if consume(move file) {
         return true
     } else {
@@ -8103,7 +8103,7 @@ func consume(file: File): bool {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     while consume(move file) {
         break
     }
@@ -8130,7 +8130,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     consume(move file)
     return 0
 }
@@ -8213,7 +8213,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     return consume(move file)
 }
 
@@ -8302,7 +8302,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     return answer()
 }
 
@@ -8363,7 +8363,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         return 0
     } else {
@@ -8441,7 +8441,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         drop file
         return 0
@@ -8509,7 +8509,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         touch(&+file)
         return 0
@@ -8608,7 +8608,7 @@ func main(): i32 {
 }
 
 func choose(flag: bool): usize {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if flag {
         return 7
     } else {
@@ -8719,7 +8719,7 @@ impl File {
 }
 
 func main(): void {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         return
     } else {
@@ -8798,7 +8798,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         if false {
             return 0
@@ -8895,7 +8895,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if true {
         drop file
         if false {
@@ -9007,7 +9007,7 @@ impl File {
 }
 
 func main(): void! {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     fail()?
 }
 
@@ -9069,8 +9069,8 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
-    file = File{ fd: 2 }
+    var file = File { fd: 1 }
+    file = File { fd: 2 }
     return 0
 }
 "#,
@@ -9142,9 +9142,9 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     drop file
-    file = File{ fd: 42 }
+    file = File { fd: 42 }
     return file.fd
 }
 "#,
@@ -9208,8 +9208,8 @@ impl File {
 }
 
 func main(): i32 {
-    var source = File{ fd: 1 }
-    var target = File{ fd: 2 }
+    var source = File { fd: 1 }
+    var target = File { fd: 2 }
     target = move source
     return 0
 }
@@ -9301,9 +9301,9 @@ impl Holder {
 }
 
 func main(): i32 {
-    var source = File{ fd: 1 }
-    var holder = Holder{ file: File{ fd: 2 } }
-    holder = Holder{ file: move source }
+    var source = File { fd: 1 }
+    var holder = Holder { file: File { fd: 2 } }
+    holder = Holder { file: move source }
     return holder.file.fd
 }
 "#,
@@ -9389,13 +9389,13 @@ impl File {
 }
 
 func main(): void! {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     file = make()?
     return
 }
 
 func make(): File! {
-    return File{ fd: 2 }
+    return File { fd: 2 }
 }
 "#,
     );
@@ -9464,8 +9464,8 @@ impl File {
 }
 
 func main(): i32! {
-    var file = File{ fd: 1 }
-    file = File{ fd: 42 }
+    var file = File { fd: 1 }
+    file = File { fd: 42 }
     return file.fd
 }
 "#,
@@ -9541,7 +9541,7 @@ func main(): i32 {
 }
 
 func make(): Text! {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func forward(): Text! {
@@ -9603,7 +9603,7 @@ func main(): i32 {
 }
 
 func make(): Text! {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func forward(): Text! {
@@ -9681,7 +9681,7 @@ func main(): i32 {
 }
 
 func make(): Pair {
-    return Pair{ first: 1, second: 2 }
+    return Pair { first: 1, second: 2 }
 }
 "#,
         "make",
@@ -9727,9 +9727,9 @@ func main(): i32 {
 
 func choose(flag: bool): Pair {
     if flag {
-        return Pair{ first: 1, second: 2 }
+        return Pair { first: 1, second: 2 }
     } else {
-        return Pair{ first: 3, second: 4 }
+        return Pair { first: 3, second: 4 }
     }
 }
 "#,
@@ -9805,8 +9805,8 @@ func main(): i32 {
 }
 
 func choose(): Pair {
-    var file = File{ fd: 3 }
-    return Pair{ first: 1, second: 2 }
+    var file = File { fd: 3 }
+    return Pair { first: 1, second: 2 }
 }
 "#,
         "choose",
@@ -9892,8 +9892,8 @@ func main(): i32 {
 }
 
 func choose(): Pair! {
-    var file = File{ fd: 3 }
-    return Pair{ first: 1, second: 2 }
+    var file = File { fd: 3 }
+    return Pair { first: 1, second: 2 }
 }
 "#,
         "choose",
@@ -9976,11 +9976,11 @@ func main(): i32 {
 }
 
 func choose(flag: bool): Pair {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if flag {
-        return Pair{ first: 1, second: 2 }
+        return Pair { first: 1, second: 2 }
     } else {
-        return Pair{ first: 3, second: 4 }
+        return Pair { first: 3, second: 4 }
     }
 }
 "#,
@@ -10095,11 +10095,11 @@ func main(): i32 {
 }
 
 func make_pair(first: usize, second: usize): Pair {
-    return Pair{ first: first, second: second }
+    return Pair { first: first, second: second }
 }
 
 func choose(flag: bool): Pair {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if flag {
         return make_pair(1, 2)
     } else {
@@ -10216,9 +10216,9 @@ func main(): i32 {
 }
 
 func choose(flag: bool): Pair {
-    var file = File{ fd: 3 }
-    let left = Pair{ first: 1, second: 2 }
-    let right = Pair{ first: 3, second: 4 }
+    var file = File { fd: 3 }
+    let left = Pair { first: 1, second: 2 }
+    let right = Pair { first: 3, second: 4 }
     if flag {
         return move left
     } else {
@@ -10355,13 +10355,13 @@ func main(): i32 {
 }
 
 func choose(flag: bool): Pair {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     if flag {
         drop file
-        return Pair{ first: 1, second: 2 }
+        return Pair { first: 1, second: 2 }
     } else {
         touch(&+file)
-        return Pair{ first: 3, second: 4 }
+        return Pair { first: 3, second: 4 }
     }
 }
 
@@ -10479,11 +10479,11 @@ func main(): i32 {
 
 func choose(flag: bool): Pair {
     if flag {
-        var file = File{ fd: 1 }
-        return Pair{ first: 1, second: 2 }
+        var file = File { fd: 1 }
+        return Pair { first: 1, second: 2 }
     } else {
-        var file = File{ fd: 2 }
-        return Pair{ first: 3, second: 4 }
+        var file = File { fd: 2 }
+        return Pair { first: 3, second: 4 }
     }
 }
 "#,
@@ -10607,12 +10607,12 @@ func main(): i32 {
 }
 
 func choose(flag: bool): File {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     if flag {
-        file = File{ fd: 2 }
+        file = File { fd: 2 }
         return move file
     } else {
-        file = File{ fd: 3 }
+        file = File { fd: 3 }
         return move file
     }
 }
@@ -10718,7 +10718,7 @@ func main(): i32 {
 }
 
 func make(): Pair! {
-    return Pair{ first: 1, second: 2 }
+    return Pair { first: 1, second: 2 }
 }
 
 func forward(): Pair! {
@@ -10766,7 +10766,7 @@ func main(): i32 {
 }
 
 func make(): Code {
-    return Code{ value: 42 }
+    return Code { value: 42 }
 }
 "#,
         "make",
@@ -10814,7 +10814,7 @@ func main(): i32 {
 }
 
 func make(): Box<i32> {
-    return Box<i32>{ value: 42 }
+    return Box<i32> { value: 42 }
 }
 "#,
         "make",
@@ -10911,7 +10911,7 @@ func main(): i32 {
 }
 
 func make(): Bytes {
-    return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 }
+    return Bytes { first: 1, second: 2, third: 3, fourth: 4, fifth: 42 }
 }
 "#,
         "make",
@@ -10981,7 +10981,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    let value = Header{ tag: 7, ok: false, code: 42 }
+    let value = Header { tag: 7, ok: false, code: 42 }
     return move value
 }
 "#,
@@ -11042,7 +11042,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, ok: false, code: 42 }
+    return Header { tag: 7, ok: false, code: 42 }
 }
 "#,
         "make",
@@ -11117,8 +11117,8 @@ func main(): i32 {
 }
 
 func make_holder(): Holder {
-    var file = File{ fd: 42 }
-    return Holder{ file: move file }
+    var file = File { fd: 42 }
+    return Holder { file: move file }
 }
 "#,
     );
@@ -11165,7 +11165,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, code: 42 }
+    return Header { tag: 7, code: 42 }
 }
 "#,
         "make",
@@ -11217,7 +11217,7 @@ fn lowers_u32_aggregate_struct_literal_argument() {
 }
 
 func main(): i32 {
-    consume(Header{ tag: 7, code: 42 })
+    consume(Header { tag: 7, code: 42 })
     return 0
 }
 
@@ -11276,11 +11276,11 @@ func main(): i32 {
 }
 
 func make_pair(): Pair {
-    return Pair{ first: 1, second: 2 }
+    return Pair { first: 1, second: 2 }
 }
 
 func make_wrap(): Wrap {
-    return Wrap{ pair: make_pair(), code: 42 }
+    return Wrap { pair: make_pair(), code: 42 }
 }
 "#,
         "make_wrap",
@@ -11348,7 +11348,7 @@ func main(): i32 {
 }
 
 func make(): Allocator {
-    let allocator = Allocator{ state: 1, kind: 2 }
+    let allocator = Allocator { state: 1, kind: 2 }
     return move allocator
 }
 "#,
@@ -11407,7 +11407,7 @@ func main(): i32 {
 }
 
 func page_allocator(): Allocator {
-    return Allocator{ state: 0, kind: 0 }
+    return Allocator { state: 0, kind: 0 }
 }
 
 func touch(allocator: &+Allocator): void {
@@ -11482,7 +11482,7 @@ func main(): i32 {
 }
 
 func page_allocator(): Allocator! {
-    return Allocator{ state: 0, kind: 0 }
+    return Allocator { state: 0, kind: 0 }
 }
 
 func touch(allocator: &+Allocator): void {
@@ -11566,8 +11566,8 @@ func touch(value: &+Text): void {
 }
 
 func use_text(): i32 {
-    var value = Text{ start: 1, len: 2, capacity: 3 }
-    value = Text{ start: 4, len: 5, capacity: 6 }
+    var value = Text { start: 1, len: 2, capacity: 3 }
+    value = Text { start: 4, len: 5, capacity: 6 }
     touch(&+value)
     return 0
 }
@@ -11659,8 +11659,8 @@ func touch(value: &+Text): void {
 }
 
 func use_text(): i32 {
-    var source = Text{ start: 1, len: 2, capacity: 3 }
-    var target = Text{ start: 4, len: 5, capacity: 6 }
+    var source = Text { start: 1, len: 2, capacity: 3 }
+    var target = Text { start: 4, len: 5, capacity: 6 }
     target = source
     touch(&+target)
     return 0
@@ -11758,7 +11758,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 1, len: 2, capacity: 3 }
+    return Text { start: 1, len: 2, capacity: 3 }
 }
 
 func touch(value: &+Text): void {
@@ -11854,8 +11854,8 @@ func touch(value: &+Pair): void {
 }
 
 func use_pair(): i32 {
-    var source = PairAlias{ left: 1, right: 2 }
-    var target = PairAlias{ left: 3, right: 4 }
+    var source = PairAlias { left: 1, right: 2 }
+    var target = PairAlias { left: 3, right: 4 }
     target = source
     touch(&+target)
     return 0
@@ -11897,11 +11897,11 @@ func main(): i32 {
 }
 
 func page_allocator(): Allocator {
-    return Allocator{ state: 0, kind: 0 }
+    return Allocator { state: 0, kind: 0 }
 }
 
 func reset_allocator(): Allocator {
-    return Allocator{ state: 1, kind: 2 }
+    return Allocator { state: 1, kind: 2 }
 }
 
 func touch(allocator: &+Allocator): void {
@@ -11984,11 +11984,11 @@ func main(): i32 {
 }
 
 func page_allocator(): Allocator {
-    return Allocator{ state: 0, kind: 0 }
+    return Allocator { state: 0, kind: 0 }
 }
 
 func reset_allocator(): Allocator! {
-    return Allocator{ state: 1, kind: 2 }
+    return Allocator { state: 1, kind: 2 }
 }
 
 func touch(allocator: &+Allocator): void {
@@ -12076,7 +12076,7 @@ func main(): i32 {
 }
 
 func make(): Text {
-    return Text{ start: 4, len: 5, capacity: 6 }
+    return Text { start: 4, len: 5, capacity: 6 }
 }
 
 func touch(value: &+Text): void {
@@ -12084,7 +12084,7 @@ func touch(value: &+Text): void {
 }
 
 func use_text(): i32 {
-    var value = Text{ start: 1, len: 2, capacity: 3 }
+    var value = Text { start: 1, len: 2, capacity: 3 }
     value = make()
     touch(&+value)
     return 0
@@ -12166,7 +12166,7 @@ func main(): i32 {
 }
 
 func make(): Text! {
-    return Text{ start: 4, len: 5, capacity: 6 }
+    return Text { start: 4, len: 5, capacity: 6 }
 }
 
 func touch(value: &+Text): void {
@@ -12174,7 +12174,7 @@ func touch(value: &+Text): void {
 }
 
 func use_text(): i32! {
-    var value = Text{ start: 1, len: 2, capacity: 3 }
+    var value = Text { start: 1, len: 2, capacity: 3 }
     value = make()?
     touch(&+value)
     return 0
@@ -12271,7 +12271,7 @@ pub struct Text {
 }
 
 pub func make(): Text {
-    return Text{ ptr: from_addr(1), len: 2, capacity: 3 }
+    return Text { ptr: from_addr(1), len: 2, capacity: 3 }
 }
 "#,
             ),
@@ -12339,7 +12339,7 @@ pub struct Text {
 }
 
 pub func make(): Text {
-    let value = Text{ ptr: from_addr(1), len: 2, capacity: 3 }
+    let value = Text { ptr: from_addr(1), len: 2, capacity: 3 }
     return move value
 }
 "#,
@@ -12538,7 +12538,7 @@ func main(): i32 {
 }
 
 func read_code(): i32 {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.code
 }
 "#,
@@ -12608,9 +12608,9 @@ func main(): i32 {
 }
 
 func read_code(): i32 {
-    let packet = Packet{
+    let packet = Packet {
         prefix: 1,
-        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        header: Header { tag: 7, ok: true, code: 42, len: 11 },
         tail: 99,
     }
     return packet.header.code
@@ -12692,9 +12692,9 @@ func main(): i32 {
 }
 
 func update_code(): i32 {
-    var packet = Packet{
+    var packet = Packet {
         prefix: 1,
-        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        header: Header { tag: 7, ok: true, code: 42, len: 11 },
         tail: 99,
     }
     packet.header.code = 100
@@ -12743,8 +12743,8 @@ struct Holder {
 }
 
 func main(): i32 {
-    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
-    holder.file = File{ fd: 2 }
+    var holder = Holder { tag: 1, file: File { fd: 1 } }
+    holder.file = File { fd: 2 }
     return holder.file.fd
 }
 "#,
@@ -12813,13 +12813,13 @@ struct Holder {
 }
 
 func main(): i32 {
-    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    var holder = Holder { tag: 1, file: File { fd: 1 } }
     replace(&+holder)
     return holder.file.fd
 }
 
 func replace(holder: &+Holder): void {
-    holder.file = File{ fd: 2 }
+    holder.file = File { fd: 2 }
     return
 }
 "#,
@@ -12888,8 +12888,8 @@ struct Holder {
 }
 
 func main(): i32 {
-    var replacement = File{ fd: 2 }
-    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    var replacement = File { fd: 2 }
+    var holder = Holder { tag: 1, file: File { fd: 1 } }
     holder.file = move replacement
     return holder.file.fd
 }
@@ -12959,13 +12959,13 @@ struct Holder {
 }
 
 func main(): i32 {
-    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    var holder = Holder { tag: 1, file: File { fd: 1 } }
     holder.file = make_file()
     return holder.file.fd
 }
 
 func make_file(): File {
-    return File{ fd: 2 }
+    return File { fd: 2 }
 }
 "#,
     );
@@ -13087,9 +13087,9 @@ func main(): i32 {
 }
 
 func caller(): i32 {
-    let packet = Packet{
+    let packet = Packet {
         prefix: 1,
-        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        header: Header { tag: 7, ok: true, code: 42, len: 11 },
         tail: 99,
     }
     return read_code(&packet)
@@ -13146,7 +13146,7 @@ func main(): i32 {
 }
 
 func read_next_code(): i32 {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.code + 1
 }
 "#,
@@ -13218,7 +13218,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func read_code(): i32 {
@@ -13277,7 +13277,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func read_code(): i32 {
@@ -13338,7 +13338,7 @@ func main(): i32 {
 }
 
 func read_code(): i32 {
-    let packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    let packet = Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
     let header = packet.header
     return header.code
 }
@@ -13428,7 +13428,7 @@ func main(): i32 {
 }
 
 func read_code(): i32 {
-    let packet = Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+    let packet = Packet { prefix: 1, header: Header { code: 40, len: 2 }, tail: 3 }
     let header = packet.header
     return header.code + header.len
 }
@@ -13518,7 +13518,7 @@ struct Packet {
 }
 
 func make_packet(): Packet {
-    return Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+    return Packet { prefix: 1, header: Header { code: 40, len: 2 }, tail: 3 }
 }
 
 func main(): i32 {
@@ -13613,7 +13613,7 @@ struct Packet {
 }
 
 func make_packet(): Packet! {
-    return Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+    return Packet { prefix: 1, header: Header { code: 40, len: 2 }, tail: 3 }
 }
 
 func main(): i32 {
@@ -13690,8 +13690,8 @@ impl Holder {
 }
 
 func main(): i32 {
-    var file = File{ fd: 42 }
-    var holder = Holder{ file: move file }
+    var file = File { fd: 42 }
+    var holder = Holder { file: move file }
     return holder.file.fd
 }
 "#,
@@ -13770,7 +13770,7 @@ func consume(header: Header): i32 {
 }
 
 func main(): i32 {
-    let packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    let packet = Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
     let result = consume(packet.header)
     return result
 }
@@ -13875,7 +13875,7 @@ copy struct Packet {
 }
 
 func make_header(): Header {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func consume(packet: Packet): i32 {
@@ -13883,7 +13883,7 @@ func consume(packet: Packet): i32 {
 }
 
 func main(): i32 {
-    return consume(Packet{ prefix: 1, header: make_header(), tail: 2 })
+    return consume(Packet { prefix: 1, header: make_header(), tail: 2 })
 }
 "#,
         "main",
@@ -14018,8 +14018,8 @@ func main(): i32 {
 }
 
 func update(): i32 {
-    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
-    packet.header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    var packet = Packet { prefix: 1, header: Header { tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    packet.header = Header { tag: 8, ok: true, code: 42, len: 12 }
     return packet.header.code
 }
 "#,
@@ -14119,8 +14119,8 @@ func main(): i32 {
 }
 
 func update(): i32 {
-    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
-    let header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    var packet = Packet { prefix: 1, header: Header { tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    let header = Header { tag: 8, ok: true, code: 42, len: 12 }
     packet.header = header
     return packet.header.code
 }
@@ -14173,8 +14173,8 @@ func main(): i32 {
 }
 
 func build(): i32 {
-    let header = Header{ tag: 7, ok: true, code: 42, len: 11 }
-    let packet = Packet{ prefix: 1, header: header, tail: 2 }
+    let header = Header { tag: 7, ok: true, code: 42, len: 11 }
+    let packet = Packet { prefix: 1, header: header, tail: 2 }
     return packet.header.code
 }
 "#,
@@ -14230,11 +14230,11 @@ func main(): i32 {
 }
 
 func make_header(): Header {
-    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+    return Header { tag: 8, ok: true, code: 42, len: 12 }
 }
 
 func build(): i32 {
-    let packet = Packet{ prefix: 1, header: make_header(), tail: 2 }
+    let packet = Packet { prefix: 1, header: make_header(), tail: 2 }
     return packet.header.code
 }
 "#,
@@ -14302,11 +14302,11 @@ func main(): i32 {
 }
 
 func make(): Packet {
-    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
 }
 
 func build(): i32 {
-    let packet = Packet{ prefix: 1, header: make().header, tail: 2 }
+    let packet = Packet { prefix: 1, header: make().header, tail: 2 }
     return packet.header.code
 }
 "#,
@@ -14361,11 +14361,11 @@ func main(): i32 {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
 }
 
 func build(): i32! {
-    let packet = Packet{ prefix: 1, header: make()?.header, tail: 2 }
+    let packet = Packet { prefix: 1, header: make()?.header, tail: 2 }
     return packet.header.code
 }
 "#,
@@ -14428,11 +14428,11 @@ func main(): i32 {
 }
 
 func make_header(): Header! {
-    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+    return Header { tag: 8, ok: true, code: 42, len: 12 }
 }
 
 func build(): i32! {
-    let packet = Packet{ prefix: 1, header: make_header()?, tail: 2 }
+    let packet = Packet { prefix: 1, header: make_header()?, tail: 2 }
     return packet.header.code
 }
 "#,
@@ -14491,7 +14491,7 @@ func main(): i32 {
 }
 
 func make(): Packet {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func read_code(): i32 {
@@ -14566,7 +14566,7 @@ copy struct Packet {
 }
 
 func make(): Packet {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func consume(header: Header): i32 {
@@ -14656,7 +14656,7 @@ func main(): i32 {
 }
 
 func make(): Packet {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func pick(): Header {
@@ -14725,11 +14725,11 @@ func main(): i32 {
 }
 
 func make_header(): Header {
-    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+    return Header { tag: 8, ok: true, code: 42, len: 12 }
 }
 
 func update(): i32 {
-    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    var packet = Packet { prefix: 1, header: Header { tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
     packet.header = make_header()
     return packet.header.code
 }
@@ -14788,11 +14788,11 @@ func main(): i32 {
 }
 
 func make(): Packet {
-    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
 }
 
 func update(): i32 {
-    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    var packet = Packet { prefix: 1, header: Header { tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
     packet.header = make().header
     return packet.header.code
 }
@@ -14840,7 +14840,7 @@ func main(): i32 {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func read_code(): i32! {
@@ -14906,7 +14906,7 @@ copy struct Packet {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func consume(header: Header): i32 {
@@ -14974,7 +14974,7 @@ func main(): i32 {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 
 func pick(): Header! {
@@ -15039,11 +15039,11 @@ func main(): i32 {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
 }
 
 func update(): i32! {
-    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    var packet = Packet { prefix: 1, header: Header { tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
     packet.header = make()?.header
     return packet.header.code
 }
@@ -15096,17 +15096,17 @@ func main(): i32 {
 }
 
 func read_tag(): u8 {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.tag
 }
 
 func read_ok(): bool {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.ok
 }
 
 func read_len(): usize {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.len
 }
 "#;
@@ -15155,12 +15155,12 @@ func main(): i32 {
 }
 
 func code_is_answer(): bool {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.code == 42
 }
 
 func ok_is_true(): bool {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     return value.ok == true
 }
 "#;
@@ -15219,7 +15219,7 @@ fn lowers_aggregate_field_reads_in_short_circuit_comparison_condition() {
 }
 
 func main(): i32 {
-    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let value = Header { tag: 7, ok: true, code: 42, len: 11 }
     if value.code == 42 && value.len == 11 {
         return 42
     } else {
@@ -15294,7 +15294,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func code_is_answer(): bool {
@@ -15369,7 +15369,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -15417,7 +15417,7 @@ func main(): i32 {
 }
 
 func update(): i32 {
-    var value = Header{ tag: 7, ok: true, small: 8, code: 42, wide: 10, len: 11 }
+    var value = Header { tag: 7, ok: true, small: 8, code: 42, wide: 10, len: 11 }
     value.tag = 9
     value.ok = false
     value.small = 12
@@ -15695,7 +15695,7 @@ fn lowers_aggregate_pointer_never_call_as_normal_call_then_trap() {
 }
 
 func main(): i32 {
-    let value = Big{ first: 1, second: 2, code: 42 }
+    let value = Big { first: 1, second: 2, code: 42 }
     return abort(value)
 }
 
@@ -15735,7 +15735,7 @@ fn lowers_split_register_stack_direct_aggregate_call_argument() {
 }
 
 func main(): i32 {
-    return consume(1, 2, 3, 4, 5, 6, 7, Pair{ a: 1, b: 2, c: 3, d: 4 })
+    return consume(1, 2, 3, 4, 5, 6, 7, Pair { a: 1, b: 2, c: 3, d: 4 })
 }
 
 func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair): i32 {
@@ -16208,7 +16208,7 @@ fn lowers_aggregate_scalar_field_borrow_call_argument() {
 }
 
 func main(): i32 {
-    let pair = Pair{ value: 1 }
+    let pair = Pair { value: 1 }
     return choose(&pair.value, 42)
 }
 
@@ -16260,7 +16260,7 @@ func main(): i32 {
 }
 
 func make(): Pair {
-    return Pair{ value: 1 }
+    return Pair { value: 1 }
 }
 
 func choose(value: &i32, code: i32): i32 {
@@ -16308,7 +16308,7 @@ fn lowers_borrowed_aggregate_scalar_field_borrow_call_argument() {
 }
 
 func main(): i32 {
-    let pair = Pair{ value: 1 }
+    let pair = Pair { value: 1 }
     return caller(&pair)
 }
 
@@ -16356,7 +16356,7 @@ fn lowers_readwrite_aggregate_scalar_field_borrow_call_argument() {
 }
 
 func main(): i32 {
-    var pair = Pair{ value: 1 }
+    var pair = Pair { value: 1 }
     return choose(&+pair.value, 42)
 }
 
@@ -16404,7 +16404,7 @@ fn lowers_readwrite_borrowed_aggregate_scalar_field_borrow_call_argument() {
 }
 
 func main(): i32 {
-    var pair = Pair{ value: 1 }
+    var pair = Pair { value: 1 }
     return caller(&+pair)
 }
 
@@ -17437,7 +17437,7 @@ fn lowers_fixed_array_aggregate_field_indexing() {
 }
 
 func main(): i32 {
-    var bag = Bag{
+    var bag = Bag {
         values: [1, 2, 3],
         flags: [false],
         words: ["bad", "bad"]
@@ -17535,7 +17535,7 @@ func main(): i32 {
 }
 
 func extract(): [i32; 2] {
-    let bag = Bag{ tag: 7, values: [20, 22] }
+    let bag = Bag { tag: 7, values: [20, 22] }
     let copied: [i32; 2] = bag.values
     return copied
 }
@@ -17570,9 +17570,9 @@ fn lowers_fixed_array_aggregate_field_assignments() {
 }
 
 func main(): i32 {
-    var bag = Bag{ tag: 7, values: [1, 2] }
+    var bag = Bag { tag: 7, values: [1, 2] }
     let replacement: [i32; 2] = [20, 22]
-    let other = Bag{ tag: 8, values: [3, 4] }
+    let other = Bag { tag: 8, values: [3, 4] }
     bag.values = [5, 6]
     bag.values = replacement
     bag.values = other.values
@@ -20893,7 +20893,7 @@ func main(): i32 {
 }
 
 func make(): File {
-    return File{ fd: 1 }
+    return File { fd: 1 }
 }
 "#,
     );
@@ -20934,7 +20934,7 @@ fn lowers_ignored_aggregate_literal_expression_statement() {
 }
 
 func main(): i32 {
-    Value{ code: 1 }
+    Value { code: 1 }
     return 0
 }
 "#,
@@ -20975,7 +20975,7 @@ impl File {
 }
 
 func main(): i32 {
-    File{ fd: 1 }
+    File { fd: 1 }
     return 0
 }
 "#,
@@ -21029,7 +21029,7 @@ func main(): i32 {
 }
 
 func make(): Handle {
-    return File{ fd: 1 }
+    return File { fd: 1 }
 }
 "#,
     );
@@ -21077,7 +21077,7 @@ func main(): i32 {
 }
 
 func make(): Big {
-    return Big{ a: 1, b: 2, c: 3 }
+    return Big { a: 1, b: 2, c: 3 }
 }
 "#,
     );
@@ -21122,7 +21122,7 @@ func main(): i32! {
 }
 
 func make(): File! {
-    return File{ fd: 1 }
+    return File { fd: 1 }
 }
 "#,
     );
@@ -21197,7 +21197,7 @@ fn lowers_i32_aggregate_field_compound_assignment_with_call_rhs() {
 }
 
 func main(): i32 {
-    var counter = Counter{ pad: 0, value: 40 }
+    var counter = Counter { pad: 0, value: 40 }
     counter.value += answer()
     return counter.value
 }
@@ -21260,7 +21260,7 @@ fn lowers_usize_aggregate_field_compound_remainder_assignment() {
 }
 
 func main(): usize {
-    var counter = Counter{ pad: 0, size: 47 }
+    var counter = Counter { pad: 0, size: 47 }
     counter.size %= 5
     return counter.size
 }
@@ -21318,7 +21318,7 @@ fn lowers_u8_aggregate_field_compound_assignment_with_call_rhs() {
 }
 
 func main(): i32 {
-    var counter = Counter{ pad: 0, value: 40 }
+    var counter = Counter { pad: 0, value: 40 }
     counter.value += answer()
     return counter.value as i32
 }
@@ -22605,7 +22605,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     let value = maybe_answer() otherwise { abort() }
 
     return value
@@ -22724,7 +22724,7 @@ func main(): i32 {
 }
 
 func choose(): i32 {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     return maybe_answer() otherwise { 7 }
 }
 
@@ -22984,11 +22984,11 @@ func main(): i32 {
 }
 
 func choose(): Header {
-    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    return make() otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "choose",
@@ -23043,11 +23043,11 @@ func main(): i32 {
 }
 
 func choose(): Triple {
-    return make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
+    return make() otherwise { Triple { first: 1, second: 7, third: 3 } }
 }
 
 func make(): Triple? {
-    return Triple{ first: 1, second: 42, third: 3 }
+    return Triple { first: 1, second: 42, third: 3 }
 }
 "#,
         "choose",
@@ -23111,12 +23111,12 @@ func main(): i32 {
 }
 
 func choose(): Header {
-    var file = File{ fd: 3 }
-    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    var file = File { fd: 3 }
+    return make() otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "choose",
@@ -23237,12 +23237,12 @@ func main(): i32 {
 }
 
 func choose(): Header! {
-    var file = File{ fd: 3 }
-    return make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    var file = File { fd: 3 }
+    return make() otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "choose",
@@ -23331,12 +23331,12 @@ func main(): i32 {
 }
 
 func choose(): Triple {
-    var file = File{ fd: 3 }
-    return make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
+    var file = File { fd: 3 }
+    return make() otherwise { Triple { first: 1, second: 7, third: 3 } }
 }
 
 func make(): Triple? {
-    return Triple{ first: 1, second: 42, third: 3 }
+    return Triple { first: 1, second: 42, third: 3 }
 }
 "#,
         "choose",
@@ -24049,7 +24049,7 @@ func main(): i32 {
 }
 
 func make(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -24092,7 +24092,7 @@ func main(): i32 {
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -24142,7 +24142,7 @@ func main(): i32 {
 }
 
 func make(): Packet? {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 "#,
         "main",
@@ -24180,12 +24180,12 @@ fn lowers_optional_direct_aggregate_otherwise_call_binding() {
 }
 
 func main(): i32 {
-    let header = make() otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
+    let header = make() otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
     return header.code
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -24230,7 +24230,7 @@ fn lowers_optional_indirect_aggregate_otherwise_call_binding() {
 }
 
 func main(): i32 {
-    let value = make() otherwise { Triple{ first: 1, second: 7, third: 3 } }
+    let value = make() otherwise { Triple { first: 1, second: 7, third: 3 } }
     if value.second == 42 {
         return 42
     } else {
@@ -24239,7 +24239,7 @@ func main(): i32 {
 }
 
 func make(): Triple? {
-    return Triple{ first: 1, second: 42, third: 3 }
+    return Triple { first: 1, second: 42, third: 3 }
 }
 "#,
         "main",
@@ -24284,13 +24284,13 @@ fn lowers_optional_direct_aggregate_otherwise_call_binding_from_copy_local_fallb
 }
 
 func main(): i32 {
-    let fallback = Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let fallback = Header { tag: 1, ok: false, code: 7, len: 2 }
     let header = make() otherwise { fallback }
     return header.code
 }
 
 func make(): Header? {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -24341,11 +24341,11 @@ func main(): i32 {
 }
 
 func make(): Triple? {
-    return Triple{ first: 1, second: 42, third: 3 }
+    return Triple { first: 1, second: 42, third: 3 }
 }
 
 func fallback(): Triple {
-    return Triple{ first: 1, second: 7, third: 3 }
+    return Triple { first: 1, second: 7, third: 3 }
 }
 "#,
         "main",
@@ -24417,8 +24417,8 @@ copy struct Triple {
 }
 
 func main(): i32 {
-    let header_score = consume_header(maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } })
-    let fallback = Triple{ first: 2, second: 8, third: 4 }
+    let header_score = consume_header(maybe_header(false) otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } })
+    let fallback = Triple { first: 2, second: 8, third: 4 }
     let triple_score = consume_triple(maybe_triple(false) otherwise { fallback })
     let pair_score = sum_pair(maybe_pair(false) otherwise { [3, 4] })
     return header_score + triple_score + pair_score
@@ -24617,10 +24617,10 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    let fallback = Triple{ first: 2, second: 8, third: 4 }
-    let packet = Packet{
+    let fallback = Triple { first: 2, second: 8, third: 4 }
+    let packet = Packet {
         prefix: 1,
-        header: maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } },
+        header: maybe_header(false) otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } },
         triple: maybe_triple(false) otherwise { fallback },
         pair: maybe_pair(false) otherwise { [3, 4] },
     }
@@ -24806,15 +24806,15 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
-    let fallback = Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
-    var packet = Packet{
+    var header = Header { tag: 0, ok: false, code: 0, len: 0 }
+    let fallback = Triple { first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
+    var packet = Packet {
         prefix: 5,
-        header: Header{ tag: 3, ok: false, code: 3, len: 3 },
-        triple: Triple{ first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
+        header: Header { tag: 3, ok: false, code: 3, len: 3 },
+        triple: Triple { first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
     }
-    header = maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
-    packet.header = maybe_header(true) otherwise { Header{ tag: 9, ok: false, code: 90, len: 9 } }
+    header = maybe_header(false) otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
+    packet.header = maybe_header(true) otherwise { Header { tag: 9, ok: false, code: 90, len: 9 } }
     packet.triple = maybe_triple(false) otherwise { fallback }
     return header.code + packet.header.code + packet.triple.second
 }
@@ -24963,10 +24963,10 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    let fallback = Packet{
+    let fallback = Packet {
         prefix: 5,
-        header: Header{ tag: 1, ok: false, code: 7, len: 2 },
-        triple: Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
+        header: Header { tag: 1, ok: false, code: 7, len: 2 },
+        triple: Triple { first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
     }
     let code = (maybe_packet(false) otherwise { fallback }).header.code
     let triple = (maybe_packet(true) otherwise { fallback }).triple
@@ -25073,7 +25073,7 @@ func main(): i32 {
 }
 
 func make(): Packet! {
-    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    return Packet { prefix: 1, header: Header { tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
 }
 "#,
         "main",
@@ -25121,7 +25121,7 @@ fn lowers_fallible_aggregate_force_unwrap_value_argument_as_trapping_fallible_ca
 }
 
 func make(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func consume(header: Header): i32 {
@@ -25184,13 +25184,13 @@ fn lowers_fallible_aggregate_force_unwrap_assignment_as_trapping_fallible_call()
 }
 
 func main(): i32 {
-    var header = Header{ tag: 1, ok: false, code: 1, len: 1 }
+    var header = Header { tag: 1, ok: false, code: 1, len: 1 }
     header = make()!
     return header.code
 }
 
 func make(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -25233,12 +25233,12 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    let packet = Packet{ prefix: 1, header: make()!, tail: 2 }
+    let packet = Packet { prefix: 1, header: make()!, tail: 2 }
     return packet.header.code
 }
 
 func make(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
         "main",
@@ -25291,7 +25291,7 @@ func main(): i32 {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 
 func make(): Header {
@@ -25351,7 +25351,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25396,7 +25396,7 @@ func forward(): Header! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25444,7 +25444,7 @@ func consume(header: Header): i32 {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25487,7 +25487,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25538,9 +25538,9 @@ func run(): i32! {
 }
 
 func source(): Packet! {
-    return Packet{
+    return Packet {
         prefix: 1,
-        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        header: Header { tag: 7, ok: true, code: 42, len: 11 },
         tail: 2,
     }
 }
@@ -25596,7 +25596,7 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    var value = Header{ tag: 1, ok: false, code: 2, len: 3 }
+    var value = Header { tag: 1, ok: false, code: 2, len: 3 }
     value = source() catch error {
         return Error.new("app.source", error.message)
     }
@@ -25604,7 +25604,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25648,9 +25648,9 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    var packet = Packet{
+    var packet = Packet {
         prefix: 1,
-        header: Header{ tag: 1, ok: false, code: 2, len: 3 },
+        header: Header { tag: 1, ok: false, code: 2, len: 3 },
         tail: 4,
     }
     packet.header = source() catch error {
@@ -25660,7 +25660,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25704,7 +25704,7 @@ func main(): i32! {
 }
 
 func run(): i32! {
-    let packet = Packet{
+    let packet = Packet {
         prefix: 1,
         header: source() catch error {
             return Error.new("app.source", error.message)
@@ -25715,7 +25715,7 @@ func run(): i32! {
 }
 
 func source(): Header! {
-    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return Header { tag: 7, ok: true, code: 42, len: 11 }
 }
 "#,
     );
@@ -25864,7 +25864,7 @@ impl File {
 }
 
 func main(): i32! {
-    var file = File{ fd: 3 }
+    var file = File { fd: 3 }
     let value = answer() catch error {
         return Error.new("app.answer", error.message)
     }
@@ -27456,7 +27456,7 @@ impl File {
 }
 
 func main(): void {
-    let file = File{ fd: 1 }
+    let file = File { fd: 1 }
 }
 "#,
     );

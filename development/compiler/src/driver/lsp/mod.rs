@@ -670,7 +670,7 @@ mod tests {
         let project = TempProject::new("lsp-semantic-methods");
         let home = project.write_nocter_home();
         let _home = NocterHomeEnv::set(&home);
-        let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File{ fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
+        let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File { fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
         let app = project.write_source("app.nct", text);
         let uri = file_uri(&app);
         let document = open_document(uri.clone(), Some(1), text.to_string());
@@ -806,8 +806,8 @@ mod tests {
 }
 
 func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
-    let fixed = Header{ code: 1 }
-    var mutable = Header{ code: 2 }
+    let fixed = Header { code: 1 }
+    var mutable = Header { code: 2 }
     let readwrite_alias = readwrite
     var readonly_alias = readonly
     return fixed.code + mutable.code + value.code + readonly.code + readwrite.code + readwrite_alias.code + readonly_alias.code
@@ -864,7 +864,7 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
 
         let first_literal_field = classified_identifier_starting_at(
             &identifiers,
-            text.find("Header{ code").unwrap() + "Header{ ".len(),
+            text.find("Header { code").unwrap() + "Header { ".len(),
         )
         .expect("expected semantic token for struct literal field label");
         assert_eq!(first_literal_field.kind, SemanticTokenKind::Property);
@@ -1373,7 +1373,7 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         );
         let config = project.write_source(
             "config.nct",
-            "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box{ value: String{ ptr: 0 } }\n}\n",
+            "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box { value: String { ptr: 0 } }\n}\n",
         );
         let app_uri = file_uri(&app);
         let config_uri = file_uri(&config);
@@ -1393,7 +1393,7 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
                     open_document(
                         file_uri(&config),
                         Some(1),
-                        "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box{ value: String{ ptr: 0 } }\n}\n"
+                        "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box { value: String { ptr: 0 } }\n}\n"
                             .to_string(),
                     ),
                 ),
@@ -2225,7 +2225,7 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         let project = TempProject::new("lsp-definition-method-call");
         let home = project.write_nocter_home();
         let _home = NocterHomeEnv::set(&home);
-        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read()\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read()\n}\n";
         let app = project.write_source("app.nct", text);
         let app_uri = file_uri(&app);
         let server = LspServer {
@@ -2479,7 +2479,7 @@ struct File {
 }
 
 func File.open(): File {
-    return File{ fd: 1 }
+    return File { fd: 1 }
 }
 
 func main(): i32 {
@@ -2571,7 +2571,7 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1, size: 2 }
+    let file = File { fd: 1, size: 2 }
     return file.fd
 }
 "#;
@@ -2631,7 +2631,7 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1 }
+    let file = File { fd: 1 }
     return file.
 }
 "#;
@@ -2685,7 +2685,7 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1,  }
+    let file = File { fd: 1,  }
     return 0
 }
 "#;
@@ -2698,9 +2698,9 @@ func main(): i32 {
         };
 
         let offset = text
-            .find("File{ fd: 1,  }")
+            .find("File { fd: 1,  }")
             .expect("expected struct literal")
-            + "File{ fd: 1, ".len();
+            + "File { fd: 1, ".len();
         let position = byte_offset_to_lsp_position(text, offset);
         let response = server.completion_response(
             json!(19),
@@ -2735,7 +2735,7 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{
+    let file = File {
     return 0
 }
 "#;
@@ -2747,7 +2747,10 @@ func main(): i32 {
             shutdown_requested: false,
         };
 
-        let offset = text.find("File{").expect("expected struct literal") + "File{".len();
+        let offset = text
+            .find("let file = File {")
+            .expect("expected struct literal")
+            + "let file = File {".len();
         let position = byte_offset_to_lsp_position(text, offset);
         let response = server.completion_response(
             json!(20),

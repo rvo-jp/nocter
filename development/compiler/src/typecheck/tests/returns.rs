@@ -848,7 +848,7 @@ impl Label {
 }
 
 func ok(): &str {
-    let label = Label{ code: 1 }
+    let label = Label { code: 1 }
     let local = 2
     return label.text(&local)
 }
@@ -901,7 +901,7 @@ impl Text {
 }
 
 func leak(): &Text {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     return text.self_ref()
 }
 "#,
@@ -943,7 +943,7 @@ copy struct View {
 
 func leak(): View {
     let value = 1
-    return View{ value: &value }
+    return View { value: &value }
 }
 "#,
     );
@@ -968,7 +968,7 @@ copy struct View {
 
 func leak(): View {
     let value = 1
-    return View{ label: "static", value: &value }
+    return View { label: "static", value: &value }
 }
 "#,
     );
@@ -1056,7 +1056,7 @@ copy struct View {
 
 func leak(): View {
     let value = 1
-    let view = View{ value: &value }
+    let view = View { value: &value }
     return view
 }
 "#,
@@ -1081,7 +1081,7 @@ copy struct View {
 
 func leak(): &i32 {
     let value = 1
-    let view = View{ value: &value }
+    let view = View { value: &value }
     return view.value
 }
 "#,
@@ -1127,7 +1127,7 @@ copy struct View {
 
 func label(): &str {
     let value = 1
-    let view = View{ label: "static", value: &value }
+    let view = View { label: "static", value: &value }
     return view.label
 }
 "#,
@@ -1149,7 +1149,7 @@ copy struct View {
 }
 
 func make(value: &i32): View {
-    return View{ label: "static", value: value }
+    return View { label: "static", value: value }
 }
 
 func leak(): &i32 {
@@ -1179,7 +1179,7 @@ copy struct View {
 }
 
 func make(value: &i32): View {
-    return View{ label: "static", value: value }
+    return View { label: "static", value: value }
 }
 
 func passthrough(value: &i32): &i32 {
@@ -1539,7 +1539,7 @@ copy struct Outer {
 
 func leak(): Outer {
     let value = 1
-    return Outer{ inner: Inner{ value: &value } }
+    return Outer { inner: Inner { value: &value } }
 }
 "#,
     );
@@ -1563,7 +1563,7 @@ struct Box<T> {
 
 func leak(): Box<&i32> {
     let value = 1
-    return Box<&i32>{ value: &value }
+    return Box<&i32> { value: &value }
 }
 "#,
     );
@@ -1611,7 +1611,7 @@ copy struct View {
 }
 
 func wrap(value: &i32): View {
-    return View{ value: value }
+    return View { value: value }
 }
 "#,
     );
@@ -1631,7 +1631,7 @@ copy struct View {
 }
 
 func wrap(value: &i32): View {
-    let view = View{ value: value }
+    let view = View { value: value }
     return view
 }
 "#,
@@ -1707,7 +1707,7 @@ struct Text {
 }
 
 func make(): Text {
-    let text = Text{ start: 1, len: 42 }
+    let text = Text { start: 1, len: 42 }
     return text
 }
 "#,
@@ -1735,7 +1735,7 @@ copy struct Box<T> {
 }
 
 func make(): Box<Text> {
-    let box = Box<Text>{ value: Text{ len: 42 } }
+    let box = Box<Text> { value: Text { len: 42 } }
     return box
 }
 "#,
@@ -1792,7 +1792,7 @@ struct Wrap {
 }
 
 func extract(): Text {
-    let wrap = Wrap{ text: Text{ len: 42 } }
+    let wrap = Wrap { text: Text { len: 42 } }
     return wrap.text
 }
 "#,
@@ -1817,7 +1817,7 @@ struct Text {
 }
 
 func make(): Text {
-    let text = Text{ start: 1, len: 42 }
+    let text = Text { start: 1, len: 42 }
     return move text
 }
 "#,

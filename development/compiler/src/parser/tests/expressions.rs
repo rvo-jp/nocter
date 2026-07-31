@@ -474,7 +474,7 @@ fn parses_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         x: 1,
         label: "home",
     }
@@ -507,7 +507,7 @@ fn diagnoses_struct_literal_spread_as_deferred() {
 }
 
 func main(): i32 {
-    let profile = Profile{
+    let profile = Profile {
         ...User.new(name),
         visits: 0,
     }
@@ -533,7 +533,7 @@ fn parses_generic_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 1,
     }
     return box.value
@@ -568,8 +568,8 @@ fn parses_nested_generic_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let nested = Box<Box<i32>>{
-        value: Box<i32>{
+    let nested = Box<Box<i32>> {
+        value: Box<i32> {
             value: 1,
         },
     }

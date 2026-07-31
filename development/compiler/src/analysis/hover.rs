@@ -1383,7 +1383,7 @@ mod tests {
 
     #[test]
     fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
-        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read(1)\n}\n";
+        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.find("read(1)").expect("expected method call");
@@ -1397,7 +1397,7 @@ mod tests {
 
     #[test]
     fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call() {
-        let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.rfind("open()").expect("expected associated call");
@@ -1424,7 +1424,7 @@ mod tests {
 
     #[test]
     fn workspace_hover_uses_typecheck_facts_for_struct_field_reference() {
-        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.rfind("fd").expect("expected field reference");

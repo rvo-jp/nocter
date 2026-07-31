@@ -11494,7 +11494,7 @@ enum Event {
 }
 
 func main(): i32 {
-    let event = Event.file(File{ fd: 1 })
+    let event = Event.file(File { fd: 1 })
     if event is Event.file(file) {
         var moved = move file
     }
@@ -11652,7 +11652,7 @@ enum Result {
 }
 
 func main(): i32 {
-    let result = Result.ok(Payload{ value: 10 })
+    let result = Result.ok(Payload { value: 10 })
     return 0
 }
 "#,
@@ -11682,7 +11682,7 @@ enum Result {
 }
 
 func main(): i32 {
-    let result = Result.ok(Payload{ value: 10 }, Payload{ value: 20 })
+    let result = Result.ok(Payload { value: 10 }, Payload { value: 20 })
     return 0
 }
 "#,
@@ -11717,13 +11717,13 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
+        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
     }
 }
 
 func main(): i32 {
-    let resource = Resource{ value: 1 }
+    let resource = Resource { value: 1 }
     return resource.value
 }
 "#,
@@ -11758,13 +11758,13 @@ struct Box<T> {
 
 impl<T> Box<T> {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
+        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
     }
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 1 }
+    let box = Box<i32> { value: 1 }
     return box.value
 }
 "#,
@@ -11799,7 +11799,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
+        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
     }
 }
@@ -11809,8 +11809,8 @@ struct Holder {
 }
 
 func main(): i32 {
-    var holder = Holder{ inner: Resource{ value: 1 } }
-    holder.inner = Resource{ value: 2 }
+    var holder = Holder { inner: Resource { value: 1 } }
+    holder.inner = Resource { value: 2 }
     return holder.inner.value
 }
 "#,
@@ -11846,7 +11846,7 @@ struct Resource {
 
 impl Resource {
     drop &+self {
-        let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })
+        let result = Result.ok(Payload { value: 1 }, Payload { value: 2 })
         return
     }
 }
@@ -11856,8 +11856,8 @@ struct Holder<T> {
 }
 
 func main(): i32 {
-    var holder = Holder<Resource>{ inner: Resource{ value: 1 } }
-    holder.inner = Resource{ value: 2 }
+    var holder = Holder<Resource> { inner: Resource { value: 1 } }
+    holder.inner = Resource { value: 2 }
     return holder.inner.value
 }
 "#,
@@ -11944,9 +11944,9 @@ func unused(): bool {
 }
 
 func main(): i32 {
-    var bag = Bag{ values: [1, 2] }
+    var bag = Bag { values: [1, 2] }
     let replacement: [i32; 2] = [3, 4]
-    let other = Bag{ values: [5, 6] }
+    let other = Bag { values: [5, 6] }
     bag.values = [7, 8]
     bag.values = replacement
     bag.values = make_pair()
@@ -11981,7 +11981,7 @@ func make_fallible_pair(): [i32; 2]! {
 func main(): i32 {
     var values: [i32; 3] = [0, 0, 0]
     let fallback: [i32; 3] = [1, 2, 3]
-    var bag = Bag{ tag: 5, values: [0, 0, 0] }
+    var bag = Bag { tag: 5, values: [0, 0, 0] }
     values = maybe_values(false) otherwise { [1, 2, 3] }
     values = maybe_values(false) otherwise { fallback }
     bag.values = maybe_values(true) otherwise { [90, 91, 92] }
@@ -12037,22 +12037,22 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
-    let fallback = Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
-    var packet = Packet{
+    var header = Header { tag: 0, ok: false, code: 0, len: 0 }
+    let fallback = Triple { first: 2, second: 8, third: 1, fourth: 1, fifth: 4 }
+    var packet = Packet {
         prefix: 5,
-        header: Header{ tag: 3, ok: false, code: 3, len: 3 },
-        triple: Triple{ first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
+        header: Header { tag: 3, ok: false, code: 3, len: 3 },
+        triple: Triple { first: 1, second: 1, third: 1, fourth: 1, fifth: 1 },
     }
-    header = maybe_header(false) otherwise { Header{ tag: 1, ok: false, code: 7, len: 2 } }
-    packet.header = maybe_header(true) otherwise { Header{ tag: 9, ok: false, code: 90, len: 9 } }
+    header = maybe_header(false) otherwise { Header { tag: 1, ok: false, code: 7, len: 2 } }
+    packet.header = maybe_header(true) otherwise { Header { tag: 9, ok: false, code: 90, len: 9 } }
     packet.triple = maybe_triple(false) otherwise { fallback }
     let returned = assign_with_return_fallback()
     return header_score(header) + header_score(packet.header) + triple_score(packet.triple) + returned + packet.prefix
 }
 
 func assign_with_return_fallback(): i32 {
-    var header = Header{ tag: 0, ok: false, code: 0, len: 0 }
+    var header = Header { tag: 0, ok: false, code: 0, len: 0 }
     header = maybe_header(false) otherwise { return 19 }
     return header.code
 }
@@ -12067,14 +12067,14 @@ func triple_score(triple: Triple): i32 {
 
 func maybe_header(flag: bool): Header? {
     if flag {
-        return Header{ tag: 4, ok: true, code: 10, len: 4 }
+        return Header { tag: 4, ok: true, code: 10, len: 4 }
     }
     return none
 }
 
 func maybe_triple(flag: bool): Triple? {
     if flag {
-        return Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 }
+        return Triple { first: 3, second: 30, third: 3, fourth: 3, fifth: 3 }
     }
     return none
 }
@@ -12111,10 +12111,10 @@ copy struct Packet {
 }
 
 func main(): i32 {
-    let fallback = Packet{
+    let fallback = Packet {
         prefix: 5,
-        header: Header{ tag: 1, ok: false, code: 7, len: 2 },
-        triple: Triple{ first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
+        header: Header { tag: 1, ok: false, code: 7, len: 2 },
+        triple: Triple { first: 2, second: 8, third: 1, fourth: 1, fifth: 4 },
     }
     let code = (maybe_packet(false) otherwise { fallback }).header.code
     let triple = (maybe_packet(true) otherwise { fallback }).triple
@@ -12128,10 +12128,10 @@ func member_return_fallback(): i32 {
 
 func maybe_packet(flag: bool): Packet? {
     if flag {
-        return Packet{
+        return Packet {
             prefix: 6,
-            header: Header{ tag: 4, ok: true, code: 10, len: 4 },
-            triple: Triple{ first: 3, second: 30, third: 3, fourth: 3, fifth: 3 },
+            header: Header { tag: 4, ok: true, code: 10, len: 4 },
+            triple: Triple { first: 3, second: 30, third: 3, fourth: 3, fifth: 3 },
         }
     }
     return none
@@ -12152,9 +12152,9 @@ func maybe_packet(flag: bool): Packet? {
 }
 
 func main(): i32 {
-    var box = Box<i32>{ values: [1, 2] }
+    var box = Box<i32> { values: [1, 2] }
     let replacement: [i32; 2] = [3, 4]
-    let other = Box<i32>{ values: [20, 22] }
+    let other = Box<i32> { values: [20, 22] }
     box.values = [5, 6]
     box.values = replacement
     box.values = make_pair()
@@ -12181,9 +12181,9 @@ func make_pair(): [i32; 2] {
 }
 
 func main(): i32 {
-    var bag = Bag{ values: [1, 2] }
+    var bag = Bag { values: [1, 2] }
     let replacement: [i32; 2] = [3, 4]
-    let other = Bag{ values: [5, 6] }
+    let other = Bag { values: [5, 6] }
     bag.values = if true {
         replacement
     } else {
@@ -12214,7 +12214,7 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let holder = Buffer{ bytes: buffer() }
+    let holder = Buffer { bytes: buffer() }
     holder.bytes[0] = 1
     return 0
 }
@@ -12258,7 +12258,7 @@ func buffer(): &+[u8] {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 42,
     }
     return box.value
@@ -12283,7 +12283,7 @@ func main(): i32 {
 }
 
 func make(): Box<i32> {
-    return Box<i32>{
+    return Box<i32> {
         value: 42,
     }
 }
@@ -12349,7 +12349,7 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return forward(move box)
 }
 
@@ -12377,7 +12377,7 @@ func main(): i32 {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 "#,
         );
@@ -12405,11 +12405,11 @@ func recover(): Marker<u8> {
 }
 
 func source(): Marker<u8>! {
-    return Marker<u8>{ code: 1 }
+    return Marker<u8> { code: 1 }
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 "#,
         );
@@ -12487,7 +12487,7 @@ func source(): i32? {
 }
 
 func main(): i32 {
-    let state = State{
+    let state = State {
         count: maybe_i32(false) otherwise { 2 },
         byte: maybe_u8(true) otherwise { 1 },
         size: maybe_usize(false) otherwise { 9 },
@@ -12564,7 +12564,7 @@ func main(): i32 {
     var size: usize = 0
     var ok: bool = false
     var text: &str = "bad"
-    var state = State{ count: 0, byte: 0, size: 0, ok: false, text: "bad" }
+    var state = State { count: 0, byte: 0, size: 0, ok: false, text: "bad" }
     count = maybe_i32(true) otherwise { 1 }
     byte = maybe_u8(false) otherwise { 12 }
     size = maybe_usize(true) otherwise { 1 }
@@ -12663,7 +12663,7 @@ func consume(marker: Marker<u8>): i32 {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 "#,
         );
@@ -12693,7 +12693,7 @@ func forward<T>(value: T): T {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 "#,
         );
@@ -12773,7 +12773,7 @@ impl Box<i32> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return box.read()
 }
 "#,
@@ -12798,7 +12798,7 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ value: 42 }
+    let box = Box<i32> { value: 42 }
     return (move box).into_value()
 }
 "#,
@@ -12821,7 +12821,7 @@ func main(): i32 {
 }
 
 func unused(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 42,
     }
     return box.value

@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn analysis_classification_uses_typecheck_facts_for_member_references() {
-        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nenum Event {\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let file = File.open()\n    let event = Event.count(1)\n    return file.fd\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nenum Event {\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let file = File.open()\n    let event = Event.count(1)\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let source = sources.get(file.ast.span.source).expect("expected source");

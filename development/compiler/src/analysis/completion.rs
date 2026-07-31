@@ -780,7 +780,7 @@ func main(): i32 {
 }
 
 func File.open(): File {
-    return File{ fd: 1 }
+    return File { fd: 1 }
 }
 
 func main(): i32 {
@@ -875,7 +875,7 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1, size: 2 }
+    let file = File { fd: 1, size: 2 }
     return file.fd
 }
 "#;
@@ -917,7 +917,7 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1, size: 2 }
+    let file = File { fd: 1, size: 2 }
     return file.
 }
 "#;
@@ -955,7 +955,7 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1 }
+    let file = File { fd: 1 }
     return 0
 }
 "#;
@@ -986,16 +986,16 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1,  }
+    let file = File { fd: 1,  }
     return 0
 }
 "#;
         let (_, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text
-            .find("File{ fd: 1,  }")
+            .find("File { fd: 1,  }")
             .expect("expected struct literal")
-            + "File{ fd: 1, ".len();
+            + "File { fd: 1, ".len();
 
         let items = completion_items_for_file_analysis_at_offset(file, offset);
 
@@ -1016,11 +1016,11 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{  }
+    let file = File {  }
     return 0
 }
 "#;
-        let offset = text.find("File{  }").expect("expected struct literal") + "File{ ".len();
+        let offset = text.find("File {  }").expect("expected struct literal") + "File { ".len();
 
         let items =
             completion_items_for_text_at_offset(text, offset).expect("expected completion items");
@@ -1046,11 +1046,14 @@ func main(): i32 {
 }
 
 func main(): i32 {
-    let file = File{
+    let file = File {
     return 0
 }
 "#;
-        let offset = text.find("File{").expect("expected struct literal") + "File{".len();
+        let offset = text
+            .find("let file = File {")
+            .expect("expected struct literal")
+            + "let file = File {".len();
 
         let items =
             completion_items_for_text_at_offset(text, offset).expect("expected completion items");

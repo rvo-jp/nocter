@@ -2889,10 +2889,10 @@ impl Box {
 }
 
 func main(): i32 {
-    var box = Box{ value: 1 }
+    var box = Box { value: 1 }
     box.write()
-    let copy = Box{ value: 2 }
-    return copy.read() + Box{ value: 3 }.take()
+    let copy = Box { value: 2 }
+    return copy.read() + Box { value: 3 }.take()
 }
 "#,
         );
@@ -3010,7 +3010,7 @@ func main(choice: Choice): i32 {
 }
 
 func main(): i32 {
-    let box = Box<i32>{ values: [1, 2] }
+    let box = Box<i32> { values: [1, 2] }
     return box.values[0]
 }
 "#;
