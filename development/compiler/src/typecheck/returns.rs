@@ -1,5 +1,8 @@
+use super::TypecheckSource;
 use super::bindings::continuing_binding_type;
-use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
+use super::calls::{
+    call_return_type, method_member_for_call, resolved_call_signature, resolved_method_for_call,
+};
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     body_result_type_mismatch_diagnostic, borrow_return_escapes_diagnostic,
@@ -15,14 +18,16 @@ use super::environments::{
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
-use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
+use super::model::{
+    CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable, same_known_type,
+};
 use super::numeric::integer_literal_expr_value;
 use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt,
-    Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
+    AstFile, Block, Expr, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
+    PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
@@ -35,6 +40,30 @@ struct BorrowReturnEnvironment {
 }
 
 type BorrowReturnSummaries = HashMap<ByteSpan, BorrowReturnProvenance>;
+
+#[derive(Debug, Clone, Default)]
+struct BorrowReturnFlow {
+    value: Option<BorrowReturnProvenance>,
+    fallible_error: Option<BorrowReturnProvenance>,
+}
+
+impl BorrowReturnFlow {
+    fn merge_value(&mut self, provenance: Option<BorrowReturnProvenance>) {
+        merge_borrow_return_provenance(&mut self.value, provenance);
+    }
+
+    fn merge_fallible_error(&mut self, provenance: Option<BorrowReturnProvenance>) {
+        merge_borrow_return_provenance(&mut self.fallible_error, provenance);
+    }
+
+    fn into_return_provenance(self, return_type: &Type) -> Option<BorrowReturnProvenance> {
+        if matches!(return_type, Type::Fallible { .. }) {
+            return borrow_return_fallible_provenance(self.value, self.fallible_error);
+        }
+
+        self.value
+    }
+}
 
 impl BorrowReturnEnvironment {
     fn get(&self, name: &str) -> Option<&BorrowReturnProvenance> {
@@ -86,6 +115,10 @@ enum BorrowReturnProvenance {
         fields: BTreeMap<String, BorrowReturnProvenance>,
         elements: BTreeMap<usize, BorrowReturnProvenance>,
     },
+    Fallible {
+        success: Option<Box<BorrowReturnProvenance>>,
+        error: Option<Box<BorrowReturnProvenance>>,
+    },
 }
 
 impl BorrowReturnProvenance {
@@ -119,7 +152,29 @@ impl BorrowReturnProvenance {
                         .values()
                         .find_map(BorrowReturnProvenance::escaping_source)
                 }),
+            Self::Fallible { success, error } => success
+                .as_deref()
+                .and_then(BorrowReturnProvenance::escaping_source)
+                .or_else(|| {
+                    error
+                        .as_deref()
+                        .and_then(BorrowReturnProvenance::escaping_source)
+                }),
             Self::Static | Self::InputBorrow { .. } => None,
+        }
+    }
+
+    fn success_provenance(&self) -> Option<BorrowReturnProvenance> {
+        match self {
+            Self::Fallible { success, .. } => success.as_deref().cloned(),
+            _ => Some(self.clone()),
+        }
+    }
+
+    fn fallible_error_provenance(&self) -> Option<BorrowReturnProvenance> {
+        match self {
+            Self::Fallible { error, .. } => error.as_deref().cloned(),
+            _ => None,
         }
     }
 
@@ -197,6 +252,27 @@ impl BorrowReturnProvenance {
                 }
             }
             (
+                Self::Fallible { success, error },
+                Self::Fallible {
+                    success: other_success,
+                    error: other_error,
+                },
+            ) => {
+                merge_borrow_return_boxed_provenance(success, other_success.as_deref().cloned());
+                merge_borrow_return_boxed_provenance(error, other_error.as_deref().cloned());
+            }
+            (Self::Fallible { success, .. }, other) => {
+                merge_borrow_return_boxed_provenance(success, Some(other.clone()));
+            }
+            (existing, Self::Fallible { success, error }) => {
+                let mut merged_success = success.as_deref().cloned();
+                merge_borrow_return_provenance(&mut merged_success, Some(existing.clone()));
+                *existing = Self::Fallible {
+                    success: merged_success.map(Box::new),
+                    error: error.clone(),
+                };
+            }
+            (
                 Self::Aggregate {
                     fallback,
                     fields: _,
@@ -244,9 +320,10 @@ pub(super) fn check_return_types(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
+    summary_sources: &[TypecheckSource<'_>],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let summaries = borrow_return_summaries(ast, resolved);
+    let summaries = borrow_return_summaries(summary_sources);
     for item in &ast.items {
         match item {
             Item::Function(function) => {
@@ -281,10 +358,10 @@ pub(super) fn check_return_types(
     }
 }
 
-fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowReturnSummaries {
+fn borrow_return_summaries(summary_sources: &[TypecheckSource<'_>]) -> BorrowReturnSummaries {
     let mut summaries = BorrowReturnSummaries::new();
-    for _ in 0..=borrow_return_callable_count(ast) {
-        let next = collect_borrow_return_summaries(ast, resolved, &summaries);
+    for _ in 0..=borrow_return_callable_count(summary_sources) {
+        let next = collect_borrow_return_summaries(summary_sources, &summaries);
         if next == summaries {
             return summaries;
         }
@@ -293,71 +370,88 @@ fn borrow_return_summaries(ast: &AstFile, resolved: &ResolveOutput) -> BorrowRet
     summaries
 }
 
-fn borrow_return_callable_count(ast: &AstFile) -> usize {
-    ast.items
+fn borrow_return_callable_count(summary_sources: &[TypecheckSource<'_>]) -> usize {
+    summary_sources
         .iter()
-        .map(|item| match item {
-            Item::Function(_) => 1,
-            Item::Impl(impl_) => impl_
-                .members
+        .map(|source| {
+            source
+                .ast
+                .items
                 .iter()
-                .filter(
-                    |member| matches!(member, ImplMember::Method(method) if method.body.is_some()),
-                )
-                .count(),
-            _ => 0,
+                .map(item_callable_count)
+                .sum::<usize>()
         })
         .sum()
 }
 
+fn item_callable_count(item: &Item) -> usize {
+    match item {
+        Item::Function(_) => 1,
+        Item::Impl(impl_) => impl_
+            .members
+            .iter()
+            .filter(|member| matches!(member, ImplMember::Method(method) if method.body.is_some()))
+            .count(),
+        _ => 0,
+    }
+}
+
 fn collect_borrow_return_summaries(
-    ast: &AstFile,
-    resolved: &ResolveOutput,
+    summary_sources: &[TypecheckSource<'_>],
     previous: &BorrowReturnSummaries,
 ) -> BorrowReturnSummaries {
     let mut summaries = BorrowReturnSummaries::new();
-    for item in &ast.items {
-        match item {
-            Item::Function(function) => {
-                let environment = environment_for_function(function, resolved);
-                let return_type =
-                    type_expr_to_type_in_environment(&function.return_type, resolved, &environment);
-                if let Some(provenance) = borrow_return_provenance_for_callable_body(
-                    &function.body,
-                    &return_type,
-                    resolved,
-                    &environment,
-                    previous,
-                ) {
-                    summaries.insert(function_summary_key(function), provenance);
-                }
-            }
-            Item::Impl(impl_) => {
-                for member in &impl_.members {
-                    let ImplMember::Method(method) = member else {
-                        continue;
-                    };
-                    let Some(body) = &method.body else {
-                        continue;
-                    };
-                    let environment = environment_for_method(method, resolved, impl_);
+    for source in summary_sources {
+        for item in &source.ast.items {
+            match item {
+                Item::Function(function) => {
+                    let environment = environment_for_function(function, source.resolved);
                     let return_type = type_expr_to_type_in_environment(
-                        &method.return_type,
-                        resolved,
+                        &function.return_type,
+                        source.resolved,
                         &environment,
                     );
-                    if let Some(provenance) = borrow_return_provenance_for_callable_body(
-                        body,
-                        &return_type,
-                        resolved,
-                        &environment,
-                        previous,
-                    ) {
-                        summaries.insert(method.name_span, provenance);
+                    if type_contains_borrow_like(&return_type, source.resolved) {
+                        let provenance = borrow_return_provenance_for_callable_body(
+                            &function.body,
+                            &return_type,
+                            source.resolved,
+                            &environment,
+                            previous,
+                        )
+                        .unwrap_or(BorrowReturnProvenance::Static);
+                        summaries.insert(function_summary_key(function), provenance);
                     }
                 }
+                Item::Impl(impl_) => {
+                    for member in &impl_.members {
+                        let ImplMember::Method(method) = member else {
+                            continue;
+                        };
+                        let Some(body) = &method.body else {
+                            continue;
+                        };
+                        let environment = environment_for_method(method, source.resolved, impl_);
+                        let return_type = type_expr_to_type_in_environment(
+                            &method.return_type,
+                            source.resolved,
+                            &environment,
+                        );
+                        if type_contains_borrow_like(&return_type, source.resolved) {
+                            let provenance = borrow_return_provenance_for_callable_body(
+                                body,
+                                &return_type,
+                                source.resolved,
+                                &environment,
+                                previous,
+                            )
+                            .unwrap_or(BorrowReturnProvenance::Static);
+                            summaries.insert(method.name_span, provenance);
+                        }
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
     summaries
@@ -382,53 +476,674 @@ fn borrow_return_provenance_for_callable_body(
         return None;
     }
 
-    let mut provenance = None;
+    let mut flow = BorrowReturnFlow::default();
     let mut body_environment = environment.clone();
     let mut body_borrow_provenance = BorrowReturnEnvironment::default();
     collect_return_statement_provenance(
         block,
+        return_type,
         resolved,
         &mut body_environment,
         &mut body_borrow_provenance,
         summaries,
-        &mut provenance,
+        &mut flow,
     );
-    merge_borrow_return_provenance(
-        &mut provenance,
-        borrow_return_provenance_for_block_result(
-            block,
+    collect_block_result_provenance(
+        block,
+        return_type,
+        resolved,
+        environment,
+        &BorrowReturnEnvironment::default(),
+        summaries,
+        &mut flow,
+    );
+    flow.into_return_provenance(return_type)
+}
+
+fn collect_return_expression_provenance(
+    expression: &Expr,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    flow: &mut BorrowReturnFlow,
+) {
+    collect_expression_fallible_propagation_provenance(
+        expression,
+        return_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+        flow,
+    );
+
+    let actual = expression_type(expression, resolved, environment);
+    let provenance = borrow_return_provenance_for_expression(
+        expression,
+        &actual,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    );
+    if expression_is_fallible_failure_for_return_type(
+        expression,
+        &actual,
+        return_type,
+        resolved,
+        environment,
+    ) {
+        flow.merge_fallible_error(provenance);
+    } else {
+        flow.merge_value(provenance);
+    }
+}
+
+fn collect_block_result_provenance(
+    block: &Block,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    flow: &mut BorrowReturnFlow,
+) {
+    let Some(result) = &block.result else {
+        return;
+    };
+    let mut result_environment = environment.clone();
+    let mut result_borrow_provenance = borrow_provenance.clone();
+    apply_borrow_return_statement_effects(
+        block,
+        resolved,
+        &mut result_environment,
+        &mut result_borrow_provenance,
+        summaries,
+    );
+    collect_return_expression_provenance(
+        result,
+        return_type,
+        resolved,
+        &result_environment,
+        &result_borrow_provenance,
+        summaries,
+        flow,
+    );
+}
+
+fn collect_statement_fallible_propagation_provenance(
+    statement: &Stmt,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    flow: &mut BorrowReturnFlow,
+) {
+    match statement {
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_)
+        | Stmt::Drop(_) => {}
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                collect_expression_fallible_propagation_provenance(
+                    expression,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Stmt::Binding(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.initializer,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::Assignment(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.target,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_expression_fallible_propagation_provenance(
+                &statement.value,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::If(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.condition,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::IfIs(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::Switch(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::While(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.condition,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::ForRange(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.start,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_expression_fallible_propagation_provenance(
+                &statement.end,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::Loop(_) => {}
+        Stmt::Expression(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+    }
+}
+
+fn collect_expression_fallible_propagation_provenance(
+    expression: &Expr,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    flow: &mut BorrowReturnFlow,
+) {
+    match expression {
+        Expr::Propagate(propagation) => {
+            if propagated_fallible_error_can_escape(
+                &propagation.expression,
+                return_type,
+                resolved,
+                environment,
+            ) {
+                flow.merge_fallible_error(borrow_return_fallible_error_provenance_for_expression(
+                    &propagation.expression,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                ));
+            }
+            collect_expression_fallible_propagation_provenance(
+                &propagation.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Expr::Catch(catch) => {
+            collect_expression_fallible_propagation_provenance(
+                &catch.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_block_fallible_propagation_provenance(
+                &catch.catch_block,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Expr::Force(force) => collect_expression_fallible_propagation_provenance(
+            &force.expression,
+            return_type,
             resolved,
             environment,
-            &BorrowReturnEnvironment::default(),
+            borrow_provenance,
             summaries,
+            flow,
         ),
-    );
-    provenance
+        Expr::Borrow(borrow) => collect_expression_fallible_propagation_provenance(
+            &borrow.expression,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        ),
+        Expr::Unary(unary) => collect_expression_fallible_propagation_provenance(
+            &unary.operand,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        ),
+        Expr::Binary(binary) => {
+            collect_expression_fallible_propagation_provenance(
+                &binary.left,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_expression_fallible_propagation_provenance(
+                &binary.right,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Expr::TypeConversion(conversion) => collect_expression_fallible_propagation_provenance(
+            &conversion.expression,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        ),
+        Expr::Call(call) => {
+            collect_expression_fallible_propagation_provenance(
+                &call.callee,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            for argument in &call.arguments {
+                collect_expression_fallible_propagation_provenance(
+                    argument,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::Member(member) => collect_expression_fallible_propagation_provenance(
+            &member.object,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        ),
+        Expr::Index(index) => {
+            collect_expression_fallible_propagation_provenance(
+                &index.object,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_expression_fallible_propagation_provenance(
+                &index.index,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Expr::Group(group) => collect_expression_fallible_propagation_provenance(
+            &group.expression,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        ),
+        Expr::Otherwise(otherwise) => {
+            collect_expression_fallible_propagation_provenance(
+                &otherwise.value,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_block_fallible_propagation_provenance(
+                &otherwise.fallback,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Expr::If(expression) => {
+            collect_expression_fallible_propagation_provenance(
+                &expression.condition,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            collect_block_fallible_propagation_provenance(
+                &expression.then_block,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_block_fallible_propagation_provenance(
+                    else_block,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::IfIs(expression) => {
+            collect_expression_fallible_propagation_provenance(
+                &expression.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            let then_environment = environment_for_if_is_binding(expression, resolved, environment);
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            define_if_is_payload_borrow_return_binding(
+                expression,
+                resolved,
+                environment,
+                &then_environment,
+                &mut then_borrow_provenance,
+                summaries,
+            );
+            collect_block_fallible_propagation_provenance(
+                &expression.then_block,
+                return_type,
+                resolved,
+                &then_environment,
+                &then_borrow_provenance,
+                summaries,
+                flow,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_block_fallible_propagation_provenance(
+                    else_block,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::Match(expression) => {
+            collect_expression_fallible_propagation_provenance(
+                &expression.expression,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+            for arm in &expression.arms {
+                let arm_environment =
+                    environment_for_switch_arm(arm, &expression.expression, resolved, environment);
+                let mut arm_borrow_provenance = borrow_provenance.clone();
+                define_switch_arm_payload_borrow_return_binding(
+                    arm,
+                    &expression.expression,
+                    resolved,
+                    environment,
+                    &arm_environment,
+                    &mut arm_borrow_provenance,
+                    summaries,
+                );
+                collect_block_fallible_propagation_provenance(
+                    &arm.body,
+                    return_type,
+                    resolved,
+                    &arm_environment,
+                    &arm_borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            if let Some(wildcard_arm) = &expression.wildcard_arm {
+                collect_block_fallible_propagation_provenance(
+                    &wildcard_arm.body,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::ArrayLiteral(literal) => {
+            for element in &literal.elements {
+                collect_expression_fallible_propagation_provenance(
+                    element,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::StructLiteral(literal) => {
+            for field in &literal.fields {
+                collect_expression_fallible_propagation_provenance(
+                    &field.value,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::InterpolatedString(interpolated) => {
+            for part in &interpolated.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_fallible_propagation_provenance(
+                        &part.expression,
+                        return_type,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                        summaries,
+                        flow,
+                    );
+                }
+            }
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn collect_block_fallible_propagation_provenance(
+    block: &Block,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+    flow: &mut BorrowReturnFlow,
+) {
+    let mut block_environment = environment.clone();
+    let mut block_borrow_provenance = borrow_provenance.clone();
+    for statement in &block.statements {
+        collect_statement_fallible_propagation_provenance(
+            statement,
+            return_type,
+            resolved,
+            &block_environment,
+            &block_borrow_provenance,
+            summaries,
+            flow,
+        );
+        apply_borrow_return_statement_effect(
+            statement,
+            resolved,
+            &mut block_environment,
+            &mut block_borrow_provenance,
+            summaries,
+        );
+        if statement_guarantees_return_or_never(statement, resolved, &block_environment) {
+            return;
+        }
+    }
+    if let Some(result) = &block.result {
+        collect_expression_fallible_propagation_provenance(
+            result,
+            return_type,
+            resolved,
+            &block_environment,
+            &block_borrow_provenance,
+            summaries,
+            flow,
+        );
+    }
 }
 
 fn collect_return_statement_provenance(
     block: &Block,
+    return_type: &Type,
     resolved: &ResolveOutput,
     environment: &mut TypeEnvironment,
     borrow_provenance: &mut BorrowReturnEnvironment,
     summaries: &BorrowReturnSummaries,
-    provenance: &mut Option<BorrowReturnProvenance>,
+    flow: &mut BorrowReturnFlow,
 ) {
     for statement in &block.statements {
+        collect_statement_fallible_propagation_provenance(
+            statement,
+            return_type,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            flow,
+        );
         match statement {
             Stmt::Return(statement) => {
                 if let Some(expression) = &statement.expression {
-                    let actual = expression_type(expression, resolved, environment);
-                    merge_borrow_return_provenance(
-                        provenance,
-                        borrow_return_provenance_for_expression(
-                            expression,
-                            &actual,
-                            resolved,
-                            environment,
-                            borrow_provenance,
-                            summaries,
-                        ),
+                    collect_return_expression_provenance(
+                        expression,
+                        return_type,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                        summaries,
+                        flow,
                     );
                 }
             }
@@ -437,22 +1152,24 @@ fn collect_return_statement_provenance(
                 let mut then_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &if_statement.then_block,
+                    return_type,
                     resolved,
                     &mut then_environment,
                     &mut then_borrow_provenance,
                     summaries,
-                    provenance,
+                    flow,
                 );
                 if let Some(else_block) = &if_statement.else_block {
                     let mut else_environment = environment.clone();
                     let mut else_borrow_provenance = borrow_provenance.clone();
                     collect_return_statement_provenance(
                         else_block,
+                        return_type,
                         resolved,
                         &mut else_environment,
                         &mut else_borrow_provenance,
                         summaries,
-                        provenance,
+                        flow,
                     );
                 }
                 apply_borrow_return_statement_effect(
@@ -477,22 +1194,24 @@ fn collect_return_statement_provenance(
                 );
                 collect_return_statement_provenance(
                     &if_is_statement.then_block,
+                    return_type,
                     resolved,
                     &mut then_environment,
                     &mut then_borrow_provenance,
                     summaries,
-                    provenance,
+                    flow,
                 );
                 if let Some(else_block) = &if_is_statement.else_block {
                     let mut else_environment = environment.clone();
                     let mut else_borrow_provenance = borrow_provenance.clone();
                     collect_return_statement_provenance(
                         else_block,
+                        return_type,
                         resolved,
                         &mut else_environment,
                         &mut else_borrow_provenance,
                         summaries,
-                        provenance,
+                        flow,
                     );
                 }
                 apply_borrow_return_statement_effect(
@@ -523,11 +1242,12 @@ fn collect_return_statement_provenance(
                     );
                     collect_return_statement_provenance(
                         &arm.body,
+                        return_type,
                         resolved,
                         &mut arm_environment,
                         &mut arm_borrow_provenance,
                         summaries,
-                        provenance,
+                        flow,
                     );
                 }
                 if let Some(wildcard_arm) = &switch_statement.wildcard_arm {
@@ -535,11 +1255,12 @@ fn collect_return_statement_provenance(
                     let mut wildcard_borrow_provenance = borrow_provenance.clone();
                     collect_return_statement_provenance(
                         &wildcard_arm.body,
+                        return_type,
                         resolved,
                         &mut wildcard_environment,
                         &mut wildcard_borrow_provenance,
                         summaries,
-                        provenance,
+                        flow,
                     );
                 }
                 apply_borrow_return_statement_effect(
@@ -555,11 +1276,12 @@ fn collect_return_statement_provenance(
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &statement.body,
+                    return_type,
                     resolved,
                     &mut body_environment,
                     &mut body_borrow_provenance,
                     summaries,
-                    provenance,
+                    flow,
                 );
             }
             Stmt::ForRange(statement) => {
@@ -568,11 +1290,12 @@ fn collect_return_statement_provenance(
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &statement.body,
+                    return_type,
                     resolved,
                     &mut body_environment,
                     &mut body_borrow_provenance,
                     summaries,
-                    provenance,
+                    flow,
                 );
             }
             Stmt::Loop(statement) => {
@@ -580,11 +1303,12 @@ fn collect_return_statement_provenance(
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &statement.body,
+                    return_type,
                     resolved,
                     &mut body_environment,
                     &mut body_borrow_provenance,
                     summaries,
-                    provenance,
+                    flow,
                 );
             }
             _ => {
@@ -1170,6 +1894,16 @@ fn check_expression_for_nested_returns(
                 resolved,
                 diagnostics,
                 environment,
+            );
+            check_propagated_fallible_error_borrow_return_provenance(
+                sources,
+                expression,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+                summaries,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -1789,6 +2523,46 @@ fn check_borrow_return_provenance(
     ));
 }
 
+fn check_propagated_fallible_error_borrow_return_provenance(
+    sources: &SourceMap,
+    expression: &PropagationExpr,
+    context: &ReturnContext,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) {
+    if !propagated_fallible_error_can_escape(
+        &expression.expression,
+        &context.declared_type,
+        resolved,
+        environment,
+    ) {
+        return;
+    }
+
+    let Some(provenance) = borrow_return_fallible_error_provenance_for_expression(
+        &expression.expression,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    ) else {
+        return;
+    };
+    let Some(source) = provenance.escaping_source() else {
+        return;
+    };
+
+    diagnostics.push(borrow_return_escapes_diagnostic(
+        sources,
+        &expression.expression,
+        source,
+        context,
+    ));
+}
+
 fn borrow_return_provenance_for_expression(
     expression: &Expr,
     ty: &Type,
@@ -1809,14 +2583,21 @@ fn borrow_return_provenance_for_expression(
             environment,
             borrow_provenance,
         ),
-        Expr::Force(expression) => borrow_return_provenance_for_wrapped_expression(
+        Expr::Force(expression) => borrow_return_success_provenance_for_expression(
             &expression.expression,
             resolved,
             environment,
             borrow_provenance,
             summaries,
         ),
-        Expr::Propagate(expression) => borrow_return_provenance_for_wrapped_expression(
+        Expr::Propagate(expression) => borrow_return_success_provenance_for_expression(
+            &expression.expression,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
+        Expr::Catch(expression) => borrow_return_success_provenance_for_expression(
             &expression.expression,
             resolved,
             environment,
@@ -2026,7 +2807,7 @@ fn borrow_return_provenance_for_expression(
     }
 }
 
-fn borrow_return_provenance_for_wrapped_expression(
+fn borrow_return_success_provenance_for_expression(
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
@@ -2042,6 +2823,29 @@ fn borrow_return_provenance_for_wrapped_expression(
         borrow_provenance,
         summaries,
     )
+    .and_then(|provenance| provenance.success_provenance())
+}
+
+fn borrow_return_fallible_error_provenance_for_expression(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let expression_type = expression_type(expression, resolved, environment);
+    if !matches!(expression_type, Type::Fallible { .. }) {
+        return None;
+    }
+    borrow_return_provenance_for_expression(
+        expression,
+        &expression_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    )
+    .and_then(|provenance| provenance.fallible_error_provenance())
 }
 
 fn borrow_return_provenance_for_member(
@@ -2094,6 +2898,7 @@ fn borrow_return_provenance_for_call(
     summaries: &BorrowReturnSummaries,
 ) -> Option<BorrowReturnProvenance> {
     let signature = resolved_call_signature(resolved, call, environment)?;
+    let return_type = call_return_type(call, &signature, resolved, environment);
     if let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.get(&declaration_span)
     {
@@ -2148,7 +2953,18 @@ fn borrow_return_provenance_for_call(
         );
     }
 
-    provenance
+    match return_type {
+        Type::Fallible { success, error } => {
+            let success_provenance = type_contains_borrow_like(&success, resolved)
+                .then(|| provenance.clone())
+                .flatten();
+            let error_provenance = type_contains_borrow_like(&error, resolved)
+                .then_some(provenance)
+                .flatten();
+            borrow_return_fallible_provenance(success_provenance, error_provenance)
+        }
+        _ => provenance,
+    }
 }
 
 fn borrow_return_provenance_for_call_summary(
@@ -2163,6 +2979,31 @@ fn borrow_return_provenance_for_call_summary(
     match summary {
         BorrowReturnProvenance::Static => Some(BorrowReturnProvenance::Static),
         BorrowReturnProvenance::Escaping { .. } => None,
+        BorrowReturnProvenance::Fallible { success, error } => {
+            let mapped_success = success.as_deref().and_then(|provenance| {
+                borrow_return_provenance_for_call_summary(
+                    provenance,
+                    call,
+                    signature,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            });
+            let mapped_error = error.as_deref().and_then(|provenance| {
+                borrow_return_provenance_for_call_summary(
+                    provenance,
+                    call,
+                    signature,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            });
+            borrow_return_fallible_provenance(mapped_success, mapped_error)
+        }
         BorrowReturnProvenance::Aggregate {
             fallback,
             fields,
@@ -2276,6 +3117,20 @@ fn borrow_return_provenance_for_call_input(
     }
 
     None
+}
+
+fn borrow_return_fallible_provenance(
+    success: Option<BorrowReturnProvenance>,
+    error: Option<BorrowReturnProvenance>,
+) -> Option<BorrowReturnProvenance> {
+    if success.is_none() && error.is_none() {
+        return None;
+    }
+
+    Some(BorrowReturnProvenance::Fallible {
+        success: success.map(Box::new),
+        error: error.map(Box::new),
+    })
 }
 
 fn merge_borrow_return_provenance(
@@ -2885,13 +3740,53 @@ fn return_expression_is_fallible_failure(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
-    let Type::Fallible { error, .. } = &context.declared_type else {
+    expression_is_fallible_failure_for_return_type(
+        expression,
+        actual,
+        &context.declared_type,
+        resolved,
+        environment,
+    )
+}
+
+fn expression_is_fallible_failure_for_return_type(
+    expression: &Expr,
+    actual: &Type,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let Type::Fallible { error, .. } = return_type else {
         return false;
     };
 
     !error.is_unknown_or_unresolved()
         && (is_expression_assignable(error, expression, resolved, environment)
             || super::operations::is_assignable(error, actual))
+}
+
+fn propagated_fallible_error_can_escape(
+    expression: &Expr,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let Type::Fallible {
+        error: current_error,
+        ..
+    } = return_type
+    else {
+        return false;
+    };
+    let Type::Fallible {
+        error: attempted_error,
+        ..
+    } = expression_type(expression, resolved, environment)
+    else {
+        return false;
+    };
+
+    same_known_type(current_error, &attempted_error)
 }
 
 pub(super) fn block_guarantees_return(block: &Block) -> bool {

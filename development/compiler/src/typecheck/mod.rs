@@ -47,11 +47,38 @@ pub(crate) use facts::{
     collect_typecheck_facts,
 };
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TypecheckSource<'a> {
+    ast: &'a AstFile,
+    resolved: &'a ResolveOutput,
+}
+
+impl<'a> TypecheckSource<'a> {
+    pub(crate) fn new(ast: &'a AstFile, resolved: &'a ResolveOutput) -> Self {
+        Self { ast, resolved }
+    }
+}
+
 pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
+    let summary_sources = [TypecheckSource::new(ast, resolved)];
+    check_with_summary_sources(sources, ast, resolved, &summary_sources)
+}
+
+pub(crate) fn check_with_summary_sources(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    summary_sources: &[TypecheckSource<'_>],
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     check_default_entry_function(sources, ast, resolved, &mut diagnostics);
-    diagnostics.extend(check_module(sources, ast, resolved));
+    diagnostics.extend(check_module_with_summary_sources(
+        sources,
+        ast,
+        resolved,
+        summary_sources,
+    ));
 
     diagnostics
 }
@@ -61,6 +88,16 @@ pub fn check_module(
     ast: &AstFile,
     resolved: &ResolveOutput,
 ) -> Vec<Diagnostic> {
+    let summary_sources = [TypecheckSource::new(ast, resolved)];
+    check_module_with_summary_sources(sources, ast, resolved, &summary_sources)
+}
+
+pub(crate) fn check_module_with_summary_sources(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    summary_sources: &[TypecheckSource<'_>],
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     check_generic_type_arities(sources, ast, resolved, &mut diagnostics);
@@ -69,7 +106,7 @@ pub fn check_module(
     check_interface_impls(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_ownership_states(sources, ast, resolved, &mut diagnostics);
-    check_return_types(sources, ast, resolved, &mut diagnostics);
+    check_return_types(sources, ast, resolved, summary_sources, &mut diagnostics);
 
     diagnostics
 }

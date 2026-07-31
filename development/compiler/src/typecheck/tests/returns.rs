@@ -1385,6 +1385,32 @@ func leak(): &i32 {
 }
 
 #[test]
+fn accepts_return_force_unwrapped_fallible_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func passthrough(success: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(success, &value, choose)!
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_propagated_optional_borrow_from_local() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -1406,6 +1432,94 @@ func leak(): &i32? {
     assert_eq!(diagnostics[0].code, "E0433");
     assert!(diagnostics[0].message.contains("local binding"));
     assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_propagated_fallible_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func leak(success: &i32, choose: bool): &i32! {
+    let value = 1
+    return maybe_fail(success, &value, choose)?
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_catch_success_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func leak(fallback: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(&value, fallback, choose) catch error {
+        return fallback
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_catch_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func recover(success: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(success, &value, choose) catch error {
+        return success
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

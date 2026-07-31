@@ -17,7 +17,10 @@ use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_compile_unit};
 use crate::source::SourceMap;
-use crate::typecheck::{TypecheckFacts, check, check_module, collect_typecheck_facts};
+use crate::typecheck::{
+    TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
+    collect_typecheck_facts,
+};
 use std::cmp::Ordering;
 use std::path::PathBuf;
 
@@ -128,29 +131,52 @@ fn analyze_compile_unit_with_root_policy(
     root_policy: RootPolicy,
 ) -> CompileUnitAnalysis {
     let root_source = unit.root_ast.span.source;
-    let files = unit
+    let resolved_files = unit
         .files
         .iter()
         .map(|file| {
-            let is_root = file.span.source == root_source;
-            let resolved = resolve_compile_unit(
+            resolve_compile_unit(
                 sources,
                 file,
                 &unit.files,
                 &unit.import_sources,
                 &unit.prelude_sources,
-            );
+            )
+        })
+        .collect::<Vec<_>>();
+    let typecheck_sources = unit
+        .files
+        .iter()
+        .zip(resolved_files.iter())
+        .map(|(file, resolved)| TypecheckSource::new(file, resolved))
+        .collect::<Vec<_>>();
+    let files = unit
+        .files
+        .iter()
+        .zip(resolved_files.iter())
+        .map(|(file, resolved)| {
+            let is_root = file.span.source == root_source;
             let mut diagnostics = resolved.diagnostics.clone();
             if is_root && root_policy == RootPolicy::ExecutableEntry {
-                diagnostics.extend(check(sources, file, &resolved));
+                diagnostics.extend(check_with_summary_sources(
+                    sources,
+                    file,
+                    resolved,
+                    &typecheck_sources,
+                ));
             } else {
-                diagnostics.extend(check_module(sources, file, &resolved));
+                diagnostics.extend(check_module_with_summary_sources(
+                    sources,
+                    file,
+                    resolved,
+                    &typecheck_sources,
+                ));
             }
-            let typecheck_facts = collect_typecheck_facts(file, &resolved);
+            let typecheck_facts = collect_typecheck_facts(file, resolved);
 
             FileAnalysis {
                 ast: file.clone(),
-                resolved,
+                resolved: resolved.clone(),
                 typecheck_facts,
                 diagnostics,
                 is_root,
@@ -187,5 +213,55 @@ fn compare_diagnostic_primary_spans(left: &Diagnostic, right: &Diagnostic) -> Or
         (Some(_), None) => Ordering::Less,
         (None, Some(_)) => Ordering::Greater,
         (None, None) => Ordering::Equal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::analyze_namespace_import_text;
+
+    #[test]
+    fn return_checks_use_imported_fallible_summary_for_propagation() {
+        let root_text = r#"use lib/math
+
+func run(): i32! {
+    let value = 1
+    return math.okay(&value)?
+}
+"#;
+        let module_text = r#"pub func okay(value: &i32): i32! {
+    return 1
+}
+"#;
+
+        let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let diagnostics = analysis.diagnostics();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn return_checks_use_imported_fallible_summary_for_force_unwrap() {
+        let root_text = r#"use lib/math
+
+func passthrough(success: &i32, choose: bool): &i32 {
+    let value = 1
+    return math.maybe_fail(success, &value, choose)!
+}
+"#;
+        let module_text = r#"primitive make_error(label: &str, value: &i32): error
+
+pub func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+"#;
+
+        let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let diagnostics = analysis.diagnostics();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 }

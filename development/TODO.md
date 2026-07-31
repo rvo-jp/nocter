@@ -218,6 +218,11 @@ Recommended order:
 - Return provenance now carries borrow sources through postfix `!` unwrap and
   postfix `?` propagation, so unwrapped/propagated local borrows cannot escape
   while parameter-carried borrows remain returnable.
+- Fallible compile-unit borrow-return summaries now keep success and `error`
+  payload provenance separate for same-file and loaded-import callables. `catch`
+  and postfix `!` project success provenance, while postfix `?` separately
+  diagnoses propagated `error` payloads that carry local borrows out of the
+  current function.
 - `if is` and `match` payload bindings now inherit borrow return provenance from
   the matched enum value, so local borrows cannot escape through borrow-like
   payload bindings while parameter-carried borrows remain returnable.

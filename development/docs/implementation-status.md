@@ -109,9 +109,12 @@ work.
 Return provenance treats `error`, borrow-like aggregate fields, and fixed-array
 elements as tracked borrow carriers. Values derived from local borrows cannot
 escape through whole aggregate returns, struct field projection returns, fixed
-array index returns, postfix unwrap/propagation, same-AST helper summaries, or
-`if is` / `match` payload bindings, while parameter-derived borrows can be
-forwarded.
+array index returns, postfix unwrap/propagation, same-AST and loaded-import
+helper summaries, or `if is` / `match` payload bindings, while
+parameter-derived borrows can be forwarded. Fallible compile-unit summaries keep
+success and `error` provenance separate, so `catch` and postfix `!` inspect
+only success payloads while postfix `?` diagnoses propagated error payloads that
+would leave the current function.
 
 ## Implemented Capability
 
