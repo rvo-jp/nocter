@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `619335a Cover payload wildcard call target boundaries`
+  - `f8c406b Separate fallible borrow return provenance`
   - `b063078 Track borrow provenance through array indexes`
   - `b60cb5a Track borrow provenance through struct fields`
   - `7bf25d7 Cover payload borrow alias returns`
