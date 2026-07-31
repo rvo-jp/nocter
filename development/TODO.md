@@ -371,8 +371,9 @@ Recommended order:
   binding, temporary-pattern control, and multi-field droppable payload cleanup
   remain the next promotion boundary.
 - CLI build coverage now pins payload `match` statement and value-expression
-  binding over call targets as E0435 preflight boundaries, matching the current
-  temporary-pattern control deferral before IR lowering.
+  wildcard-only and binding forms over call targets as E0435 preflight
+  boundaries, matching the current temporary-pattern control deferral before IR
+  lowering.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
