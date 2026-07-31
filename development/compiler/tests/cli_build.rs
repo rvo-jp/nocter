@@ -5771,10 +5771,10 @@ func score(result: Result): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_wildcard_call_target_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-wildcard-call-target-boundary");
+fn build_command_accepts_payload_match_wildcard_call_target() {
+    let project = TempProject::new("cli-build-payload-match-wildcard-call-target");
     let source = project.write_source(
-        "payload_match_wildcard_call_target_boundary.nct",
+        "payload_match_wildcard_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -5797,35 +5797,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` statements"),
-        "expected match diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     match make_ok() {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_match_discard_call_target_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-discard-call-target-boundary");
+fn build_command_accepts_payload_match_discard_call_target() {
+    let project = TempProject::new("cli-build-payload-match-discard-call-target");
     let source = project.write_source(
-        "payload_match_discard_call_target_boundary.nct",
+        "payload_match_discard_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -5852,35 +5832,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` statements"),
-        "expected match diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     match make_ok() {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_match_binding_call_target_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-binding-call-target-boundary");
+fn build_command_accepts_payload_match_binding_call_target() {
+    let project = TempProject::new("cli-build-payload-match-binding-call-target");
     let source = project.write_source(
-        "payload_match_binding_call_target_boundary.nct",
+        "payload_match_binding_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -5907,28 +5867,8 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` statements"),
-        "expected match diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     match make_ok() {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -6071,10 +6011,10 @@ func main(): usize {
 }
 
 #[test]
-fn build_command_reports_payload_if_is_discard_call_target_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-discard-call-target-boundary");
+fn build_command_accepts_payload_if_is_discard_call_target() {
+    let project = TempProject::new("cli-build-payload-if-is-discard-call-target");
     let source = project.write_source(
-        "payload_if_is_discard_call_target_boundary.nct",
+        "payload_if_is_discard_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -6097,35 +6037,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`if is` pattern branches"),
-        "expected if-is diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     if make_ok() is Result.ok(_) {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_if_is_binding_call_target_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-binding-call-target-boundary");
+fn build_command_accepts_payload_if_is_binding_call_target() {
+    let project = TempProject::new("cli-build-payload-if-is-binding-call-target");
     let source = project.write_source(
-        "payload_if_is_binding_call_target_boundary.nct",
+        "payload_if_is_binding_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -6148,35 +6068,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`if is` pattern branches"),
-        "expected if-is diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     if make_ok() is Result.ok(value) {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_if_is_expression_discard_call_target_before_ir_lowering() {
+fn build_command_accepts_payload_if_is_expression_discard_call_target() {
     let project = TempProject::new("cli-build-payload-if-is-expression-discard-call-target");
     let source = project.write_source(
-        "payload_if_is_expression_discard_call_target_boundary.nct",
+        "payload_if_is_expression_discard_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -6199,35 +6099,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`if is` expressions"),
-        "expected if-is expression diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     return if make_ok() is Result.ok(_) {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_if_is_expression_binding_call_target_before_ir_lowering() {
+fn build_command_accepts_payload_if_is_expression_binding_call_target() {
     let project = TempProject::new("cli-build-payload-if-is-expression-binding-call-target");
     let source = project.write_source(
-        "payload_if_is_expression_binding_call_target_boundary.nct",
+        "payload_if_is_expression_binding_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -6250,28 +6130,8 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`if is` expressions"),
-        "expected if-is expression diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     return if make_ok() is Result.ok(value) {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -9404,11 +9264,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_expression_wildcard_call_target_before_ir_lowering() {
-    let project =
-        TempProject::new("cli-build-payload-match-expression-wildcard-call-target-boundary");
+fn build_command_accepts_payload_match_expression_wildcard_call_target() {
+    let project = TempProject::new("cli-build-payload-match-expression-wildcard-call-target");
     let source = project.write_source(
-        "payload_match_expression_wildcard_call_target_boundary.nct",
+        "payload_match_expression_wildcard_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -9429,36 +9288,15 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` expressions"),
-        "expected match expression diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     return match make_ok() {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payload_match_expression_binding_call_target_before_ir_lowering() {
-    let project =
-        TempProject::new("cli-build-payload-match-expression-binding-call-target-boundary");
+fn build_command_accepts_payload_match_expression_binding_call_target() {
+    let project = TempProject::new("cli-build-payload-match-expression-binding-call-target");
     let source = project.write_source(
-        "payload_match_expression_binding_call_target_boundary.nct",
+        "payload_match_expression_binding_call_target.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -9480,28 +9318,8 @@ func make_ok(): Result {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`match` expressions"),
-        "expected match expression diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("7 |     return match make_ok() {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

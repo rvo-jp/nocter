@@ -1153,6 +1153,7 @@ pub(super) fn lower_nonterminal_payloadless_switch_statement(
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let switch = tag_only_switch_as_control_flow(statement, context, diagnostic_code)?;
+    let target_cleanup = switch.target_cleanup;
     let mut instructions = switch.leading_instructions;
     instructions.extend(lower_nonterminal_payloadless_switch_body(
         switch.body,
@@ -1163,6 +1164,11 @@ pub(super) fn lower_nonterminal_payloadless_switch_statement(
         subject,
         sources,
     )?);
+    if !instruction_list_ends_execution(&instructions)
+        && let Some(cleanup) = target_cleanup
+    {
+        cleanup.append_to(&mut instructions, context)?;
+    }
     Ok(instructions)
 }
 
@@ -1717,6 +1723,7 @@ fn lower_nonterminal_loop_block_statements(
                     .map_err(|diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                     })?;
+                let target_cleanup = if_is.target_cleanup;
                 let lowered = lower_nonterminal_if_statement_with_branch_prologues(
                     &if_is.statement,
                     context,
@@ -1734,6 +1741,9 @@ fn lower_nonterminal_loop_block_statements(
                 let mut lowered_with_condition = if_is.leading_instructions;
                 lowered_with_condition.extend(lowered);
                 ends_execution = instruction_list_ends_execution(&lowered_with_condition);
+                if !ends_execution && let Some(cleanup) = target_cleanup {
+                    cleanup.append_to(&mut lowered_with_condition, context)?;
+                }
                 instructions.extend(lowered_with_condition);
             }
             Stmt::Switch(statement) => {

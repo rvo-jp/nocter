@@ -210,13 +210,13 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum temporary-pattern control and non-copy aggregate
-  payload binding;
+- payload-carrying enum non-copy aggregate payload binding and broader pattern
+  target expressions;
   payload-carrying enum construction, locals, returns, value arguments,
   tag-only `if is Enum.variant(_)` statements, tag-only `match` statements, and
   scalar, string/slice view, and copy aggregate payload binding over existing
-  enum values are buildable for the current payload subset, with active payload
-  cleanup
+  enum values and supported call/constructor/move-local pattern targets are
+  buildable for the current payload subset, with active payload cleanup
   additionally supported for direct-drop aggregate payload fields
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
@@ -260,12 +260,14 @@ Rules fixed for v0:
   by ABI v0
 - payload-carrying enum construction, locals, returns, value arguments,
   tag-only `if is Enum.variant(_)` statements, and tag-only `match` statements
-  may lower in the current payload subset over existing enum values;
+  may lower in the current payload subset over existing enum values and
+  supported call/constructor/move-local pattern targets;
   scalar, string/slice view, and copy aggregate payload binding may lower in
-  `if is` and `match` branches over existing enum values; active payload cleanup
-  may lower for direct-drop aggregate payload fields, including multi-field
-  payload cleanup in reverse aggregate field order; non-copy aggregate payload
-  binding and temporary-pattern control still reject before build/run
+  `if is` and `match` branches over existing enum values and supported pattern
+  targets; active payload cleanup may lower for direct-drop aggregate payload
+  fields, including multi-field payload cleanup in reverse aggregate field
+  order; non-copy aggregate payload binding and broader pattern target
+  expressions still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification

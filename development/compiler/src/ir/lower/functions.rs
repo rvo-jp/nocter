@@ -1193,14 +1193,15 @@ fn lower_callable_control_body_result(
             lower_callable_if_body_result(statement, function_name, return_type, context, sources)
         }
         Expr::IfIs(statement) => {
-            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8007")?;
+            let mut control_context = context.clone();
+            let if_is = tag_only_if_is_as_control_flow(statement, &mut control_context, "E8007")?;
             lower_callable_if_body_result_with_branch_prologues(
                 &if_is.statement,
                 &if_is.then_prologue,
                 &BranchPrologue::empty(),
                 function_name,
                 return_type,
-                context,
+                &mut control_context,
                 sources,
             )
             .map(|result| {
@@ -1212,12 +1213,13 @@ fn lower_callable_control_body_result(
             })
         }
         Expr::Match(statement) => {
-            let switch = tag_only_switch_as_control_flow(statement, context, "E8007")?;
+            let mut control_context = context.clone();
+            let switch = tag_only_switch_as_control_flow(statement, &mut control_context, "E8007")?;
             lower_callable_payloadless_switch_body_result(
                 switch,
                 function_name,
                 return_type,
-                context,
+                &mut control_context,
                 sources,
             )
         }
@@ -1336,17 +1338,19 @@ fn lower_terminal_control_return_expression(
             sources,
         ),
         Expr::IfIs(statement) => {
-            let if_is = tag_only_if_is_as_control_flow(statement, context, diagnostic_code)?;
+            let mut control_context = context.clone();
+            let if_is =
+                tag_only_if_is_as_control_flow(statement, &mut control_context, diagnostic_code)?;
             lower_terminal_if_statement_for_success_type_with_branch_prologues(
                 &if_is.statement,
-                context,
+                &control_context,
                 &if_is.then_prologue,
                 &BranchPrologue::empty(),
                 &function_name,
                 &return_type,
                 diagnostic_code,
                 subject,
-                context
+                control_context
                     .resolved_calls()
                     .map(|(_, resolved)| resolved)
                     .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
@@ -1361,15 +1365,17 @@ fn lower_terminal_control_return_expression(
             })
         }
         Expr::Match(statement) => {
-            let switch = tag_only_switch_as_control_flow(statement, context, diagnostic_code)?;
+            let mut control_context = context.clone();
+            let switch =
+                tag_only_switch_as_control_flow(statement, &mut control_context, diagnostic_code)?;
             lower_terminal_payloadless_switch_for_success_type(
                 switch,
-                context,
+                &control_context,
                 &function_name,
                 &return_type,
                 diagnostic_code,
                 subject,
-                context
+                control_context
                     .resolved_calls()
                     .map(|(_, resolved)| resolved)
                     .ok_or_else(|| unsupported_function_body_diagnostic(&function_name))?,
@@ -1858,6 +1864,26 @@ pub(super) struct LoweredTagOnlyIfIs {
     pub(super) leading_instructions: Vec<Instruction>,
     pub(super) statement: IfStmt,
     pub(super) then_prologue: BranchPrologue,
+    pub(super) target_cleanup: Option<PatternTargetCleanup>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct PatternTargetCleanup {
+    local_mark: usize,
+}
+
+impl PatternTargetCleanup {
+    pub(super) fn append_to(
+        self,
+        instructions: &mut Vec<Instruction>,
+        context: &mut LoweringContext,
+    ) -> Result<(), Vec<Diagnostic>> {
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            context,
+            self.local_mark,
+        )?);
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -2065,6 +2091,7 @@ pub(super) fn tag_only_if_is_as_control_flow(
                 leading_instructions: Vec::new(),
                 statement,
                 then_prologue: BranchPrologue::empty(),
+                target_cleanup: None,
             },
         );
     }
@@ -2078,23 +2105,27 @@ pub(super) fn tag_only_if_is_as_control_flow(
     if !tag_only_if_is_payload_pattern_is_supported(statement.payload.as_ref(), payload_len) {
         return Err(unsupported_if_is_diagnostic(diagnostic_code));
     }
-    if !expression_is_payload_enum_aggregate_value(&statement.expression, context) {
-        return Err(unsupported_if_is_diagnostic(diagnostic_code));
-    }
-    let source_slot = tag_only_if_is_aggregate_source_slot(&statement.expression, context)
-        .ok_or_else(|| unsupported_if_is_diagnostic(diagnostic_code))?;
+    let source = lower_payload_enum_pattern_target(
+        &statement.expression,
+        context,
+        diagnostic_code,
+        unsupported_if_is_diagnostic,
+    )?;
     let then_prologue =
-        tag_only_if_is_then_prologue(statement, source_slot, context, diagnostic_code)?;
+        tag_only_if_is_then_prologue(statement, source.slot_index, context, diagnostic_code)?;
     let target_name = tag_only_if_is_target_name(statement);
     let target = context.next_u8_local_location()?;
     context.define_u8_local(target_name.clone());
 
+    let mut leading_instructions = source.leading_instructions;
+    leading_instructions.push(Instruction::LoadAggregateU8 {
+        destination: target,
+        source: AggregateLocation::Slot(source.slot_index),
+        offset: 0,
+    });
+
     Ok(LoweredTagOnlyIfIs {
-        leading_instructions: vec![Instruction::LoadAggregateU8 {
-            destination: target,
-            source: AggregateLocation::Slot(source_slot),
-            offset: 0,
-        }],
+        leading_instructions,
         statement: IfStmt {
             span: statement.span,
             condition: Expr::Binary(BinaryExpr {
@@ -2114,12 +2145,14 @@ pub(super) fn tag_only_if_is_as_control_flow(
             else_block: statement.else_block.clone(),
         },
         then_prologue,
+        target_cleanup: source.cleanup,
     })
 }
 
 pub(super) struct LoweredPayloadlessSwitch {
     pub(super) leading_instructions: Vec<Instruction>,
     pub(super) body: LoweredPayloadlessSwitchBody,
+    pub(super) target_cleanup: Option<PatternTargetCleanup>,
 }
 
 #[derive(Clone)]
@@ -2169,6 +2202,7 @@ pub(super) fn payloadless_switch_as_control_flow(
     Ok(LoweredPayloadlessSwitch {
         leading_instructions,
         body,
+        target_cleanup: None,
     })
 }
 
@@ -2184,11 +2218,12 @@ pub(super) fn tag_only_switch_as_control_flow(
     let Some(variant_names) = payload_enum_tag_only_switch_variant_names(statement, context) else {
         return Err(unsupported_switch_diagnostic(diagnostic_code));
     };
-    if !expression_is_payload_enum_aggregate_value(&statement.expression, context) {
-        return Err(unsupported_switch_diagnostic(diagnostic_code));
-    }
-    let source_slot = tag_only_if_is_aggregate_source_slot(&statement.expression, context)
-        .ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))?;
+    let source = lower_payload_enum_pattern_target(
+        &statement.expression,
+        context,
+        diagnostic_code,
+        unsupported_switch_diagnostic,
+    )?;
 
     let target_name = payloadless_switch_target_name(statement);
     let target = context.next_u8_local_location()?;
@@ -2201,18 +2236,22 @@ pub(super) fn tag_only_switch_as_control_flow(
         statement,
         target_expression,
         &variant_names,
-        source_slot,
+        source.slot_index,
         context,
         diagnostic_code,
     )?;
 
+    let mut leading_instructions = source.leading_instructions;
+    leading_instructions.push(Instruction::LoadAggregateU8 {
+        destination: target,
+        source: AggregateLocation::Slot(source.slot_index),
+        offset: 0,
+    });
+
     Ok(LoweredPayloadlessSwitch {
-        leading_instructions: vec![Instruction::LoadAggregateU8 {
-            destination: target,
-            source: AggregateLocation::Slot(source_slot),
-            offset: 0,
-        }],
+        leading_instructions,
         body,
+        target_cleanup: source.cleanup,
     })
 }
 
@@ -2362,18 +2401,128 @@ fn payload_branch_prologue_binding_kind(
     })
 }
 
-fn expression_is_payload_enum_aggregate_value(
+struct LoweredPayloadEnumPatternTarget {
+    leading_instructions: Vec<Instruction>,
+    slot_index: usize,
+    cleanup: Option<PatternTargetCleanup>,
+}
+
+fn lower_payload_enum_pattern_target(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    unsupported_diagnostic: fn(&'static str) -> Vec<Diagnostic>,
+) -> Result<LoweredPayloadEnumPatternTarget, Vec<Diagnostic>> {
+    if let Some(slot_index) = tag_only_if_is_aggregate_source_slot(expression, context) {
+        return Ok(LoweredPayloadEnumPatternTarget {
+            leading_instructions: Vec::new(),
+            slot_index,
+            cleanup: None,
+        });
+    }
+    if !payload_enum_pattern_target_expression_shape_is_supported(expression, context) {
+        return Err(unsupported_diagnostic(diagnostic_code));
+    }
+
+    let Some(ty) = context.expression_type_expr(expression.span()) else {
+        return Err(unsupported_diagnostic(diagnostic_code));
+    };
+    let (value, fields, return_type) = {
+        let Some((root_source, resolved)) = context.resolved_calls() else {
+            return Err(unsupported_diagnostic(diagnostic_code));
+        };
+        let value = abi_value_from_type_expr_with_resolver(&ty, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .map_err(|_| unsupported_diagnostic(diagnostic_code))?;
+        if !matches!(value.ty, AbiType::Enum(_)) {
+            return Err(unsupported_diagnostic(diagnostic_code));
+        }
+
+        let fields =
+            aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+                context.resolved_source(source)
+            })
+            .ok_or_else(|| unsupported_diagnostic(diagnostic_code))?;
+        let return_type = return_type_from_type_expr_with_resolver(&ty, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .ok_or_else(|| unsupported_diagnostic(diagnostic_code))?;
+        (value, fields, return_type)
+    };
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
+    let local_mark = context.local_mark();
+    let local_name = payload_enum_pattern_target_name(expression);
+    let slot_index =
+        context.define_aggregate_local(local_name.clone(), value.layout, false, drop_kind, fields);
+    context.mark_aggregate_local_dropped(&local_name);
+
+    let mut leading_instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    }];
+    let lowered_expression = {
+        let function_name = context.function_name().to_string();
+        let Some((_, resolved)) = context.resolved_calls() else {
+            return Err(unsupported_diagnostic(diagnostic_code));
+        };
+        if let Some(instructions) = lower_payload_enum_constructor_value_to_location(
+            expression,
+            &value,
+            value.layout,
+            AggregateLocation::Slot(slot_index),
+            &function_name,
+            resolved,
+            context,
+        )
+        .map_err(|_| unsupported_diagnostic(diagnostic_code))?
+        {
+            instructions
+        } else {
+            lower_aggregate_return_expression_to_location(
+                expression,
+                &return_type,
+                AggregateLocation::Slot(slot_index),
+                &function_name,
+                resolved,
+                context,
+            )
+            .map_err(|_| unsupported_diagnostic(diagnostic_code))?
+        }
+    };
+    leading_instructions.extend(lowered_expression);
+    mark_explicit_moves_in_expression(expression, context);
+    context.mark_aggregate_local_initialized(&local_name);
+
+    Ok(LoweredPayloadEnumPatternTarget {
+        leading_instructions,
+        slot_index,
+        cleanup: Some(PatternTargetCleanup { local_mark }),
+    })
+}
+
+fn payload_enum_pattern_target_expression_shape_is_supported(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
-    let Some(ty) = context.expression_type_expr(expression.span()) else {
-        return false;
-    };
-    let Some((_, resolved)) = context.resolved_calls() else {
-        return false;
-    };
-    abi_value_from_type_expr_with_resolver(&ty, resolved, |source| context.resolved_source(source))
-        .is_ok_and(|value| matches!(value.ty, AbiType::Enum(_)))
+    match unwrap_group(expression) {
+        Expr::Identifier(_) | Expr::Call(_) => true,
+        Expr::Member(member) => context.enum_variant_tag(member).is_some(),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            matches!(unwrap_group(&unary.operand), Expr::Identifier(_))
+        }
+        _ => false,
+    }
+}
+
+fn payload_enum_pattern_target_name(expression: &Expr) -> String {
+    let span = expression.span();
+    format!(
+        "<payload-pattern-target:{}:{}:{}>",
+        span.source.raw(),
+        span.start,
+        span.end
+    )
 }
 
 fn tag_only_if_is_aggregate_source_slot(
@@ -2791,14 +2940,14 @@ fn payloadless_switch_target_name(statement: &SwitchStmt) -> String {
 fn unsupported_if_is_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless `if is` branches or tag-only payload enum `if is` branches over existing enum values",
+        "IR v0 can only lower payloadless `if is` branches or tag-only payload enum `if is` branches over supported enum pattern targets",
     )]
 }
 
 fn unsupported_switch_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless enum `match` statements or tag-only payload enum `match` statements over existing enum values",
+        "IR v0 can only lower payloadless enum `match` statements or tag-only payload enum `match` statements over supported enum pattern targets",
     )]
 }
 
@@ -3719,6 +3868,7 @@ fn lower_leading_bindings(
                         attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                     },
                 )?;
+                let target_cleanup = if_is.target_cleanup;
                 instructions.extend(if_is.leading_instructions);
                 instructions.extend(
                     lower_nonterminal_if_statement_with_branch_prologues(
@@ -3736,6 +3886,9 @@ fn lower_leading_bindings(
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)
                     })?,
                 );
+                if let Some(cleanup) = target_cleanup {
+                    cleanup.append_to(&mut instructions, context)?;
+                }
             }
             Stmt::Switch(statement) => {
                 instructions.extend(
@@ -5124,6 +5277,26 @@ fn lower_payload_enum_constructor_return_to_location(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
+    lower_payload_enum_constructor_value_to_location(
+        expression,
+        &value,
+        expected_layout,
+        destination,
+        function_name,
+        resolved,
+        context,
+    )
+}
+
+fn lower_payload_enum_constructor_value_to_location(
+    expression: &Expr,
+    value: &AbiValue,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let subject = format!("returns from function `{function_name}`");
     let aggregate_slot_mark = context.aggregate_slot_mark();
     let lowered_direct = lower_payload_enum_constructor_to_location(

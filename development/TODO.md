@@ -89,10 +89,11 @@ Recommended order:
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
-   over existing values, plus scalar, string/slice view, and copy aggregate
-   payload binding in `if is` statements and value expressions and `match`
+   over existing values and supported call/constructor/move-local pattern
+   targets, plus scalar, string/slice view, and copy aggregate payload binding
+   in `if is` statements and value expressions and `match`
    statement/value-expression arms; next, design non-copy payload binding and
-   broader cleanup before collection expansion.
+   broader pattern target expressions before collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -146,12 +147,14 @@ Recommended order:
   into resolver, typecheck facts, hover, ownership, or buildability state.
   Runtime lowering now supports tag-only payload enum `if is` statements and
   value expressions plus `match` statement and value-expression arms over
-  existing enum locals/parameters for scalar/string/slice view payload bindings
-  and `_` discards. Copy aggregate payload binding is promoted for `if is`
-  statements and value expressions and `match` statement/value-expression arms
-  over existing enum values. Non-copy aggregate payload binding still rejects
-  before IR lowering. Full `./development/compiler/scripts/verify.sh` passes for
-  the current payload binding subset.
+  existing enum locals/parameters and supported call/constructor/move-local
+  pattern targets for scalar/string/slice view payload bindings and `_`
+  discards. Copy aggregate payload binding is promoted for `if is` statements
+  and value expressions and `match` statement/value-expression arms over
+  existing enum values and supported pattern targets. Non-copy aggregate payload
+  binding still rejects before IR lowering. Full
+  `./development/compiler/scripts/verify.sh` passes for the current payload
+  binding subset.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and
@@ -359,25 +362,24 @@ Recommended order:
   preflighted nor lowered.
 - TypecheckFacts now records expression `TypeExpr` values. Buildability and IR
   lowering use the target expression type to accept wildcard-only payloadless
-  enum `match` forms while still keeping payload enum `match` binding and
-  temporary-pattern control outside the runtime subset.
+  enum `match` forms and supported payload enum pattern targets without
+  re-resolving source syntax in backend lowering.
 - Payload-carrying enum ABI layout now backs runtime-supported payload enum
   construction, local slots, returns, value arguments, and tag-only `if is` /
-  `match` statements over existing values, including wildcard-only,
+  `match` statements over existing values and supported
+  call/constructor/move-local pattern targets, including wildcard-only,
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
-  `bool`, `&str`, and copy aggregate payloads over existing enum bindings and
-  parameters.
+  `bool`, `&str`, and copy aggregate payloads over existing enum bindings,
+  parameters, and supported pattern targets.
   Direct-drop aggregate payload fields now drop only the active payload fields
   in scope, parameter, discarded call-result, call-result binding, and
   whole-local replacement cleanup paths, including multi-field payloads in
-  reverse aggregate field order. Non-copy aggregate payload binding plus
-  temporary-pattern control remain the next promotion boundary.
-- CLI build coverage now pins payload `if is` statement/value-expression and
-  payload `match` statement/value-expression forms over call targets as E0435
-  preflight boundaries, matching the current temporary-pattern control deferral
-  before IR lowering.
+  reverse aggregate field order. Supported pattern target temporaries are
+  materialized into hidden aggregate slots and cleaned up before branch returns
+  or after normal control-flow completion. Non-copy aggregate payload binding
+  plus broader pattern target expressions remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is

@@ -1028,6 +1028,7 @@ fn lower_match_expression_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut switch_context = context.with_reserved_local_abi_words(reserved_local_abi_words);
     let switch = tag_only_switch_as_control_flow(statement, &mut switch_context, diagnostic_code)?;
+    let target_cleanup = switch.target_cleanup;
     let mut instructions = switch.leading_instructions;
     instructions.extend(match switch.body {
         LoweredPayloadlessSwitchBody::Direct(block) => {
@@ -1037,6 +1038,9 @@ fn lower_match_expression_to_location(
             lower_match_switch_condition_to_location(condition, &switch_context, &lower_result)?
         }
     });
+    if let Some(cleanup) = target_cleanup {
+        cleanup.append_to(&mut instructions, &mut switch_context)?;
+    }
     Ok(instructions)
 }
 
@@ -1428,6 +1432,7 @@ fn lower_if_is_expression_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut if_context = context.clone();
     let if_is = tag_only_if_is_as_control_flow(statement, &mut if_context, diagnostic_code)?;
+    let target_cleanup = if_is.target_cleanup;
     let mut instructions = if_is.leading_instructions;
     instructions.extend(lower_statement(
         &if_is.statement,
@@ -1435,6 +1440,9 @@ fn lower_if_is_expression_to_location(
         &if_is.then_prologue,
         &BranchPrologue::empty(),
     )?);
+    if let Some(cleanup) = target_cleanup {
+        cleanup.append_to(&mut instructions, &mut if_context)?;
+    }
     Ok(instructions)
 }
 

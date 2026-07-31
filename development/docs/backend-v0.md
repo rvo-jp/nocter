@@ -114,19 +114,21 @@ includes:
   for the current runtime-supported payload subset, including direct enum
   constructors in value-argument position
 - tag-only payload-carrying enum `if is Enum.variant(_)` statements over
-  existing enum bindings and parameters in the current runtime-supported payload
-  subset
+  existing enum bindings and parameters, plus supported
+  call/constructor/move-local pattern targets, in the current runtime-supported
+  payload subset
 - payload-carrying enum `if is Enum.variant(binding)` statements and value
-  expressions over existing enum bindings and parameters when the bound payload
-  ABI is `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, or a copy
-  aggregate value
+  expressions over existing enum bindings and parameters, plus supported
+  call/constructor/move-local pattern targets, when the bound payload ABI is
+  `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, or a copy aggregate value
 - tag-only payload-carrying enum `match` statements over existing enum bindings
-  and parameters in the current runtime-supported payload subset, including
-  wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
-  statement forms
+  and parameters, plus supported call/constructor/move-local pattern targets, in
+  the current runtime-supported payload subset, including wildcard-only,
+  nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms
 - payload-carrying enum `match` statement and value-expression arm bindings over
-  existing enum bindings and parameters when the bound payload ABI is `i32`,
-  `u8`, `usize`, `bool`, `&str`, a slice view, or a copy aggregate value
+  existing enum bindings and parameters, plus supported
+  call/constructor/move-local pattern targets, when the bound payload ABI is
+  `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, or a copy aggregate value
 - active payload cleanup for payload-carrying enum values whose droppable
   variants have direct-drop aggregate payload fields, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
@@ -143,8 +145,8 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-non-copy aggregate payload binding, payload enum temporary-pattern control,
-broader field-level live-state tracking,
+non-copy aggregate payload binding, broader payload enum pattern target
+expressions, broader field-level live-state tracking,
 non-copy aggregate collection elements, arrays, broad control-flow joins, and
 unsupported expression shapes.
 

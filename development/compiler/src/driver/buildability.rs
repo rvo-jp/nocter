@@ -4907,18 +4907,13 @@ fn tag_only_payload_enum_if_is_statement_is_buildable(
     ) {
         return false;
     }
-    if !matches!(
-        unwrap_group_expr(&statement.expression),
-        Expr::Identifier(_)
-    ) {
-        return false;
-    }
-
-    let Some(ty) = typecheck_facts.expression_type_expr(statement.expression.span()) else {
-        return false;
-    };
-    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources)
+    payload_enum_pattern_target_expression_is_buildable(
+        &statement.expression,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
 }
 
 fn tag_only_if_is_payload_pattern_statement_is_buildable(
@@ -5108,17 +5103,17 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if !matches!(
-        unwrap_group_expr(&statement.expression),
-        Expr::Identifier(_)
-    ) {
-        return false;
-    }
     let Some(ty) = typecheck_facts.expression_type_expr(statement.expression.span()) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
     if !type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources) {
+        return false;
+    }
+    if !payload_enum_pattern_target_expression_shape_is_buildable(
+        &statement.expression,
+        typecheck_facts,
+    ) {
         return false;
     }
 
@@ -5164,6 +5159,37 @@ fn tag_only_payload_enum_switch_statement_is_buildable(
             generic_substitutions,
         )
     })
+}
+
+fn payload_enum_pattern_target_expression_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some(ty) = typecheck_facts.expression_type_expr(expression.span()) else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+    type_expr_is_supported_payload_enum_value_for_sources(&ty, resolved, resolved_sources)
+        && payload_enum_pattern_target_expression_shape_is_buildable(expression, typecheck_facts)
+}
+
+fn payload_enum_pattern_target_expression_shape_is_buildable(
+    expression: &Expr,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(_) | Expr::Call(_) => true,
+        Expr::Member(member) => typecheck_facts
+            .enum_variant_target(member.member_span)
+            .is_some(),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            matches!(unwrap_group_expr(&unary.operand), Expr::Identifier(_))
+        }
+        _ => false,
+    }
 }
 
 fn switch_target_payloadless_enum_symbol<'a>(
@@ -5789,7 +5815,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.pattern_span,
                     "`if is` pattern branches",
-                    "use payloadless enum patterns or tag-only payload enum discard patterns over existing values, or keep payload binding code on the `check` path",
+                    "use payloadless enum patterns or tag-only payload enum patterns over existing values and supported call/constructor/move-local pattern targets, or keep unsupported payload binding code on the `check` path",
                 ));
             }
             collect_expression_diagnostics(
@@ -5836,8 +5862,8 @@ fn collect_statement_diagnostics(
                     );
                 }
             }
-            collect_control_condition_move_diagnostics(
-                &statement.expression,
+            collect_if_is_target_move_diagnostics(
+                statement,
                 sources,
                 resolved,
                 resolved_sources,
@@ -5936,8 +5962,8 @@ fn collect_statement_diagnostics(
                     );
                 }
             }
-            collect_control_condition_move_diagnostics(
-                &statement.expression,
+            collect_switch_target_move_diagnostics(
+                statement,
                 sources,
                 resolved,
                 resolved_sources,
@@ -6163,6 +6189,66 @@ fn collect_control_condition_move_diagnostics(
         "explicit aggregate moves in control-flow conditions",
         "select the branch before moving aggregate values until control-flow condition move lowering is promoted",
     ));
+}
+
+fn collect_if_is_target_move_diagnostics(
+    statement: &crate::ast::IfIsStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if if_is_statement_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return;
+    }
+
+    collect_control_condition_move_diagnostics(
+        &statement.expression,
+        sources,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+        diagnostics,
+    );
+}
+
+fn collect_switch_target_move_diagnostics(
+    statement: &crate::ast::SwitchStmt,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if switch_statement_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return;
+    }
+
+    collect_control_condition_move_diagnostics(
+        &statement.expression,
+        sources,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+        diagnostics,
+    );
 }
 
 fn collect_terminal_control_condition_move_diagnostics(

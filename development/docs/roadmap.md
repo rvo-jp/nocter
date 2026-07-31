@@ -60,16 +60,17 @@ for v0.2.0:
 
 - Continue the v0.2.0 payload enum promotion. Construction/local/return/value
   arguments, tag-only control flow, scalar, string/slice view, and copy
-  aggregate payload binding over existing values, and direct-drop aggregate
-  active cleanup, including multi-field payloads, are runtime-shipped in the
-  current subset. The next slice should design non-copy aggregate payload
-  binding and temporary-pattern control before broad collection expansion.
+  aggregate payload binding over existing values and supported
+  call/constructor/move-local pattern targets, and direct-drop aggregate active
+  cleanup, including multi-field payloads, are runtime-shipped in the current
+  subset. The next slice should design non-copy aggregate payload binding and
+  broader pattern target expressions before broad collection expansion.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.
 - Promote non-copy `Vec<T>` storage only after per-element drop behavior is
   designed and tested.
-- Promote broader payload enum binding and temporary-pattern control only after
+- Promote broader payload enum binding and pattern target expressions only after
   non-copy aggregate payload binding facts and temporary enum slots are stable.
 - Promote `std/process.env` only after nested fallible/optional return lowering
   and process-context storage are ready.

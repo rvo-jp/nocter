@@ -168,13 +168,13 @@
   borrow arguments, slice element operations, and aggregate move/drop boundaries.</li><li><code>check</code> accepts explicitly check-only constructs so tools can validate source
   syntax, imports, names, types, ownership, and diagnostics before runtime
   lowering is implemented.</li><li><code>build</code> and <code>run</code> must reject check-only constructs instead of silently choosing
-  placeholder runtime behavior.</li></ul><p>Initial check-only or not-yet-buildable surfaces:</p><ul><li>payload-carrying enum temporary-pattern control and non-copy aggregate
-  payload binding;
+  placeholder runtime behavior.</li></ul><p>Initial check-only or not-yet-buildable surfaces:</p><ul><li>payload-carrying enum non-copy aggregate payload binding and broader pattern
+  target expressions;
   payload-carrying enum construction, locals, returns, value arguments,
   tag-only <code>if is Enum.variant(_)</code> statements, tag-only <code>match</code> statements, and
   scalar, string/slice view, and copy aggregate payload binding over existing
-  enum values are buildable for the current payload subset, with active payload
-  cleanup
+  enum values and supported call/constructor/move-local pattern targets are
+  buildable for the current payload subset, with active payload cleanup
   additionally supported for direct-drop aggregate payload fields</li><li>string interpolation lowering until the explicit standard-library formatting
   construction path is complete</li><li>ordinary input-dependent <code>error</code> success-return helper calls outside direct
   <code>Error.new(...)</code>-style <code>(&amp;str, &amp;str) -&gt; error</code> failure payload construction
@@ -186,12 +186,14 @@
   pointer, or unsized data behind indirection</li><li>active move/drop state for each owned local place</li></ul><p>Backend and ABI lowering may rely on these facts and must not repeat semantic lookup. Lowering may compute target layout and calling convention details from the typed facts.</p><p>Rules fixed for v0:</p><ul><li>struct fields are laid out in declaration order</li><li>struct layout does not change when a <code>drop</code> member exists</li><li>payloadless enum values use the explicit <code>u8</code> tag layout specified by ABI v0</li><li>payload-carrying enum values use the tag-plus-payload-union layout specified
   by ABI v0</li><li>payload-carrying enum construction, locals, returns, value arguments,
   tag-only <code>if is Enum.variant(_)</code> statements, and tag-only <code>match</code> statements
-  may lower in the current payload subset over existing enum values;
+  may lower in the current payload subset over existing enum values and
+  supported call/constructor/move-local pattern targets;
   scalar, string/slice view, and copy aggregate payload binding may lower in
-  <code>if is</code> and <code>match</code> branches over existing enum values; active payload cleanup
-  may lower for direct-drop aggregate payload fields, including multi-field
-  payload cleanup in reverse aggregate field order; non-copy aggregate payload
-  binding and temporary-pattern control still reject before build/run</li><li>fixed arrays use contiguous element layout with a compile-time length</li><li>optional and fallible values use explicit tags</li><li>values of 16 bytes or less use direct ABI classification</li><li>values larger than 16 bytes use indirect ABI classification</li><li>drop glue must drop only live fields, initialized array elements, or active
+  <code>if is</code> and <code>match</code> branches over existing enum values and supported pattern
+  targets; active payload cleanup may lower for direct-drop aggregate payload
+  fields, including multi-field payload cleanup in reverse aggregate field
+  order; non-copy aggregate payload binding and broader pattern target
+  expressions still reject before build/run</li><li>fixed arrays use contiguous element layout with a compile-time length</li><li>optional and fallible values use explicit tags</li><li>values of 16 bytes or less use direct ABI classification</li><li>values larger than 16 bytes use indirect ABI classification</li><li>drop glue must drop only live fields, initialized array elements, or active
   payloads</li><li>moved-from owned places are dead until assigned a new value</li></ul><h2 id="string-type-contract">String Type Contract</h2><p><code>String</code> is an ordinary standard-library owned type, not a built-in type name. The compiler must not treat the identifier <code>String</code> as magic.</p><p>The compiler-owned string types are:</p><ul><li><code>str</code>: unsized UTF-8 byte data</li><li><code>&amp;str</code>: borrowed UTF-8 slice with <code>ptr + len</code> ABI</li></ul><p>String literals have type <code>&amp;str</code>, point at static storage, and do not allocate.</p><p>The v0 <code>String</code> contract for compiler and standard library integration:</p><ul><li><code>String</code> owns valid UTF-8 bytes</li><li><code>String</code> is move-only unless the standard library exposes an explicit copy API</li><li><code>String</code> releases its owned storage through its inherent <code>drop</code> member</li><li><code>String</code> can produce a borrowed <code>&amp;str</code> view</li><li>constructing a <code>String</code> from <code>&amp;str</code> is explicit and fallible</li><li>interpolation, if parsed, must not lower until the standard-library
   construction API is implemented</li></ul><p>The runtime representation is a standard-library ABI contract, not user-facing syntax. The initial implementation may use a pointer, length, and capacity representation, but source code must interact through ordinary associated functions and methods.</p><h2 id="tooling-contract">Tooling Contract</h2><p>CLI diagnostics and LSP features must use the same parser, resolver, and typecheck facts as the compiler pipeline.</p><p>Required shared facts for tooling:</p><ul><li>source spans for declarations and references</li><li>resolved symbol targets</li><li>normalized type labels for identifiers and expressions</li><li>function and method signature labels</li><li>member and field targets</li><li>diagnostic codes and source spans</li></ul><p>LSP-specific code may translate these facts into protocol objects, but it must not introduce separate language lookup rules.</p>
             </div>

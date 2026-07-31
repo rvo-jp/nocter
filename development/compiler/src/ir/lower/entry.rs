@@ -414,13 +414,14 @@ fn lower_entry_control_body_result(
     match unwrap_group(expression) {
         Expr::If(statement) => lower_entry_if_body_result(statement, return_type, context, sources),
         Expr::IfIs(statement) => {
-            let if_is = tag_only_if_is_as_control_flow(statement, context, "E8002")?;
+            let mut control_context = context.clone();
+            let if_is = tag_only_if_is_as_control_flow(statement, &mut control_context, "E8002")?;
             lower_entry_if_body_result_with_branch_prologues(
                 &if_is.statement,
                 &if_is.then_prologue,
                 &BranchPrologue::empty(),
                 return_type,
-                context,
+                &mut control_context,
                 sources,
             )
             .map(|result| {
@@ -432,8 +433,14 @@ fn lower_entry_control_body_result(
             })
         }
         Expr::Match(statement) => {
-            let switch = tag_only_switch_as_control_flow(statement, context, "E8002")?;
-            lower_entry_payloadless_switch_body_result(switch, return_type, context, sources)
+            let mut control_context = context.clone();
+            let switch = tag_only_switch_as_control_flow(statement, &mut control_context, "E8002")?;
+            lower_entry_payloadless_switch_body_result(
+                switch,
+                return_type,
+                &mut control_context,
+                sources,
+            )
         }
         _ => Ok(None),
     }
@@ -875,6 +882,7 @@ fn lower_leading_bindings(
                         attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
                     },
                 )?;
+                let target_cleanup = if_is.target_cleanup;
                 instructions.extend(if_is.leading_instructions);
                 instructions.extend(
                     lower_nonterminal_if_statement_with_branch_prologues(
@@ -892,6 +900,9 @@ fn lower_leading_bindings(
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)
                     })?,
                 );
+                if let Some(cleanup) = target_cleanup {
+                    cleanup.append_to(&mut instructions, context)?;
+                }
             }
             Stmt::Switch(statement) => {
                 instructions.extend(
