@@ -11520,6 +11520,80 @@ func main(): i32 {
     }
 
     #[test]
+    fn does_not_report_payload_enum_if_is_constructor_pattern_target() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if Result.ok(42) is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_payload_enum_if_is_move_pattern_target() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(42)
+    if move result is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_payload_enum_match_member_pattern_target() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    match Result.failed {
+        Result.ok(_) {
+            return 1
+        }
+
+        _ {
+            return 42
+        }
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn does_not_report_reachable_copy_payload_enum_construction() {
         let (sources, analysis) = analyze_text(
             r#"enum Result {
