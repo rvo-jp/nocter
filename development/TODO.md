@@ -10,6 +10,9 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `463af26 Drop owned struct fields recursively`
+  - `17bc706 Lower owned direct-drop payload bindings`
+  - `111c5bf Update handoff after payload ownership work`
   - `2493508 Define payload binding ownership modes`
   - `2762d98 Align payload pattern target specification`
   - `13f98f6 Diagnose unsupported payload bindings precisely`
