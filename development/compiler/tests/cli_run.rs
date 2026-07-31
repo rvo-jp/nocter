@@ -10468,6 +10468,48 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_multi_field_payload_enum_payloads_in_reverse_order_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-multi-payload-scope-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_multi_payload_scope_drop.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(first: Payload, second: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ code: 10 }, Payload{ code: 20 })
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(20),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_skips_inactive_payload_enum_payload_scope_drop_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-inactive-payload-scope-drop");
     write_process_exit_home(&project);

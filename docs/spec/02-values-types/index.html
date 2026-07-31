@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-07-30">
+    <meta property="article:modified_time" content="2026-07-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Values and Types - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Values and Types - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/02-values-types/","mainEntityOfPage":"https://nocter.dev/spec/02-values-types/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"02 Values Types","item":"https://nocter.dev/spec/02-values-types/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Values and Types - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/02-values-types/","mainEntityOfPage":"https://nocter.dev/spec/02-values-types/","dateModified":"2026-07-31","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"02 Values Types","item":"https://nocter.dev/spec/02-values-types/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -380,8 +380,8 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
 </code></pre><p>Rules:</p><ul><li><code>match</code> may be used as a statement or as an expression.</li><li>Match arms use <code>Pattern { ... }</code>.</li><li><code>_ { ... }</code> is the fallback arm and matches any remaining value.</li><li>A <code>match</code> may have at most one <code>_</code> fallback arm.</li><li>The <code>_</code> fallback arm must be the last arm.</li><li>When <code>match</code> is used as an expression, each selected arm body result is the expression value.</li><li>A <code>match</code> expression without <code>_</code> must cover all variants to avoid a <code>void</code> missing-branch type.</li><li>Match expression arm result types must be compatible. A <code>never</code> arm is compatible with the other result type.</li><li><code>match</code> without <code>_</code> is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.</li><li><code>match</code> with <code>_</code> is treated as a terminating statement when every explicit arm and the <code>_</code> arm terminate.</li><li>In the v0 backend, payloadless enum <code>match</code> statements and supported
   payloadless enum <code>match</code> expressions lower through the enum tag ABI.</li><li>Payload-carrying enum construction, local storage, returns, and value
   arguments lower in the current runtime-supported payload subset: copy/no-drop
-  payloads, plus variants with one direct-drop aggregate payload when active
-  payload cleanup is required.</li><li>Tag-only payload-carrying enum <code>if is Enum.variant(_)</code> statements and
+  payloads, plus direct-drop aggregate payload fields when active payload
+  cleanup is required.</li><li>Tag-only payload-carrying enum <code>if is Enum.variant(_)</code> statements and
   tag-only payload-carrying enum <code>match</code> statements lower over existing enum
   bindings and parameters in the current runtime-supported payload subset,
   including wildcard-only, nonexhaustive no-wildcard, and exhaustive
@@ -390,11 +390,13 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   enum bindings and parameters when the payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>,
   <code>bool</code>, <code>&amp;str</code>, a slice view, or a copy aggregate value. The binding is
   loaded only inside the matching branch.</li><li>Payload-carrying enum active payload cleanup lowers for runtime-supported enum
-  values whose droppable variants each have exactly one direct-drop aggregate
-  payload. Scope-end cleanup, parameter cleanup, discarded call results,
-  call-result bindings, and whole-local replacement drop only the active payload.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over temporary expressions,
-  non-copy aggregate payload binding, and multi-field droppable payload cleanup
-  are typechecked in v0 but still reject before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
+  values whose droppable variants have direct-drop aggregate payload fields.
+  Scope-end cleanup, parameter cleanup, discarded call results, call-result
+  bindings, and whole-local replacement drop only the active payload fields.
+  Multi-field payload cleanup drops active direct-drop fields in reverse
+  aggregate field order.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over temporary expressions and
+  non-copy aggregate payload binding are typechecked in v0 but still reject
+  before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid
   <code>if is</code> pattern.</li></ul><p>Example value selection:</p><pre><code class="language-nct"><span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>
     <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span> <span class="token-function">missing_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>

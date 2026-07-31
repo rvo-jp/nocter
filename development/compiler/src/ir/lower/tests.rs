@@ -4243,6 +4243,80 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_scope_end_drop_for_multi_field_active_payload_enum_payload() {
+    let ir = lower_text(
+        r#"struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(first: Payload, second: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload{ code: 10 }, Payload{ code: 20 })
+    return 0
+}
+"#,
+    );
+    let main = &ir.functions[0];
+
+    let drop_then_instructions = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::If {
+                then_instructions, ..
+            } if !then_instructions.is_empty()
+                && then_instructions.iter().all(|then_instruction| {
+                    matches!(
+                        then_instruction,
+                        Instruction::CallVoid {
+                            target,
+                            ..
+                        } if target == &CallTarget::same_file("Payload.drop")
+                    )
+                }) =>
+            {
+                Some(then_instructions)
+            }
+            _ => None,
+        })
+        .expect("expected active payload drop branch");
+
+    assert_eq!(
+        drop_then_instructions,
+        &vec![
+            Instruction::CallVoid {
+                target: CallTarget::same_file("Payload.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField {
+                        slot_index: 0,
+                        offset: 8,
+                    },
+                })],
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("Payload.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField {
+                        slot_index: 0,
+                        offset: 4,
+                    },
+                })],
+            },
+        ]
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_for_inactive_payload_enum_payload() {
     let ir = lower_text(
         r#"struct Payload {

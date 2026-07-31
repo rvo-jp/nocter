@@ -1,5 +1,6 @@
 use crate::abi::{
     AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver, layout_of,
+    layout_struct,
 };
 use crate::ast::{
     CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
@@ -1625,6 +1626,11 @@ pub(super) struct PayloadEnumDrop {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PayloadEnumDropVariant {
     pub(super) tag: u8,
+    pub(super) fields: Vec<PayloadEnumDropField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDropField {
     pub(super) payload_offset: u32,
     pub(super) payload_layout: ValueLayout,
     pub(super) drop_glue: DropGlue,
@@ -1809,33 +1815,116 @@ where
     match variant.payload.as_slice() {
         [] => Ok(None),
         [payload] => {
-            let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
-            let Some(drop_glue) = drop_glue_for_type_expr_with_resolver(
-                &ty,
+            let Some(field) = payload_enum_drop_field_for_payload(
+                &payload.ty,
+                abi_variant.payload.as_ref().ok_or(())?,
+                payload_offset,
                 root_source,
                 fallback_resolved,
                 resolver,
-            ) else {
+                substitutions,
+            )?
+            else {
                 return Ok(None);
             };
-            let payload_abi = abi_variant.payload.as_ref().ok_or(())?;
-            let payload_layout = layout_of(payload_abi).map_err(|_| ())?;
             Ok(Some(PayloadEnumDropVariant {
                 tag: abi_variant.tag,
-                payload_offset,
-                payload_layout,
-                drop_glue,
+                fields: vec![field],
             }))
         }
         payloads => {
-            let has_drop_payload = payloads.iter().any(|payload| {
-                let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
-                drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver)
-                    .is_some()
-            });
-            if has_drop_payload { Err(()) } else { Ok(None) }
+            let Some(AbiType::Struct(abi_fields)) = abi_variant.payload.as_ref() else {
+                return Err(());
+            };
+            if payloads.len() != abi_fields.len() {
+                return Err(());
+            }
+            let layout = layout_struct(abi_fields).map_err(|_| ())?;
+            if payloads.len() != layout.fields.len() {
+                return Err(());
+            }
+
+            let mut fields = Vec::new();
+            for ((payload, abi_field), field_layout) in payloads
+                .iter()
+                .zip(abi_fields.iter())
+                .zip(layout.fields.iter())
+            {
+                let field_offset = payload_offset
+                    .checked_add(u32::try_from(field_layout.offset).map_err(|_| ())?)
+                    .ok_or(())?;
+                if let Some(field) = payload_enum_drop_field_for_payload(
+                    &payload.ty,
+                    &abi_field.ty,
+                    field_offset,
+                    root_source,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                )? {
+                    fields.push(field);
+                }
+            }
+            if fields.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(PayloadEnumDropVariant {
+                tag: abi_variant.tag,
+                fields,
+            }))
         }
     }
+}
+
+fn payload_enum_drop_field_for_payload<'a, F>(
+    payload_ty: &TypeExpr,
+    payload_abi: &AbiType,
+    payload_offset: u32,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Result<Option<PayloadEnumDropField>, ()>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let ty = substitute_type_expr_parameters(payload_ty, substitutions);
+    let direct_drop_glue =
+        direct_drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver);
+    let Some(drop_glue) = direct_drop_glue else {
+        let active_drop_glue =
+            drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver);
+        return if active_drop_glue.is_some() {
+            Err(())
+        } else {
+            Ok(None)
+        };
+    };
+    let payload_layout = layout_of(payload_abi).map_err(|_| ())?;
+    Ok(Some(PayloadEnumDropField {
+        payload_offset,
+        payload_layout,
+        drop_glue,
+    }))
+}
+
+fn direct_drop_glue_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<DropGlue>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    drop_glue_for_type_expr_inner(
+        ty,
+        root_source,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+        false,
+    )
 }
 
 fn payload_enum_symbol_and_substitutions_for_type_expr<'a, F>(
@@ -1941,6 +2030,7 @@ where
         fallback_resolved,
         &resolver,
         &mut HashSet::new(),
+        true,
     )
 }
 
@@ -1950,27 +2040,30 @@ fn drop_glue_for_type_expr_inner<'a, F>(
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
     resolving_names: &mut HashSet<String>,
+    peel_tagged_payloads: bool,
 ) -> Option<DropGlue>
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Fallible(fallible) => {
+        TypeExpr::Fallible(fallible) if peel_tagged_payloads => {
             return drop_glue_for_type_expr_inner(
                 &fallible.success,
                 root_source,
                 fallback_resolved,
                 resolver,
                 resolving_names,
+                peel_tagged_payloads,
             );
         }
-        TypeExpr::Optional(optional) => {
+        TypeExpr::Optional(optional) if peel_tagged_payloads => {
             return drop_glue_for_type_expr_inner(
                 &optional.inner,
                 root_source,
                 fallback_resolved,
                 resolver,
                 resolving_names,
+                peel_tagged_payloads,
             );
         }
         _ => {}
@@ -2007,6 +2100,7 @@ where
             fallback_resolved,
             resolver,
             resolving_names,
+            peel_tagged_payloads,
         );
         resolving_names.remove(&type_symbol.canonical_name);
         return drop_glue;

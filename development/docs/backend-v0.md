@@ -118,18 +118,20 @@ includes:
   subset
 - payload-carrying enum `if is Enum.variant(binding)` statements and value
   expressions over existing enum bindings and parameters when the bound payload
-  ABI is `i32`, `u8`, `usize`, `bool`, or `&str`
+  ABI is `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, or a copy
+  aggregate value
 - tag-only payload-carrying enum `match` statements over existing enum bindings
   and parameters in the current runtime-supported payload subset, including
   wildcard-only, nonexhaustive no-wildcard, and exhaustive no-wildcard
   statement forms
 - payload-carrying enum `match` statement and value-expression arm bindings over
   existing enum bindings and parameters when the bound payload ABI is `i32`,
-  `u8`, `usize`, `bool`, or `&str`
+  `u8`, `usize`, `bool`, `&str`, a slice view, or a copy aggregate value
 - active payload cleanup for payload-carrying enum values whose droppable
-  variants each have exactly one direct-drop aggregate payload, covering
+  variants have direct-drop aggregate payload fields, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
-  bindings, and whole-local replacement
+  bindings, whole-local replacement, and multi-field payload cleanup in reverse
+  aggregate field order
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -141,8 +143,8 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-non-copy aggregate payload binding, multi-field droppable payload cleanup,
-payload enum temporary-pattern control, broader field-level live-state tracking,
+non-copy aggregate payload binding, payload enum temporary-pattern control,
+broader field-level live-state tracking,
 non-copy aggregate collection elements, arrays, broad control-flow joins, and
 unsupported expression shapes.
 

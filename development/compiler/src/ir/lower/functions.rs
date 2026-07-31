@@ -11,8 +11,8 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource,
     BorrowParameter, ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter,
-    LoweringContext, LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropVariant,
-    PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
+    LoweringContext, LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropField,
+    PayloadEnumDropVariant, PendingAggregateDrop, ResolvedSources, SliceTypeInfo,
     aggregate_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{
@@ -4008,13 +4008,11 @@ fn lower_payload_enum_drop_variant_if(
     variant: &PayloadEnumDropVariant,
     context: &LoweringContext,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    let Some(parameter_types) = context.call_parameter_types(&variant.drop_glue.target) else {
-        return Err(unsupported_drop_statement_diagnostic(name));
-    };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_local(&parameter_types[0], variant.payload_layout)
-    {
-        return Err(unsupported_drop_statement_diagnostic(name));
+    let mut then_instructions = Vec::new();
+    for field in variant.fields.iter().rev() {
+        then_instructions.push(lower_payload_enum_drop_field(
+            name, slot_index, field, context,
+        )?);
     }
 
     Ok(Instruction::If {
@@ -4023,16 +4021,34 @@ fn lower_payload_enum_drop_variant_if(
             left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(tag))),
             right: I32Value::U8ZeroExtend(Box::new(U8Value::Const(variant.tag))),
         },
-        then_instructions: vec![Instruction::CallVoid {
-            target: variant.drop_glue.target.clone(),
-            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                source: BorrowSource::AggregateSlotField {
-                    slot_index,
-                    offset: variant.payload_offset,
-                },
-            })],
-        }],
+        then_instructions,
         else_instructions: Vec::new(),
+    })
+}
+
+fn lower_payload_enum_drop_field(
+    name: &str,
+    slot_index: usize,
+    field: &PayloadEnumDropField,
+    context: &LoweringContext,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let Some(parameter_types) = context.call_parameter_types(&field.drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_local(&parameter_types[0], field.payload_layout)
+    {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    }
+
+    Ok(Instruction::CallVoid {
+        target: field.drop_glue.target.clone(),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index,
+                offset: field.payload_offset,
+            },
+        })],
     })
 }
 

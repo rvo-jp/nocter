@@ -4472,7 +4472,7 @@ where
         }
         payloads => payloads.iter().all(|payload| {
             let ty = substitute_type_expr_parameters(&payload.ty, substitutions);
-            payload_enum_payload_type_is_supported(&ty, fallback_resolved, resolver, false)
+            payload_enum_payload_type_is_supported(&ty, fallback_resolved, resolver, true)
         }),
     }
 }
@@ -11504,7 +11504,7 @@ func main(): i32 {
     }
 
     #[test]
-    fn reports_reachable_payload_enum_multi_drop_payload_before_ir_lowering() {
+    fn does_not_report_reachable_payload_enum_multi_drop_payload_construction() {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11530,16 +11530,11 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("payload enum values")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn reports_reachable_scope_drop_body_before_ir_lowering() {
+    fn does_not_report_reachable_scope_drop_body_with_multi_field_payload_enum() {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11576,16 +11571,11 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("payload enum values")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn reports_reachable_generic_scope_drop_body_before_ir_lowering() {
+    fn does_not_report_reachable_generic_scope_drop_body_with_multi_field_payload_enum() {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11622,16 +11612,11 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("payload enum values")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn reports_reachable_field_replacement_drop_body_before_ir_lowering() {
+    fn does_not_report_reachable_field_replacement_drop_body_with_multi_field_payload_enum() {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11673,16 +11658,12 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("payload enum values")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn reports_reachable_generic_field_replacement_drop_body_before_ir_lowering() {
+    fn does_not_report_reachable_generic_field_replacement_drop_body_with_multi_field_payload_enum()
+    {
         let (sources, analysis) = analyze_text(
             r#"struct Payload {
     value: i32
@@ -11724,12 +11705,7 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("payload enum values")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

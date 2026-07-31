@@ -8029,8 +8029,8 @@ func source(): &+[Text] {
 }
 
 #[test]
-fn build_command_reports_scope_drop_body_before_ir_lowering() {
-    let project = TempProject::new("cli-build-scope-drop-body-boundary");
+fn build_command_accepts_scope_drop_body_with_multi_field_payload_enum() {
+    let project = TempProject::new("cli-build-scope-drop-body-multi-payload");
     let source = project.write_source(
         "scope_drop_body_boundary.nct",
         r#"struct Payload {
@@ -8069,33 +8069,13 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("payload enum values"),
-        "expected payload enum diagnostic from drop body, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_field_replacement_drop_body_before_ir_lowering() {
-    let project = TempProject::new("cli-build-field-replacement-drop-body-boundary");
+fn build_command_accepts_field_replacement_drop_body_with_multi_field_payload_enum() {
+    let project = TempProject::new("cli-build-field-replacement-drop-body-multi-payload");
     let source = project.write_source(
         "field_replacement_drop_body_boundary.nct",
         r#"struct Payload {
@@ -8139,28 +8119,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("payload enum values"),
-        "expected payload enum diagnostic from field drop body, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("let result = Result.ok(Payload{ value: 1 }, Payload{ value: 2 })"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -9285,10 +9245,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_enum_multi_drop_payload_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-enum-multi-drop-payload-boundary");
+fn build_command_accepts_payload_enum_multi_drop_payload_construction() {
+    let project = TempProject::new("cli-build-payload-enum-multi-drop-payload-construction");
     let source = project.write_source(
-        "payload_enum_multi_drop_payload_boundary.nct",
+        "payload_enum_multi_drop_payload_construction.nct",
         r#"struct Payload {
     value: i32
 }
@@ -9314,28 +9274,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("payload enum values"),
-        "expected payload enum diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("let result = Result.ok(Payload{ value: 10 }, Payload{ value: 20 })"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

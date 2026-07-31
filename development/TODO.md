@@ -367,11 +367,11 @@ Recommended order:
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
   `bool`, `&str`, and copy aggregate payloads over existing enum bindings and
   parameters.
-  Single direct-drop aggregate payload variants now drop only the active payload
+  Direct-drop aggregate payload fields now drop only the active payload fields
   in scope, parameter, discarded call-result, call-result binding, and
-  whole-local replacement cleanup paths. Slice and non-copy aggregate payload
-  binding, temporary-pattern control, and multi-field droppable payload cleanup
-  remain the next promotion boundary.
+  whole-local replacement cleanup paths, including multi-field payloads in
+  reverse aggregate field order. Non-copy aggregate payload binding plus
+  temporary-pattern control remain the next promotion boundary.
 - CLI build coverage now pins payload `if is` statement/value-expression and
   payload `match` statement/value-expression forms over call targets as E0435
   preflight boundaries, matching the current temporary-pattern control deferral
