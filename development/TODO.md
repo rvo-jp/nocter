@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `2493508 Define payload binding ownership modes`
+  - `2762d98 Align payload pattern target specification`
   - `13f98f6 Diagnose unsupported payload bindings precisely`
   - `73fe9d3 Lower storage-only integer field literals`
   - `424e3a9 Guard storage-only integer computations`
