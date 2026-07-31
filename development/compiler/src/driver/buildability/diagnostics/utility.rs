@@ -22,6 +22,21 @@ pub(in crate::driver::buildability) fn unsupported_v0_build_diagnostic(
     diagnostic
 }
 
+pub(in crate::driver::buildability) fn unsupported_payload_binding_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    control: &str,
+) -> Diagnostic {
+    unsupported_v0_build_diagnostic(
+        sources,
+        span,
+        &format!(
+            "payload bindings outside runtime scalar/view and copy aggregate types in {control}"
+        ),
+        "bind an `i32`, `u8`, `usize`, `bool`, `&str`, slice view, or copy aggregate payload; use `_` to discard other payloads until ownership-aware payload extraction is promoted",
+    )
+}
+
 pub(in crate::driver::buildability) fn call_target_for_source(
     source: SourceId,
     root_source: SourceId,

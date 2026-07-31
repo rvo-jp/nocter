@@ -297,7 +297,49 @@ func main(): i32 {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("`match` expressions")),
+            .any(|diagnostic| diagnostic.message.contains(
+                "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
+            )),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn reports_reachable_payload_match_statement_non_copy_binding_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    match result {
+        Result.ok(value) { return value.code }
+        _ { return 0 }
+    }
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
+            )),
         "{diagnostics:?}"
     );
 }
@@ -329,7 +371,9 @@ func main(): i32 {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("`if is` pattern branches")),
+            .any(|diagnostic| diagnostic.message.contains(
+                "payload bindings outside runtime scalar/view and copy aggregate types in `if is`"
+            )),
         "{diagnostics:?}"
     );
     assert!(

@@ -722,12 +722,23 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             }
         }
         Expr::IfIs(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                expression.span,
-                "`if is` expressions",
-                "use an explicit `if is` statement with `return` until backend expression lowering is promoted",
-            ));
+            let diagnostic = unsupported_if_is_payload_binding_span(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
+            .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
+            .unwrap_or_else(|| {
+                unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.span,
+                    "`if is` expressions",
+                    "use an explicit `if is` statement with `return` until backend expression lowering is promoted",
+                )
+            });
+            diagnostics.push(diagnostic);
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,
@@ -773,12 +784,23 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             }
         }
         Expr::Match(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                expression.span,
-                "`match` expressions",
-                "use an explicit `match` statement with `return` until backend expression lowering is promoted",
-            ));
+            let diagnostic = unsupported_switch_payload_binding_span(
+                expression,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
+            .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
+            .unwrap_or_else(|| {
+                unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.span,
+                    "`match` expressions",
+                    "use an explicit `match` statement with `return` until backend expression lowering is promoted",
+                )
+            });
+            diagnostics.push(diagnostic);
             collect_expression_diagnostics(
                 &expression.expression,
                 sources,

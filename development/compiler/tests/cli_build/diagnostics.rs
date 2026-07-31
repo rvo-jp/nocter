@@ -1607,8 +1607,10 @@ func describe(error: AppError): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`if is` pattern branches"),
-        "expected if-is diagnostic, got:\n{stderr}"
+        stderr.contains(
+            "payload bindings outside runtime scalar/view and copy aggregate types in `if is`"
+        ),
+        "expected payload binding diagnostic, got:\n{stderr}"
     );
     assert!(
         stderr.contains("21 |     if error is AppError.open_failed(detail) {"),
@@ -2534,11 +2536,13 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`match` expressions"),
-        "expected match expression diagnostic, got:\n{stderr}"
+        stderr.contains(
+            "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
+        ),
+        "expected payload binding diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("18 |     return match result {"),
+        stderr.contains("19 |         Result.ok(value) { value.code }"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

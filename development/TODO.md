@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `73fe9d3 Lower storage-only integer field literals`
   - `424e3a9 Guard storage-only integer computations`
   - `54a795a Reject stored wrapper locals before IR lowering`
   - `5f0d2aa Split buildability variant rules by responsibility`
@@ -420,6 +421,11 @@ Recommended order:
   including signed minimum values. Computed conversions into those storage-only
   widths reject with source-backed E0435; field reads remain encapsulated until
   standalone scalar lowering is promoted.
+- Payload-pattern buildability diagnostics now classify unsupported binding
+  types separately from unsupported `if is` / `match` target shapes. Non-copy
+  aggregate payload bindings point at the binding itself and state the shipped
+  scalar/view/copy-aggregate boundary, providing a stable ownership-promotion
+  seam instead of a generic control-expression rejection.
 
 ## Session Start
 

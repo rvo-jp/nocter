@@ -402,12 +402,23 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    statement.pattern_span,
-                    "`if is` pattern branches",
-                    "use payloadless enum patterns or tag-only payload enum patterns over existing values and supported call/constructor/move-local pattern targets, or keep unsupported payload binding code on the `check` path",
-                ));
+                let diagnostic = unsupported_if_is_payload_binding_span(
+                    statement,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                )
+                .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
+                .unwrap_or_else(|| {
+                    unsupported_v0_build_diagnostic(
+                        sources,
+                        statement.pattern_span,
+                        "`if is` pattern branches",
+                        "use payloadless enum patterns or supported payload bindings over existing values and supported call/constructor/move-local pattern targets",
+                    )
+                });
+                diagnostics.push(diagnostic);
             }
             collect_expression_diagnostics(
                 &statement.expression,
@@ -501,12 +512,23 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    statement.span,
-                    "`match` statements",
-                    "use payloadless enum `match` arms or tag-only payload enum discard arms over existing values, or keep payload binding code on the `check` path",
-                ));
+                let diagnostic = unsupported_switch_payload_binding_span(
+                    statement,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                )
+                .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
+                .unwrap_or_else(|| {
+                    unsupported_v0_build_diagnostic(
+                        sources,
+                        statement.span,
+                        "`match` statements",
+                        "use payloadless enum arms or supported payload bindings over existing values and supported call/constructor/move-local pattern targets",
+                    )
+                });
+                diagnostics.push(diagnostic);
             }
             collect_expression_diagnostics(
                 &statement.expression,
