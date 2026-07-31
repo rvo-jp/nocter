@@ -831,3 +831,17 @@ pub(super) fn lower_terminal_switch_block_for_success_type(
     };
     Ok(Some(branch_instructions))
 }
+
+pub(in crate::ir::lower) fn reachable_body_prefix<'a>(
+    statements: &'a [Stmt],
+    result: Option<&'a Expr>,
+    context: &LoweringContext,
+) -> (&'a [Stmt], Option<&'a Expr>) {
+    for (index, statement) in statements.iter().enumerate() {
+        if statement_exits_function(statement, context) {
+            return (&statements[..=index], None);
+        }
+    }
+
+    (statements, result)
+}

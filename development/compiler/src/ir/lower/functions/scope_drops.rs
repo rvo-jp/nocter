@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn lower_scope_end_drop_instructions(
+pub(in crate::ir::lower) fn lower_scope_end_drop_instructions(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let pending = context.pending_aggregate_drops();
@@ -11,7 +11,7 @@ pub(super) fn lower_scope_end_drop_instructions(
     Ok(instructions)
 }
 
-pub(super) fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
+pub(in crate::ir::lower) fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
     matches!(
         instruction,
         Instruction::Return
@@ -22,14 +22,14 @@ pub(super) fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
     )
 }
 
-pub(super) fn mark_pending_aggregate_drops(context: &mut LoweringContext) {
+pub(in crate::ir::lower) fn mark_pending_aggregate_drops(context: &mut LoweringContext) {
     let pending = context.pending_aggregate_drops();
     for drop_ in &pending {
         context.mark_aggregate_local_dropped(&drop_.name);
     }
 }
 
-pub(super) fn lower_pending_aggregate_drop(
+pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
     drop_: &PendingAggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -42,7 +42,10 @@ pub(super) fn lower_pending_aggregate_drop(
     )
 }
 
-pub(super) fn mark_explicit_moves_in_block(block: &Block, context: &mut LoweringContext) {
+pub(in crate::ir::lower) fn mark_explicit_moves_in_block(
+    block: &Block,
+    context: &mut LoweringContext,
+) {
     for statement in &block.statements {
         mark_lowered_statement_aggregate_uses(statement, context);
     }
@@ -51,7 +54,7 @@ pub(super) fn mark_explicit_moves_in_block(block: &Block, context: &mut Lowering
     }
 }
 
-pub(super) fn expression_contains_explicit_aggregate_move_matching(
+pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_matching(
     expression: &Expr,
     context: &LoweringContext,
     matches_move: &impl Fn(&str, &LoweringContext) -> bool,
@@ -221,7 +224,7 @@ pub(super) fn expression_contains_explicit_aggregate_move_matching(
     }
 }
 
-pub(super) fn block_contains_explicit_aggregate_move_matching(
+pub(in crate::ir::lower) fn block_contains_explicit_aggregate_move_matching(
     block: &Block,
     context: &LoweringContext,
     matches_move: &impl Fn(&str, &LoweringContext) -> bool,
@@ -233,7 +236,7 @@ pub(super) fn block_contains_explicit_aggregate_move_matching(
     })
 }
 
-pub(super) fn statement_contains_explicit_aggregate_move_matching(
+pub(in crate::ir::lower) fn statement_contains_explicit_aggregate_move_matching(
     statement: &Stmt,
     context: &LoweringContext,
     matches_move: &impl Fn(&str, &LoweringContext) -> bool,
@@ -334,7 +337,7 @@ pub(super) fn statement_contains_explicit_aggregate_move_matching(
     }
 }
 
-pub(super) fn drop_parameter_matches_local(
+pub(in crate::ir::lower) fn drop_parameter_matches_local(
     parameter_type: &Type,
     layout: crate::abi::ValueLayout,
 ) -> bool {
@@ -358,9 +361,271 @@ pub(super) fn drop_parameter_matches_local(
     }
 }
 
-pub(super) fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
+pub(in crate::ir::lower) fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
         format!("IR v0 cannot lower drop statement for binding `{name}`"),
     )]
+}
+
+pub(in crate::ir::lower) fn lower_drop_statement(
+    statement: &DropStmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(local) = context.aggregate_local(&statement.name) else {
+        return Err(unsupported_drop_statement_diagnostic(&statement.name));
+    };
+    let Some(drop_kind) = local.drop_kind else {
+        context.mark_aggregate_local_dropped(&statement.name);
+        return Ok(Vec::new());
+    };
+
+    context.mark_aggregate_local_dropped(&statement.name);
+    lower_aggregate_drop_instructions(
+        &statement.name,
+        local.slot_index,
+        local.layout,
+        &drop_kind,
+        context,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_never_expression_with_scope_drops(
+    expression: &Expr,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(instructions) = lower_never_return_expression(expression, context)? else {
+        return Ok(None);
+    };
+    mark_explicit_moves_in_expression(expression, context);
+    append_scope_end_drops_before_exit(instructions, context).map(Some)
+}
+
+pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(
+    mut instructions: Vec<Instruction>,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(return_index) = instructions.iter().rposition(is_scope_exit_instruction) else {
+        return Ok(instructions);
+    };
+    let drops = lower_scope_end_drop_instructions(context)?;
+    instructions.splice(return_index..return_index, drops);
+    mark_pending_aggregate_drops(context);
+    Ok(instructions)
+}
+
+pub(in crate::ir::lower) fn propagating_failure_mode(
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let instructions = lower_scope_end_drop_instructions(context)?;
+    if instructions.is_empty() {
+        return Ok(FallibleFailureMode::Propagate);
+    }
+    let (code, message) = context.next_error_local_locations()?;
+    Ok(FallibleFailureMode::PropagateWithCleanup {
+        code,
+        message,
+        instructions,
+    })
+}
+
+pub(in crate::ir::lower) fn replacement_drop_for_aggregate_slot(
+    slot_index: usize,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(drop_) = context.pending_aggregate_drop_by_slot(slot_index) else {
+        return Ok(Vec::new());
+    };
+    lower_pending_aggregate_drop(&drop_, context)
+}
+
+pub(in crate::ir::lower) fn lower_scope_end_drops_for_locals_since(
+    context: &mut LoweringContext,
+    local_mark: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let pending = context.pending_aggregate_drops_since(local_mark);
+    let mut instructions = Vec::new();
+    for drop_ in &pending {
+        instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
+    }
+    for drop_ in &pending {
+        context.mark_aggregate_local_dropped(&drop_.name);
+    }
+    Ok(instructions)
+}
+
+pub(in crate::ir::lower) fn lower_aggregate_drop_instructions(
+    name: &str,
+    slot_index: usize,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match drop_kind {
+        AggregateDrop::Direct(drop_glue) => {
+            lower_direct_aggregate_drop_instruction(name, slot_index, layout, drop_glue, context)
+                .map(|instruction| vec![instruction])
+        }
+        AggregateDrop::PayloadEnum(drop_) => {
+            lower_payload_enum_drop_instructions(name, slot_index, drop_, context)
+        }
+    }
+}
+
+pub(in crate::ir::lower) fn mark_lowered_statement_aggregate_uses(
+    statement: &Stmt,
+    context: &mut LoweringContext,
+) {
+    match statement {
+        Stmt::Binding(statement) => {
+            mark_explicit_moves_in_expression(&statement.initializer, context);
+        }
+        Stmt::Assignment(statement) => {
+            if let Expr::Identifier(identifier) = unwrap_group(&statement.target) {
+                context.mark_aggregate_local_initialized(&identifier.name);
+            }
+            mark_explicit_moves_in_expression(&statement.value, context);
+        }
+        Stmt::Expression(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+        }
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                mark_explicit_moves_in_expression(expression, context);
+            }
+        }
+        Stmt::Import(_) | Stmt::FromImport(_) => {}
+        Stmt::Drop(_)
+        | Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::Loop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => {}
+    }
+}
+
+pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+) {
+    match expression {
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
+                context.mark_aggregate_local_moved(&identifier.name);
+            } else {
+                mark_explicit_moves_in_expression(&unary.operand, context);
+            }
+        }
+        Expr::ArrayLiteral(literal) => {
+            for element in &literal.elements {
+                mark_explicit_moves_in_expression(element, context);
+            }
+        }
+        Expr::StructLiteral(literal) => {
+            for field in &literal.fields {
+                mark_explicit_moves_in_expression(&field.value, context);
+            }
+        }
+        Expr::Propagate(propagation) => {
+            mark_explicit_moves_in_expression(&propagation.expression, context);
+        }
+        Expr::Force(force) => {
+            mark_explicit_moves_in_expression(&force.expression, context);
+        }
+        Expr::Catch(catch) => {
+            mark_explicit_moves_in_expression(&catch.expression, context);
+        }
+        Expr::Borrow(borrow) => {
+            mark_explicit_moves_in_expression(&borrow.expression, context);
+        }
+        Expr::Unary(unary) => {
+            mark_explicit_moves_in_expression(&unary.operand, context);
+        }
+        Expr::Binary(binary) => {
+            mark_explicit_moves_in_expression(&binary.left, context);
+            mark_explicit_moves_in_expression(&binary.right, context);
+        }
+        Expr::TypeConversion(conversion) => {
+            mark_explicit_moves_in_expression(&conversion.expression, context);
+        }
+        Expr::Call(call) => {
+            mark_explicit_moves_in_expression(&call.callee, context);
+            for argument in &call.arguments {
+                mark_explicit_moves_in_expression(argument, context);
+            }
+        }
+        Expr::Member(member) => {
+            mark_explicit_moves_in_expression(&member.object, context);
+        }
+        Expr::Index(index) => {
+            mark_explicit_moves_in_expression(&index.object, context);
+            mark_explicit_moves_in_expression(&index.index, context);
+        }
+        Expr::Group(group) => {
+            mark_explicit_moves_in_expression(&group.expression, context);
+        }
+        Expr::Otherwise(otherwise) => {
+            mark_explicit_moves_in_expression(&otherwise.value, context);
+            mark_explicit_moves_in_block(&otherwise.fallback, context);
+        }
+        Expr::If(statement) => {
+            mark_explicit_moves_in_expression(&statement.condition, context);
+            mark_explicit_moves_in_block(&statement.then_block, context);
+            if let Some(block) = &statement.else_block {
+                mark_explicit_moves_in_block(block, context);
+            }
+        }
+        Expr::IfIs(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+            mark_explicit_moves_in_block(&statement.then_block, context);
+            if let Some(block) = &statement.else_block {
+                mark_explicit_moves_in_block(block, context);
+            }
+        }
+        Expr::Match(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+            for arm in &statement.arms {
+                mark_explicit_moves_in_block(&arm.body, context);
+            }
+            if let Some(arm) = &statement.wildcard_arm {
+                mark_explicit_moves_in_block(&arm.body, context);
+            }
+        }
+        Expr::InterpolatedString(interpolated) => {
+            for part in &interpolated.parts {
+                if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                    mark_explicit_moves_in_expression(&part.expression, context);
+                }
+            }
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
+        context.aggregate_local(name).is_some()
+    })
+}
+
+pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_outside(
+    expression: &Expr,
+    context: &LoweringContext,
+    local_mark: usize,
+) -> bool {
+    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
+        context.aggregate_local(name).is_some()
+            && !context.aggregate_local_defined_since(name, local_mark)
+    })
 }
