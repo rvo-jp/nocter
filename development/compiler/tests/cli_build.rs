@@ -6173,6 +6173,108 @@ func make_ok(): Result {
 }
 
 #[test]
+fn build_command_reports_payload_if_is_expression_discard_call_target_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-expression-discard-call-target");
+    let source = project.write_source(
+        "payload_if_is_expression_discard_call_target_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    return if make_ok() is Result.ok(_) {
+        1
+    } else {
+        0
+    }
+}
+
+func make_ok(): Result {
+    return Result.ok(10)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`if is` expressions"),
+        "expected if-is expression diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     return if make_ok() is Result.ok(_) {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_payload_if_is_expression_binding_call_target_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-if-is-expression-binding-call-target");
+    let source = project.write_source(
+        "payload_if_is_expression_binding_call_target_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    return if make_ok() is Result.ok(value) {
+        value
+    } else {
+        0
+    }
+}
+
+func make_ok(): Result {
+    return Result.ok(10)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`if is` expressions"),
+        "expected if-is expression diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     return if make_ok() is Result.ok(value) {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_payload_if_is_non_copy_binding_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-if-is-non-copy-binding-boundary");
     let source = project.write_source(

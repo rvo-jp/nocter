@@ -372,10 +372,10 @@ Recommended order:
   whole-local replacement cleanup paths. Slice and non-copy aggregate payload
   binding, temporary-pattern control, and multi-field droppable payload cleanup
   remain the next promotion boundary.
-- CLI build coverage now pins payload `match` statement and value-expression
-  wildcard-only and binding forms over call targets as E0435 preflight
-  boundaries, matching the current temporary-pattern control deferral before IR
-  lowering.
+- CLI build coverage now pins payload `if is` statement/value-expression and
+  payload `match` statement/value-expression forms over call targets as E0435
+  preflight boundaries, matching the current temporary-pattern control deferral
+  before IR lowering.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
