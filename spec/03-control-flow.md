@@ -110,7 +110,7 @@ pub struct OpenOptions {
     pub create: bool
 }
 
-let file = File.open_with(path, OpenOptions{
+let file = File.open_with(path, OpenOptions {
     read: true,
     write: false,
     create: false,

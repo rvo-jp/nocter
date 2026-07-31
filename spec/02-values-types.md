@@ -573,7 +573,7 @@ pub struct User {
 ```
 
 ```nct
-let user = User{
+let user = User {
     id: 1,
     name: String.copy(allocator, "alice")?,
 }
@@ -581,7 +581,7 @@ let user = User{
 
 Rules:
 
-- Struct literal syntax is `Type{ field: value, ... }`.
+- Struct literal syntax is `Type { field: value, ... }`.
 - The type in a struct literal must name a struct type. For generic structs, the type may include type arguments.
 - Every field must be initialized exactly once.
 - Field order in the literal is free.
@@ -603,7 +603,7 @@ When initialization logic or validation is needed, use an ordinary associated fu
 
 ```nct
 pub func User.create(id: u64, name: String): User {
-    return User{
+    return User {
         id: id,
         name: move name,
     }

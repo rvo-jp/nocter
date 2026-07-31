@@ -204,6 +204,7 @@ use std/process as process
 impl File{pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
 let marker=b'\n'
 var point=Point{x:1,y:2}
+var marker=Marker<i32>{code:42}
 while ready(){print(text)}
 }}
 impl File{drop &+self{drop self}}
@@ -220,6 +221,7 @@ impl File{drop &+self{drop self}}
             "        let bytes = [1, 2, 3]\n",
             "        let marker = b'\\n'\n",
             "        var point = Point { x: 1, y: 2 }\n",
+            "        var marker = Marker<i32> { code: 42 }\n",
             "        while ready() { print(text) }\n",
             "    }\n",
             "}\n",

@@ -451,7 +451,7 @@ func Profile.new(
     title: String,
     text: String,
 ): Profile {
-    return Profile{
+    return Profile {
         ...User.new(move name, age),
         ...Article.new(move title, move text),
         visits: 0,

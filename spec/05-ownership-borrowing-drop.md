@@ -139,7 +139,7 @@ Adopted: v0 tracks disjoint named struct fields for simple places.
 Field-sensitive tracking applies only to direct named field paths whose base is a local binding, parameter binding, or borrow binding that the compiler can resolve statically.
 
 ```nct
-var user = User{
+var user = User {
     name: String.copy(allocator, "alice")?,
     count: 0,
 }
@@ -166,7 +166,7 @@ Adopted: parameters are immutable bindings inside the function body.
 func create(name: String, count: i32, out: &+File): User! {
     out.write_text(name.view())?
 
-    return User{
+    return User {
         name: move name,
         count: count,
     }
@@ -364,7 +364,7 @@ Rules:
 Examples:
 
 ```nct
-let p1 = Point{x: 1, y: 2}
+let p1 = Point { x: 1, y: 2 }
 let p2 = p1 // OK: Point is copy
 
 let text1 = String.new()
@@ -477,7 +477,7 @@ func make_text(): String {
 
 ```nct
 func make_user(name: String): User {
-    return User{
+    return User {
         name: move name,
     }
 }
