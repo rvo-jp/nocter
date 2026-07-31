@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `8b0cf84 Normalize struct literal spacing in tests`
   - `ae88f06 Canonicalize struct literal spacing`
   - `97bcb64 Cover payload pattern target buildability`
   - `117aeef Lower payload enum pattern targets`
