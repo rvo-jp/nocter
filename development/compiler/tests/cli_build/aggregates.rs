@@ -499,7 +499,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header { tag: 7, code: 42, wide: 100 }
+    return Header { tag: 7, code: 42 as u16, wide: 100 as u32 }
 }
 "#,
     );

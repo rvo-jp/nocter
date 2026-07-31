@@ -28,6 +28,7 @@ use super::literals::{
 };
 use super::types::{
     return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
+    scalar_or_view_type_from_type_expr_with_resolver,
     top_level_optional_success_abi_value_with_resolver,
 };
 mod aggregate_fields;

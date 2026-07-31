@@ -66,6 +66,7 @@ pub(super) fn lower_u16_literal(expression: &Expr) -> Result<u16, Vec<Diagnostic
     match expression {
         Expr::IntegerLiteral(literal) => parse_u16_literal(&literal.value),
         Expr::Group(group) => lower_u16_literal(&group.expression),
+        Expr::TypeConversion(conversion) => lower_u16_literal(&conversion.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
             "IR v0 can only lower integer literal returns",
@@ -81,6 +82,7 @@ fn lower_unsigned_integer_literal(expression: &Expr) -> Result<u32, Vec<Diagnost
     match expression {
         Expr::IntegerLiteral(literal) => parse_u32_literal(&literal.value),
         Expr::Group(group) => lower_unsigned_integer_literal(&group.expression),
+        Expr::TypeConversion(conversion) => lower_unsigned_integer_literal(&conversion.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
             "IR v0 can only lower integer literal returns",

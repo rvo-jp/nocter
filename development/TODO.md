@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `54a795a Reject stored wrapper locals before IR lowering`
   - `5f0d2aa Split buildability variant rules by responsibility`
   - `e8b36fe Split expression predicates by responsibility`
   - `ae9d20f Split item parser by responsibility`
@@ -408,6 +409,11 @@ Recommended order:
   imported-alias forms, reject with source-backed E0435 before IR lowering;
   unresolved generic result types remain owned by the more specific generic
   call diagnostic.
+- Buildability now rejects computed values of storage-only integer types,
+  including imported aliases, with source-backed E0435 before IR lowering.
+  Runtime integer conversions lower computed identity conversions by their
+  typechecker facts, while explicit integer literal conversions remain valid in
+  `u16`/`u32` aggregate fields.
 
 ## Session Start
 

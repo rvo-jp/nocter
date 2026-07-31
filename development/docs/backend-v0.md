@@ -79,7 +79,8 @@ The backend currently supports the documented subset of:
 - entry wrappers for `i32`, `usize`, `void`, `i32!`, `usize!`, and `void!`
 - scalar and view locals, parameters, returns, calls, checked i32 unary
   negation, arithmetic, numeric compound assignments, comparisons, bool
-  operations, and runtime traps
+  operations, runtime traps, computed identity conversions for `i32`, `u8`, and
+  `usize`, and `u8` widening to `i32`/`usize`
 - static string literals and `&str` ABI passing
 - slice length, selected indexing, bounds-checked stores, and numeric
   scalar/view slice element compound assignments

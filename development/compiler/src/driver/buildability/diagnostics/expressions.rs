@@ -245,6 +245,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Binary(expression) => {
+            if binary_uses_storage_only_scalar_value(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                resolved_sources,
+            ) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.operator_span,
+                    "operations on storage-only scalar values",
+                    "use `i32`, `u8`, or `usize` for computed integer values; keep narrow and wide storage-only integers inside aggregate fields",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -272,19 +286,35 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 diagnostics,
             );
         }
-        Expr::TypeConversion(expression) => collect_expression_diagnostics(
-            &expression.expression,
-            sources,
-            resolved,
-            typecheck_facts,
-            generic_substitutions,
-            root_source,
-            names,
-            resolved_sources,
-            nocter_home,
-            queue,
-            diagnostics,
-        ),
+        Expr::TypeConversion(expression) => {
+            if conversion_uses_computed_storage_only_scalar_value(
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                resolved_sources,
+            ) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.as_span,
+                    "conversions from computed storage-only scalar values",
+                    "use `i32`, `u8`, or `usize` before computation; storage-only integers are currently supported only as aggregate field values",
+                ));
+            }
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Expr::Call(expression) => {
             let check_only_std_call = unsupported_check_only_std_call_diagnostic(
                 sources,
@@ -783,4 +813,52 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             }
         }
     }
+}
+
+fn binary_uses_storage_only_scalar_value(
+    expression: &crate::ast::BinaryExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    [&expression.left, &expression.right]
+        .into_iter()
+        .filter_map(|operand| typecheck_facts.expression_type_expr(operand.span()))
+        .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
+        .any(|ty| {
+            type_expr_has_storage_only_scalar_abi_for_sources(&ty, resolved, resolved_sources)
+        })
+}
+
+fn conversion_uses_computed_storage_only_scalar_value(
+    expression: &crate::ast::TypeConversionExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let target_ty = substitute_type_expr_parameters(&expression.ty, generic_substitutions);
+    if !type_expr_has_runtime_integer_abi_for_sources(&target_ty, resolved, resolved_sources) {
+        return false;
+    }
+
+    if matches!(
+        unwrap_group_expr(&expression.expression),
+        Expr::Identifier(_)
+            | Expr::IntegerLiteral(_)
+            | Expr::ByteLiteral(_)
+            | Expr::Call(_)
+            | Expr::Member(_)
+            | Expr::Index(_)
+            | Expr::Binary(_)
+    ) {
+        return false;
+    }
+
+    let Some(source_ty) = typecheck_facts.expression_type_expr(expression.expression.span()) else {
+        return false;
+    };
+    let source_ty = substitute_type_expr_parameters(source_ty, generic_substitutions);
+    type_expr_has_storage_only_scalar_abi_for_sources(&source_ty, resolved, resolved_sources)
 }

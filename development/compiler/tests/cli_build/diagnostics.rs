@@ -1018,6 +1018,47 @@ fn build_command_reports_unsupported_scalar_local_binding_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_imported_alias_storage_only_computation_before_ir_lowering() {
+    let project = TempProject::new("cli-build-storage-only-scalar-computation");
+    project.write_source("stored.nct", "pub type Stored = u16\n");
+    let source = project.write_source(
+        "storage_only_scalar_computation.nct",
+        r#"use ./stored.Stored
+
+func main(): i32 {
+    if (1 as Stored) == (2 as Stored) {
+        return 1
+    }
+    return (1 as Stored) as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(stderr.matches("error[E0435]").count(), 2, "{stderr}");
+    assert!(
+        stderr.contains("operations on storage-only scalar values"),
+        "expected operation diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("conversions from computed storage-only scalar values"),
+        "expected conversion diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_imported_nested_alias_unsupported_scalar_local_binding_before_ir_lowering()
 {
     let project = TempProject::new("cli-build-imported-nested-alias-unsupported-scalar-local");

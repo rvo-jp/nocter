@@ -64,6 +64,47 @@ func ready(): bool {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_identity_conversions_of_computed_integer_values() {
+    let project = TempProject::new("cli-run-computed-integer-identity-conversions");
+    let source = project.write_source(
+        "computed_integer_identity_conversions.nct",
+        r#"func main(): i32 {
+    let size = (size_value() + 1) as usize
+    let byte = (byte_value() + 1) as u8
+    let number = (number_value() + 1) as i32
+    if size == 2 && byte == 2 {
+        return number + 40
+    }
+    return 1
+}
+
+func size_value(): usize {
+    return 1
+}
+
+func byte_value(): u8 {
+    return 1
+}
+
+func number_value(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_scalar_compound_assignment_exit_code() {
     let project = TempProject::new("cli-run-scalar-compound-assignment");
     let source = project.write_source(

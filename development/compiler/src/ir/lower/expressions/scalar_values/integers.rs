@@ -348,18 +348,19 @@ pub(in crate::ir::lower::expressions) fn lower_i32_conversion_expression_to_valu
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
-    if let Ok(value) = lower_i32_value(&conversion.expression, context) {
-        return Ok(LoweredI32Value {
-            instructions: Vec::new(),
-            value,
-        });
+    match conversion_source_type(conversion, context) {
+        Some(Type::I32) => {
+            lower_i32_expression_to_value(&conversion.expression, context, temporaries)
+        }
+        Some(Type::U8) => {
+            let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
+            Ok(LoweredI32Value {
+                instructions: value.instructions,
+                value: I32Value::U8ZeroExtend(Box::new(value.value)),
+            })
+        }
+        _ => Err(unsupported_i32_expression_diagnostic()),
     }
-
-    let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
-    Ok(LoweredI32Value {
-        instructions: value.instructions,
-        value: I32Value::U8ZeroExtend(Box::new(value.value)),
-    })
 }
 
 pub(in crate::ir::lower::expressions) fn lower_usize_conversion_expression_to_value(
@@ -367,17 +368,29 @@ pub(in crate::ir::lower::expressions) fn lower_usize_conversion_expression_to_va
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
-    if let Ok(value) = lower_usize_value(&conversion.expression, context) {
-        return Ok(LoweredUsizeValue {
-            instructions: Vec::new(),
-            value,
-        });
+    match conversion_source_type(conversion, context) {
+        Some(Type::Usize) => {
+            lower_usize_expression_to_value(&conversion.expression, context, temporaries)
+        }
+        Some(Type::U8) => {
+            let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
+            Ok(LoweredUsizeValue {
+                instructions: value.instructions,
+                value: UsizeValue::U8ZeroExtend(Box::new(value.value)),
+            })
+        }
+        _ => Err(unsupported_usize_expression_diagnostic()),
     }
+}
 
-    let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
-    Ok(LoweredUsizeValue {
-        instructions: value.instructions,
-        value: UsizeValue::U8ZeroExtend(Box::new(value.value)),
+fn conversion_source_type(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+) -> Option<Type> {
+    let source_ty = context.expression_type_expr(conversion.expression.span())?;
+    let (_root_source, resolved) = context.resolved_calls()?;
+    scalar_or_view_type_from_type_expr_with_resolver(&source_ty, resolved, |source| {
+        context.resolved_source(source)
     })
 }
 
