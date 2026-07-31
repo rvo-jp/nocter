@@ -10,6 +10,12 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `5f0d2aa Split buildability variant rules by responsibility`
+  - `e8b36fe Split expression predicates by responsibility`
+  - `ae9d20f Split item parser by responsibility`
+  - `c7fd6a8 Split AST JSON conversion by responsibility`
+  - `8a9b8d0 Split parameter spill analysis by responsibility`
+  - `8ba99b2 Split import resolution by responsibility`
   - `8b0cf84 Normalize struct literal spacing in tests`
   - `ae88f06 Canonicalize struct literal spacing`
   - `97bcb64 Cover payload pattern target buildability`
@@ -397,6 +403,11 @@ Recommended order:
 - Imported direct `error` constructors are treated as payload constructors only
   when their ABI is `(&str, &str) -> error`, including source-resolved aliases
   such as `ErrorCode`.
+- Buildability local-type classification is now fail-closed after generic
+  substitution. Stored `T?` and `T!` local values, including inferred and
+  imported-alias forms, reject with source-backed E0435 before IR lowering;
+  unresolved generic result types remain owned by the more specific generic
+  call diagnostic.
 
 ## Session Start
 

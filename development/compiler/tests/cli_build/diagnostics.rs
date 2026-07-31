@@ -1066,6 +1066,63 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_imported_optional_and_fallible_locals_before_ir_lowering() {
+    let project = TempProject::new("cli-build-imported-wrapper-local-boundary");
+    project.write_source(
+        "wrappers.nct",
+        r#"pub type MaybeCount = i32?
+pub type Attempt = i32!
+
+pub func maybe(): MaybeCount {
+    return none
+}
+
+pub func attempt(): Attempt {
+    return 1
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_wrapper_local_boundary.nct",
+        r#"use ./wrappers.{MaybeCount, Attempt, maybe, attempt}
+
+func main(): i32 {
+    let explicit_optional: MaybeCount = maybe()
+    let inferred_optional = maybe()
+    let explicit_fallible: Attempt = attempt()
+    let inferred_fallible = attempt()
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(stderr.matches("error[E0435]").count(), 4, "{stderr}");
+    assert!(
+        stderr.contains("stored optional or fallible local values"),
+        "expected wrapper local diagnostic, got:\n{stderr}"
+    );
+    for line in [4, 5, 6, 7] {
+        assert!(
+            stderr.contains(&format!("{line} |     let ")),
+            "expected source line {line}, got:\n{stderr}"
+        );
+    }
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_fixed_array_literal_binding_before_ir_lowering() {
     let project = TempProject::new("cli-build-unsupported-fixed-array-literal-binding-boundary");
     let source = project.write_source(

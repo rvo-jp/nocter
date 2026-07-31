@@ -82,6 +82,22 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         return None;
     }
 
+    if let Some(ty) =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+    {
+        let source_resolver = |source| resolved_sources.get(&source).copied();
+        if type_expr_is_top_level_optional_with_resolver(&ty, resolved, &source_resolver)
+            || type_expr_is_top_level_fallible_with_resolver(&ty, resolved, &source_resolver)
+        {
+            return Some(unsupported_v0_build_diagnostic(
+                sources,
+                statement.name_span,
+                "stored optional or fallible local values",
+                "unwrap the value with `?`, `!`, `catch`, or `otherwise` before binding it until optional and fallible local storage is promoted",
+            ));
+        }
+    }
+
     Some(unsupported_v0_build_diagnostic(
         sources,
         statement.name_span,
@@ -99,12 +115,8 @@ pub(in crate::driver::buildability) fn local_binding_type_is_buildable(
 ) -> bool {
     if let Some(ty) = &statement.ty {
         let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-        return local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
-            || !type_expr_is_known_unsupported_scalar_value_for_sources(
-                &ty,
-                resolved,
-                resolved_sources,
-            );
+        return type_expr_contains_unresolved_type_parameter(&ty, resolved, resolved_sources)
+            || local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources);
     }
 
     if typecheck_facts
@@ -118,20 +130,9 @@ pub(in crate::driver::buildability) fn local_binding_type_is_buildable(
         .binding_type_expr(statement.name_span)
         .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions))
         .is_none_or(|ty| {
-            local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
-                || !type_expr_is_known_unsupported_scalar_value_for_sources(
-                    &ty,
-                    resolved,
-                    resolved_sources,
-                )
+            type_expr_contains_unresolved_type_parameter(&ty, resolved, resolved_sources)
+                || local_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
         })
-}
-
-pub(in crate::driver::buildability) fn unsupported_scalar_type_label(label: &str) -> bool {
-    matches!(
-        label,
-        "i8" | "i16" | "i64" | "isize" | "u16" | "u32" | "u64"
-    )
 }
 
 pub(in crate::driver::buildability) fn local_binding_type_expr_is_buildable(

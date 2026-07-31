@@ -1552,6 +1552,41 @@ func empty<T>(): T? {
 }
 
 #[test]
+fn reports_stored_optional_and_fallible_locals_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"type MaybeCount = i32?
+type Attempt = i32!
+
+func main(): i32 {
+    let explicit_optional: MaybeCount = maybe()
+    let inferred_optional = maybe()
+    let explicit_fallible: Attempt = attempt()
+    let inferred_fallible = attempt()
+    return 0
+}
+
+func maybe(): MaybeCount {
+    return none
+}
+
+func attempt(): Attempt {
+    return 1
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 4, "{diagnostics:?}");
+    assert!(diagnostics.iter().all(|diagnostic| {
+        diagnostic.code == "E0435"
+            && diagnostic.message
+                == "Nocter v0 build cannot lower stored optional or fallible local values yet"
+            && diagnostic.primary_span.is_some()
+    }));
+}
+
+#[test]
 fn reports_reachable_unspecialized_generic_function_call() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
