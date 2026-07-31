@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `1879801 Lower multi-field payload enum drops`
+  - `98a0ee6 Cover payload if-is expression call targets`
   - `619335a Cover payload wildcard call target boundaries`
   - `f8c406b Separate fallible borrow return provenance`
   - `b063078 Track borrow provenance through array indexes`
