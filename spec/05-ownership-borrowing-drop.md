@@ -266,6 +266,9 @@ Rules:
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
+- Struct drop glue invokes the struct's own `drop` member first when present,
+  then drops owned fields in reverse declaration order. Field drop glue follows
+  the same rule recursively.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
 - `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.

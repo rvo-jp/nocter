@@ -356,7 +356,7 @@ func main(): i32 {
 
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "payload bindings outside runtime scalar/view, copy aggregate, and owned direct-drop aggregate types in `match`"
+            "payload bindings outside runtime scalar/view, copy aggregate, and owned recursively droppable aggregate types in `match`"
         )),
         "{diagnostics:?}"
     );

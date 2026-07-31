@@ -2,6 +2,47 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_owned_struct_fields_recursively_at_scope_end() {
+    let project = TempProject::new("cli-run-recursive-struct-field-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "recursive_struct_field_drop.nct",
+        r#"use std/process.exit
+
+struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+struct Wrapper {
+    detail: Detail
+}
+
+func main(): i32 {
+    let wrapper = Wrapper { detail: Detail { code: 48 } }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(48),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_normal_call_with_borrow_argument_exit_code() {
     let project = TempProject::new("cli-run-borrow-normal-call");
     let source = project.write_source(

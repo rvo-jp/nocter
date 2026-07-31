@@ -579,6 +579,15 @@ func main(): i32 {
             source: BorrowSource::AggregateSlot(1),
         })],
     };
+    let drop_holder_file = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 1,
+                offset: 0,
+            },
+        })],
+    };
     let main = ir
         .functions
         .iter()
@@ -617,6 +626,7 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             drop_holder.clone(),
+            drop_holder_file.clone(),
             Instruction::CopyAggregate {
                 destination: AggregateLocation::Slot(1),
                 source: AggregateLocation::Slot(2),
@@ -628,6 +638,7 @@ func main(): i32 {
                 offset: 0,
             },
             drop_holder,
+            drop_holder_file,
             Instruction::SetI32 {
                 destination: I32Location::Return,
                 value: i32_local(0),
@@ -1633,6 +1644,15 @@ func main(): i32 {
                 target: CallTarget::same_file("Holder.drop"),
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(1),
+                })],
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("File.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField {
+                        slot_index: 1,
+                        offset: 0,
+                    },
                 })],
             },
             Instruction::SetI32 {

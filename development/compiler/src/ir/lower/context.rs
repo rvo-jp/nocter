@@ -384,7 +384,21 @@ pub(super) struct PendingAggregateDrop {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum AggregateDrop {
     Direct(DropGlue),
+    Struct(StructDrop),
     PayloadEnum(PayloadEnumDrop),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StructDrop {
+    pub(super) direct: Option<DropGlue>,
+    pub(super) fields: Vec<StructDropField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StructDropField {
+    pub(super) offset: u32,
+    pub(super) layout: ValueLayout,
+    pub(super) drop_kind: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -407,7 +421,7 @@ pub(super) struct PayloadEnumDropVariant {
 pub(super) struct PayloadEnumDropField {
     pub(super) payload_offset: u32,
     pub(super) payload_layout: ValueLayout,
-    pub(super) drop_glue: DropGlue,
+    pub(super) drop_kind: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

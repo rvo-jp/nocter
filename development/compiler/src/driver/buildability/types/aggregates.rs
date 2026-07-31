@@ -207,7 +207,7 @@ where
         )
     })
 }
-pub(in crate::driver::buildability) fn type_expr_has_direct_drop_with_resolver<'a, F>(
+pub(in crate::driver::buildability) fn type_expr_has_supported_recursive_drop_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -217,8 +217,13 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-    let (type_name, substitutions) = match ty {
-        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+    let (symbol, substitutions) = match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
+                return false;
+            };
+            (symbol, HashMap::new())
+        }
         TypeExpr::Generic(generic) => {
             let Some(symbol) = type_symbol_by_reference_name(resolved, &generic.name) else {
                 return false;
@@ -232,7 +237,7 @@ where
                 .cloned()
                 .zip(generic.arguments.iter().cloned())
                 .collect();
-            (generic.name.as_str(), substitutions)
+            (symbol, substitutions)
         }
         TypeExpr::Pointer(_)
         | TypeExpr::Borrow(_)
@@ -242,28 +247,48 @@ where
         | TypeExpr::Fallible(_) => return false,
     };
 
-    let Some(symbol) = type_symbol_by_reference_name(resolved, type_name) else {
+    if !resolving_names.insert(symbol.canonical_name.clone()) {
         return false;
-    };
-    if symbol.kind == TypeSymbolKind::Alias {
-        let Some(target) = symbol.alias_target.as_ref() else {
-            return false;
-        };
-        if !resolving_names.insert(symbol.canonical_name.clone()) {
-            return false;
-        }
-        let target = substitute_type_expr_parameters(target, &substitutions);
-        let has_drop = type_expr_has_direct_drop_with_resolver(
-            &target,
-            fallback_resolved,
-            resolver,
-            resolving_names,
-        );
-        resolving_names.remove(&symbol.canonical_name);
-        return has_drop;
     }
-
-    symbol.drop_member.is_some()
+    let result = match symbol.kind {
+        TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
+            let target = substitute_type_expr_parameters(target, &substitutions);
+            type_expr_has_supported_recursive_drop_with_resolver(
+                &target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            )
+        }),
+        TypeSymbolKind::Struct => {
+            let mut has_drop = symbol.drop_member.is_some();
+            let fields_are_supported = symbol.fields.iter().all(|field| {
+                let field_ty = substitute_type_expr_parameters(&field.ty, &substitutions);
+                if type_expr_is_runtime_copy_value_with_resolver(
+                    &field_ty,
+                    fallback_resolved,
+                    resolver,
+                    &mut HashSet::new(),
+                ) {
+                    true
+                } else if type_expr_has_supported_recursive_drop_with_resolver(
+                    &field_ty,
+                    fallback_resolved,
+                    resolver,
+                    resolving_names,
+                ) {
+                    has_drop = true;
+                    true
+                } else {
+                    false
+                }
+            });
+            has_drop && fields_are_supported
+        }
+        TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+    };
+    resolving_names.remove(&symbol.canonical_name);
+    result
 }
 pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_return_with_resolver<
     'a,

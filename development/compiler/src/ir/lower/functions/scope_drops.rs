@@ -466,6 +466,9 @@ pub(in crate::ir::lower) fn lower_aggregate_drop_instructions(
             lower_direct_aggregate_drop_instruction(name, slot_index, layout, drop_glue, context)
                 .map(|instruction| vec![instruction])
         }
+        AggregateDrop::Struct(drop_) => {
+            lower_struct_drop_instructions(name, slot_index, layout, drop_, context)
+        }
         AggregateDrop::PayloadEnum(drop_) => {
             lower_payload_enum_drop_instructions(name, slot_index, drop_, context)
         }

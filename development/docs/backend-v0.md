@@ -124,7 +124,7 @@ includes:
   expressions over existing enum bindings and parameters, plus supported
   call/constructor/move-local pattern targets, when the bound payload ABI is
   `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a copy aggregate value, or
-  an owned direct-drop aggregate value
+  an owned aggregate value with runtime-supported recursive drop glue
 - tag-only payload-carrying enum `match` statements over existing enum bindings
   and parameters, plus supported call/constructor/move-local pattern targets, in
   the current runtime-supported payload subset, including wildcard-only,
@@ -133,9 +133,9 @@ includes:
   existing enum bindings and parameters, plus supported
   call/constructor/move-local pattern targets, when the bound payload ABI is
   `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a copy aggregate value, or
-  an owned direct-drop aggregate value
+  an owned aggregate value with runtime-supported recursive drop glue
 - active payload cleanup for payload-carrying enum values whose droppable
-  variants have direct-drop aggregate payload fields, covering
+  variants have runtime-supported recursive aggregate drop trees, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
   bindings, whole-local replacement, and multi-field payload cleanup in reverse
   aggregate field order
@@ -152,8 +152,8 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-move-only aggregate payload bindings without direct drop glue, broader payload
-enum pattern target expressions, broader field-level live-state tracking,
+move-only aggregate payload bindings with unsupported recursive drop trees,
+broader payload enum pattern target expressions, broader field-level live-state tracking,
 non-copy aggregate collection elements, arrays, broad control-flow joins, and
 unsupported expression shapes.
 

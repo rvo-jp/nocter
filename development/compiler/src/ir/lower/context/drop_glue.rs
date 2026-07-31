@@ -9,14 +9,65 @@ pub(in crate::ir::lower) fn aggregate_drop_for_type_expr_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    if let Some(drop_glue) =
-        drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, &resolver)
-    {
+    aggregate_drop_for_type_expr_inner(ty, root_source, fallback_resolved, &resolver)
+}
+
+fn aggregate_drop_for_type_expr_inner<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let direct =
+        drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver);
+    let fields = crate::ir::lower::aggregates::aggregate_fields_from_type_expr_with_resolver(
+        ty,
+        root_source,
+        fallback_resolved,
+        resolver,
+    )
+    .map(|fields| struct_drop_fields(&fields))
+    .unwrap_or_default();
+    if !fields.is_empty() {
+        return Some(AggregateDrop::Struct(StructDrop { direct, fields }));
+    }
+    if let Some(drop_glue) = direct {
         return Some(AggregateDrop::Direct(drop_glue));
     }
 
-    payload_enum_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, &resolver)
+    payload_enum_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
         .map(AggregateDrop::PayloadEnum)
+}
+
+fn struct_drop_fields(fields: &[AggregateField]) -> Vec<StructDropField> {
+    fields
+        .iter()
+        .filter(|field| !field.name.contains('.'))
+        .filter_map(struct_drop_field)
+        .collect()
+}
+
+fn struct_drop_field(field: &AggregateField) -> Option<StructDropField> {
+    let AggregateFieldKind::Aggregate { layout, fields } = &field.kind else {
+        return None;
+    };
+    let nested_fields = struct_drop_fields(fields);
+    let drop_kind = if nested_fields.is_empty() {
+        AggregateDrop::Direct(field.drop_glue.clone()?)
+    } else {
+        AggregateDrop::Struct(StructDrop {
+            direct: field.drop_glue.clone(),
+            fields: nested_fields,
+        })
+    };
+    Some(StructDropField {
+        offset: field.offset,
+        layout: *layout,
+        drop_kind: Box::new(drop_kind),
+    })
 }
 
 fn payload_enum_drop_for_type_expr_with_resolver<'a, F>(
@@ -147,42 +198,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     let ty = substitute_type_expr_parameters(payload_ty, substitutions);
-    let direct_drop_glue =
-        direct_drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver);
-    let Some(drop_glue) = direct_drop_glue else {
-        let active_drop_glue =
-            drop_glue_for_type_expr_with_resolver(&ty, root_source, fallback_resolved, resolver);
-        return if active_drop_glue.is_some() {
-            Err(())
-        } else {
-            Ok(None)
-        };
+    let Some(drop_kind) =
+        aggregate_drop_for_type_expr_inner(&ty, root_source, fallback_resolved, resolver)
+    else {
+        return Ok(None);
     };
     let payload_layout = layout_of(payload_abi).map_err(|_| ())?;
     Ok(Some(PayloadEnumDropField {
         payload_offset,
         payload_layout,
-        drop_glue,
+        drop_kind: Box::new(drop_kind),
     }))
-}
-
-fn direct_drop_glue_for_type_expr_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    root_source: SourceId,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> Option<DropGlue>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    drop_glue_for_type_expr_inner(
-        ty,
-        root_source,
-        fallback_resolved,
-        resolver,
-        &mut HashSet::new(),
-        false,
-    )
 }
 
 fn payload_enum_symbol_and_substitutions_for_type_expr<'a, F>(

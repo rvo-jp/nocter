@@ -2380,3 +2380,103 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_owned_fields_inside_active_enum_payload() {
+    let project = TempProject::new("cli-run-active-enum-payload-owned-field-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "active_enum_payload_owned_field_drop.nct",
+        r#"use std/process.exit
+
+struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+struct Wrapper {
+    detail: Detail
+}
+
+enum Result {
+    ok(value: Wrapper)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Wrapper { detail: Detail { code: 49 } })
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(49),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_moves_and_drops_recursive_enum_payload_binding() {
+    let project = TempProject::new("cli-run-recursive-enum-payload-move-binding");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "recursive_enum_payload_move_binding.nct",
+        r#"use std/process.exit
+
+struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+struct Wrapper {
+    detail: Detail
+}
+
+enum Result {
+    ok(value: Wrapper)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Wrapper { detail: Detail { code: 50 } })
+    match move result {
+        Result.ok(wrapper) {
+            let code = wrapper.detail.code
+        }
+        _ {
+            return 0
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(50),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

@@ -38,7 +38,7 @@ where
             resolver,
             &mut HashSet::new(),
         ) || (allow_active_drop
-            && type_expr_has_direct_drop_with_resolver(
+            && type_expr_has_supported_recursive_drop_with_resolver(
                 ty,
                 fallback_resolved,
                 resolver,

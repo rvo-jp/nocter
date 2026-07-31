@@ -210,15 +210,15 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum move-only aggregate payload binding without direct drop
-  glue and broader pattern target expressions;
+- payload-carrying enum move-only aggregate payload binding with unsupported
+  recursive drop trees and broader pattern target expressions;
   payload-carrying enum construction, locals, returns, value arguments,
   tag-only `if is Enum.variant(_)` statements, tag-only `match` statements, and
   scalar, string/slice view, copy aggregate payload binding, and owned
-  direct-drop aggregate payload move binding over existing enum values and
+  recursively droppable aggregate payload move binding over existing enum values and
   supported call/constructor/move-local pattern targets are buildable for the
   current payload subset, with active payload cleanup additionally supported
-  for direct-drop aggregate payload fields
+  for aggregate payload fields with supported recursive drop glue
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -264,12 +264,12 @@ Rules fixed for v0:
   may lower in the current payload subset over existing enum values and
   supported call/constructor/move-local pattern targets;
   scalar, string/slice view, copy aggregate payload binding, and owned
-  direct-drop aggregate payload move binding may lower in `if is` and `match`
+  recursively droppable aggregate payload move binding may lower in `if is` and `match`
   branches over existing enum values and supported pattern targets; active
-  payload cleanup may lower for direct-drop aggregate payload fields, including
+  payload cleanup may lower for supported aggregate payload drop trees, including
   multi-field payload cleanup in reverse aggregate field order; move-only
-  aggregate payload binding without direct drop glue and broader pattern target
-  expressions still reject before build/run
+  aggregate payload binding with unsupported recursive drop trees and broader
+  pattern target expressions still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification

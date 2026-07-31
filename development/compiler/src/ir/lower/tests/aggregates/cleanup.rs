@@ -1,6 +1,96 @@
 use super::*;
 
 #[test]
+fn lowers_struct_drop_then_owned_fields_in_reverse_declaration_order() {
+    let ir = lower_text(
+        r#"struct Resource {
+    code: i32
+}
+
+impl Resource {
+    drop &+self {
+        return
+    }
+}
+
+struct Inner {
+    first: Resource
+    second: Resource
+}
+
+struct Outer {
+    marker: i32
+    inner: Inner
+}
+
+impl Outer {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    let outer = Outer {
+        marker: 0,
+        inner: Inner {
+            first: Resource { code: 1 },
+            second: Resource { code: 2 },
+        },
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let drops: Vec<_> = main
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction {
+            Instruction::CallVoid {
+                target, arguments, ..
+            } if matches!(target, CallTarget::SameFile(name) if name.ends_with(".drop")) => {
+                Some((target.clone(), arguments.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        drops,
+        vec![
+            (
+                CallTarget::same_file("Outer.drop"),
+                vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            ),
+            (
+                CallTarget::same_file("Resource.drop"),
+                vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField {
+                        slot_index: 0,
+                        offset: 8,
+                    },
+                })],
+            ),
+            (
+                CallTarget::same_file("Resource.drop"),
+                vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlotField {
+                        slot_index: 0,
+                        offset: 4,
+                    },
+                })],
+            ),
+        ]
+    );
+}
+
+#[test]
 fn suppresses_scope_end_drop_for_moved_aggregate_return() {
     let ir = lower_text(
         r#"struct File {

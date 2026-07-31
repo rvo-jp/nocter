@@ -22,9 +22,117 @@ pub(in crate::ir::lower::functions) fn lower_direct_aggregate_drop_instruction(
     })
 }
 
+pub(in crate::ir::lower::functions) fn lower_struct_drop_instructions(
+    name: &str,
+    slot_index: usize,
+    layout: ValueLayout,
+    drop_: &StructDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    if let Some(direct) = &drop_.direct {
+        instructions.push(lower_direct_aggregate_drop_instruction(
+            name, slot_index, layout, direct, context,
+        )?);
+    }
+    for field in drop_.fields.iter().rev() {
+        instructions.extend(lower_struct_drop_field(
+            name, slot_index, 0, field, context,
+        )?);
+    }
+    Ok(instructions)
+}
+
+fn lower_struct_drop_field(
+    name: &str,
+    slot_index: usize,
+    base_offset: u32,
+    field: &StructDropField,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let offset = base_offset
+        .checked_add(field.offset)
+        .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+    lower_aggregate_drop_at_offset(
+        name,
+        slot_index,
+        offset,
+        field.layout,
+        field.drop_kind.as_ref(),
+        context,
+    )
+}
+
+fn lower_aggregate_drop_at_offset(
+    name: &str,
+    slot_index: usize,
+    offset: u32,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match drop_kind {
+        AggregateDrop::Direct(drop_glue) => {
+            Ok(vec![lower_direct_aggregate_field_drop_instruction(
+                name, slot_index, offset, layout, drop_glue, context,
+            )?])
+        }
+        AggregateDrop::Struct(drop_) => {
+            let mut instructions = Vec::new();
+            if let Some(direct) = &drop_.direct {
+                instructions.push(lower_direct_aggregate_field_drop_instruction(
+                    name, slot_index, offset, layout, direct, context,
+                )?);
+            }
+            for nested in drop_.fields.iter().rev() {
+                instructions.extend(lower_struct_drop_field(
+                    name, slot_index, offset, nested, context,
+                )?);
+            }
+            Ok(instructions)
+        }
+        AggregateDrop::PayloadEnum(drop_) => {
+            lower_payload_enum_drop_instructions_at_offset(name, slot_index, offset, drop_, context)
+        }
+    }
+}
+
+fn lower_direct_aggregate_field_drop_instruction(
+    name: &str,
+    slot_index: usize,
+    offset: u32,
+    layout: ValueLayout,
+    drop_glue: &crate::ir::lower::context::DropGlue,
+    context: &LoweringContext,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    };
+    if parameter_types.len() != 1 || !drop_parameter_matches_local(&parameter_types[0], layout) {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    }
+
+    Ok(Instruction::CallVoid {
+        target: drop_glue.target.clone(),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField { slot_index, offset },
+        })],
+    })
+}
+
 pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_instructions(
     name: &str,
     slot_index: usize,
+    drop_: &PayloadEnumDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_payload_enum_drop_instructions_at_offset(name, slot_index, 0, drop_, context)
+}
+
+fn lower_payload_enum_drop_instructions_at_offset(
+    name: &str,
+    slot_index: usize,
+    base_offset: u32,
     drop_: &PayloadEnumDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -33,11 +141,16 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_instructions(
     let mut instructions = vec![Instruction::LoadAggregateU8 {
         destination: tag,
         source: AggregateLocation::Slot(slot_index),
-        offset: 0,
+        offset: base_offset,
     }];
     for variant in drop_.variants.iter().rev() {
         instructions.push(lower_payload_enum_drop_variant_if(
-            name, slot_index, tag, variant, context,
+            name,
+            slot_index,
+            base_offset,
+            tag,
+            variant,
+            context,
         )?);
     }
     Ok(instructions)
@@ -46,14 +159,19 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_instructions(
 pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_variant_if(
     name: &str,
     slot_index: usize,
+    base_offset: u32,
     tag: U8Location,
     variant: &PayloadEnumDropVariant,
     context: &LoweringContext,
 ) -> Result<Instruction, Vec<Diagnostic>> {
     let mut then_instructions = Vec::new();
     for field in variant.fields.iter().rev() {
-        then_instructions.push(lower_payload_enum_drop_field(
-            name, slot_index, field, context,
+        then_instructions.extend(lower_payload_enum_drop_field(
+            name,
+            slot_index,
+            base_offset,
+            field,
+            context,
         )?);
     }
 
@@ -71,25 +189,19 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_variant_if(
 pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_field(
     name: &str,
     slot_index: usize,
+    base_offset: u32,
     field: &PayloadEnumDropField,
     context: &LoweringContext,
-) -> Result<Instruction, Vec<Diagnostic>> {
-    let Some(parameter_types) = context.call_parameter_types(&field.drop_glue.target) else {
-        return Err(unsupported_drop_statement_diagnostic(name));
-    };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_local(&parameter_types[0], field.payload_layout)
-    {
-        return Err(unsupported_drop_statement_diagnostic(name));
-    }
-
-    Ok(Instruction::CallVoid {
-        target: field.drop_glue.target.clone(),
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlotField {
-                slot_index,
-                offset: field.payload_offset,
-            },
-        })],
-    })
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let offset = base_offset
+        .checked_add(field.payload_offset)
+        .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+    lower_aggregate_drop_at_offset(
+        name,
+        slot_index,
+        offset,
+        field.payload_layout,
+        field.drop_kind.as_ref(),
+        context,
+    )
 }

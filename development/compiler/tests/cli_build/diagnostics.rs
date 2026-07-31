@@ -1685,7 +1685,7 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("owned direct-drop aggregate types in `match`"),
+        stderr.contains("owned recursively droppable aggregate types in `match`"),
         "expected payload binding boundary, got:\n{stderr}"
     );
     assert!(
