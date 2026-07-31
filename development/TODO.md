@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `ae88f06 Canonicalize struct literal spacing`
   - `97bcb64 Cover payload pattern target buildability`
   - `117aeef Lower payload enum pattern targets`
   - `62980b6 Update handoff after payload drop work`
@@ -166,6 +167,11 @@ Recommended order:
   recovers `Type.`, `value.`, and pattern `Enum.` trailing-dot forms, plus
   empty or unclosed struct literal field lists, by inserting a completion-only
   placeholder before single-file analysis.
+- Struct literal public syntax is canonicalized as `Type { field: value }`,
+  including generic types such as `Marker<T> { code: 42 }`. The formatter and
+  public spec use the spaced form. Whitespace is not semantic in the parser, so
+  future literal syntax work should reserve disambiguation for tokens and AST
+  shape instead of parser-level spacing rules.
 - Buildability now checks wildcard-free payloadless `match` coverage using the
   resolved canonical enum and covered variant set. Exhaustive `match`
   expressions remain buildable when different visible names, such as an import
