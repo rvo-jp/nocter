@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `13f98f6 Diagnose unsupported payload bindings precisely`
   - `73fe9d3 Lower storage-only integer field literals`
   - `424e3a9 Guard storage-only integer computations`
   - `54a795a Reject stored wrapper locals before IR lowering`
@@ -168,7 +169,8 @@ Recommended order:
   existing enum values and supported pattern targets. Non-copy aggregate payload
   binding still rejects before IR lowering. Full
   `./development/compiler/scripts/verify.sh` passes for the current payload
-  binding subset.
+  binding subset. Unsupported payload bindings diagnose the binding span
+  directly instead of falling back to a generic control-expression diagnostic.
   Pattern enum variants are recorded in typecheck facts for semantic tokens,
   hover, definition, and references. Completion now offers enum variant members
   after `Enum.` in `match` and `if is` pattern contexts, enum variants and

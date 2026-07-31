@@ -394,7 +394,9 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   Scope-end cleanup, parameter cleanup, discarded call results, call-result
   bindings, and whole-local replacement drop only the active payload fields.
   Multi-field payload cleanup drops active direct-drop fields in reverse
-  aggregate field order.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over temporary expressions and
+  aggregate field order.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over call results, direct variant
+  constructors, and explicit <code>move</code> of an enum local lower in the current
+  runtime-supported payload subset. Other pattern target expressions and
   non-copy aggregate payload binding are typechecked in v0 but still reject
   before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid

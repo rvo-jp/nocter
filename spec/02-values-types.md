@@ -700,7 +700,9 @@ Rules:
   bindings, and whole-local replacement drop only the active payload fields.
   Multi-field payload cleanup drops active direct-drop fields in reverse
   aggregate field order.
-- Payload-carrying enum `if is` / `match` over temporary expressions and
+- Payload-carrying enum `if is` / `match` over call results, direct variant
+  constructors, and explicit `move` of an enum local lower in the current
+  runtime-supported payload subset. Other pattern target expressions and
   non-copy aggregate payload binding are typechecked in v0 but still reject
   before build/run.
 - Payload names in a pattern are bound only inside that arm block.
