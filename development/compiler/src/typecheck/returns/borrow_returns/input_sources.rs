@@ -1,0 +1,106 @@
+use super::*;
+
+pub(in crate::typecheck::returns) fn method_receiver_is_borrow(
+    method: &crate::resolve::MethodSignature,
+) -> bool {
+    matches!(&method.receiver.ty, TypeExpr::Borrow(_))
+}
+
+pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+    summaries: &BorrowReturnSummaries,
+) -> Option<BorrowReturnProvenance> {
+    let ty = expression_type(expression, resolved, environment);
+    if type_contains_borrow_like(&ty, resolved) {
+        return borrow_return_provenance_for_expression(
+            expression,
+            &ty,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        );
+    }
+
+    let Some(identifier) = expression_root_identifier(expression) else {
+        return Some(BorrowReturnProvenance::escaping(
+            "temporary expression".to_string(),
+        ));
+    };
+    if environment
+        .get(&identifier.name)
+        .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
+    {
+        return borrow_return_provenance_for_identifier(
+            identifier,
+            resolved,
+            environment,
+            borrow_provenance,
+        );
+    }
+
+    borrow_return_provenance_for_local_storage(identifier, resolved)
+}
+
+pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+) -> Option<BorrowReturnProvenance> {
+    if let Some(provenance) = borrow_provenance.get(&identifier.name) {
+        return Some(provenance.clone());
+    }
+
+    if matches!(
+        resolved.local_symbol_for_identifier(identifier)?.kind,
+        LocalSymbolKind::Parameter
+    ) && environment
+        .get(&identifier.name)
+        .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
+    {
+        return Some(BorrowReturnProvenance::input_borrow(
+            identifier.name.clone(),
+        ));
+    }
+
+    None
+}
+
+pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowReturnProvenance> {
+    let Expr::Borrow(borrow) = unwrap_group(expression) else {
+        return None;
+    };
+
+    let source = match unwrap_group(&borrow.expression) {
+        Expr::Identifier(identifier) => {
+            borrow_return_provenance_for_local_storage(identifier, resolved)?
+                .escaping_source()?
+                .to_string()
+        }
+        _ => "temporary expression".to_string(),
+    };
+
+    Some(BorrowReturnProvenance::escaping(source))
+}
+
+pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowReturnProvenance> {
+    let source = match resolved.local_symbol_for_identifier(identifier)?.kind {
+        LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
+        LocalSymbolKind::Binding(_) => format!("local binding `{}`", identifier.name),
+        LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
+        LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
+        LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
+    };
+
+    Some(BorrowReturnProvenance::escaping(source))
+}
