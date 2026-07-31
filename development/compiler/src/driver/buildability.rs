@@ -19,7 +19,8 @@ use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
     FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckMethodReceiverKind, TypecheckScalarViewKind, TypecheckSliceElementKind,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSliceElementKind,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;

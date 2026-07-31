@@ -84,6 +84,39 @@ fn records_binding_type_expr_facts_for_generic_parameters() {
 }
 
 #[test]
+fn records_payload_binding_copy_and_move_modes() {
+    let text = r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    code(value: i32)
+    detail(value: Detail)
+}
+
+func inspect(result: Result): i32 {
+    match move result {
+        Result.code(code) { return code }
+        Result.detail(detail) { return detail.code }
+    }
+}
+"#;
+    let (ast, resolved) = parse_and_resolve_text(text);
+    let facts = collect_typecheck_facts(&ast, &resolved);
+    let code_span = identifier_span(&ast, text, "code) { return", "code");
+    let detail_span = identifier_span(&ast, text, "detail) { return", "detail");
+
+    assert_eq!(
+        facts.payload_binding_mode(code_span),
+        Some(TypecheckPayloadBindingMode::Copy)
+    );
+    assert_eq!(
+        facts.payload_binding_mode(detail_span),
+        Some(TypecheckPayloadBindingMode::Move)
+    );
+}
+
+#[test]
 fn records_expression_type_expr_facts() {
     let text = r#"enum Choice {
     yes

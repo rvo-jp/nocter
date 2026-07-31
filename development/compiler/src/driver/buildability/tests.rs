@@ -284,7 +284,7 @@ enum Result {
 
 func main(): i32 {
     let result = Result.failed
-    return match result {
+    return match move result {
         Result.ok(value) { value.code }
         _ { 0 }
     }
@@ -324,7 +324,7 @@ enum Result {
 
 func main(): i32 {
     let result = Result.failed
-    match result {
+    match move result {
         Result.ok(value) { return value.code }
         _ { return 0 }
     }
@@ -358,7 +358,7 @@ enum Event {
 
 func main(): i32 {
     let event = Event.file(File { fd: 1 })
-    if event is Event.file(file) {
+    if move event is Event.file(file) {
         var moved = move file
     }
     return 0

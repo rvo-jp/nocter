@@ -3,6 +3,26 @@ use super::{
     SourceMap, Type, TypeSymbol,
 };
 
+pub(in crate::typecheck) fn non_copy_payload_binding_target_diagnostic(
+    sources: &SourceMap,
+    target: &Expr,
+    binding_name: &str,
+    payload_type: &Type,
+    source_name: &str,
+    help: String,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0438",
+        format!(
+            "payload binding `{binding_name}` has move-only type `{}` and cannot be extracted from `{source_name}` without consuming the matched enum",
+            payload_type.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(target.span()).ok().map(Box::new);
+    diagnostic.help = Some(help);
+    diagnostic
+}
+
 pub(in crate::typecheck) fn enum_variant_unknown_diagnostic(
     sources: &SourceMap,
     member: &MemberExpr,

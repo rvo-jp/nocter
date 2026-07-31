@@ -1564,6 +1564,53 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_non_copy_payload_binding_requires_moved_target() {
+    let project = TempProject::new("cli-build-payload-binding-requires-move");
+    let source = project.write_source(
+        "payload_binding_requires_move.nct",
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return match result {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0438]"),
+        "expected payload ownership diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("return match result {"),
+        "expected source-backed target span, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("match move result"),
+        "expected explicit move help, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after typecheck diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_payload_if_is_non_copy_binding_before_ir_lowering() {
     let project = TempProject::new("cli-build-payload-if-is-non-copy-binding-boundary");
     let source = project.write_source(
@@ -1588,7 +1635,7 @@ func main(): i32 {
 }
 
 func describe(error: AppError): i32 {
-    if error is AppError.open_failed(detail) {
+    if move error is AppError.open_failed(detail) {
         return detail.code
     }
 
@@ -1613,7 +1660,7 @@ func describe(error: AppError): i32 {
         "expected payload binding diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("21 |     if error is AppError.open_failed(detail) {"),
+        stderr.contains("21 |     if move error is AppError.open_failed(detail) {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -2518,7 +2565,7 @@ enum Result {
 
 func main(): i32 {
     let result = Result.ok(Detail { code: 10 })
-    return match result {
+    return match move result {
         Result.ok(value) { value.code }
         _ { 0 }
     }

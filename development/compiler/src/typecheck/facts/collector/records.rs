@@ -88,6 +88,18 @@ impl TypecheckFactCollector<'_> {
         environment: &TypeEnvironment,
     ) {
         self.record_environment_binding(payload.span, &payload.name, environment);
+        let Some(ty) = environment.get(&payload.name) else {
+            return;
+        };
+        if ty.is_unknown_or_unresolved() {
+            return;
+        }
+        let mode = if non_copy_owned_type_kind(ty, self.resolved).is_some() {
+            TypecheckPayloadBindingMode::Move
+        } else {
+            TypecheckPayloadBindingMode::Copy
+        };
+        self.facts.payload_binding_modes.insert(payload.span, mode);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_environment_binding(

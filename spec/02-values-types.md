@@ -694,6 +694,13 @@ Rules:
   enum bindings and parameters when the payload ABI is `i32`, `u8`, `usize`,
   `bool`, `&str`, a slice view, or a copy aggregate value. The binding is
   loaded only inside the matching branch.
+- A copy payload binding copies the payload into its branch-local binding. A
+  move-only payload binding transfers ownership out of an owned pattern target.
+  Matching an existing local requires an explicit `move` target, such as
+  `match move result`; a call result or direct variant constructor is already
+  an owned temporary. Member targets cannot supply move-only payload bindings
+  until field moves are supported. This ownership rule is checked even while
+  the non-copy binding lowering path remains check-only.
 - Payload-carrying enum active payload cleanup lowers for runtime-supported enum
   values whose droppable variants have direct-drop aggregate payload fields.
   Scope-end cleanup, parameter cleanup, discarded call results, call-result
@@ -703,8 +710,7 @@ Rules:
 - Payload-carrying enum `if is` / `match` over call results, direct variant
   constructors, and explicit `move` of an enum local lower in the current
   runtime-supported payload subset. Other pattern target expressions and
-  non-copy aggregate payload binding are typechecked in v0 but still reject
-  before build/run.
+  non-copy aggregate payload binding still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

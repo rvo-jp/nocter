@@ -107,8 +107,11 @@ Recommended order:
    over existing values and supported call/constructor/move-local pattern
    targets, plus scalar, string/slice view, and copy aggregate payload binding
    in `if is` statements and value expressions and `match`
-   statement/value-expression arms; next, design non-copy payload binding and
-   broader pattern target expressions before collection expansion.
+   statement/value-expression arms. The frontend now records copy-versus-move
+   payload binding mode and requires explicit `move` when a move-only binding
+   extracts from an existing local; member extraction remains blocked until
+   field moves exist. Next, lower that ownership fact and then broaden pattern
+   target expressions before collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in

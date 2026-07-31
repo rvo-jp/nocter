@@ -43,8 +43,8 @@ use sized::*;
 
 pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckMethodReceiverKind, TypecheckScalarViewKind, TypecheckSliceElementKind,
-    collect_typecheck_facts,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSliceElementKind, collect_typecheck_facts,
 };
 
 #[derive(Debug, Clone, Copy)]

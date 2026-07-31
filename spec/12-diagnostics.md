@@ -287,6 +287,9 @@ Required v0 diagnostic families:
 - `if is` used on a non-enum expression.
 - `if is` pattern that does not use `Enum.variant`.
 - `if is` enum pattern whose enum or variant does not match the target enum type.
+- Move-only enum payload binding from an existing local without an explicit
+  `move` pattern target, or from a member target before field moves are
+  supported.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
 - Check-only construct used with `build` or `run`, such as string interpolation

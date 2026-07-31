@@ -1,13 +1,14 @@
+use super::copyability::{implicit_non_copy_owned_value_source, non_copy_owned_type_kind};
 use super::diagnostics::{
     duplicate_switch_arm_variant_diagnostic, enum_variant_payload_count_mismatch_diagnostic,
     enum_variant_payload_type_mismatch_diagnostic, enum_variant_payloadless_call_diagnostic,
     enum_variant_unknown_diagnostic, if_is_enum_mismatch_diagnostic, if_is_non_enum_diagnostic,
     if_is_payload_mismatch_diagnostic, if_is_target_type_mismatch_diagnostic,
     if_is_unknown_enum_diagnostic, if_is_unknown_variant_diagnostic,
-    switch_arm_enum_mismatch_diagnostic, switch_arm_non_enum_diagnostic,
-    switch_arm_payload_mismatch_diagnostic, switch_arm_result_type_mismatch_diagnostic,
-    switch_arm_unknown_enum_diagnostic, switch_arm_unknown_variant_diagnostic,
-    switch_target_type_mismatch_diagnostic,
+    non_copy_payload_binding_target_diagnostic, switch_arm_enum_mismatch_diagnostic,
+    switch_arm_non_enum_diagnostic, switch_arm_payload_mismatch_diagnostic,
+    switch_arm_result_type_mismatch_diagnostic, switch_arm_unknown_enum_diagnostic,
+    switch_arm_unknown_variant_diagnostic, switch_target_type_mismatch_diagnostic,
 };
 use super::environments::environment_for_switch_arm;
 use super::expressions::{block_result_type, expression_type};
@@ -27,6 +28,7 @@ pub(super) fn check_switch_statement(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
+    let diagnostic_mark = diagnostics.len();
     let target_type = expression_type(&statement.expression, resolved, environment);
     if target_type.is_unknown_or_unresolved() {
         return;
@@ -54,6 +56,16 @@ pub(super) fn check_switch_statement(
             diagnostics,
         );
     }
+
+    if diagnostics.len() == diagnostic_mark {
+        check_switch_payload_binding_ownership(
+            sources,
+            statement,
+            resolved,
+            diagnostics,
+            environment,
+        );
+    }
 }
 
 pub(super) fn check_match_expression(
@@ -74,6 +86,7 @@ pub(super) fn check_if_is_statement(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
+    let diagnostic_mark = diagnostics.len();
     let target_type = expression_type(&statement.expression, resolved, environment);
     if target_type.is_unknown_or_unresolved() {
         return;
@@ -89,6 +102,110 @@ pub(super) fn check_if_is_statement(
     }
 
     check_if_is_pattern(sources, statement, target_symbol, resolved, diagnostics);
+    if diagnostics.len() == diagnostic_mark {
+        check_if_is_payload_binding_ownership(
+            sources,
+            statement,
+            resolved,
+            diagnostics,
+            environment,
+        );
+    }
+}
+
+fn check_if_is_payload_binding_ownership(
+    sources: &SourceMap,
+    statement: &IfIsStmt,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let Some(binding) = statement
+        .payload
+        .as_ref()
+        .and_then(|payload| payload.binding())
+    else {
+        return;
+    };
+    let binding_environment =
+        super::environments::environment_for_if_is_binding(statement, resolved, environment);
+    check_payload_binding_ownership(
+        sources,
+        &statement.expression,
+        binding,
+        &binding_environment,
+        environment,
+        resolved,
+        diagnostics,
+        "if",
+    );
+}
+
+fn check_switch_payload_binding_ownership(
+    sources: &SourceMap,
+    statement: &SwitchStmt,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    for arm in &statement.arms {
+        let Some(binding) = arm.payload.as_ref().and_then(|payload| payload.binding()) else {
+            continue;
+        };
+        let binding_environment =
+            environment_for_switch_arm(arm, &statement.expression, resolved, environment);
+        let previous_len = diagnostics.len();
+        check_payload_binding_ownership(
+            sources,
+            &statement.expression,
+            binding,
+            &binding_environment,
+            environment,
+            resolved,
+            diagnostics,
+            "match",
+        );
+        if diagnostics.len() != previous_len {
+            return;
+        }
+    }
+}
+
+fn check_payload_binding_ownership(
+    sources: &SourceMap,
+    target: &Expr,
+    binding: &crate::ast::SwitchPayloadBinding,
+    binding_environment: &TypeEnvironment,
+    source_environment: &TypeEnvironment,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    construct: &str,
+) {
+    let Some(payload_type) = binding_environment.get(&binding.name) else {
+        return;
+    };
+    if non_copy_owned_type_kind(payload_type, resolved).is_none() {
+        return;
+    }
+    let Some(source) = implicit_non_copy_owned_value_source(target, resolved, source_environment)
+    else {
+        return;
+    };
+    let help = match target.without_groups() {
+        Expr::Identifier(_) => format!(
+            "write `{construct} move {}` to transfer the enum into the pattern before binding its payload",
+            source.source_name
+        ),
+        _ => "move-only payload binding from a member pattern target is not supported; match an owned local, call result, or direct variant constructor instead".to_string(),
+    };
+    diagnostics.push(non_copy_payload_binding_target_diagnostic(
+        sources,
+        target,
+        &binding.name,
+        payload_type,
+        &source.source_name,
+        help,
+    ));
 }
 
 pub(super) fn match_expression_type(

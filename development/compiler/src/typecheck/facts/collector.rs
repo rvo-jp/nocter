@@ -1,4 +1,5 @@
 use super::*;
+use crate::typecheck::copyability::non_copy_owned_type_kind;
 
 pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -> TypecheckFacts {
     let mut collector = TypecheckFactCollector {

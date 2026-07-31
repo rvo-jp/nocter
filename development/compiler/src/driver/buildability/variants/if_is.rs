@@ -121,6 +121,10 @@ pub(in crate::driver::buildability) fn payload_binding_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
+    if typecheck_facts.payload_binding_mode(binding.span) == Some(TypecheckPayloadBindingMode::Move)
+    {
+        return false;
+    }
     let Some(ty) = typecheck_facts.binding_type_expr(binding.span) else {
         return false;
     };

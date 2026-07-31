@@ -7,6 +7,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
+    pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
     pub(super) declaration_hover_labels: HashMap<ByteSpan, String>,
     pub(super) call_hover_labels: HashMap<ByteSpan, String>,
     pub(super) field_hover_labels: HashMap<ByteSpan, String>,
@@ -51,6 +52,13 @@ impl TypecheckFacts {
 
     pub(crate) fn binding_is_readonly(&self, name_span: ByteSpan) -> Option<bool> {
         self.binding_readonly.get(&name_span).copied()
+    }
+
+    pub(crate) fn payload_binding_mode(
+        &self,
+        name_span: ByteSpan,
+    ) -> Option<TypecheckPayloadBindingMode> {
+        self.payload_binding_modes.get(&name_span).copied()
     }
 
     pub(crate) fn declaration_hover_label(&self, name_span: ByteSpan) -> Option<&str> {
@@ -263,6 +271,12 @@ impl TypecheckFacts {
             .min_by_key(|(span, _)| (span.len(), span.start))
             .map(|(span, target)| (*span, *target))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckPayloadBindingMode {
+    Copy,
+    Move,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
