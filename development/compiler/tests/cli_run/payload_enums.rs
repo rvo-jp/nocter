@@ -2155,3 +2155,228 @@ fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_owned_if_is_direct_drop_payload_binding_exit_code() {
+    let project = TempProject::new("cli-run-owned-if-is-direct-drop-payload-binding");
+    let source = project.write_source(
+        "owned_if_is_direct_drop_payload_binding.nct",
+        r#"struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail { code: 42 })
+    if move result is Result.ok(detail) {
+        return detail.code
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_owned_match_direct_drop_payload_binding_exit_code() {
+    let project = TempProject::new("cli-run-owned-match-direct-drop-payload-binding");
+    let source = project.write_source(
+        "owned_match_direct_drop_payload_binding.nct",
+        r#"struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail { code: 43 })
+    return match move result {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(43),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_constructor_match_direct_drop_payload_binding_exit_code() {
+    let project = TempProject::new("cli-run-constructor-match-direct-drop-payload-binding");
+    let source = project.write_source(
+        "constructor_match_direct_drop_payload_binding.nct",
+        r#"struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    return match Result.ok(Detail { code: 44 }) {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(44),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_owned_match_payload_binding_after_normal_completion() {
+    let project = TempProject::new("cli-run-owned-match-payload-binding-normal-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "owned_match_payload_binding_normal_drop.nct",
+        r#"use std/process.exit
+
+struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Detail { code: 45 })
+    match move result {
+        Result.ok(detail) {
+            let code = detail.code
+        }
+        _ {
+            return 0
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(45),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_owned_match_target_when_move_binding_arm_does_not_match() {
+    let project = TempProject::new("cli-run-owned-match-unmatched-target-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "owned_match_unmatched_target_drop.nct",
+        r#"use std/process.exit
+
+struct Detail {
+    code: i32
+}
+
+impl Detail {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Detail)
+    other(value: Detail)
+}
+
+func main(): i32 {
+    let result = Result.other(Detail { code: 46 })
+    match move result {
+        Result.ok(detail) {
+            let code = detail.code
+        }
+        _ {
+            let code = 0
+        }
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(46),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

@@ -62,15 +62,17 @@ for v0.2.0:
   arguments, tag-only control flow, scalar, string/slice view, and copy
   aggregate payload binding over existing values and supported
   call/constructor/move-local pattern targets, and direct-drop aggregate active
-  cleanup, including multi-field payloads, are runtime-shipped in the current
-  subset. The next slice should design non-copy aggregate payload binding and
-  broader pattern target expressions before broad collection expansion.
+  cleanup and owned direct-drop aggregate payload move binding, including
+  conditional source cleanup, are runtime-shipped in the current subset. The
+  next slice should design recursive aggregate drop glue and broader pattern
+  target expressions before broad collection expansion.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.
 - Promote non-copy `Vec<T>` storage only after per-element drop behavior is
   designed and tested.
-- Promote broader payload enum binding and pattern target expressions only after
-  non-copy aggregate payload binding facts and temporary enum slots are stable.
+- Promote move-only payload bindings without direct drop glue and broader
+  pattern target expressions only after recursive aggregate drop glue and
+  field-level ownership state are stable.
 - Promote `std/process.env` only after nested fallible/optional return lowering
   and process-context storage are ready.

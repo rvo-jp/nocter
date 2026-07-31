@@ -106,6 +106,16 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(in crate::ir::lower) fn payload_binding_mode(
+        &self,
+        name_span: ByteSpan,
+    ) -> Option<TypecheckPayloadBindingMode> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .payload_binding_mode(name_span)
+    }
+
     pub(in crate::ir::lower) fn expression_type_expr(
         &self,
         expression_span: ByteSpan,

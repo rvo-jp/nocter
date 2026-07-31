@@ -142,6 +142,96 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_owned_direct_drop_payload_binding_with_conditional_target_cleanup() {
+    let ir = lower_text(
+        r#"struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(Payload { code: 42 })
+    if move result is Result.ok(value) {
+        let code = value.code
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = &ir.functions[0];
+    assert!(
+        main.instructions.contains(&Instruction::SetBool {
+            destination: BoolLocation::Local(0),
+            value: BoolValue::Const(true),
+        }),
+        "{main:?}"
+    );
+
+    let pattern_branch = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::If {
+                then_instructions, ..
+            } if then_instructions.contains(&Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(false),
+            }) =>
+            {
+                Some(then_instructions)
+            }
+            _ => None,
+        })
+        .expect("expected move-binding pattern branch");
+    assert!(pattern_branch.contains(&Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(2),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(1),
+        source_offset: 4,
+        layout: ValueLayout::new(4, 4),
+    }));
+    assert!(pattern_branch.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("Payload.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(2),
+        })],
+    }));
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions,
+                    else_instructions,
+                } if else_instructions.is_empty()
+                    && then_instructions.iter().any(|instruction| matches!(
+                        instruction,
+                        Instruction::LoadAggregateU8 {
+                            source: AggregateLocation::Slot(1),
+                            offset: 0,
+                            ..
+                        }
+                    ))
+            )
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
 fn lowers_payload_enum_slice_payload_binding() {
     let score = lower_named_function(
         r#"enum Result {

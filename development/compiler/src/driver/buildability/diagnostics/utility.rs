@@ -31,9 +31,9 @@ pub(in crate::driver::buildability) fn unsupported_payload_binding_diagnostic(
         sources,
         span,
         &format!(
-            "payload bindings outside runtime scalar/view and copy aggregate types in {control}"
+            "payload bindings outside runtime scalar/view, copy aggregate, and owned direct-drop aggregate types in {control}"
         ),
-        "bind an `i32`, `u8`, `usize`, `bool`, `&str`, slice view, or copy aggregate payload; use `_` to discard other payloads until ownership-aware payload extraction is promoted",
+        "bind an `i32`, `u8`, `usize`, `bool`, `&str`, slice view, or copy aggregate payload; move an owned direct-drop aggregate payload; or use `_` to discard other payloads",
     )
 }
 

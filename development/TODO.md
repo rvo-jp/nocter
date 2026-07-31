@@ -107,13 +107,14 @@ Recommended order:
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
    over existing values and supported call/constructor/move-local pattern
-   targets, plus scalar, string/slice view, and copy aggregate payload binding
-   in `if is` statements and value expressions and `match`
-   statement/value-expression arms. The frontend now records copy-versus-move
-   payload binding mode and requires explicit `move` when a move-only binding
-   extracts from an existing local; member extraction remains blocked until
-   field moves exist. Next, lower that ownership fact and then broaden pattern
-   target expressions before collection expansion.
+   targets, plus scalar, string/slice view, copy aggregate payload binding, and
+   owned direct-drop aggregate payload move binding in `if is` statements and
+   value expressions and `match` statement/value-expression arms. The frontend
+   records copy-versus-move payload binding mode and requires explicit `move`
+   when a move-only binding extracts from an existing local; member extraction
+   remains blocked until field moves exist. Next, design recursive aggregate
+   drop glue and then broaden pattern target expressions before collection
+   expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -397,15 +398,19 @@ Recommended order:
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,
-  `bool`, `&str`, and copy aggregate payloads over existing enum bindings,
-  parameters, and supported pattern targets.
+  `bool`, `&str`, copy aggregate payloads, and owned direct-drop aggregate
+  payloads over existing enum bindings, parameters, and supported pattern
+  targets.
   Direct-drop aggregate payload fields now drop only the active payload fields
   in scope, parameter, discarded call-result, call-result binding, and
   whole-local replacement cleanup paths, including multi-field payloads in
   reverse aggregate field order. Supported pattern target temporaries are
   materialized into hidden aggregate slots and cleaned up before branch returns
-  or after normal control-flow completion. Non-copy aggregate payload binding
-  plus broader pattern target expressions remain the next promotion boundary.
+  or after normal control-flow completion. Move bindings transfer payload bytes
+  into a branch-local owner, clear the source temporary's conditional drop flag,
+  and leave non-selected branches responsible for source cleanup. Move-only
+  aggregate payload bindings without direct drop glue plus broader pattern
+  target expressions remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
@@ -428,11 +433,12 @@ Recommended order:
   including signed minimum values. Computed conversions into those storage-only
   widths reject with source-backed E0435; field reads remain encapsulated until
   standalone scalar lowering is promoted.
-- Payload-pattern buildability diagnostics now classify unsupported binding
-  types separately from unsupported `if is` / `match` target shapes. Non-copy
-  aggregate payload bindings point at the binding itself and state the shipped
-  scalar/view/copy-aggregate boundary, providing a stable ownership-promotion
-  seam instead of a generic control-expression rejection.
+- Payload-pattern buildability diagnostics classify unsupported binding types
+  separately from unsupported `if is` / `match` target shapes. Unsupported
+  move-only aggregate payload bindings point at the binding itself and state the
+  shipped scalar/view/copy-aggregate/owned-direct-drop boundary, providing a
+  stable recursive-drop promotion seam instead of a generic control-expression
+  rejection.
 
 ## Session Start
 

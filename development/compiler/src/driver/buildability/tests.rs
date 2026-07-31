@@ -265,7 +265,7 @@ func main(): i32 {
 }
 
 #[test]
-fn reports_reachable_payload_match_expression_non_copy_binding_before_ir_lowering() {
+fn does_not_report_owned_payload_match_expression_direct_drop_binding() {
     let (sources, analysis) = analyze_text(
         r#"struct Detail {
     code: i32
@@ -294,18 +294,11 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains(
-                "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
-            )),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn reports_reachable_payload_match_statement_non_copy_binding_before_ir_lowering() {
+fn does_not_report_owned_payload_match_statement_direct_drop_binding() {
     let (sources, analysis) = analyze_text(
         r#"struct Detail {
     code: i32
@@ -334,21 +327,52 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_owned_payload_match_move_binding_without_direct_drop() {
+    let (sources, analysis) = analyze_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return match move result {
+        Result.ok(value) { value.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains(
-                "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
-            )),
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "payload bindings outside runtime scalar/view, copy aggregate, and owned direct-drop aggregate types in `match`"
+        )),
         "{diagnostics:?}"
     );
 }
 
 #[test]
-fn does_not_treat_if_is_payload_move_as_outer_control_move() {
+fn does_not_report_owned_if_is_direct_drop_binding_as_outer_control_move() {
     let (sources, analysis) = analyze_text(
         r#"struct File {
     fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
 }
 
 enum Event {
@@ -368,20 +392,7 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains(
-                "payload bindings outside runtime scalar/view and copy aggregate types in `if is`"
-            )),
-        "{diagnostics:?}"
-    );
-    assert!(
-        diagnostics.iter().all(|diagnostic| !diagnostic
-            .message
-            .contains("explicit outer aggregate moves inside non-terminal control flow")),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

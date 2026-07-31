@@ -1611,10 +1611,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_if_is_non_copy_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-if-is-non-copy-binding-boundary");
+fn build_command_accepts_payload_if_is_owned_direct_drop_binding() {
+    let project = TempProject::new("cli-build-payload-if-is-owned-direct-drop-binding");
     let source = project.write_source(
-        "payload_if_is_non_copy_binding_boundary.nct",
+        "payload_if_is_owned_direct_drop_binding.nct",
         r#"struct Detail {
     code: i32
 }
@@ -1647,21 +1647,50 @@ func describe(error: AppError): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_owned_payload_move_binding_without_direct_drop() {
+    let project = TempProject::new("cli-build-payload-move-binding-without-direct-drop");
+    let source = project.write_source(
+        "payload_move_binding_without_direct_drop.nct",
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return match move result {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
     let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
     assert!(
         stderr.contains("error[E0435]"),
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains(
-            "payload bindings outside runtime scalar/view and copy aggregate types in `if is`"
-        ),
-        "expected payload binding diagnostic, got:\n{stderr}"
+        stderr.contains("owned direct-drop aggregate types in `match`"),
+        "expected payload binding boundary, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("21 |     if move error is AppError.open_failed(detail) {"),
-        "expected source line, got:\n{stderr}"
+        stderr.contains("Result.ok(detail)"),
+        "expected binding source span, got:\n{stderr}"
     );
     assert!(
         !stderr.contains("error[E800"),
@@ -2544,10 +2573,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_match_expression_non_copy_binding_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-match-expression-non-copy-binding-boundary");
+fn build_command_accepts_payload_match_expression_owned_direct_drop_binding() {
+    let project = TempProject::new("cli-build-payload-match-expression-owned-direct-drop-binding");
     let source = project.write_source(
-        "payload_match_expression_non_copy_binding_boundary.nct",
+        "payload_match_expression_owned_direct_drop_binding.nct",
         r#"struct Detail {
     code: i32
 }
@@ -2576,30 +2605,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "payload bindings outside runtime scalar/view and copy aggregate types in `match`"
-        ),
-        "expected payload binding diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("19 |         Result.ok(value) { value.code }"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

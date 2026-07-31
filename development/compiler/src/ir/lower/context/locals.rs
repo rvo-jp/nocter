@@ -351,6 +351,24 @@ impl<'a> LoweringContext<'a> {
         self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
     }
 
+    pub(in crate::ir::lower) fn mark_aggregate_local_dropped_by_slot(&mut self, slot_index: usize) {
+        let Some(local) = self.locals.iter_mut().find(|local| {
+            matches!(
+                &local.kind,
+                LocalKind::Aggregate {
+                    slot_index: local_slot_index,
+                    ..
+                } if *local_slot_index == slot_index
+            )
+        }) else {
+            return;
+        };
+        let LocalKind::Aggregate { drop_state, .. } = &mut local.kind else {
+            return;
+        };
+        *drop_state = AggregateDropState::Suppressed;
+    }
+
     pub(in crate::ir::lower) fn mark_aggregate_local_moved(&mut self, name: &str) {
         self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
     }

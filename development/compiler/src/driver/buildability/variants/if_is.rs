@@ -121,15 +121,37 @@ pub(in crate::driver::buildability) fn payload_binding_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if typecheck_facts.payload_binding_mode(binding.span) == Some(TypecheckPayloadBindingMode::Move)
-    {
-        return false;
-    }
     let Some(ty) = typecheck_facts.binding_type_expr(binding.span) else {
         return false;
     };
     let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-    payload_if_is_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+    match typecheck_facts.payload_binding_mode(binding.span) {
+        Some(TypecheckPayloadBindingMode::Move) => {
+            payload_move_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+        }
+        Some(TypecheckPayloadBindingMode::Copy) | None => {
+            payload_if_is_binding_type_expr_is_buildable(&ty, resolved, resolved_sources)
+        }
+    }
+}
+
+pub(in crate::driver::buildability) fn payload_move_binding_type_expr_is_buildable(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
+    else {
+        return false;
+    };
+    abi_value_is_supported_aggregate_value(&value)
+        && type_expr_has_direct_drop_with_resolver(
+            ty,
+            fallback_resolved,
+            &source_resolver,
+            &mut HashSet::new(),
+        )
 }
 
 pub(in crate::driver::buildability) fn payload_if_is_binding_type_expr_is_buildable(

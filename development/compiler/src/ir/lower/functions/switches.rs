@@ -5,6 +5,7 @@ pub(super) struct BranchPrologueBinding {
     pub(super) name: String,
     pub(super) source_slot: usize,
     pub(super) payload_offset: u32,
+    pub(super) source_drop_flag: Option<BoolLocation>,
     pub(super) kind: BranchPrologueBindingKind,
     pub(super) diagnostic_code: &'static str,
 }
@@ -17,6 +18,11 @@ pub(super) enum BranchPrologueBindingKind {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
     },
+    MoveAggregate {
+        layout: ValueLayout,
+        fields: Vec<AggregateField>,
+        drop_kind: AggregateDrop,
+    },
 }
 
 impl BranchPrologueBinding {
@@ -26,6 +32,40 @@ impl BranchPrologueBinding {
     ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
         let source = AggregateLocation::Slot(self.source_slot);
         match &self.kind {
+            BranchPrologueBindingKind::MoveAggregate {
+                layout,
+                fields,
+                drop_kind,
+            } => {
+                let Some(source_drop_flag) = self.source_drop_flag else {
+                    return Err(unsupported_if_is_diagnostic(self.diagnostic_code));
+                };
+                let slot_index = context.define_aggregate_local(
+                    self.name.clone(),
+                    *layout,
+                    false,
+                    Some(drop_kind.clone()),
+                    fields.clone(),
+                );
+                context.mark_aggregate_local_dropped_by_slot(self.source_slot);
+                Ok(vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index,
+                        layout: *layout,
+                    },
+                    Instruction::CopyAggregateRange {
+                        destination: AggregateLocation::Slot(slot_index),
+                        destination_offset: 0,
+                        source,
+                        source_offset: self.payload_offset,
+                        layout: *layout,
+                    },
+                    Instruction::SetBool {
+                        destination: source_drop_flag,
+                        value: BoolValue::Const(false),
+                    },
+                ])
+            }
             BranchPrologueBindingKind::CopyAggregate { layout, fields } => {
                 let slot_index = context.define_aggregate_local(
                     self.name.clone(),
@@ -201,6 +241,7 @@ pub(super) fn tag_only_switch_payload_pattern_is_supported(
 pub(super) fn tag_only_if_is_then_prologue(
     statement: &IfIsStmt,
     source_slot: usize,
+    source_drop_flag: Option<BoolLocation>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<BranchPrologue, Vec<Diagnostic>> {
@@ -216,6 +257,7 @@ pub(super) fn tag_only_if_is_then_prologue(
         name: binding.name.clone(),
         source_slot,
         payload_offset,
+        source_drop_flag,
         kind,
         diagnostic_code,
     }))
@@ -268,6 +310,27 @@ pub(super) fn payload_branch_prologue_binding_kind(
     })
     .ok()?;
 
+    if context.payload_binding_mode(binding.span) == Some(TypecheckPayloadBindingMode::Move) {
+        if !matches!(payload_type, AbiType::Struct(_) | AbiType::Array { .. })
+            || value.ty != payload_type
+            || !supported_aggregate_copy_layout(value.layout)
+        {
+            return None;
+        }
+        let (root_source, _) = context.resolved_calls()?;
+        let fields =
+            aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+                context.resolved_source(source)
+            })
+            .unwrap_or_default();
+        let drop_kind = context.aggregate_drop_for_type_expr(&ty)?;
+        return Some(BranchPrologueBindingKind::MoveAggregate {
+            layout: value.layout,
+            fields,
+            drop_kind,
+        });
+    }
+
     if matches!(payload_type, AbiType::SliceView) {
         if !matches!(value.ty, AbiType::SliceView)
             || value.layout != layout_of(&payload_type).ok()?
@@ -312,6 +375,7 @@ pub(super) struct LoweredPayloadEnumPatternTarget {
     pub(super) leading_instructions: Vec<Instruction>,
     pub(super) slot_index: usize,
     pub(super) cleanup: Option<PatternTargetCleanup>,
+    pub(super) drop_flag: Option<BoolLocation>,
 }
 
 pub(super) fn lower_payload_enum_pattern_target(
@@ -319,12 +383,14 @@ pub(super) fn lower_payload_enum_pattern_target(
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
     unsupported_diagnostic: fn(&'static str) -> Vec<Diagnostic>,
+    needs_drop_flag: bool,
 ) -> Result<LoweredPayloadEnumPatternTarget, Vec<Diagnostic>> {
     if let Some(slot_index) = tag_only_if_is_aggregate_source_slot(expression, context) {
         return Ok(LoweredPayloadEnumPatternTarget {
             leading_instructions: Vec::new(),
             slot_index,
             cleanup: None,
+            drop_flag: None,
         });
     }
     if !payload_enum_pattern_target_expression_shape_is_supported(expression, context) {
@@ -364,10 +430,24 @@ pub(super) fn lower_payload_enum_pattern_target(
         context.define_aggregate_local(local_name.clone(), value.layout, false, drop_kind, fields);
     context.mark_aggregate_local_dropped(&local_name);
 
+    let drop_flag = if needs_drop_flag {
+        let flag = context.next_bool_local_location()?;
+        context.define_bool_local(format!("{local_name}:needs-drop"));
+        Some(flag)
+    } else {
+        None
+    };
+
     let mut leading_instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
     }];
+    if let Some(drop_flag) = drop_flag {
+        leading_instructions.push(Instruction::SetBool {
+            destination: drop_flag,
+            value: BoolValue::Const(true),
+        });
+    }
     let lowered_expression = {
         let function_name = context.function_name().to_string();
         let Some((_, resolved)) = context.resolved_calls() else {
@@ -404,7 +484,11 @@ pub(super) fn lower_payload_enum_pattern_target(
     Ok(LoweredPayloadEnumPatternTarget {
         leading_instructions,
         slot_index,
-        cleanup: Some(PatternTargetCleanup { local_mark }),
+        cleanup: Some(PatternTargetCleanup {
+            local_mark,
+            drop_flag,
+        }),
+        drop_flag,
     })
 }
 
@@ -504,6 +588,7 @@ pub(super) fn tag_only_switch_body(
     target: Expr,
     variant_names: &[String],
     source_slot: usize,
+    source_drop_flag: Option<BoolLocation>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<LoweredPayloadlessSwitchBody, Vec<Diagnostic>> {
@@ -511,6 +596,7 @@ pub(super) fn tag_only_switch_body(
         statement,
         variant_names,
         source_slot,
+        source_drop_flag,
         context,
         diagnostic_code,
     )?
@@ -540,6 +626,7 @@ pub(super) fn tag_only_switch_body(
                 arm,
                 &statement.expression,
                 source_slot,
+                source_drop_flag,
                 context,
                 diagnostic_code,
             )?,
@@ -554,6 +641,7 @@ pub(super) fn tag_only_switch_condition_arms_and_fallback<'a>(
     statement: &'a SwitchStmt,
     variant_names: &[String],
     source_slot: usize,
+    source_drop_flag: Option<BoolLocation>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Option<(&'a [SwitchArm], LoweredSwitchBlock)>, Vec<Diagnostic>> {
@@ -588,6 +676,7 @@ pub(super) fn tag_only_switch_condition_arms_and_fallback<'a>(
                 &statement.arms[0],
                 &statement.expression,
                 source_slot,
+                source_drop_flag,
                 context,
                 diagnostic_code,
             )?,
@@ -603,6 +692,7 @@ pub(super) fn tag_only_switch_condition_arms_and_fallback<'a>(
             last,
             &statement.expression,
             source_slot,
+            source_drop_flag,
             context,
             diagnostic_code,
         )?,
@@ -613,6 +703,7 @@ pub(super) fn tag_only_switch_arm_block(
     arm: &SwitchArm,
     target_expression: &Expr,
     source_slot: usize,
+    source_drop_flag: Option<BoolLocation>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<LoweredSwitchBlock, Vec<Diagnostic>> {
@@ -622,6 +713,7 @@ pub(super) fn tag_only_switch_arm_block(
             arm,
             target_expression,
             source_slot,
+            source_drop_flag,
             context,
             diagnostic_code,
         )?,
@@ -632,6 +724,7 @@ pub(super) fn tag_only_switch_arm_prologue(
     arm: &SwitchArm,
     target_expression: &Expr,
     source_slot: usize,
+    source_drop_flag: Option<BoolLocation>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<BranchPrologue, Vec<Diagnostic>> {
@@ -647,6 +740,7 @@ pub(super) fn tag_only_switch_arm_prologue(
         name: binding.name.clone(),
         source_slot,
         payload_offset,
+        source_drop_flag,
         kind,
         diagnostic_code,
     }))

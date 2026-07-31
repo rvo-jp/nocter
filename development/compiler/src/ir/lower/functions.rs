@@ -70,7 +70,7 @@ use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{TypecheckFacts, TypecheckSliceElementKind};
+use crate::typecheck::{TypecheckFacts, TypecheckPayloadBindingMode, TypecheckSliceElementKind};
 use std::collections::HashMap;
 
 mod aggregate_returns;

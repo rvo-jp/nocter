@@ -41,6 +41,7 @@ pub(in crate::ir::lower) struct LoweredTagOnlyIfIs {
 #[derive(Clone, Copy)]
 pub(in crate::ir::lower) struct PatternTargetCleanup {
     pub(in crate::ir::lower::functions) local_mark: usize,
+    pub(in crate::ir::lower::functions) drop_flag: Option<BoolLocation>,
 }
 
 impl PatternTargetCleanup {
@@ -49,10 +50,19 @@ impl PatternTargetCleanup {
         instructions: &mut Vec<Instruction>,
         context: &mut LoweringContext,
     ) -> Result<(), Vec<Diagnostic>> {
-        instructions.extend(lower_scope_end_drops_for_locals_since(
-            context,
-            self.local_mark,
-        )?);
+        let drops = lower_scope_end_drops_for_locals_since(context, self.local_mark)?;
+        if drops.is_empty() {
+            return Ok(());
+        }
+        if let Some(drop_flag) = self.drop_flag {
+            instructions.push(Instruction::If {
+                condition: BoolValue::Location(drop_flag),
+                then_instructions: drops,
+                else_instructions: Vec::new(),
+            });
+        } else {
+            instructions.extend(drops);
+        }
         Ok(())
     }
 }
@@ -117,14 +127,27 @@ pub(in crate::ir::lower) fn tag_only_if_is_as_control_flow(
     if !tag_only_if_is_payload_pattern_is_supported(statement.payload.as_ref(), payload_len) {
         return Err(unsupported_if_is_diagnostic(diagnostic_code));
     }
+    let needs_move_binding = statement
+        .payload
+        .as_ref()
+        .and_then(|payload| payload.binding())
+        .is_some_and(|binding| {
+            context.payload_binding_mode(binding.span) == Some(TypecheckPayloadBindingMode::Move)
+        });
     let source = lower_payload_enum_pattern_target(
         &statement.expression,
         context,
         diagnostic_code,
         unsupported_if_is_diagnostic,
+        needs_move_binding,
     )?;
-    let then_prologue =
-        tag_only_if_is_then_prologue(statement, source.slot_index, context, diagnostic_code)?;
+    let then_prologue = tag_only_if_is_then_prologue(
+        statement,
+        source.slot_index,
+        source.drop_flag,
+        context,
+        diagnostic_code,
+    )?;
     let target_name = tag_only_if_is_target_name(statement);
     let target = context.next_u8_local_location()?;
     context.define_u8_local(target_name.clone());
@@ -230,11 +253,21 @@ pub(in crate::ir::lower) fn tag_only_switch_as_control_flow(
     let Some(variant_names) = payload_enum_tag_only_switch_variant_names(statement, context) else {
         return Err(unsupported_switch_diagnostic(diagnostic_code));
     };
+    let needs_move_binding = statement.arms.iter().any(|arm| {
+        arm.payload
+            .as_ref()
+            .and_then(|payload| payload.binding())
+            .is_some_and(|binding| {
+                context.payload_binding_mode(binding.span)
+                    == Some(TypecheckPayloadBindingMode::Move)
+            })
+    });
     let source = lower_payload_enum_pattern_target(
         &statement.expression,
         context,
         diagnostic_code,
         unsupported_switch_diagnostic,
+        needs_move_binding,
     )?;
 
     let target_name = payloadless_switch_target_name(statement);
@@ -249,6 +282,7 @@ pub(in crate::ir::lower) fn tag_only_switch_as_control_flow(
         target_expression,
         &variant_names,
         source.slot_index,
+        source.drop_flag,
         context,
         diagnostic_code,
     )?;

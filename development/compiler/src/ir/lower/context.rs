@@ -13,7 +13,9 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind, TypecheckSliceElementKind};
+use crate::typecheck::{
+    TypecheckFacts, TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
+};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
