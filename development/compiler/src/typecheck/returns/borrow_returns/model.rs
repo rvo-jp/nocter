@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::typecheck::returns) type BorrowReturnEnvironment = ProvenanceEnvironment;
 pub(in crate::typecheck::returns) type BorrowReturnFlow = ProvenanceFlow;
 pub(in crate::typecheck::returns) type BorrowReturnProvenance = ValueProvenance;
-pub(in crate::typecheck::returns) type BorrowReturnSummaries = ProvenanceSummaries;
+pub(in crate::typecheck::returns) type BorrowReturnSummaries = CallableProvenanceSummaries;
 
 pub(in crate::typecheck::returns) fn borrow_return_fallible_provenance(
     success: Option<BorrowReturnProvenance>,

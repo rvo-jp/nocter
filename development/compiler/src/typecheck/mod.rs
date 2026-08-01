@@ -117,8 +117,21 @@ pub(crate) fn check_module_with_summary_sources(
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
-    check_ownership_states(sources, ast, resolved, &mut diagnostics);
-    check_return_types(sources, ast, resolved, summary_sources, &mut diagnostics);
+    let provenance_summaries = borrow_return_summaries(summary_sources);
+    check_ownership_states(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
+    check_return_types(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
 
     diagnostics
 }

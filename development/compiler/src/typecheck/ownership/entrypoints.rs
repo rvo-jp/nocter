@@ -4,6 +4,7 @@ pub(in crate::typecheck) fn check_ownership_states(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for item in &ast.items {
@@ -20,13 +21,14 @@ pub(in crate::typecheck) fn check_ownership_states(
                     sources,
                     &function.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
                 );
             }
             Item::Impl(impl_) => {
-                check_impl_member_ownership(sources, impl_, resolved, diagnostics);
+                check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
             }
             Item::Import(_)
             | Item::FromImport(_)
@@ -43,6 +45,7 @@ fn check_impl_member_ownership(
     sources: &SourceMap,
     impl_: &ImplDecl,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for member in &impl_.members {
@@ -64,6 +67,7 @@ fn check_impl_member_ownership(
                     sources,
                     body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
@@ -85,6 +89,7 @@ fn check_impl_member_ownership(
                     sources,
                     &drop_.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
@@ -98,6 +103,7 @@ pub(super) fn check_block_ownership(
     sources: &SourceMap,
     block: &Block,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
@@ -126,6 +132,7 @@ pub(super) fn check_block_ownership(
             sources,
             statement,
             resolved,
+            summaries,
             diagnostics,
             environment,
             ownership,
@@ -136,6 +143,7 @@ pub(super) fn check_block_ownership(
             block.result.as_deref(),
             resolved,
             environment,
+            summaries,
             &mut active_borrows,
         );
         if !flow.reaches_end {
@@ -158,6 +166,7 @@ pub(super) fn check_block_ownership(
             sources,
             result,
             resolved,
+            summaries,
             diagnostics,
             environment,
             ownership,

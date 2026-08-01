@@ -40,6 +40,7 @@ mod return_checks;
 mod terminal;
 mod utility;
 
+pub(super) use borrow_returns::borrow_return_summaries;
 use borrow_returns::*;
 use return_checks::*;
 use utility::*;
@@ -54,10 +55,9 @@ pub(super) fn check_return_types(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
-    summary_sources: &[TypecheckSource<'_>],
+    summaries: &BorrowReturnSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let summaries = borrow_return_summaries(summary_sources);
     for item in &ast.items {
         match item {
             Item::Function(function) => {
@@ -81,11 +81,11 @@ pub(super) fn check_return_types(
                     diagnostics,
                     &mut environment,
                     &mut borrow_provenance,
-                    &summaries,
+                    summaries,
                 );
             }
             Item::Impl(impl_) => {
-                check_impl_member_return_types(sources, impl_, resolved, diagnostics, &summaries);
+                check_impl_member_return_types(sources, impl_, resolved, diagnostics, summaries);
             }
             _ => {}
         }

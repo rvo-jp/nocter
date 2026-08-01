@@ -337,7 +337,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     let signature = resolved_call_signature(resolved, call, environment)?;
     let return_type = call_return_type(call, &signature, resolved, environment);
     if let Some(declaration_span) = signature.declaration_span
-        && let Some(summary) = summaries.get(&CallableId::declared_at(declaration_span))
+        && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
         return borrow_return_provenance_for_call_summary(
             summary,

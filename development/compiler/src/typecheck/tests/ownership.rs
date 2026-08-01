@@ -468,6 +468,100 @@ func touch(text: &+Text): void {
 }
 
 #[test]
+fn diagnoses_mutation_while_helper_returned_borrow_is_used_later() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: i32
+}
+
+func same(value: &Text): &Text {
+    return value
+}
+
+func inspect(value: &Text): void {
+    return
+}
+
+func main(): i32 {
+    var text = Text { value: 1 }
+    let read = same(&text)
+    text = Text { value: 2 }
+    inspect(read)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("assign"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn accepts_mutation_after_helper_returned_borrow_last_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: i32
+}
+
+func same(value: &Text): &Text {
+    return value
+}
+
+func inspect(value: &Text): void {
+    return
+}
+
+func main(): i32 {
+    var text = Text { value: 1 }
+    let read = same(&text)
+    inspect(read)
+    text = Text { value: 2 }
+    return text.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn helper_result_constrains_every_possible_input_origin() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: i32
+}
+
+func choose(first: &Text, second: &Text, use_first: bool): &Text {
+    if use_first {
+        return first
+    }
+    return second
+}
+
+func inspect(value: &Text): void {
+    return
+}
+
+func main(): i32 {
+    var left = Text { value: 1 }
+    let right = Text { value: 2 }
+    let read = choose(&left, &right, true)
+    left = Text { value: 3 }
+    inspect(read)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("left"));
+}
+
+#[test]
 fn diagnoses_readwrite_borrow_while_readonly_borrow_used_later() {
     let diagnostics = check_text(
         r#"struct Text {

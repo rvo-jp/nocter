@@ -1,5 +1,5 @@
 use super::bindings::continuing_binding_type;
-use super::calls::{method_member_for_call, resolved_method_for_call};
+use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
 use super::copyability::{non_copy_owned_type_kind, non_copy_struct_type_name};
 use super::diagnostics::{
     active_borrow_conflict_diagnostic, invalid_drop_target_diagnostic,
@@ -12,6 +12,7 @@ use super::environments::{
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::provenance::{CallableId, CallableProvenanceSummaries, InputId};
 use super::returns::{
     extend_terminal_lookahead_environment, statement_evaluates_never_before_fallthrough,
     statement_guarantees_control_exit_or_never,
@@ -34,7 +35,7 @@ mod state_checks;
 
 use borrow_collection::{
     collect_direct_borrow_expressions, collect_direct_borrow_expressions_in_statement,
-    direct_borrow_source,
+    returned_borrow_sources,
 };
 use borrow_conflicts::{
     check_expression_borrow_conflicts, check_statement_borrow_conflicts, record_statement_borrow,

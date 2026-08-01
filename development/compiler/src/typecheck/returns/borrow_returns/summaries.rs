@@ -1,9 +1,9 @@
 use super::*;
 
-pub(in crate::typecheck::returns) fn borrow_return_summaries(
+pub(in crate::typecheck) fn borrow_return_summaries(
     summary_sources: &[TypecheckSource<'_>],
 ) -> BorrowReturnSummaries {
-    let mut summaries = BorrowReturnSummaries::new();
+    let mut summaries = BorrowReturnSummaries::default();
     for _ in 0..=borrow_return_callable_count(summary_sources) {
         let next = collect_borrow_return_summaries(summary_sources, &summaries);
         if next == summaries {
@@ -46,7 +46,7 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
     summary_sources: &[TypecheckSource<'_>],
     previous: &BorrowReturnSummaries,
 ) -> BorrowReturnSummaries {
-    let mut summaries = BorrowReturnSummaries::new();
+    let mut summaries = BorrowReturnSummaries::default();
     for source in summary_sources {
         for item in &source.ast.items {
             match item {
@@ -66,7 +66,7 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                             previous,
                         )
                         .unwrap_or_else(BorrowReturnProvenance::static_storage);
-                        summaries.insert(
+                        summaries.insert_result(
                             CallableId::declared_at(function_summary_key(function)),
                             provenance,
                         );
@@ -95,7 +95,10 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                                 previous,
                             )
                             .unwrap_or_else(BorrowReturnProvenance::static_storage);
-                            summaries.insert(CallableId::declared_at(method.name_span), provenance);
+                            summaries.insert_result(
+                                CallableId::declared_at(method.name_span),
+                                provenance,
+                            );
                         }
                     }
                 }

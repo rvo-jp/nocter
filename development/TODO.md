@@ -21,14 +21,15 @@ region/provenance の実装境界は [Region, Provenance, and Allocation Context
 
 ## Current Objective
 
-共有 `typecheck/provenance` model を callable summary の正式な semantic fact に昇格させ、
-borrow-like call result を ownership/NLL に接続する。`ValueProvenance`、`StorageOrigin`、
-`CallableId`、`InputId` と宣言 identity ベースの binding environment は導入済みで、既存の
-return 検査が共有 model を consume している。
+共有 provenance を scope/region の outlives constraint と escape 検査へ拡張する。
+`ValueProvenance`、`StorageOrigin`、`CallableId`、`InputId`、宣言 identity ベースの binding
+environment、`CallableProvenanceSummary` は導入済みで、return 検査と ownership/NLL が同じ
+call result summary を consume している。helper result の loan は全input originを保持し、
+result bindingの最終利用まで有効になる。
 
-次の checkpoint では result provenance と allocation effect を保持する
-`CallableProvenanceSummary` を導入し、return 専用 alias を除去する。その query API を
-ownership が利用できるまで、region parser、ambient allocator、literal 構文を追加しない。
+次の checkpoint では return 専用 aliasを除去し、storage-dependent owned valueと
+aggregate projectionに使えるoutlives queryを共有modelへ追加する。それがlocal/scope escapeを
+一貫して判定できるまで、region parserとambient allocatorを追加しない。
 
 Phase 0 gate:
 

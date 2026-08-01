@@ -151,14 +151,22 @@ pub(super) fn record_statement_borrow(
     later_result: Option<&Expr>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
     active_borrows: &mut Vec<ActiveBorrow>,
 ) {
     let Stmt::Binding(binding) = statement else {
         return;
     };
-    let Some(source) = direct_borrow_source(&binding.initializer) else {
+    let sources = returned_borrow_sources(
+        &binding.initializer,
+        resolved,
+        environment,
+        summaries,
+        active_borrows,
+    );
+    if sources.is_empty() {
         return;
-    };
+    }
     if !statements_or_result_use_identifier_before_terminal(
         later_statements,
         later_result,
@@ -169,12 +177,12 @@ pub(super) fn record_statement_borrow(
         return;
     }
 
-    active_borrows.push(ActiveBorrow {
+    active_borrows.extend(sources.into_iter().map(|source| ActiveBorrow {
         source: source.source,
         borrow_name: binding.name.clone(),
         borrow_span: binding.name_span,
         is_readwrite: source.is_readwrite,
-    });
+    }));
 }
 
 fn statement_conflicting_action(

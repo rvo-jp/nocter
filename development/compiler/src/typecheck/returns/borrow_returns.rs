@@ -14,5 +14,5 @@ pub(super) use expression_provenance::*;
 pub(super) use input_sources::*;
 pub(super) use model::*;
 pub(super) use propagation_collection::*;
-pub(super) use summaries::*;
+pub(in crate::typecheck) use summaries::borrow_return_summaries;
 pub(super) use type_predicates::*;

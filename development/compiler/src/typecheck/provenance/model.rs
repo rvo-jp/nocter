@@ -105,6 +105,50 @@ impl ValueProvenance {
         }
     }
 
+    pub(in crate::typecheck) fn input_origins(&self) -> Vec<InputId> {
+        let mut inputs = Vec::new();
+        self.collect_input_origins(&mut inputs);
+        inputs
+    }
+
+    fn collect_input_origins(&self, inputs: &mut Vec<InputId>) {
+        match self {
+            Self::Origins(origins) => {
+                for origin in origins {
+                    if let StorageOrigin::Input(input) = origin
+                        && !inputs.contains(input)
+                    {
+                        inputs.push(*input);
+                    }
+                }
+            }
+            Self::Aggregate {
+                fallback,
+                fields,
+                elements,
+            } => {
+                if let Some(fallback) = fallback {
+                    fallback.collect_input_origins(inputs);
+                }
+                for provenance in fields.values() {
+                    provenance.collect_input_origins(inputs);
+                }
+                for provenance in elements.values() {
+                    provenance.collect_input_origins(inputs);
+                }
+            }
+            Self::Fallible { success, error } => {
+                if let Some(success) = success {
+                    success.collect_input_origins(inputs);
+                }
+                if let Some(error) = error {
+                    error.collect_input_origins(inputs);
+                }
+            }
+            Self::Independent => {}
+        }
+    }
+
     pub(in crate::typecheck) fn success_provenance(&self) -> Option<ValueProvenance> {
         match self {
             Self::Fallible { success, .. } => success.as_deref().cloned(),
@@ -280,7 +324,44 @@ impl ProvenanceEnvironment {
     }
 }
 
-pub(in crate::typecheck) type ProvenanceSummaries = HashMap<CallableId, ValueProvenance>;
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(in crate::typecheck) struct CallableProvenanceSummary {
+    result: Option<ValueProvenance>,
+    needs_current_allocation_context: bool,
+}
+
+impl CallableProvenanceSummary {
+    pub(in crate::typecheck) fn result(&self) -> Option<&ValueProvenance> {
+        self.result.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(in crate::typecheck) struct CallableProvenanceSummaries {
+    entries: HashMap<CallableId, CallableProvenanceSummary>,
+}
+
+impl CallableProvenanceSummaries {
+    pub(in crate::typecheck) fn insert_result(
+        &mut self,
+        callable: CallableId,
+        result: ValueProvenance,
+    ) {
+        self.entries.entry(callable).or_default().result = Some(result);
+    }
+
+    pub(in crate::typecheck) fn get(
+        &self,
+        callable: CallableId,
+    ) -> Option<&CallableProvenanceSummary> {
+        self.entries.get(&callable)
+    }
+
+    pub(in crate::typecheck) fn result(&self, callable: CallableId) -> Option<&ValueProvenance> {
+        self.get(callable)
+            .and_then(CallableProvenanceSummary::result)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::typecheck) struct ProvenanceFlow {
@@ -385,5 +466,29 @@ mod tests {
             provenance,
             ValueProvenance::Origins(ref origins) if origins.len() == 2
         ));
+    }
+
+    #[test]
+    fn callable_summary_keeps_result_and_effect_as_separate_facts() {
+        let callable = CallableId::declared_at(span(4));
+        let mut summaries = CallableProvenanceSummaries::default();
+        summaries.insert_result(callable, ValueProvenance::static_storage());
+
+        let summary = summaries.get(callable).expect("summary");
+        assert_eq!(summary.result(), Some(&ValueProvenance::static_storage()));
+        assert!(!summary.needs_current_allocation_context);
+    }
+
+    #[test]
+    fn callable_result_reports_input_origins_through_aggregates() {
+        let first = InputId::declared_at(span(5));
+        let second = InputId::declared_at(span(6));
+        let provenance = ValueProvenance::Aggregate {
+            fallback: Some(Box::new(ValueProvenance::input(first))),
+            fields: BTreeMap::from([("value".into(), ValueProvenance::input(second))]),
+            elements: BTreeMap::new(),
+        };
+
+        assert_eq!(provenance.input_origins(), vec![first, second]);
     }
 }
