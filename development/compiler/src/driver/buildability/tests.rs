@@ -457,7 +457,7 @@ func main(): i32 {
 }
 
 #[test]
-fn rejects_enum_bearing_structs_below_fixed_array_boundaries() {
+fn accepts_enum_bearing_structs_below_fixed_array_boundaries() {
     let (sources, analysis) = analyze_text(
         r#"enum Result {
     ok(value: i32)
@@ -477,16 +477,11 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0435"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
-fn rejects_payload_enums_with_enum_bearing_fixed_array_payloads() {
+fn accepts_payload_enums_with_enum_bearing_fixed_array_payloads() {
     let (sources, analysis) = analyze_text(
         r#"enum Result {
     ok(value: i32)
@@ -511,12 +506,7 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0435"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

@@ -43,7 +43,12 @@ where
                 fallback_resolved,
                 resolver,
                 &mut HashSet::new(),
-            )))
+            ))
+            || type_expr_is_supported_fixed_array_aggregate_with_resolver(
+                ty,
+                fallback_resolved,
+                resolver,
+            ))
 }
 
 pub(in crate::driver::buildability) fn payload_enum_constructor_call_is_supported(

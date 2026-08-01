@@ -538,6 +538,122 @@ func main(): i32! {
     );
 }
 
+#[test]
+fn tracks_partial_payload_inside_the_current_fixed_array_element() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(first: File, second: File)
+    failed
+}
+
+struct Wrapper {
+    result: Result
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let wrappers: [Wrapper; 2] = [
+        Wrapper { result: Result.ok(File { code: 10 }, File { code: 11 }) },
+        Wrapper { result: Result.ok(File { code: 20 }, make_file()?) },
+    ]
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected current array element cleanup");
+
+    let current_cleanup = cleanup.iter().find_map(|instruction| match instruction {
+        Instruction::If {
+            condition:
+                BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    right: UsizeValue::Const(1),
+                    ..
+                },
+            then_instructions,
+            ..
+        } => Some(then_instructions),
+        _ => None,
+    });
+    assert!(
+        current_cleanup
+            .is_some_and(|instructions| { contains_slot_field_drop(instructions, 0, 16) }),
+        "{main:?}"
+    );
+    assert!(
+        cleanup.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::If {
+                condition: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Greater,
+                    right: UsizeValue::Const(0),
+                    ..
+                },
+                ..
+            }
+        )),
+        "{main:?}"
+    );
+}
+
+fn contains_slot_field_drop(
+    instructions: &[Instruction],
+    expected_slot: usize,
+    expected_offset: u32,
+) -> bool {
+    instructions.iter().any(|instruction| match instruction {
+        Instruction::CallVoid { arguments, .. } => matches!(
+            arguments.as_slice(),
+            [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField { slot_index, offset },
+            })] if *slot_index == expected_slot && *offset == expected_offset
+        ),
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => {
+            contains_slot_field_drop(then_instructions, expected_slot, expected_offset)
+                || contains_slot_field_drop(else_instructions, expected_slot, expected_offset)
+        }
+        _ => false,
+    })
+}
+
 fn payload_array_prefix_cleanup_targets_slot(
     instructions: &[Instruction],
     slot_index: usize,

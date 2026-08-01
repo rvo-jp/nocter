@@ -10,7 +10,7 @@ use crate::ir::{BoolValue, Instruction};
 
 use super::{
     ArrayInitializationProgress, DropStateAllocator, StructInitializationProgress,
-    payload_enum_constructor_member_and_arguments,
+    partial_drop_obligation_for_initializer, payload_enum_constructor_member_and_arguments,
 };
 
 /// Runtime ownership state for the selected payload enum variant while its
@@ -68,36 +68,12 @@ impl PayloadInitializationProgress {
                 continue;
             };
             let initialized = allocator.next_drop_bool()?;
-            let partial = match (unwrap_groups(argument), field_drop_kind, field_type) {
-                (Expr::ArrayLiteral(_), AggregateDrop::Array(_), _) => {
-                    Box::new(DropObligation::ArrayPrefix {
-                        initialized: allocator.next_drop_usize()?,
-                    })
-                }
-                (
-                    Expr::StructLiteral(literal),
-                    AggregateDrop::Direct(_) | AggregateDrop::Struct(_),
-                    AbiType::Struct(struct_fields),
-                ) => {
-                    let progress = StructInitializationProgress::with_allocator(
-                        struct_fields,
-                        literal,
-                        field_drop_kind,
-                        allocator,
-                    )?;
-                    Box::new(DropObligation::StructFields {
-                        fields: progress.drop_states(),
-                    })
-                }
-                (_, AggregateDrop::PayloadEnum(_), AbiType::Enum(nested_enum))
-                    if payload_enum_constructor_member_and_arguments(argument).is_some() =>
-                {
-                    let progress =
-                        Self::with_allocator(argument, nested_enum, field_drop_kind, allocator)?;
-                    Box::new(progress.drop_obligation())
-                }
-                _ => Box::new(DropObligation::Inactive),
-            };
+            let partial = Box::new(partial_drop_obligation_for_initializer(
+                argument,
+                field_type,
+                field_drop_kind,
+                allocator,
+            )?);
             fields.push(PayloadFieldDropState {
                 payload_offset,
                 initialized,
@@ -157,10 +133,17 @@ impl PayloadInitializationProgress {
             .fields
             .iter()
             .find(|field| field.payload_offset == offset)?;
-        let DropObligation::ArrayPrefix { initialized } = field.partial.as_ref() else {
+        let DropObligation::ArrayPrefix {
+            initialized,
+            elements,
+        } = field.partial.as_ref()
+        else {
             return None;
         };
-        Some(ArrayInitializationProgress::new(*initialized))
+        Some(ArrayInitializationProgress::from_drop_state(
+            *initialized,
+            elements.clone(),
+        ))
     }
 
     pub(in crate::ir::lower) fn struct_field_progress(
@@ -194,51 +177,18 @@ impl PayloadInitializationProgress {
 pub(in crate::ir::lower) fn initialize_payload_field_states(
     fields: &[PayloadFieldDropState],
 ) -> Vec<Instruction> {
-    let mut instructions = Vec::new();
-    for field in fields {
-        instructions.push(Instruction::SetBool {
-            destination: field.initialized,
-            value: BoolValue::Const(false),
-        });
-        match field.partial.as_ref() {
-            DropObligation::ArrayPrefix { initialized } => {
-                instructions.push(ArrayInitializationProgress::new(*initialized).initialize())
-            }
-            DropObligation::StructFields { fields } => {
-                instructions.extend(initialize_struct_field_states(fields));
-            }
-            DropObligation::PayloadFields { fields, .. } => {
-                instructions.extend(initialize_payload_field_states(fields));
-            }
-            DropObligation::Inactive | DropObligation::Complete => {}
-        }
-    }
-    instructions
+    super::initialize_drop_obligation(&DropObligation::PayloadFields {
+        tag: 0,
+        fields: fields.to_vec(),
+    })
 }
 
 pub(in crate::ir::lower) fn initialize_struct_field_states(
     fields: &[StructFieldDropState],
 ) -> Vec<Instruction> {
-    let mut instructions = Vec::new();
-    for field in fields {
-        instructions.push(Instruction::SetBool {
-            destination: field.initialized,
-            value: BoolValue::Const(false),
-        });
-        match field.partial.as_ref() {
-            DropObligation::ArrayPrefix { initialized } => {
-                instructions.push(ArrayInitializationProgress::new(*initialized).initialize())
-            }
-            DropObligation::StructFields { fields } => {
-                instructions.extend(initialize_struct_field_states(fields));
-            }
-            DropObligation::PayloadFields { fields, .. } => {
-                instructions.extend(initialize_payload_field_states(fields));
-            }
-            DropObligation::Inactive | DropObligation::Complete => {}
-        }
-    }
-    instructions
+    super::initialize_drop_obligation(&DropObligation::StructFields {
+        fields: fields.to_vec(),
+    })
 }
 
 fn payload_fields_and_offsets(
@@ -279,13 +229,6 @@ fn payload_fields_and_offsets(
                 .ok_or_else(invalid_payload_initialization_state_diagnostic)
         })
         .collect()
-}
-
-fn unwrap_groups(mut expression: &Expr) -> &Expr {
-    while let Expr::Group(group) = expression {
-        expression = &group.expression;
-    }
-    expression
 }
 
 fn invalid_payload_initialization_state_diagnostic() -> Vec<Diagnostic> {

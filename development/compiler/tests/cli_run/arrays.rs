@@ -2219,3 +2219,86 @@ func main(): i32 {
     assert_eq!(output.stdout, b"XbaXdc");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_partial_payload_in_current_fixed_array_element() {
+    let project = TempProject::new("cli-run-current-array-element-payload-drop");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "current_array_element_payload_drop.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+enum Result {
+    ok(first: File, second: File)
+    failed
+}
+
+struct Wrapper {
+    result: Result
+}
+
+func fail_file(): File! {
+    return Error.new("app.failed", "failed")
+}
+
+func main(): void! {
+    let wrappers: [Wrapper; 2] = [
+        Wrapper { result: Result.ok(File { name: "a" }, File { name: "b" }) },
+        Wrapper { result: Result.ok(File { name: "c" }, fail_file()?) },
+    ]
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"cba");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}

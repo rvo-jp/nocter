@@ -224,7 +224,7 @@ pub(super) fn lower_tracked_array_argument_source(
         evaluation.context().resolved_source(source)
     })
     .map_err(|_error| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
-    if value.layout != expected_layout || !matches!(value.ty, AbiType::Array { .. }) {
+    if value.layout != expected_layout || !matches!(&value.ty, AbiType::Array { .. }) {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -232,26 +232,35 @@ pub(super) fn lower_tracked_array_argument_source(
     }
 
     let slot_index = temporaries.next_aggregate_slot();
-    let progress = ArrayInitializationProgress::new(temporaries.next_usize()?);
+    let AbiType::Array { element, .. } = &value.ty else {
+        return Ok(None);
+    };
+    let initialized = temporaries.next_usize()?;
+    let progress = ArrayInitializationProgress::with_allocator(
+        literal,
+        element,
+        &drop_kind,
+        initialized,
+        temporaries,
+    )?;
     evaluation.sync_temporaries(temporaries)?;
     if !evaluation.register_array_prefix(
         slot_index,
         expected_layout,
         drop_kind.clone(),
         progress.location(),
+        progress.element_states(),
     ) {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         ));
     }
-    let mut instructions = vec![
-        Instruction::ReserveAggregateSlot {
-            slot_index,
-            layout: expected_layout,
-        },
-        progress.initialize(),
-    ];
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(progress.initialize());
     instructions.extend(lower_aggregate_array_literal_to_location_with_progress(
         literal,
         &value.ty,
@@ -263,7 +272,7 @@ pub(super) fn lower_tracked_array_argument_source(
         resolved,
         evaluation.context(),
         temporaries,
-        Some(progress),
+        Some(&progress),
     )?);
     if !evaluation.complete_temporary(slot_index, expected_layout, drop_kind) {
         return Err(unsupported_aggregate_argument_diagnostic(

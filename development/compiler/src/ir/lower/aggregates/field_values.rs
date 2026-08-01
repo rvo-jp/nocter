@@ -644,7 +644,7 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 resolved,
                 context,
                 temporaries,
-                Some(array_progress),
+                Some(&array_progress),
             )?);
         } else if let (Some(payload_progress), AbiType::Enum(_)) = (payload_progress, field_type) {
             let field_value_layout = layout_of(field_type).map_err(|_error| {

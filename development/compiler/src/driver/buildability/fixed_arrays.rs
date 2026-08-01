@@ -168,7 +168,7 @@ fn fixed_array_literal_recursive_drop_element_type_is_buildable(
         return false;
     }
     let resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_supported_move_only_fixed_array_with_resolver(
+    type_expr_is_supported_fixed_array_aggregate_with_resolver(
         array_ty,
         fallback_resolved,
         &resolver,
@@ -193,6 +193,7 @@ fn fixed_array_owned_element_initializer_is_buildable(expression: &Expr) -> bool
 
 fn fixed_array_owned_element_initializer_is_buildable_with_tracking(expression: &Expr) -> bool {
     fixed_array_owned_element_initializer_is_buildable(expression)
+        || matches!(unwrap_group_expr(expression), Expr::StructLiteral(_))
         || matches!(
             unwrap_group_expr(expression),
             Expr::Propagate(propagation)

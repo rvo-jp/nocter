@@ -13,7 +13,8 @@ use super::super::aggregates::{
 };
 use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::super::context::{
-    AggregateDrop, AggregateFieldKind, LoweringContext, PayloadFieldDropState, StructFieldDropState,
+    AggregateDrop, AggregateFieldKind, ArrayElementDropState, LoweringContext,
+    PayloadFieldDropState, StructFieldDropState,
 };
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;

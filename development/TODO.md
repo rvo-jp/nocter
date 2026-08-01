@@ -10,23 +10,23 @@
 - target: `arm64-darwin`
 - compiler responsibilities have been split into focused parser, AST JSON, import resolution, IR
   lowering, buildability, ownership, backend, and analysis modules
-- recursive drop obligations cover nested struct fields, fixed-array completed prefixes, and payload
-  enum fields
+- recursive drop obligations cover nested struct fields, fixed-array completed prefixes and the
+  partially constructed current element, and payload enum fields
 - tracked std provides initial `Allocator`, `RawBuffer`, `String`, `Vec<T>`, file/process/fmt support
 - LSP provides diagnostics, semantic tokens, hover, definition, references, document symbols, and
   several completion contexts
 
 ## Next Concrete Area
 
-Complete ownership-safe variable-length collections. Start with fixed-array current-element staging,
-because non-copy `Vec<T>` needs the same distinction between a complete initialized prefix and a
-partially constructed current element.
+Complete the common Allocator contract before promoting ownership-safe variable-length collections.
 
-1. Extend runtime drop obligation state with a recursive current-element obligation.
-2. Prove nested struct/payload failure inside the current fixed-array element unwinds once in reverse
-   order.
-3. Reuse that transition model for `Vec<T>.push`, initialized length, clear, and drop.
+1. Make `Layout` the checked constructor for size/alignment/overflow/zero-size rules.
+2. Give `RawBuffer` enough allocation provenance to free through the allocator that created it.
+3. Add failure-atomic grow and runtime tests for invalid layout, overflow, allocation failure, and
+   canonical empty buffers.
 4. Move `String` and `Vec<T>` from direct page primitives to the common Allocator contract.
+5. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
+   drop.
 
 Do not implement arbitrary indexed `remove` as an exception to prefix ownership. It requires a later
 sparse-live-element design. `pop` is allowed after initialized-prefix transfer is correct.

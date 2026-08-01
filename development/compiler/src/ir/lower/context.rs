@@ -239,7 +239,9 @@ pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
     drop_glue_for_type_expr_with_resolver,
 };
-pub(super) use drop_obligation::{DropObligation, PayloadFieldDropState, StructFieldDropState};
+pub(super) use drop_obligation::{
+    ArrayElementDropState, DropObligation, PayloadFieldDropState, StructFieldDropState,
+};
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
     if source == root_source {

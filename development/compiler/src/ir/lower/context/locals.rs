@@ -427,6 +427,7 @@ impl<'a> LoweringContext<'a> {
         &mut self,
         name: &str,
         initialized: UsizeLocation,
+        elements: Vec<ArrayElementDropState>,
     ) -> bool {
         let Some(local) = self
             .locals
@@ -446,7 +447,10 @@ impl<'a> LoweringContext<'a> {
         if !matches!(drop_kind, Some(AggregateDrop::Array(_))) {
             return false;
         }
-        *drop_obligation = DropObligation::ArrayPrefix { initialized };
+        *drop_obligation = DropObligation::ArrayPrefix {
+            initialized,
+            elements,
+        };
         true
     }
 

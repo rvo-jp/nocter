@@ -2,6 +2,7 @@ use super::field_values::{
     lower_aggregate_struct_fields_to_location, validate_direct_aggregate_field_store,
 };
 use super::*;
+use crate::ir::lower::context::DropObligation;
 
 pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location(
     literal: &StructLiteralExpr,
@@ -289,7 +290,7 @@ fn lower_payload_field_to_location(
                 resolved,
                 context,
                 temporaries,
-                Some(array_progress),
+                Some(&array_progress),
             )?
         } else if let (Some(struct_progress), AbiType::Struct(_), Expr::StructLiteral(literal)) = (
             progress.and_then(|progress| progress.struct_field_progress(progress_offset)),
@@ -475,7 +476,7 @@ pub(in crate::ir::lower) fn lower_aggregate_array_literal_to_location_with_progr
     resolved: &ResolveOutput,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    progress: Option<ArrayInitializationProgress>,
+    progress: Option<&ArrayInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let actual_layout = layout_of(expected_type).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -505,32 +506,109 @@ pub(in crate::ir::lower) fn lower_aggregate_array_literal_to_location_with_progr
     })?;
     let mut instructions = Vec::new();
     for (index, element_expr) in literal.elements.iter().enumerate() {
-        let element_offset = u64::try_from(index)
-            .ok()
-            .and_then(|index| index.checked_mul(stride))
+        let element_index = u64::try_from(index).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let element_offset = element_index
+            .checked_mul(stride)
             .and_then(|offset| u64::from(base_offset).checked_add(offset))
             .and_then(|offset| u32::try_from(offset).ok())
             .ok_or_else(|| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
-        instructions.extend(lower_aggregate_field_to_location(
-            element,
-            element_expr,
-            destination,
-            element_offset,
-            diagnostic_code,
-            subject,
-            resolved,
-            context,
-            temporaries,
-        )?);
-        if let Some(progress) = progress {
-            let initialized_count = u64::try_from(index)
-                .ok()
-                .and_then(|index| index.checked_add(1))
+        let partial = progress.and_then(|progress| progress.element_obligation(element_index));
+        let lowered = match (
+            partial,
+            element.as_ref(),
+            unwrap_aggregate_literal_group(element_expr),
+        ) {
+            (
+                Some(DropObligation::ArrayPrefix {
+                    initialized,
+                    elements,
+                }),
+                AbiType::Array { .. },
+                Expr::ArrayLiteral(literal),
+            ) => {
+                let nested_progress =
+                    ArrayInitializationProgress::from_drop_state(*initialized, elements.clone());
+                lower_aggregate_array_literal_to_location_with_progress(
+                    literal,
+                    element,
+                    layout_of(element).map_err(|_error| {
+                        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                    })?,
+                    destination,
+                    element_offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                    Some(&nested_progress),
+                )?
+            }
+            (
+                Some(DropObligation::StructFields { fields }),
+                AbiType::Struct(_),
+                Expr::StructLiteral(literal),
+            ) => {
+                let nested_progress =
+                    StructInitializationProgress::from_drop_states(fields.clone());
+                lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+                    literal,
+                    layout_of(element).map_err(|_error| {
+                        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                    })?,
+                    destination,
+                    element_offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                    Some(&nested_progress),
+                )?
+            }
+            (Some(DropObligation::PayloadFields { tag, fields }), AbiType::Enum(_), _) => {
+                let nested_progress =
+                    PayloadInitializationProgress::from_drop_states(*tag, fields.clone());
+                lower_payload_enum_constructor_to_location_at_offset_with_progress(
+                    element_expr,
+                    element,
+                    layout_of(element).map_err(|_error| {
+                        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                    })?,
+                    destination,
+                    element_offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                    Some(&nested_progress),
+                )?
                 .ok_or_else(|| {
                     unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-                })?;
+                })?
+            }
+            _ => lower_aggregate_field_to_location(
+                element,
+                element_expr,
+                destination,
+                element_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?,
+        };
+        instructions.extend(lowered);
+        if let Some(progress) = progress {
+            let initialized_count = element_index.checked_add(1).ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
             instructions.push(progress.complete_element(initialized_count));
         }
     }
@@ -582,7 +660,7 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_with_prog
         resolved,
         context,
         &mut temporaries,
-        Some(progress),
+        Some(&progress),
     )
 }
 

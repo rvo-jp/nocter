@@ -24,11 +24,18 @@ pub(in crate::ir::lower) struct PayloadFieldDropState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ir::lower) struct ArrayElementDropState {
+    pub(in crate::ir::lower) index: u64,
+    pub(in crate::ir::lower) partial: Box<DropObligation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::ir::lower) enum DropObligation {
     Inactive,
     Complete,
     ArrayPrefix {
         initialized: UsizeLocation,
+        elements: Vec<ArrayElementDropState>,
     },
     StructFields {
         fields: Vec<StructFieldDropState>,
@@ -48,7 +55,7 @@ impl DropObligation {
         }
     }
 
-    pub(super) fn is_active(&self) -> bool {
+    pub(in crate::ir::lower) fn is_active(&self) -> bool {
         !matches!(self, Self::Inactive)
     }
 }
@@ -84,6 +91,7 @@ impl LoweringContext<'_> {
         layout: ValueLayout,
         drop_kind: AggregateDrop,
         initialized: UsizeLocation,
+        elements: Vec<ArrayElementDropState>,
     ) -> bool {
         if !matches!(drop_kind, AggregateDrop::Array(_)) {
             return false;
@@ -92,7 +100,10 @@ impl LoweringContext<'_> {
             slot_index,
             layout,
             drop_kind,
-            DropObligation::ArrayPrefix { initialized },
+            DropObligation::ArrayPrefix {
+                initialized,
+                elements,
+            },
         )
     }
 
@@ -210,6 +221,7 @@ mod tests {
         assert!(
             DropObligation::ArrayPrefix {
                 initialized: UsizeLocation::Local(3),
+                elements: Vec::new(),
             }
             .is_active()
         );

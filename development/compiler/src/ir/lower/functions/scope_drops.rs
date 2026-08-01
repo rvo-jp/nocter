@@ -42,12 +42,16 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
             &drop_.drop_kind,
             context,
         ),
-        DropObligation::ArrayPrefix { initialized } => lower_array_prefix_drop_instructions(
+        DropObligation::ArrayPrefix {
+            initialized,
+            elements,
+        } => lower_array_prefix_drop_instructions(
             &drop_.name,
             AggregateLocation::Slot(drop_.slot_index),
             0,
             &drop_.drop_kind,
             *initialized,
+            elements,
             context,
         ),
         DropObligation::StructFields { fields } => lower_struct_fields_drop_instructions(

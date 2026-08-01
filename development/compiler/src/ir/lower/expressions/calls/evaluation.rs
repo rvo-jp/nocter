@@ -44,12 +44,14 @@ impl<'base, 'context> CallEvaluationContext<'base, 'context> {
         layout: ValueLayout,
         drop_kind: AggregateDrop,
         initialized: UsizeLocation,
+        elements: Vec<ArrayElementDropState>,
     ) -> bool {
         self.context.register_temporary_array_prefix_drop(
             slot_index,
             layout,
             drop_kind,
             initialized,
+            elements,
         )
     }
 

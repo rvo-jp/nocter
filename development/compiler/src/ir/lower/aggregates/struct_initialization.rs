@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::abi::{AbiField, layout_struct};
-use crate::ast::{Expr, StructLiteralExpr};
+use crate::ast::StructLiteralExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
 
@@ -11,11 +11,8 @@ use crate::ir::lower::context::{
 use crate::ir::lower::expressions::TemporaryAllocator;
 use crate::ir::{BoolLocation, UsizeLocation};
 
-use super::ArrayInitializationProgress;
-use super::{
-    PayloadInitializationProgress, initialize_struct_field_states,
-    payload_enum_constructor_member_and_arguments,
-};
+use super::{ArrayInitializationProgress, partial_drop_obligation_for_initializer};
+use super::{PayloadInitializationProgress, initialize_struct_field_states};
 
 /// Runtime ownership state for a struct while its fields are initialized.
 ///
@@ -85,38 +82,12 @@ impl StructInitializationProgress {
             };
             if let Some(drop_kind) = owned_fields.get(&offset) {
                 let initialized = allocator.next_drop_bool()?;
-                let partial = match (unwrap_groups(&field.value), drop_kind, field_type) {
-                    (Expr::ArrayLiteral(_), AggregateDrop::Array(_), _) => {
-                        let progress =
-                            ArrayInitializationProgress::new(allocator.next_drop_usize()?);
-                        Box::new(DropObligation::ArrayPrefix {
-                            initialized: progress.location(),
-                        })
-                    }
-                    (
-                        Expr::StructLiteral(literal),
-                        AggregateDrop::Direct(_) | AggregateDrop::Struct(_),
-                        crate::abi::AbiType::Struct(fields),
-                    ) => {
-                        let progress = Self::with_allocator(fields, literal, drop_kind, allocator)?;
-                        Box::new(DropObligation::StructFields {
-                            fields: progress.drop_states(),
-                        })
-                    }
-                    (_, AggregateDrop::PayloadEnum(_), crate::abi::AbiType::Enum(enum_))
-                        if payload_enum_constructor_member_and_arguments(&field.value)
-                            .is_some() =>
-                    {
-                        let progress = PayloadInitializationProgress::with_allocator(
-                            &field.value,
-                            enum_,
-                            drop_kind,
-                            allocator,
-                        )?;
-                        Box::new(progress.drop_obligation())
-                    }
-                    _ => Box::new(DropObligation::Inactive),
-                };
+                let partial = Box::new(partial_drop_obligation_for_initializer(
+                    &field.value,
+                    field_type,
+                    drop_kind,
+                    allocator,
+                )?);
                 fields.push(StructFieldDropState {
                     offset,
                     initialized,
@@ -157,10 +128,17 @@ impl StructInitializationProgress {
         offset: u32,
     ) -> Option<ArrayInitializationProgress> {
         let field = self.fields.iter().find(|field| field.offset == offset)?;
-        let DropObligation::ArrayPrefix { initialized } = field.partial.as_ref() else {
+        let DropObligation::ArrayPrefix {
+            initialized,
+            elements,
+        } = field.partial.as_ref()
+        else {
             return None;
         };
-        Some(ArrayInitializationProgress::new(*initialized))
+        Some(ArrayInitializationProgress::from_drop_state(
+            *initialized,
+            elements.clone(),
+        ))
     }
 
     pub(in crate::ir::lower) fn struct_field_progress(&self, offset: u32) -> Option<Self> {
@@ -211,13 +189,6 @@ impl DropStateAllocator for TemporaryAllocator {
     fn next_drop_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
         self.next_usize()
     }
-}
-
-fn unwrap_groups(mut expression: &Expr) -> &Expr {
-    while let Expr::Group(group) = expression {
-        expression = &group.expression;
-    }
-    expression
 }
 
 fn invalid_struct_initialization_state_diagnostic() -> Vec<Diagnostic> {

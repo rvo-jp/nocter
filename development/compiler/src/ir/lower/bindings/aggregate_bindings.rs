@@ -102,7 +102,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
             "IR v0 can only lower fixed array literal bindings whose type has an ABI layout",
         )
     })?;
-    if !matches!(value.ty, AbiType::Array { .. }) {
+    if !matches!(&value.ty, AbiType::Array { .. }) {
         return Ok(None);
     }
 
@@ -116,7 +116,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
         statement.name.clone(),
         value.layout,
         is_copy,
-        drop_kind,
+        drop_kind.clone(),
         Vec::new(),
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -124,14 +124,30 @@ pub(super) fn lower_aggregate_array_literal_binding(
         layout: value.layout,
     }];
     let progress = if tracks_initialization {
-        let progress = ArrayInitializationProgress::new(context.reserve_drop_state_usize_local()?);
-        if !context.mark_aggregate_local_array_prefix(statement.name.as_str(), progress.location())
-        {
+        let AbiType::Array { element, .. } = &value.ty else {
+            return Ok(None);
+        };
+        let Some(drop_kind) = drop_kind.as_ref() else {
+            return Ok(None);
+        };
+        let initialized = context.reserve_drop_state_usize_local()?;
+        let progress = ArrayInitializationProgress::with_allocator(
+            literal,
+            element,
+            drop_kind,
+            initialized,
+            context,
+        )?;
+        if !context.mark_aggregate_local_array_prefix(
+            statement.name.as_str(),
+            progress.location(),
+            progress.element_states(),
+        ) {
             return Err(unsupported_binding_diagnostic(
                 "IR v0 cannot establish fixed array initialization state",
             ));
         }
-        instructions.push(progress.initialize());
+        instructions.extend(progress.initialize());
         Some(progress)
     } else {
         None
@@ -148,7 +164,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
         resolved,
         context,
         &mut temporaries,
-        progress,
+        progress.as_ref(),
     )?);
     context.mark_aggregate_local_initialized(statement.name.as_str());
     Ok(Some(instructions))

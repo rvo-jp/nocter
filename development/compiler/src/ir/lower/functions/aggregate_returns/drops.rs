@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::*;
 
 pub(in crate::ir::lower) fn lower_aggregate_drop_instructions_at_location(
@@ -112,6 +114,7 @@ pub(in crate::ir::lower) fn lower_array_prefix_drop_instructions(
     base_offset: u32,
     drop_kind: &AggregateDrop,
     initialized: UsizeLocation,
+    elements: &[ArrayElementDropState],
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let AggregateDrop::Array(drop_) = drop_kind else {
@@ -119,6 +122,38 @@ pub(in crate::ir::lower) fn lower_array_prefix_drop_instructions(
     };
 
     let mut instructions = Vec::new();
+    let mut seen_indexes = HashSet::new();
+    for state in elements {
+        if state.index >= drop_.length || !seen_indexes.insert(state.index) {
+            return Err(unsupported_drop_statement_diagnostic(name));
+        }
+        let offset = state
+            .index
+            .checked_mul(drop_.stride)
+            .and_then(|offset| u64::from(base_offset).checked_add(offset))
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+        let then_instructions = lower_partial_aggregate_drop_at_offset(
+            name,
+            location,
+            offset,
+            drop_.element_layout,
+            drop_.element_drop_kind.as_ref(),
+            state.partial.as_ref(),
+            context,
+        )?;
+        if !then_instructions.is_empty() {
+            instructions.push(Instruction::If {
+                condition: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: UsizeValue::Location(initialized),
+                    right: UsizeValue::Const(state.index),
+                },
+                then_instructions,
+                else_instructions: Vec::new(),
+            });
+        }
+    }
     for index in (0..drop_.length).rev() {
         let offset = index
             .checked_mul(drop_.stride)
@@ -269,12 +304,16 @@ fn lower_partial_aggregate_drop_at_offset(
         DropObligation::Complete => {
             lower_aggregate_drop_at_offset(name, location, offset, true, layout, drop_kind, context)
         }
-        DropObligation::ArrayPrefix { initialized } => lower_array_prefix_drop_instructions(
+        DropObligation::ArrayPrefix {
+            initialized,
+            elements,
+        } => lower_array_prefix_drop_instructions(
             name,
             location,
             offset,
             drop_kind,
             *initialized,
+            elements,
             context,
         ),
         DropObligation::StructFields { fields } => lower_struct_fields_drop_instructions(

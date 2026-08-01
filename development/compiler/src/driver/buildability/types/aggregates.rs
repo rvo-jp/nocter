@@ -30,53 +30,12 @@ pub(in crate::driver::buildability) fn abi_value_is_supported_aggregate_value(
     value: &AbiValue,
 ) -> bool {
     match &value.ty {
-        AbiType::Struct(_) => {
-            value.layout.size > 0 && !abi_type_contains_enum_below_array(&value.ty)
-        }
+        AbiType::Struct(_) => value.layout.size > 0,
         AbiType::Array { element, .. } => fixed_array_element_abi_is_buildable(element),
         _ => false,
     }
 }
 
-fn abi_type_contains_enum_below_array(ty: &AbiType) -> bool {
-    abi_type_contains_enum_below_array_inner(ty, false)
-}
-
-/// The array prefix obligation knows how many whole elements are live, but it
-/// cannot describe a partially initialized enum nested in the current element.
-/// Keep that ownership boundary explicit while allowing enums everywhere else
-/// in the recursive aggregate ABI tree.
-fn abi_type_contains_enum_below_array_inner(ty: &AbiType, below_array: bool) -> bool {
-    match ty {
-        AbiType::Array { element, .. } => abi_type_contains_enum_below_array_inner(element, true),
-        AbiType::Struct(fields) => fields
-            .iter()
-            .any(|field| abi_type_contains_enum_below_array_inner(&field.ty, below_array)),
-        AbiType::Enum(enum_) => {
-            below_array
-                || enum_.variants.iter().any(|variant| {
-                    variant.payload.as_ref().is_some_and(|payload| {
-                        abi_type_contains_enum_below_array_inner(payload, below_array)
-                    })
-                })
-        }
-        AbiType::Bool
-        | AbiType::U8
-        | AbiType::I8
-        | AbiType::U16
-        | AbiType::I16
-        | AbiType::U32
-        | AbiType::I32
-        | AbiType::U64
-        | AbiType::I64
-        | AbiType::Usize
-        | AbiType::Isize
-        | AbiType::Pointer
-        | AbiType::Borrow
-        | AbiType::StrView
-        | AbiType::SliceView => false,
-    }
-}
 pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value_for_sources(
     ty: &TypeExpr,
     fallback_resolved: &ResolveOutput,
@@ -96,14 +55,12 @@ pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
-        .is_ok_and(|value| !abi_type_contains_enum_below_array(&value.ty))
-        && type_expr_is_supported_payload_enum_value_inner(
-            ty,
-            fallback_resolved,
-            resolver,
-            &mut HashSet::new(),
-        )
+    type_expr_is_supported_payload_enum_value_inner(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )
 }
 pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value_inner<'a, F>(
     ty: &TypeExpr,
@@ -458,6 +415,43 @@ where
         resolver,
         &mut HashSet::new(),
     )
+}
+
+pub(in crate::driver::buildability) fn type_expr_is_supported_fixed_array_aggregate_with_resolver<
+    'a,
+    F,
+>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
+        return false;
+    };
+    let AbiType::Array { element, .. } = value.ty else {
+        return false;
+    };
+    if !matches!(element.as_ref(), AbiType::Struct(_)) {
+        return false;
+    }
+    let Some(element_ty) = fixed_array_element_type_expr_with_resolver(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    ) else {
+        return false;
+    };
+    type_expr_is_supported_aggregate_value_with_resolver(&element_ty, fallback_resolved, resolver)
+        || type_expr_has_supported_recursive_drop_with_resolver(
+            &element_ty,
+            fallback_resolved,
+            resolver,
+            &mut HashSet::new(),
+        )
 }
 
 pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_return_with_resolver<

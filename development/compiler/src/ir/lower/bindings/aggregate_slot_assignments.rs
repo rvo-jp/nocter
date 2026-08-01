@@ -229,23 +229,45 @@ fn lower_tracked_aggregate_array_replacement(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let replacement_slot = context.reserve_aggregate_slot_index();
-    let progress = ArrayInitializationProgress::new(context.reserve_drop_state_usize_local()?);
+    let element = {
+        let Some(ty) = target_type else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let Some((_root_source, resolved)) = context.resolved_calls() else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let value = abi_value_from_type_expr_with_resolver(ty, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .map_err(|_error| unsupported_assignment_diagnostic())?;
+        let AbiType::Array { element, .. } = value.ty else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        *element
+    };
+    let initialized = context.reserve_drop_state_usize_local()?;
+    let progress = ArrayInitializationProgress::with_allocator(
+        literal,
+        &element,
+        &drop_kind,
+        initialized,
+        context,
+    )?;
     if !context.register_temporary_array_prefix_drop(
         replacement_slot,
         layout,
         drop_kind,
         progress.location(),
+        progress.element_states(),
     ) {
         return Err(unsupported_assignment_diagnostic());
     }
 
-    let mut instructions = vec![
-        Instruction::ReserveAggregateSlot {
-            slot_index: replacement_slot,
-            layout,
-        },
-        progress.initialize(),
-    ];
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout,
+    }];
+    instructions.extend(progress.initialize());
     let mut temporaries = TemporaryAllocator::new(context)?;
     let lowered = lower_aggregate_array_literal_assignment_with_progress(
         replacement_slot,
@@ -254,7 +276,7 @@ fn lower_tracked_aggregate_array_replacement(
         literal,
         context,
         &mut temporaries,
-        Some(progress),
+        Some(&progress),
     );
     context.release_temporary_aggregate_drop(replacement_slot);
     instructions.extend(lowered?);
@@ -543,7 +565,7 @@ fn lower_aggregate_array_literal_assignment_with_progress(
     literal: &crate::ast::ArrayLiteralExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    progress: Option<ArrayInitializationProgress>,
+    progress: Option<&ArrayInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(ty) = target_type else {
         return Err(unsupported_assignment_diagnostic());

@@ -208,26 +208,34 @@ fn lower_tracked_aggregate_array_literal_return(
 
     let mut initialization_context = context.clone();
     let slot_index = initialization_context.reserve_aggregate_slot_index();
-    let progress =
-        ArrayInitializationProgress::new(initialization_context.reserve_drop_state_usize_local()?);
+    let AbiType::Array { element, .. } = expected_type else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let initialized = initialization_context.reserve_drop_state_usize_local()?;
+    let progress = ArrayInitializationProgress::with_allocator(
+        literal,
+        element,
+        &drop_kind,
+        initialized,
+        &mut initialization_context,
+    )?;
     if !initialization_context.register_temporary_array_prefix_drop(
         slot_index,
         expected_layout,
         drop_kind,
         progress.location(),
+        progress.element_states(),
     ) {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
     let subject = format!("returns from function `{function_name}`");
     let mut temporaries = TemporaryAllocator::new(&initialization_context)?;
-    let mut instructions = vec![
-        Instruction::ReserveAggregateSlot {
-            slot_index,
-            layout: expected_layout,
-        },
-        progress.initialize(),
-    ];
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(progress.initialize());
     instructions.extend(lower_aggregate_array_literal_to_location_with_progress(
         literal,
         expected_type,
@@ -239,7 +247,7 @@ fn lower_tracked_aggregate_array_literal_return(
         resolved,
         &initialization_context,
         &mut temporaries,
-        Some(progress),
+        Some(&progress),
     )?);
     instructions.push(Instruction::CopyAggregate {
         destination,
