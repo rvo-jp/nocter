@@ -1,99 +1,88 @@
 # Nocter Development Agent Rules
 
-These rules apply to work under `development/`.
-They are written for long-running development across multiple AI sessions.
+These rules apply to work under `development/` and long-running compiler sessions.
 
 ## Session Start
 
-Before making compiler changes, read:
+Before compiler changes, read:
 
 - `../README.md`
 - `../spec/README.md`
 - `README.md`
 - `TODO.md`
 - `docs/README.md`
+- `docs/v0.2.0.md`
 - `docs/architecture.md`
-- `docs/implementation-status.md`
-- `docs/v0-closure.md`
-- `docs/roadmap.md`
+- the focused design document for the area being changed
 - `docs/maintenance.md`
 
-Run `git status --short` and identify unrelated user changes before editing.
-Do not stage, revert, or rewrite unrelated local changes.
+Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
+rewrite them.
+
+## Recorded Milestone
+
+v0.2.0 is complete. Do not use `v0` as shorthand for a release scope. Use
+[docs/v0.2.0.md](docs/v0.2.0.md) for its completion record. Define a new version contract and
+non-goals before beginning the next milestone.
 
 ## Engineering Priority
 
-Prefer long-term maintainability over short diffs.
-Do not keep adding logic to a busy file when a clearer module boundary exists.
+Prefer long-term maintainability over small diffs. Do not add logic to a busy file when a focused
+module gives the responsibility a stable name and API.
 
-Inside `compiler/src/`, use responsibility and abstraction layer as the split
-criteria:
+Inside `compiler/src/`:
 
 - `ast/` owns syntax tree data.
-- `resolve/` owns imports, scopes, symbols, and name lookup.
-- `typecheck/` owns type rules and type diagnostics.
-- `ir/` owns lower-level compiler representation.
+- `resolve/` owns imports, scopes, symbols, visibility, and name lookup.
+- `typecheck/` owns type, generic, ownership, borrow, and drop semantics.
+- `analysis/` exposes compiler-backed query results for tooling.
+- `ir/` owns explicit lower-level compiler representation.
 - `abi/` owns data layout and call/return classification.
-- `target/` owns target-specific code generation and binary output.
+- `backend/` and `target/` own code generation and binary output.
 - `diagnostics/` owns structured diagnostics and rendering.
-- `driver/` owns CLI and protocol entry points.
-- `driver/lsp/` owns editor protocol behavior, but must reuse compiler analysis instead of reimplementing language semantics.
+- `driver/` owns CLI and protocol orchestration.
+- `driver/lsp/` owns editor protocol behavior and must reuse `analysis` facts.
 
-When a new concept does not fit one of the existing responsibilities, create or
-propose a focused module before adding broad logic to an existing file.
+When a new concept does not fit an existing responsibility, create or propose a focused module before
+adding broad logic to an existing file.
 
 ## Refactoring Policy
 
-Refactoring is allowed work, not cleanup to postpone indefinitely.
+Refactor before feature work when:
 
-Use these triggers to refactor before feature work continues:
-
-- one file mixes protocol handling, semantic analysis, and feature-specific presentation
-- one function is forced to know details from multiple compiler phases
-- adding a feature requires copying AST traversal or symbol lookup logic
-- tests need excessive setup because production code has no narrow API
+- one file mixes transport, semantic analysis, and presentation
+- one function must know details from several compiler phases
+- a feature would copy AST traversal, lookup, type formatting, or drop logic
+- tests require full-pipeline setup because no narrow production API exists
 - a module name no longer describes most of its contents
 
-Keep behavior changes and pure structure changes in separate commits when
-practical. If they must be combined, document why in the final response.
+Keep structural changes and behavior changes in separate commits when practical.
 
 ## Documentation Updates
 
-At the end of a session, update the smallest relevant document set:
+Update only the owner of the changed fact:
 
-- `TODO.md`: short-term handoff state, known unrelated local changes, next concrete task
-- `docs/implementation-status.md`: user-visible implementation capability changed
-- `docs/v0-closure.md`: v0 completion gate or ship/reject/defer decision changed
-- `docs/std-runtime-status.md`: distributed standard-library runtime behavior changed
-- `docs/roadmap.md`: current priority or recommended next task changed
-- `docs/architecture.md`: module responsibility or pipeline design changed
-- `docs/maintenance.md`: long-lived development policy changed
+- `TODO.md`: next concrete task, blockers, uncommitted handoff state
+- `docs/v0.2.0.md`: completion gate, scope, non-goal, or work order
+- `docs/architecture.md`: phase/module responsibility or data flow
+- `docs/allocator-ownership.md`: allocator, ownership, drop, String/Vec invariants
+- `docs/standard-library.md`: distributed std runtime behavior
+- `docs/lsp.md`: editor capability or compiler-analysis contract
+- `docs/maintenance.md`: long-lived engineering policy
 
-Do not append chronological logs to long-lived design documents.
-Record facts that help the next session make better decisions.
-Do not add compatibility paths for removed repository locations unless the user
-explicitly asks for that compatibility.
+Do not append chronological logs or commit lists to design documents. Git owns history.
 
 ## Verification
 
-For Rust compiler changes, run the narrowest sufficient checks.
-Prefer `./development/compiler/scripts/verify.sh` from the repository root
-before commits that touch shared compiler behavior.
+Use the narrowest test that proves the change, then prefer
+`./development/compiler/scripts/verify.sh` before commits that touch shared compiler behavior.
+Always run `git diff --check`.
 
-When verification cannot be run, record the reason in the final response and in
-`TODO.md` if it affects the next session.
-
-Always report:
-
-- what changed
-- what was verified
-- what remains uncommitted
-- which unrelated files were intentionally left alone
+Report what changed, what was verified, what remains uncommitted, and which unrelated files were left
+alone. If required verification cannot run, record the reason in the final response and in `TODO.md`
+when it affects the next session.
 
 ## Commit Checkpoints
 
-When a coherent chunk of work is complete, verified, and no user-owned unrelated
-changes are mixed into the staged set, create a git commit before continuing to
-the next chunk. Do this especially after changes that update multiple compiler
-phases, add a new module, or change user-visible behavior.
-Keep the commit scoped to the completed chunk; leave unrelated local changes unstaged.
+Commit each coherent verified chunk before continuing. Keep unrelated local changes unstaged. Prefer
+one behavior change plus tests and docs, or one behavior-preserving structural refactor.

@@ -40,8 +40,8 @@ if x>3{return x}else{return 0}
 fn formats_type_and_data_declarations() {
     assert_formats_stably(
         r#"pub(nocter) type Path= [u8]
-copy struct Pair<T>{pub left:T,right:T}
-enum AppError{missing_path,open_failed(path:&str)}
+copy struct Pair<T> {pub left:T,right:T}
+enum AppError {missing_path,open_failed(path:&str)}
 "#,
         concat!(
             "pub(nocter) type Path = [u8]\n",
@@ -93,11 +93,11 @@ fn formats_target_directive_on_type_declarations() {
         r#"#target("arm64-darwin")
 pub(nocter) type RawWord=usize
 #target("arm64-darwin")
-pub(nocter) copy struct SyscallResult{pub value:usize,errno:i32}
+pub(nocter) copy struct SyscallResult {pub value:usize,errno:i32}
 #target("arm64-darwin")
-pub(nocter) enum PlatformError{interrupted}
+pub(nocter) enum PlatformError {interrupted}
 #target("arm64-darwin")
-pub(nocter) interface PlatformContract{pub method &self.code():i32}
+pub(nocter) interface PlatformContract {pub method &self.code():i32}
 "#,
         concat!(
             "#target(\"arm64-darwin\")\n",
@@ -155,7 +155,7 @@ match error{AppError.missing_path{return 1}_{return file.size() as i32}}
 #[test]
 fn formats_match_expression() {
     assert_formats_stably(
-        r#"enum AppError{missing_path,open_failed(path:&str)}
+        r#"enum AppError {missing_path,open_failed(path:&str)}
 func code(error:AppError):i32{return match error{AppError.missing_path{1}
 AppError.open_failed(path){2}
 _{0}}}
@@ -201,12 +201,13 @@ fn formats_imports_impls_and_literals_stably() {
         r#"use std/io
 use std/io.{print as write,File}
 use std/process as process
-impl File{pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
+impl File {pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
 let marker=b'\n'
-var point=Point{x:1,y:2}
+var point=Point {x:1,y:2}
+var marker=Marker<i32> {code:42}
 while ready(){print(text)}
 }}
-impl File{drop &+self{drop self}}
+impl File {drop &+self{drop self}}
 "#,
         concat!(
             "use std/io\n",
@@ -220,6 +221,7 @@ impl File{drop &+self{drop self}}
             "        let bytes = [1, 2, 3]\n",
             "        let marker = b'\\n'\n",
             "        var point = Point { x: 1, y: 2 }\n",
+            "        var marker = Marker<i32> { code: 42 }\n",
             "        while ready() { print(text) }\n",
             "    }\n",
             "}\n",

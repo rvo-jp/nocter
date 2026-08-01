@@ -36,7 +36,7 @@ impl Point {
 }
 
 func main(): i32 {
-    let point = Point{ x: 1 }
+    let point = Point { x: 1 }
     return point.x_value()
 }
 "#,
@@ -54,12 +54,12 @@ fn accepts_method_call_self_return_type() {
 
 impl Point {
     method self.same(): Self {
-        return Self{ x: self.x }
+        return Self { x: self.x }
     }
 }
 
 func main(): i32 {
-    let point = Point{ x: 1 }
+    let point = Point { x: 1 }
     return point.same().x
 }
 "#,
@@ -136,7 +136,7 @@ impl<U> Box<U> {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 1,
     }
     return box.value()
@@ -186,7 +186,7 @@ impl Box<i32> {
 }
 
 func main(): i32 {
-    let box = Box<&str>{
+    let box = Box<&str> {
         value: "bad",
     }
     return box.value_i32()
@@ -208,7 +208,7 @@ fn diagnoses_unknown_method_call_on_struct_value() {
 }
 
 func main(): i32 {
-    let parser = Parser{ value: 0 }
+    let parser = Parser { value: 0 }
     return parser.missing()
 }
 "#,
@@ -228,7 +228,7 @@ fn diagnoses_field_call_as_method() {
 }
 
 func main(): i32 {
-    let point = Point{ x: 0 }
+    let point = Point { x: 0 }
     return point.x()
 }
 "#,
@@ -253,7 +253,7 @@ impl Parser {
 }
 
 func main(): i32 {
-    let parser = Parser{ value: 0 }
+    let parser = Parser { value: 0 }
     return parser.parse()
 }
 "#,
@@ -278,7 +278,7 @@ impl Parser {
 }
 
 func main(): i32 {
-    let parser = Parser{ value: 0 }
+    let parser = Parser { value: 0 }
     return parser.parse("bad")
 }
 "#,
@@ -302,7 +302,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     return file.write()
 }
 "#,
@@ -329,7 +329,7 @@ impl File {
 }
 
 func main(): i32 {
-    var holder = Holder{ file: File{ fd: 1 } }
+    var holder = Holder { file: File { fd: 1 } }
     return holder.file.write()
 }
 "#,
@@ -352,7 +352,7 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1 }
+    let file = File { fd: 1 }
     return file.write()
 }
 "#,
@@ -376,7 +376,7 @@ impl File {
 }
 
 func main(): i32 {
-    return File{ fd: 1 }.write()
+    return File { fd: 1 }.write()
 }
 "#,
     );
@@ -399,9 +399,9 @@ impl File {
 }
 
 func main(): i32 {
-    let file = File{ fd: 1 }
+    let file = File { fd: 1 }
     if file.fd_value() == 0 {
-        return File{ fd: 2 }.fd_value()
+        return File { fd: 2 }.fd_value()
     }
     return 1
 }

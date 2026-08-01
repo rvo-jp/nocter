@@ -10,7 +10,7 @@ fn diagnoses_use_after_move_of_non_copy_struct() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     let length = take(move text)
     return text.len
 }
@@ -37,7 +37,7 @@ fn diagnoses_double_move_of_non_copy_struct() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     let first = take(move text)
     let second = take(move text)
     return first + second
@@ -63,7 +63,7 @@ fn diagnoses_double_move_of_move_only_fixed_array() {
 }
 
 func main(): i32 {
-    let values: [Text; 1] = [Text{ len: 42 }]
+    let values: [Text; 1] = [Text { len: 42 }]
     let first = consume(move values)
     let second = consume(move values)
     return first + second
@@ -91,7 +91,7 @@ fn invalid_outer_move_operand_does_not_consume_nested_move() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     let invalid = move take(move text)
     return text.len
 }
@@ -117,7 +117,7 @@ fn diagnoses_use_after_explicit_drop_of_non_copy_struct() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     drop text
     return text.len
 }
@@ -140,7 +140,7 @@ fn diagnoses_double_explicit_drop_of_non_copy_struct() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     drop text
     drop text
     return 0
@@ -162,7 +162,7 @@ fn diagnoses_double_explicit_drop_of_move_only_fixed_array() {
 }
 
 func main(): i32 {
-    let values: [Text; 1] = [Text{ len: 42 }]
+    let values: [Text; 1] = [Text { len: 42 }]
     drop values
     drop values
     return 0
@@ -185,7 +185,7 @@ fn diagnoses_explicit_drop_of_copy_struct() {
 }
 
 func main(): i32 {
-    let pair = Pair{ left: 1, right: 2 }
+    let pair = Pair { left: 1, right: 2 }
     drop pair
     return pair.left + pair.right
 }
@@ -206,7 +206,7 @@ fn diagnoses_move_of_copy_struct() {
 }
 
 func main(): i32 {
-    let pair = Pair{ left: 20, right: 22 }
+    let pair = Pair { left: 20, right: 22 }
     let copied = move pair
     return pair.left + copied.right
 }
@@ -230,7 +230,7 @@ copy struct Box<T> {
 }
 
 func main(): i32 {
-    let box = Box<Text>{ value: Text{ len: 42 } }
+    let box = Box<Text> { value: Text { len: 42 } }
     drop box
     return 0
 }
@@ -252,7 +252,7 @@ copy struct Box<T> {
 }
 
 func main(): i32 {
-    let box = Box<Text>{ value: Text{ len: 42 } }
+    let box = Box<Text> { value: Text { len: 42 } }
     let moved = move box
     return moved.value.len
 }
@@ -260,6 +260,42 @@ func main(): i32 {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_move_of_generic_parameter() {
+    let diagnostics = check_text(
+        r#"func identity<T>(value: T): T {
+    return move value
+}
+
+func main(): i32 {
+    return identity(42)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_use_after_move_of_generic_parameter() {
+    let diagnostics = check_text(
+        r#"func duplicate<T>(value: T): T {
+    let moved = move value
+    return value
+}
+
+func main(): i32 {
+    return duplicate(42)
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("value"));
+    assert!(diagnostics[0].message.contains("moved"));
 }
 
 #[test]
@@ -272,9 +308,9 @@ fn accepts_var_reinitialization_after_move() {
 }
 
 func main(): i32 {
-    var text = Text{ start: 1, len: 20, capacity: 3 }
+    var text = Text { start: 1, len: 20, capacity: 3 }
     let first = take(move text)
-    text = Text{ start: 4, len: 22, capacity: 6 }
+    text = Text { start: 4, len: 22, capacity: 6 }
     return first + text.len
 }
 
@@ -295,7 +331,7 @@ fn accepts_move_after_readonly_borrow_last_use() {
 }
 
 func main(): i32 {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     let read = &text
     inspect(read)
     return take(move text)
@@ -322,7 +358,7 @@ fn diagnoses_move_while_readonly_borrow_used_later() {
 }
 
 func main(): i32 {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     let read = &text
     let length = take(move text)
     inspect(read)
@@ -354,7 +390,7 @@ fn accepts_move_before_unreachable_borrow_use() {
 }
 
 func main(): i32 {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     let read = &text
     return take(move text)
     inspect(read)
@@ -382,7 +418,7 @@ fn diagnoses_drop_while_readwrite_borrow_used_later() {
 }
 
 func main(): i32 {
-    var text = Text{ len: 42 }
+    var text = Text { len: 42 }
     let write = &+text
     drop text
     touch(write)
@@ -410,7 +446,7 @@ fn accepts_readwrite_borrow_after_readonly_borrow_last_use() {
 }
 
 func main(): i32 {
-    var text = Text{ len: 42 }
+    var text = Text { len: 42 }
     let read = &text
     inspect(read)
     let write = &+text
@@ -439,7 +475,7 @@ fn diagnoses_readwrite_borrow_while_readonly_borrow_used_later() {
 }
 
 func main(): i32 {
-    var text = Text{ len: 42 }
+    var text = Text { len: 42 }
     let read = &text
     let write = &+text
     inspect(read)
@@ -472,9 +508,9 @@ fn diagnoses_assignment_while_readonly_borrow_used_later() {
 }
 
 func main(): i32 {
-    var text = Text{ len: 42 }
+    var text = Text { len: 42 }
     let read = &text
-    text = Text{ len: 7 }
+    text = Text { len: 7 }
     inspect(read)
     return 0
 }
@@ -506,7 +542,7 @@ impl Holder {
 }
 
 func main(): i32 {
-    let holder = Holder{ value: 21 }
+    let holder = Holder { value: 21 }
     let read = &holder
     let value = holder.take()
     inspect(read)
@@ -540,7 +576,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     let read = &file
     file.write()
     inspect(read)
@@ -578,7 +614,7 @@ impl File {
 }
 
 func main(): i32 {
-    var holder = Holder{ file: File{ fd: 1 } }
+    var holder = Holder { file: File { fd: 1 } }
     let read = &holder.file
     holder.file.write()
     inspect(read)
@@ -611,7 +647,7 @@ struct User {
 }
 
 func main(): i32 {
-    var user = User{ name: Name{ len: 5 }, count: 0 }
+    var user = User { name: Name { len: 5 }, count: 0 }
     let name = &user.name
     user.count = 1
     inspect(name)
@@ -640,9 +676,9 @@ struct User {
 }
 
 func main(): i32 {
-    var user = User{ name: Name{ len: 5 }, count: 0 }
+    var user = User { name: Name { len: 5 }, count: 0 }
     let name = &user.name
-    user.name = Name{ len: 7 }
+    user.name = Name { len: 7 }
     inspect(name)
     return user.count
 }
@@ -673,9 +709,9 @@ struct User {
 }
 
 func main(): i32 {
-    var user = User{ name: Name{ len: 5 }, count: 0 }
+    var user = User { name: Name { len: 5 }, count: 0 }
     let name = &user.name
-    user = User{ name: Name{ len: 7 }, count: 1 }
+    user = User { name: Name { len: 7 }, count: 1 }
     inspect(name)
     return user.count
 }
@@ -706,7 +742,7 @@ struct User {
 }
 
 func main(): i32 {
-    var user = User{ name: Name{ len: 5 }, count: 0 }
+    var user = User { name: Name { len: 5 }, count: 0 }
     let name = &+user.name
     let count = user.count
     touch(name)
@@ -746,7 +782,7 @@ impl Counter {
 }
 
 func main(): i32 {
-    var user = User{ name: Name{ len: 5 }, counter: Counter{ value: 0 } }
+    var user = User { name: Name { len: 5 }, counter: Counter { value: 0 } }
     let name = &user.name
     user.counter.increment()
     inspect(name)
@@ -776,7 +812,7 @@ impl File {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     let write = &+file
     let fd = file.fd_value()
     touch(write)
@@ -804,7 +840,7 @@ fn diagnoses_field_read_while_readwrite_borrow_used_later() {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     let write = &+file
     let fd = file.fd
     touch(write)
@@ -832,7 +868,7 @@ fn accepts_field_read_after_readwrite_borrow_last_use() {
 }
 
 func main(): i32 {
-    var file = File{ fd: 1 }
+    var file = File { fd: 1 }
     let write = &+file
     touch(write)
     return file.fd
@@ -861,7 +897,7 @@ impl Holder {
 }
 
 func main(): i32 {
-    let holder = Holder{ value: 21 }
+    let holder = Holder { value: 21 }
     let value = holder.take()
     return value + holder.value
 }
@@ -884,7 +920,7 @@ fn diagnoses_maybe_uninitialized_after_one_if_branch_moves() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     if true {
         let length = take(move text)
     }
@@ -912,7 +948,7 @@ fn diagnoses_uninitialized_after_both_if_branches_move() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     if true {
         let first = take(move text)
     } else {
@@ -942,7 +978,7 @@ fn diagnoses_uninitialized_after_if_branches_move_and_drop() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     if true {
         let length = take(move text)
     } else {
@@ -972,10 +1008,10 @@ fn accepts_if_branch_reinitialization_after_move() {
 }
 
 func main(): i32 {
-    var text = Text{ start: 1, len: 20, capacity: 3 }
+    var text = Text { start: 1, len: 20, capacity: 3 }
     if true {
         let first = take(move text)
-        text = Text{ start: 4, len: 22, capacity: 6 }
+        text = Text { start: 4, len: 22, capacity: 6 }
     }
     return text.len
 }
@@ -1005,7 +1041,7 @@ struct Text {
 
 func main(): i32 {
     let choice = Choice.move_it
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     match choice {
         Choice.move_it {
             let length = take(move text)
@@ -1046,7 +1082,7 @@ struct Text {
 
 func main(): i32 {
     let choice = Choice.move_it
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     match choice {
         Choice.move_it {
             let length = take(move text)
@@ -1086,7 +1122,7 @@ struct Text {
 
 func main(): i32 {
     let choice = Choice.move_it
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     match choice {
         Choice.move_it {
             let length = take(move text)
@@ -1122,7 +1158,7 @@ struct Text {
 
 func main(): i32 {
     let choice = Choice.move_it
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     let value = match choice {
         Choice.move_it { take(move text) }
         _ { 0 }
@@ -1151,7 +1187,7 @@ fn diagnoses_maybe_uninitialized_after_catch_fallthrough_moves() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     let value = fallible() catch error {
         let moved = take(move text)
     }
@@ -1194,7 +1230,7 @@ fn accepts_unreachable_use_after_returning_move() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     return take(move text)
     return text.len
 }
@@ -1216,7 +1252,7 @@ fn accepts_borrow_use_after_terminal_if_as_unreachable() {
 }
 
 func main(): i32 {
-    var box = Box{ value: 1 }
+    var box = Box { value: 1 }
     let view = &box
     if true {
         box.value = 2
@@ -1245,7 +1281,7 @@ enum Choice {
 }
 
 func main(): i32 {
-    var box = Box{ value: 1 }
+    var box = Box { value: 1 }
     let view = &box
     let choice = Choice.yes
     match choice {
@@ -1275,7 +1311,7 @@ fn accepts_if_branch_return_after_move_without_poisoning_fallthrough() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     if true {
         return take(move text)
     }
@@ -1301,7 +1337,7 @@ fn diagnoses_maybe_uninitialized_after_while_body_moves() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     while true {
         let length = take(move text)
     }
@@ -1329,10 +1365,10 @@ fn accepts_while_body_reinitialization_after_move() {
 }
 
 func main(): i32 {
-    var text = Text{ start: 1, len: 20, capacity: 3 }
+    var text = Text { start: 1, len: 20, capacity: 3 }
     while true {
         let length = take(move text)
-        text = Text{ start: 4, len: 22, capacity: 6 }
+        text = Text { start: 4, len: 22, capacity: 6 }
     }
     return text.len
 }
@@ -1356,7 +1392,7 @@ fn diagnoses_uninitialized_after_loop_break_drops() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     loop {
         drop text
         break

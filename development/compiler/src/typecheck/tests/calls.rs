@@ -97,7 +97,7 @@ fn diagnoses_implicit_non_copy_struct_argument() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 2 }
+    let text = Text { start: 1, len: 2 }
     return length(text)
 }
 
@@ -125,7 +125,7 @@ copy struct Box<T> {
 }
 
 func main(): i32 {
-    let box = Box<Text>{ value: Text{ len: 42 } }
+    let box = Box<Text> { value: Text { len: 42 } }
     return length(box)
 }
 
@@ -154,7 +154,7 @@ fn diagnoses_implicit_move_only_fixed_array_argument() {
 }
 
 func main(): i32 {
-    let values: [Text; 1] = [Text{ len: 42 }]
+    let values: [Text; 1] = [Text { len: 42 }]
     return consume(values)
 }
 
@@ -183,7 +183,7 @@ struct Wrap {
 }
 
 func main(): i32 {
-    let wrap = Wrap{ text: Text{ len: 42 } }
+    let wrap = Wrap { text: Text { len: 42 } }
     return length(wrap.text)
 }
 
@@ -208,7 +208,7 @@ fn accepts_moved_non_copy_struct_argument() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 2 }
+    let text = Text { start: 1, len: 2 }
     return length(move text)
 }
 
@@ -229,7 +229,7 @@ fn diagnoses_implicit_non_copy_generic_struct_argument_with_type_arguments() {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 1,
     }
     return value(box)
@@ -254,7 +254,7 @@ fn accepts_associated_function_return_type() {
 }
 
 pub func Point.origin(): Self {
-    return Self{ x: 0 }
+    return Self { x: 0 }
 }
 
 func main(): i32 {
@@ -431,7 +431,7 @@ func unwrap<T>(box: Box<T>): T {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 1,
     }
     return unwrap(move box)
@@ -450,7 +450,7 @@ fn infers_generic_function_type_argument_from_binding_annotation() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func main(): i32 {
@@ -471,7 +471,7 @@ fn infers_generic_function_type_argument_from_return_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func make_u8(): Marker<u8> {
@@ -495,11 +495,11 @@ fn infers_generic_function_type_argument_from_catch_block_return_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func source(): Marker<u8>! {
-    return Marker<u8>{ code: 1 }
+    return Marker<u8> { code: 1 }
 }
 
 func recover(): Marker<u8> {
@@ -525,7 +525,7 @@ fn infers_generic_function_type_argument_from_parameter_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func consume(marker: Marker<u8>): i32 {
@@ -549,7 +549,7 @@ fn infers_nested_generic_function_type_argument_from_parameter_type() {
 }
 
 func make<T>(): Marker<T> {
-    return Marker<T>{ code: 42 }
+    return Marker<T> { code: 42 }
 }
 
 func forward<T>(value: T): T {

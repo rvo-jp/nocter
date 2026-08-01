@@ -296,7 +296,7 @@ pub struct Config {
 }
 
 pub func Config.default(): Config {
-    return Config{
+    return Config {
         name: "Nocter",
     }
 }

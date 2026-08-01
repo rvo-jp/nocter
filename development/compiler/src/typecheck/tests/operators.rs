@@ -489,7 +489,7 @@ fn diagnoses_move_field_operand() {
 }
 
 func main(): i32 {
-    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let text = Text { start: 1, len: 42, capacity: 3 }
     return move text.len
 }
 "#,

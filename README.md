@@ -8,8 +8,9 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.1.0 is the first narrow v0 release. The implementation target is
-`arm64-darwin`.
+Nocter v0.2.0 provides a complete Allocator and ownership foundation for
+practical `String` and `Vec<T>` programs, together with richer compiler-backed
+LSP support. The implementation target is `arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -93,7 +94,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.1.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.2.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -126,7 +127,7 @@ For repository-local release testing, the canonical standard-library source is
 tracked in `development/std/` and release metadata lives in
 `development/packaging/`. Generate a local installation image under
 `dist/.nocter/` plus the archive
-`dist/nocter-v0.1.0-arm64-darwin.tar.gz` with:
+`dist/nocter-v<version>-arm64-darwin.tar.gz` with:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
@@ -175,14 +176,13 @@ nocter fmt main.nct
 
 ## Current Status
 
-The v0.1.0 compiler can parse, check, build, and run a meaningful v0 subset on
+The v0.2.0 compiler parses, checks, builds, and runs the supported language on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
-Unsupported runtime forms are part of the v0.2.0+ roadmap unless promoted
-later; v0.1.0 should reject them with source-backed diagnostics before machine
-code is emitted. For the exact implementation boundary, see
-[development/docs/implementation-status.md](development/docs/implementation-status.md).
+Unsupported runtime forms must reject with source-backed diagnostics before
+machine code is emitted. The exact v0.2.0 completion boundary is defined in
+[development/docs/v0.2.0.md](development/docs/v0.2.0.md).
 
 ## Learn More
 
@@ -192,8 +192,8 @@ code is emitted. For the exact implementation boundary, see
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
-  boundary.
+- [Language Contract](spec/00-v0-contract.md): the current normative language
+  boundary inherited by v0.2.0 development.
 - [Development](development/README.md): Rust bootstrap compiler, tracked
   standard library, release packaging inputs, implementation status, tests, and
   maintenance notes.

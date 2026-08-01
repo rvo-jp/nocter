@@ -1,87 +1,67 @@
 # Nocter Development
 
-This directory is the development root for Nocter. It contains the Rust
-bootstrap compiler, the tracked standard-library source, release packaging
-inputs, and implementation-facing documentation.
+This directory contains the Rust bootstrap compiler, the distributed standard library, release
+packaging inputs, and implementation documentation. See the [repository README](../README.md) for
+the public overview and the [specification](../spec/README.md) for language rules.
 
-The user-facing language introduction and getting-started flow belong in the
-repository root [README.md](../README.md). The language specification belongs
-in [../spec](../spec/README.md). This directory documents development work only.
+The completed development milestone is **Nocter v0.2.0**. Its completion criteria are recorded in
+the [v0.2.0 Development Contract](docs/v0.2.0.md).
 
 ## Quick Start
 
-From the repository root:
+Run the complete verification suite from the repository root:
 
 ```sh
 ./development/compiler/scripts/verify.sh
 ```
 
-From this directory:
+To verify only the compiler:
 
 ```sh
-cargo test --manifest-path compiler/Cargo.toml
+cargo test --manifest-path development/compiler/Cargo.toml
 ```
 
-From `development/compiler/`:
-
-```sh
-cargo test
-```
-
-From the repository root, run a local Nocter program through the
-repository-local distribution image:
+To build and run a repository-local distribution:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
 ./dist/.nocter/nocter example.nct
 ```
 
-Rust and Cargo are development-time dependencies. A released Nocter archive is
-intended to contain one `.nocter/` home with a runnable `nocter` binary plus
-`std/`, without
-requiring Rust, LLVM, `clang`, `as`, `ld`, or an external runtime from users.
+Rust and Cargo are required only for development. The release archive runs from a single
+`.nocter/` home containing the compiler and `std/`; users do not need LLVM, `clang`, `as`, `ld`, an
+external runtime library, or the Xcode Command Line Tools.
 
-## Developer Documents
+## Documents
 
-- [Compiler Docs Index](docs/README.md): where each compiler document belongs.
-- [Architecture](docs/architecture.md): compiler pipeline, module ownership, and
-  phase boundaries.
-- [Implementation Status](docs/implementation-status.md): current parsed,
-  checked, buildable, runtime, CLI, std, and LSP capability.
-- [v0 Closure Definition](docs/v0-closure.md): fixed completion gates for v0.
-- [Backend V0](docs/backend-v0.md): native ARM64 Darwin backend and ABI lowering
-  design.
-- [Std Runtime Status](docs/std-runtime-status.md): implementation status of the
-  tracked standard library and distributed `std/` tree relative to the public
-  spec.
-- [Interpolation Lowering](docs/interpolation-lowering.md): deferred lowering
-  plan for bare string interpolation.
-- [Roadmap](docs/roadmap.md): recommended implementation order.
-- [Maintenance Policy](docs/maintenance.md): long-running development rules.
-- [TODO](TODO.md): short-term handoff state for the next compiler session.
+- [Documentation Index](docs/README.md)
+- [v0.2.0 Development Contract](docs/v0.2.0.md)
+- [Compiler Architecture](docs/architecture.md)
+- [Allocator and Ownership](docs/allocator-ownership.md)
+- [Standard Library Runtime](docs/standard-library.md)
+- [Language Server](docs/lsp.md)
+- [Maintenance](docs/maintenance.md)
+- [Internal Handoff](TODO.md)
 
-## Main Layout
+## Layout
 
 ```text
-.
-├── README.md
+development/
 ├── AGENTS.md
+├── README.md
 ├── TODO.md
 ├── compiler/
 │   ├── Cargo.toml
 │   ├── scripts/
 │   ├── src/
 │   └── tests/
-├── std/
+├── docs/
 ├── packaging/
-└── docs/
+└── std/
 ```
 
-- `compiler/src/` contains the compiler implementation.
-- `compiler/tests/` contains user-visible CLI, runtime, distributed-home, LSP,
-  and corpus integration tests.
-- `docs/` contains implementation-facing design and status documents.
-- `compiler/scripts/` contains developer verification and local release packaging
-  helpers.
-- `std/` contains the canonical standard-library source.
-- `packaging/` contains release metadata copied into generated Nocter homes.
+- `compiler/src`: compiler implementation
+- `compiler/tests`: CLI, runtime, distributed-home, LSP, and corpus integration tests
+- `std`: canonical source for the packaged standard library
+- `packaging`: release metadata copied into generated homes
+- `docs`: current design and acceptance documents; Git retains history

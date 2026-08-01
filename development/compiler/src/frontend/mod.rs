@@ -2,6 +2,7 @@
 
 mod diagnostics;
 mod imports;
+mod module_discovery;
 mod parsing;
 mod prelude;
 
@@ -28,6 +29,8 @@ use imports::{
 };
 use parsing::parse_source_for_check;
 use prelude::{should_load_prelude, standard_prelude_path};
+
+pub(crate) use module_discovery::module_segment_candidates;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FrontendOptions {

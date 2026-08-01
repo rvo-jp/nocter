@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Library Runtime - Nocter</title>
+    <meta name="description" content="This document records the implementation tracked in the repository and packaged under .nocter/std. Standard Library, Primitives, and OS is the authority fo">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/standard-library/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Standard Library Runtime - Nocter">
+    <meta property="og:description" content="This document records the implementation tracked in the repository and packaged under .nocter/std. Standard Library, Primitives, and OS is the authority fo">
+    <meta property="og:url" content="https://nocter.dev/development/docs/standard-library/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-01">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Standard Library Runtime - Nocter">
+    <meta name="twitter:description" content="This document records the implementation tracked in the repository and packaged under .nocter/std. Standard Library, Primitives, and OS is the authority fo">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Standard Library Runtime - Nocter","description":"This document records the implementation tracked in the repository and packaged under .nocter/std. Standard Library, Primitives, and OS is the authority fo","url":"https://nocter.dev/development/docs/standard-library/","mainEntityOfPage":"https://nocter.dev/development/docs/standard-library/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Standard Library","item":"https://nocter.dev/development/docs/standard-library/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="./index.html#content" aria-current="page">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/standard-library.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="standard-library-runtime">Standard Library Runtime</h1><p>This document records the implementation tracked in the repository and packaged under <code>.nocter/std</code>. <a href="../../../spec/11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a> is the authority for public API semantics; this document adds no specification rules.</p><h2 id="current-modules">Current Modules</h2><table><thead><tr><th>Module</th><th>Current role</th><th>v0.2.0 result</th></tr></thead><tbody><tr><td><code>error</code></td><td>structured recoverable errors</td><td>stable allocator and collection error IDs</td></tr><tr><td><code>fmt</code></td><td>scalar and text formatting helpers</td><td>owning-text behavior verified</td></tr><tr><td><code>io</code></td><td>file open/read/write/close and stdout/stderr</td><td>deterministic handle ownership</td></tr><tr><td><code>mem</code></td><td><code>Layout</code>, <code>RawBuffer</code>, <code>Allocator</code>, page boundary</td><td>complete layout/grow/free contract</td></tr><tr><td><code>os</code></td><td>target-gated syscall boundary</td><td>restricted to allocator internals</td></tr><tr><td><code>prelude</code></td><td>implicit common declarations</td><td>unchanged for v0.2.0</td></tr><tr><td><code>process</code></td><td>exit/abort/cwd/args; env is check-only</td><td>maintained where allocator completion requires it</td></tr><tr><td><code>ptr</code></td><td>restricted pointer primitives</td><td>retained within the <code>pub(nocter)</code> trust boundary</td></tr><tr><td><code>string</code></td><td>owned UTF-8 bytes</td><td>common allocator and failure-atomic growth</td></tr><tr><td><code>vec</code></td><td>owned generic sequence</td><td>non-copy initialized-prefix drop and pop</td></tr></tbody></table><h2 id="runtime-baseline">Runtime Baseline</h2><p><code>std/mem</code> provides checked <code>Layout</code>, a canonical empty buffer, private allocator provenance, failure-atomic growth, and deterministic <code>RawBuffer</code> drop. Distributed-home runtime tests fix the alignment, zero-size, out-of-memory, and failed-growth preservation behavior.</p><p><code>String</code> stores allocator provenance and capacity in a private <code>RawBuffer</code>. Its common Allocator supports empty, with_capacity, from/copy, view, len/capacity, reserve, clear, push_str, and deterministic storage release. Runtime tests prove content, length, and capacity preservation after failed growth.</p><p><code>Vec&lt;T&gt;</code> also centralizes byte capacity and allocator provenance in private <code>RawBuffer</code>; its typed pointer is a non-owning alias. Empty, with_capacity, from_slice, len/capacity, reserve, push, clear, views, and storage release use the common Allocator. Non-copy push transfers ownership into storage; clear and drop recursively destroy the initialized prefix in reverse order; pop transfers the final obligation into the return value.</p><p>An externally observable test proves that a descriptor number reallocated after <code>Vec&lt;File&gt;.clear()</code> remains readable after vector drop, fixing close-once behavior. A nested-vector test proves that an inner <code>String</code> remains recoverable and usable after failed growth.</p><h2 id="v0-2-0-required-behavior">v0.2.0 Required Behavior</h2><h3 id="std-mem"><code>std/mem</code></h3><ul><li>checked <code>Layout</code> construction</li><li>canonical empty allocation state</li><li>allocator identity retained through allocation, growth, and free</li><li>recoverable overflow, invalid alignment, and out-of-memory errors</li><li>failure-atomic growth that retains the old allocation</li><li>representation fields hidden outside <code>pub(nocter)</code></li></ul><h3 id="std-string"><code>std/string</code></h3><ul><li>empty / with_capacity / from_str / copy</li><li>len / capacity / is_empty / view / bytes</li><li>reserve / push_str / clear / drop</li><li>agreement between UTF-8 view and owned storage after repeated growth</li><li>unchanged content, length, and capacity after allocation failure</li></ul><p>Unicode scalar/character indexing and normalization are not v0.2.0 criteria. Do not add an ambiguously bounded byte-indexing API.</p><h3 id="std-vec"><code>std/vec</code></h3><ul><li>empty / with_capacity / reserve / push / clear / drop for both copy and non-copy elements</li><li>from_slice and immutable/mutable views for copy elements</li><li>pop as ownership extraction from the end</li><li>recursive drop of nested owning elements</li><li>atomic behavior on capacity overflow and allocation failure</li></ul><p>The meaning of duplicating non-copy elements from a borrowed slice is not defined, so <code>from_slice</code> is limited to copyable <code>T</code>. Until the type system can express that constraint, the compiler keeps the public boundary narrow and rejects misuse with a source-backed diagnostic.</p><h2 id="acceptance-matrix">Acceptance Matrix</h2><table><thead><tr><th>Scenario</th><th>Required observation</th></tr></thead><tbody><tr><td><code>String</code> repeated growth</td><td>bytes preserved; one final storage free</td></tr><tr><td>failed <code>String.reserve</code></td><td>pointer/content/len/capacity unchanged</td></tr><tr><td><code>Vec&lt;String&gt;</code> growth</td><td>every string remains usable and drops once</td></tr><tr><td><code>Vec&lt;String&gt;.pop()</code></td><td>returned string remains owned after vector drop</td></tr><tr><td><code>Vec&lt;File&gt;.clear()</code></td><td>initialized handles close once; later vector drop is empty</td></tr><tr><td><code>Vec&lt;Vec&lt;String&gt;&gt;</code> early <code>?</code></td><td>completed prefixes unwind in reverse order</td></tr><tr><td>zero-capacity values</td><td>no allocation and no invalid free</td></tr><tr><td>packaged-home execution</td><td>behavior matches repository-local source</td></tr></tbody></table><p>Tests observe semantic effects such as handle closure, output, error identity, and post-operation state. Backend instruction snapshots alone do not prove the standard-library contract.</p><h2 id="deferred-surface">Deferred Surface</h2><p>Environment value retrieval, rich path APIs, insert/remove, iterator protocols, multiple allocator families, implicit allocator selection, interpolation allocation, and collection literal/spread are not v0.2.0 release gates. Add them only after specifying ownership and failure behavior.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

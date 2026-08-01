@@ -4,38 +4,48 @@
 //! are non-owning array slice types. Vec<T> is the owning variable-length array
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
-//! v0 fixes the public contract before promoting generic collection lowering.
-//! Empty vectors, capacity allocation, read-only shape operations, scalar,
-//! string-view, and copy aggregate pushes, copying, and release are ordinary std
-//! functions. Non-copy element moves stay outside the v0 storage contract until
-//! per-element drop glue is wired into vector storage.
+//! v0.2.0 fixes the public contract while promoting generic collection lowering.
+//! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
+//! that prefix, while clear and drop destroy its elements in reverse order.
+//! `from_slice` remains a copying constructor and therefore accepts only copyable
+//! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
-use std/mem.Allocator
-use std/mem.alloc_pages as alloc_pages_impl
-use std/mem.free_pages as free_pages_impl
+use std/mem.{Allocator, RawBuffer, alloc, grow_owned}
 use std/ptr.addr
-use std/ptr.copy_ptr_to_ptr
+use std/ptr.drop_value_at_ptr
 use std/ptr.from_addr
+use std/ptr.pointee_align
 use std/ptr.pointee_size
 use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
+use std/ptr.take_value_at_ptr
 
+/// An owning, growable sequence with an initialized prefix of elements.
 pub struct Vec<T> {
     ptr: *T
+    storage: RawBuffer
     len: usize
     capacity: usize
-    byte_capacity: usize
 }
 
 pub func Vec.empty<T>(): Vec<T> {
-    return Vec<T> {
+    let pointer: *T = from_addr(1)
+    let element_align: usize = pointee_align(pointer)
+    let result = Vec<T> {
         ptr: from_addr(1),
+        storage: RawBuffer {
+            ptr: from_addr(1),
+            len: 0,
+            align: element_align,
+            allocator_state: 0,
+            allocator_kind: 0,
+        },
         len: 0,
         capacity: 0,
-        byte_capacity: 0,
     }
+    return move result
 }
 
 pub func empty<T>(): Vec<T> {
@@ -43,12 +53,8 @@ pub func empty<T>(): Vec<T> {
 }
 
 pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
-    if requested_capacity == 0 {
-        return Vec.empty()
-    }
-
-    let seed: Vec<T> = Vec.empty()
-    let element_size: usize = pointee_size(seed.ptr)
+    let empty_pointer: *T = from_addr(1)
+    let element_size: usize = pointee_size(empty_pointer)
     if element_size == 0 {
         return unsupported()
     }
@@ -57,12 +63,13 @@ pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize)
     }
 
     let byte_capacity: usize = requested_capacity * element_size
-    let address: usize = alloc_pages_impl(byte_capacity)?
+    let storage = alloc(allocator, byte_capacity, pointee_align(empty_pointer))?
+    let address: usize = addr(storage.ptr)
     return Vec<T> {
         ptr: from_addr(address),
+        storage: move storage,
         len: 0,
         capacity: requested_capacity,
-        byte_capacity: byte_capacity,
     }
 }
 
@@ -137,26 +144,31 @@ pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
         return capacity_overflow()
     }
 
-    let old_address: usize = addr(values.ptr)
-    let old_byte_len: usize = values_len * element_size
-    let old_byte_capacity: usize = values.byte_capacity
     let byte_capacity: usize = required_capacity * element_size
-    let address: usize = alloc_pages_impl(byte_capacity)?
-    if old_byte_len != 0 {
-        copy_ptr_to_ptr(from_addr(address), from_addr(old_address), old_byte_len)
-    }
-    if old_byte_capacity != 0 {
-        free_pages_impl(old_address, old_byte_capacity)
-    }
-    values.ptr = from_addr(address)
+    grow_owned(&+values.storage, byte_capacity)?
+    values.ptr = from_addr(addr(values.storage.ptr))
     values.capacity = required_capacity
-    values.byte_capacity = byte_capacity
     return
 }
 
 pub func clear<T>(values: &+Vec<T>): void {
-    values.len = 0
+    let element_size: usize = pointee_size(values.ptr)
+    while values.len != 0 {
+        let next_len: usize = values.len - 1
+        values.len = next_len
+        drop_value_at_ptr(values.ptr, next_len * element_size)
+    }
     return
+}
+
+pub func pop<T>(values: &+Vec<T>): T? {
+    if values.len == 0 {
+        return none
+    }
+    let next_len: usize = values.len - 1
+    values.len = next_len
+    let element_size: usize = pointee_size(values.ptr)
+    return take_value_at_ptr(values.ptr, next_len * element_size)
 }
 
 pub func push<T>(values: &+Vec<T>, value: T): void! {
@@ -164,7 +176,7 @@ pub func push<T>(values: &+Vec<T>, value: T): void! {
     reserve(values, 1)?
     let element_size: usize = pointee_size(values.ptr)
     let byte_offset: usize = old_len * element_size
-    store_value_to_ptr(values.ptr, byte_offset, value)
+    store_value_to_ptr(values.ptr, byte_offset, move value)
     values.len = old_len + 1
     return
 }
@@ -178,6 +190,7 @@ pub func capacity_overflow(): error {
 }
 
 impl<T> Vec<T> {
+    /// Returns the number of initialized elements.
     pub method &self.len(): usize {
         return len(self)
     }
@@ -198,29 +211,32 @@ impl<T> Vec<T> {
         return view_mut(self)
     }
 
+    /// Ensures capacity for at least `additional` more elements.
     pub method &+self.reserve(additional: usize): void! {
         reserve(self, additional)?
         return
     }
 
+    /// Destroys every initialized element and keeps the allocation for reuse.
     pub method &+self.clear(): void {
         clear(self)
         return
     }
 
+    /// Transfers `value` into the end of the initialized prefix.
     pub method &+self.push(value: T): void! {
-        push(self, value)?
+        push(self, move value)?
         return
     }
 
+    /// Transfers and returns the last initialized element, or `none` when empty.
+    pub method &+self.pop(): T? {
+        return pop(self) otherwise { return none }
+    }
+
     drop &+self {
-        let vec_byte_capacity: usize = self.byte_capacity
-        if vec_byte_capacity != 0 {
-            free_pages_impl(addr(self.ptr), vec_byte_capacity)
-        }
-        self.len = 0
+        clear(self)
         self.capacity = 0
-        self.byte_capacity = 0
         return
     }
 }

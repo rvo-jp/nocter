@@ -391,7 +391,7 @@ fn accepts_self_type_in_inherent_member_type_positions() {
 }
 
 pub func Point.origin(): Self {
-    return Self{ x: 1 }
+    return Self { x: 1 }
 }
 
 impl Point {

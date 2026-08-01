@@ -140,7 +140,8 @@ Initial `std/string` public surface:
 
 ```nct
 pub struct String {
-    ...
+    storage: RawBuffer
+    len: usize
 }
 
 pub func String.empty(): String
@@ -188,6 +189,13 @@ Rules:
 - These functions are ordinary standard-library APIs, not compiler built-ins.
 - Fallible functions fail with the built-in `error` payload. `std/string` and `std/fmt` must not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
 - `std/string.with_capacity` and `std/string.from_str` take an explicit `&+Allocator`.
+- Every `String` stores its allocator provenance in a private `RawBuffer`. `String.empty()` binds a
+  canonical zero-sized buffer to the page allocator; `with_capacity(allocator, 0)` retains the
+  supplied allocator identity without performing an OS allocation.
+- `reserve` grows through the bound allocator and is failure-atomic: allocation failure leaves the
+  pointer, contents, length, and capacity unchanged.
+- `String` storage is released by recursive deterministic drop of its private `RawBuffer`; string
+  code does not call target page allocation or release primitives directly.
 - The formatting append functions operate on an already-created `String`; they do not choose an allocator.
 - Future lowering for string interpolation must be expressed in terms of explicit `String` construction and `std/fmt.append_*` calls. It must not silently choose a process-global allocator.
 - `std/fmt` is not part of the initial prelude. User code imports it explicitly unless future prelude policy changes.
@@ -196,20 +204,21 @@ Rules:
 
 ### Memory and Allocator API
 
-Adopted: v0 exposes a small explicit allocator surface in `std/mem`.
+Adopted: v0.2.0 exposes a small explicit allocator surface in `std/mem`.
 
 Initial public surface:
 
 ```nct
 pub copy struct Layout {
-    pub size: usize
-    pub align: usize
+    pub(nocter) size: usize
+    pub(nocter) align: usize
 }
 
 pub struct RawBuffer {
     pub(nocter) ptr: *u8
     pub(nocter) len: usize
     pub(nocter) align: usize
+    ...
 }
 
 pub struct Allocator {
@@ -217,7 +226,13 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
+pub func Layout.new(size: usize, align: usize): Layout!
+pub func layout(size: usize, align: usize): Layout!
+pub func layout_size(value: &Layout): usize
+pub func layout_align(value: &Layout): usize
 pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
+pub func alloc_layout(allocator: &+Allocator, layout: Layout): RawBuffer!
+pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void!
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
 pub func bytes(buffer: &RawBuffer): &[u8]
 pub func bytes_mut(buffer: &+RawBuffer): &+[u8]
@@ -228,7 +243,13 @@ pub func invalid_argument(): error
 
 impl Allocator {
     pub method &+self.alloc(size: usize, align: usize): RawBuffer!
+    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void!
     pub method &+self.free(buffer: RawBuffer): void
+}
+
+impl Layout {
+    pub method &self.size(): usize
+    pub method &self.align(): usize
 }
 
 impl RawBuffer {
@@ -243,11 +264,14 @@ Rules:
 
 - Allocation failure is recoverable and returns the built-in `error` payload.
 - The initial allocator is page-backed. General allocator families are deferred.
+- Layout alignment is a non-zero supported power of two; zero-sized layouts produce canonical empty buffers without an OS allocation.
+- Growth is failure-atomic and preserves the old buffer when allocation fails.
 - `RawBuffer` owns raw byte storage and is not a typed collection.
 - `RawBuffer`'s representation fields are `pub(nocter)`: trusted std modules
   may inspect and pass the raw storage boundary onward, but user project modules
   must obtain views through the public `bytes`, `bytes_mut`, `prefix`,
   `prefix_mut`, and method APIs.
+- `RawBuffer` keeps private allocator provenance and releases owned storage during deterministic drop; `free` consumes the buffer and therefore cannot be followed by another use or release.
 - User-facing collection APIs should be built on ordinary std types such as
   `Vec<T>`, not by exposing unchecked raw buffer mutation.
 - Target-dependent allocation helpers are std-internal and target-gated.
@@ -261,7 +285,10 @@ Initial public surface:
 
 ```nct
 pub struct Vec<T> {
-    ...
+    ptr: *T
+    storage: RawBuffer
+    len: usize
+    capacity: usize
 }
 
 pub func Vec.empty<T>(): Vec<T>
@@ -278,6 +305,7 @@ pub func view<T>(values: &Vec<T>): &[T]
 pub func view_mut<T>(values: &+Vec<T>): &+[T]
 pub func reserve<T>(values: &+Vec<T>, additional: usize): void!
 pub func clear<T>(values: &+Vec<T>): void
+pub func pop<T>(values: &+Vec<T>): T?
 pub func push<T>(values: &+Vec<T>, value: T): void!
 pub func capacity_overflow(): error
 
@@ -289,6 +317,7 @@ impl<T> Vec<T> {
     pub method &+self.view_mut(): &+[T]
     pub method &+self.reserve(additional: usize): void!
     pub method &+self.clear(): void
+    pub method &+self.pop(): T?
     pub method &+self.push(value: T): void!
 
     drop &+self {
@@ -301,16 +330,22 @@ Rules:
 
 - `Vec<T>` is not exported by `std/prelude`; user code imports `std/vec.Vec`
   explicitly.
-- The v0 runtime surface is narrow. Scalar, `&str`, and explicitly promoted
-  copy-aggregate element storage paths are supported by the current
-  implementation.
-- Non-copy aggregate element storage, per-element drop glue, insertion/removal
-  APIs, and iterator helpers are deferred.
+- `storage` is the sole allocation owner. `ptr` is a private typed alias used to form initialized
+  element views and never owns or releases storage.
+- Element size and alignment come from the concrete ABI layout through trusted pointer layout
+  queries. Capacity multiplication is checked before allocation.
+- `reserve` grows through the allocator provenance bound to `storage` and publishes the new typed
+  pointer and capacity only after successful growth.
+- Scalar, `&str`, fixed-array, and struct element storage paths are supported. Struct and array
+  elements may own nested values and are destroyed recursively.
+- `push` transfers a non-copy argument into the initialized prefix only after reserve succeeds.
+  `pop` transfers the last initialized element to its return value before shrinking that prefix.
+- Payload-enum element storage, arbitrary-position insertion/removal, and iterator helpers are
+  deferred.
 - `check` may accept `Vec<T>` APIs outside the runtime-supported element subset
   when they typecheck. `build` and `run` must reject unsupported `Vec<T>` element
   storage paths during v0 buildability validation.
-- `clear` resets length. Element drop behavior is deferred until per-element
-  drop glue is designed.
+- `clear` and vector drop destroy every initialized element exactly once in reverse order.
 - `view` and `view_mut` expose slices over initialized elements only.
 
 ### I/O API
@@ -329,11 +364,13 @@ pub func File.open(path: &str): File!
 pub func read(file: &+File, buffer: &+[u8]): usize!
 pub func write(file: &+File, bytes: &[u8]): void!
 pub func write_text(file: &+File, text: &str): void!
+pub func close(file: &+File): void
 
 impl File {
     pub method &+self.read(buffer: &+[u8]): usize!
     pub method &+self.write(bytes: &[u8]): void!
     pub method &+self.write_text(text: &str): void!
+    pub method &+self.close(): void
 
     drop &+self {
         ...
@@ -364,7 +401,9 @@ Rules:
 - `File` internally distinguishes owned handles from borrowed process standard streams.
 - Dropping a `File` returned by `File.open(path)` closes the owned handle.
 - Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
-- The `File` drop member cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
+- `File.close()` closes an owned handle immediately and is idempotent. A later drop does not close
+  the same handle again. It does nothing for borrowed process standard streams.
+- Explicit close and the `File` drop member cannot fail. Close errors are ignored in v0.2.0.
 - Unexpected OS errors are converted to `"std.os.unexpected_os_error"` with a message that preserves useful target context.
 
 Physical placement:
@@ -655,6 +694,7 @@ pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
 pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+pub(nocter) primitive pointee_align<T>(pointer: *T): usize
 pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
 pub(nocter) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
 pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
@@ -666,7 +706,7 @@ pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[
 pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 ```
 
-`from_addr`, pointee sizing, raw-storage copy/store helpers, and raw-storage
+`from_addr`, pointee layout queries, raw-storage copy/store helpers, and raw-storage
 view construction helpers are `pub(nocter)` and therefore restricted to trusted
 modules inside the active Nocter home. User project modules must not call them.
 Calls to `from_addr` with an address expression statically known to be zero are

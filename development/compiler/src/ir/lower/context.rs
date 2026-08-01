@@ -1,4 +1,7 @@
-use crate::abi::{ReturnPassing, ValueLayout};
+use crate::abi::{
+    AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver,
+    array_element_stride, layout_of, layout_struct,
+};
 use crate::ast::{
     CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
     type_expr_display_lossy,
@@ -10,7 +13,9 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind, TypecheckSliceElementKind};
+use crate::typecheck::{
+    TypecheckFacts, TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
+};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -41,6 +46,7 @@ pub(super) struct LoweringContext<'a> {
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
+    temporary_aggregate_drops: Vec<PendingAggregateDrop>,
     borrow_parameters: Vec<BorrowParameter>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
     error_payloads: ErrorPayloads,
@@ -69,6 +75,7 @@ impl<'a> Clone for LoweringContext<'a> {
             reserved_local_abi_words: self.reserved_local_abi_words,
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
+            temporary_aggregate_drops: self.temporary_aggregate_drops.clone(),
             borrow_parameters: self.borrow_parameters.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
             error_payloads: self.error_payloads.clone(),
@@ -193,7 +200,7 @@ pub(super) struct LoweringAggregateParameter {
     pub(super) slot_index: usize,
     pub(super) source: AggregateParameterSource,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
     pub(super) fields: Vec<AggregateField>,
 }
 
@@ -220,1205 +227,22 @@ pub(super) struct BorrowParameter {
     pub(super) is_readwrite: bool,
 }
 
-impl<'a> LoweringContext<'a> {
-    pub(super) fn empty(
-        function_name: String,
-        return_type: Type,
-        function_signatures: FunctionSignatures,
-    ) -> Self {
-        Self {
-            function_name,
-            function_return_type: return_type.clone(),
-            function_return_type_expr: None,
-            return_type,
-            function_returns_optional: false,
-            function_signatures,
-            call_resolution: None,
-            function_names: FunctionNames::default(),
-            generic_substitutions: HashMap::new(),
-            i32_parameters: Vec::new(),
-            u8_parameters: Vec::new(),
-            usize_parameters: Vec::new(),
-            bool_parameters: Vec::new(),
-            str_parameters: Vec::new(),
-            slice_parameters: Vec::new(),
-            error_parameters: Vec::new(),
-            reserved_local_abi_words: 0,
-            locals: Vec::new(),
-            aggregate_fields: HashMap::new(),
-            borrow_parameters: Vec::new(),
-            aggregate_borrows: Vec::new(),
-            error_payloads: ErrorPayloads::default(),
-            next_aggregate_slot_index: Rc::new(Cell::new(0)),
-        }
-    }
-
-    pub(super) fn new(
-        function_name: String,
-        return_type: Type,
-        function_signatures: FunctionSignatures,
-        parameters: LoweringParameterSlots,
-    ) -> Self {
-        let mut locals = Vec::new();
-        let mut aggregate_fields = HashMap::new();
-        let next_aggregate_slot_index = parameters
-            .aggregates
-            .iter()
-            .map(|parameter| parameter.slot_index + 1)
-            .max()
-            .unwrap_or(0);
-        for parameter in parameters.aggregates {
-            locals.push(LocalBinding {
-                name: parameter.name,
-                kind: LocalKind::Aggregate {
-                    layout: parameter.layout,
-                    slot_index: parameter.slot_index,
-                    is_copy: parameter.is_copy,
-                    drop_state: AggregateDropState::from_drop_glue(&parameter.drop_glue),
-                    drop_glue: parameter.drop_glue,
-                },
-                index: 0,
-            });
-            aggregate_fields.insert(parameter.slot_index, parameter.fields);
-        }
-
-        Self {
-            function_name,
-            function_return_type: return_type.clone(),
-            function_return_type_expr: None,
-            return_type,
-            function_returns_optional: false,
-            function_signatures,
-            call_resolution: None,
-            function_names: FunctionNames::default(),
-            generic_substitutions: HashMap::new(),
-            i32_parameters: parameters.i32,
-            u8_parameters: parameters.u8,
-            usize_parameters: parameters.usize,
-            bool_parameters: parameters.bool,
-            str_parameters: parameters.str,
-            slice_parameters: parameters.slice,
-            error_parameters: parameters.error,
-            reserved_local_abi_words: 0,
-            locals,
-            aggregate_fields,
-            borrow_parameters: parameters.borrow_parameters,
-            aggregate_borrows: parameters.aggregate_borrows,
-            error_payloads: ErrorPayloads::default(),
-            next_aggregate_slot_index: Rc::new(Cell::new(next_aggregate_slot_index)),
-        }
-    }
-
-    pub(super) fn with_call_resolution(
-        mut self,
-        root_source: SourceId,
-        resolved: &'a ResolveOutput,
-        typecheck_facts: &'a TypecheckFacts,
-        function_names: FunctionNames,
-        resolved_sources: ResolvedSources<'a>,
-    ) -> Self {
-        self.call_resolution = Some(CallResolution {
-            root_source,
-            resolved,
-            typecheck_facts,
-            resolved_sources,
-        });
-        self.function_names = function_names;
-        self
-    }
-
-    pub(super) fn with_generic_substitutions(
-        mut self,
-        substitutions: HashMap<String, TypeExpr>,
-    ) -> Self {
-        self.generic_substitutions = substitutions;
-        self
-    }
-
-    pub(super) fn with_function_return_type(mut self, return_type: Type) -> Self {
-        self.function_return_type = return_type;
-        self
-    }
-
-    pub(super) fn with_function_return_type_expr(mut self, return_type: TypeExpr) -> Self {
-        self.function_return_type_expr = Some(return_type);
-        self
-    }
-
-    pub(super) fn with_function_returns_optional(
-        mut self,
-        function_returns_optional: bool,
-    ) -> Self {
-        self.function_returns_optional = function_returns_optional;
-        self
-    }
-
-    pub(super) fn with_error_payloads(mut self, error_payloads: ErrorPayloads) -> Self {
-        self.error_payloads = error_payloads;
-        self
-    }
-
-    pub(super) fn function_name(&self) -> &str {
-        &self.function_name
-    }
-
-    pub(super) fn return_type(&self) -> &Type {
-        &self.return_type
-    }
-
-    pub(super) fn function_return_type(&self) -> &Type {
-        &self.function_return_type
-    }
-
-    pub(super) fn function_return_type_expr(&self) -> Option<&TypeExpr> {
-        self.function_return_type_expr.as_ref()
-    }
-
-    pub(super) fn function_returns_optional(&self) -> bool {
-        self.function_returns_optional
-    }
-
-    pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {
-        self.function_signatures.return_type(target)
-    }
-
-    pub(super) fn call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
-        if let Some(return_type) = self.method_call_return_type_expr(call) {
-            return Some(return_type);
-        }
-
-        let resolution = self.call_resolution.as_ref()?;
-        let signature = resolution.resolved.call_signature_for_call(call)?;
-        let mut return_type = signature.return_type.clone();
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .function_call_specialization(call.span)
-        {
-            let specialization =
-                specialization.with_context_substitutions(&self.generic_substitutions)?;
-            return_type =
-                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
-        }
-        Some(substitute_type_expr_parameters(
-            &return_type,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn call_argument_parameter_type_expr(
-        &self,
-        call: &CallExpr,
-        index: usize,
-    ) -> Option<TypeExpr> {
-        if let Some(ty) = self.method_call_argument_parameter_type_expr(call, index) {
-            return Some(ty);
-        }
-
-        let resolution = self.call_resolution.as_ref()?;
-        let signature = resolution.resolved.call_signature_for_call(call)?;
-        let parameter = signature.parameters.get(index)?;
-        let mut ty = parameter.ty.clone();
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .function_call_specialization(call.span)
-            .and_then(|specialization| {
-                specialization.with_context_substitutions(&self.generic_substitutions)
-            })
-        {
-            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
-        }
-        Some(substitute_type_expr_parameters(
-            &ty,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn local_binding_type_expr_for_identifier(
-        &self,
-        identifier: &IdentifierExpr,
-    ) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let symbol = resolution
-            .resolved
-            .local_symbol_for_identifier(identifier)?;
-        let ty = resolution
-            .typecheck_facts
-            .binding_type_expr(symbol.name_span)?
-            .clone();
-        Some(substitute_type_expr_parameters(
-            &ty,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn binding_type_expr(&self, name_span: ByteSpan) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let ty = resolution
-            .typecheck_facts
-            .binding_type_expr(name_span)?
-            .clone();
-        Some(substitute_type_expr_parameters(
-            &ty,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let ty = resolution
-            .typecheck_facts
-            .expression_type_expr(expression_span)?
-            .clone();
-        Some(substitute_type_expr_parameters(
-            &ty,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn function_call_type_substitution(
-        &self,
-        call: &CallExpr,
-        parameter: &str,
-    ) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let specialization = resolution
-            .typecheck_facts
-            .function_call_specialization(call.span)?
-            .with_context_substitutions(&self.generic_substitutions)?;
-        specialization.substitutions.get(parameter).cloned()
-    }
-
-    pub(super) fn call_parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
-        self.function_signatures.parameter_types(target)
-    }
-
-    pub(super) fn call_parameter_abi_word_count(&self, target: &CallTarget) -> Option<usize> {
-        self.function_signatures.parameter_abi_word_count(target)
-    }
-
-    pub(super) fn call_success_return_passing(&self, target: &CallTarget) -> Option<ReturnPassing> {
-        self.function_signatures.success_return_passing(target)
-    }
-
-    pub(super) fn direct_call_target_and_name(
-        &self,
-        call: &CallExpr,
-    ) -> Option<(CallTarget, String)> {
-        if let Some((target, target_name)) = self.function_call_specialization_target_and_name(call)
-        {
-            return Some((target, target_name));
-        }
-        match call.callee.as_ref() {
-            Expr::Identifier(identifier) => Some((
-                self.call_target(call, &identifier.name),
-                identifier.name.clone(),
-            )),
-            Expr::Member(_) => {
-                let resolution = self.call_resolution.as_ref()?;
-                if let Some((target, target_name)) = self.method_call_target_and_name(call) {
-                    return Some((target, target_name));
-                }
-                if let Some((_owner, function)) =
-                    resolution.resolved.associated_function_for_call(call)
-                {
-                    let target = call_target_for_source(
-                        function.name_span.source,
-                        resolution.root_source,
-                        function.target_name.clone(),
-                    );
-                    return Some((target, function.target_name.clone()));
-                }
-                let symbol = resolution.resolved.symbol_for_call(call)?;
-                if !matches!(
-                    symbol.kind,
-                    SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_)
-                ) {
-                    return None;
-                }
-                let target = call_target_for_source(
-                    symbol.declaration_span.source,
-                    resolution.root_source,
-                    self.function_names
-                        .name_for_declaration(symbol.declaration_span)
-                        .unwrap_or(&symbol.name)
-                        .clone(),
-                );
-                Some((target, symbol.name.clone()))
-            }
-            _ => None,
-        }
-    }
-
-    pub(super) fn error_payload_for_call(&self, call: &CallExpr) -> Option<ErrorPayload> {
-        let (target, _) = self.direct_call_target_and_name(call)?;
-        self.error_payloads.get(&target).cloned()
-    }
-
-    pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {
-        let Some(resolution) = &self.call_resolution else {
-            return CallTarget::same_file(fallback_name);
-        };
-        if let Some((target, _target_name)) =
-            self.function_call_specialization_target_and_name(call)
-        {
-            return target;
-        }
-        if let Some((_owner, function)) = resolution.resolved.associated_function_for_call(call) {
-            return call_target_for_source(
-                function.name_span.source,
-                resolution.root_source,
-                function.target_name.clone(),
-            );
-        }
-        if let Some((target, _name)) = self.method_call_target_and_name(call) {
-            return target;
-        }
-
-        let Some(symbol) = resolution.resolved.symbol_for_call(call) else {
-            return CallTarget::same_file(fallback_name);
-        };
-
-        match &symbol.kind {
-            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_)
-                if symbol.declaration_span.source != resolution.root_source =>
-            {
-                let target_name = self
-                    .function_names
-                    .name_for_declaration(symbol.declaration_span)
-                    .unwrap_or(&symbol.name);
-                CallTarget::imported(symbol.declaration_span.source, target_name.clone())
-            }
-            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => {
-                CallTarget::same_file(symbol.name.clone())
-            }
-            SymbolKind::Imported(_) => CallTarget::same_file(fallback_name),
-        }
-    }
-
-    fn function_call_specialization_target_and_name(
-        &self,
-        call: &CallExpr,
-    ) -> Option<(CallTarget, String)> {
-        let resolution = self.call_resolution.as_ref()?;
-        let specialization = resolution
-            .typecheck_facts
-            .function_call_specialization(call.span)?
-            .with_context_substitutions(&self.generic_substitutions)?;
-        let target = call_target_for_source(
-            specialization.declaration_span.source,
-            resolution.root_source,
-            specialization.target_name.clone(),
-        );
-        Some((target, specialization.target_name.clone()))
-    }
-
-    pub(super) fn primitive_name_for_call(&self, call: &CallExpr) -> Option<&str> {
-        let resolution = self.call_resolution.as_ref()?;
-        let symbol = resolution.resolved.symbol_for_call(call)?;
-        match &symbol.kind {
-            SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
-            SymbolKind::Imported(_) if std_os_imported_primitive_name(&symbol.name) => {
-                Some(symbol.name.as_str())
-            }
-            SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
-        }
-    }
-
-    pub(super) fn resolved_calls(&self) -> Option<(SourceId, &'a ResolveOutput)> {
-        self.call_resolution
-            .as_ref()
-            .map(|resolution| (resolution.root_source, resolution.resolved))
-    }
-
-    pub(super) fn resolved_source(&self, source: SourceId) -> Option<&'a ResolveOutput> {
-        self.call_resolution
-            .as_ref()
-            .and_then(|resolution| resolution.resolved_sources.get(&source).copied())
-    }
-
-    pub(super) fn payloadless_enum_variant_tag(&self, member: &MemberExpr) -> Option<u8> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Identifier(enum_name) = member.object.as_ref() else {
-            return None;
-        };
-        let symbol = resolution
-            .resolved
-            .type_symbol_by_name(&enum_name.name)
-            .filter(|symbol| symbol.kind == TypeSymbolKind::Enum)?;
-        if symbol
-            .variants
-            .iter()
-            .any(|variant| !variant.payload.is_empty())
-        {
-            return None;
-        }
-        let index = symbol
-            .variants
-            .iter()
-            .position(|variant| variant.name == member.member)?;
-        u8::try_from(index).ok()
-    }
-
-    pub(super) fn payloadless_enum_variant_names_for_expression(
-        &self,
-        expression: &Expr,
-    ) -> Option<Vec<String>> {
-        let resolution = self.call_resolution.as_ref()?;
-        let ty = self.expression_type_expr(expression.span())?;
-        let symbol = payloadless_enum_symbol_for_type_expr(&ty, resolution.resolved, &|source| {
-            self.resolved_source(source)
-        })?;
-        Some(
-            symbol
-                .variants
-                .iter()
-                .map(|variant| variant.name.clone())
-                .collect(),
-        )
-    }
-
-    pub(super) fn binding_scalar_view_kind(
-        &self,
-        name_span: ByteSpan,
-    ) -> Option<TypecheckScalarViewKind> {
-        self.call_resolution
-            .as_ref()?
-            .typecheck_facts
-            .binding_scalar_view_kind(name_span)
-    }
-
-    pub(super) fn method_call_receiver<'b>(&self, call: &'b CallExpr) -> Option<&'b Expr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Member(member) = call.callee.as_ref() else {
-            return None;
-        };
-        resolution
-            .typecheck_facts
-            .method_call_target(member.member_span)?;
-        Some(&member.object)
-    }
-
-    fn method_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Member(member) = call.callee.as_ref() else {
-            return None;
-        };
-        let method_name_span = resolution
-            .typecheck_facts
-            .method_call_target(member.member_span)?;
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .method_call_specialization(member.member_span)
-            .and_then(|specialization| {
-                specialization.with_context_substitutions(&self.generic_substitutions)
-            })
-        {
-            let target = call_target_for_source(
-                method_name_span.source,
-                resolution.root_source,
-                specialization.target_name.clone(),
-            );
-            return Some((target, specialization.target_name.clone()));
-        }
-        if resolution
-            .typecheck_facts
-            .generic_method_call_target(member.member_span)
-            .is_some()
-        {
-            return None;
-        }
-        let target_name = self
-            .function_names
-            .name_for_declaration(method_name_span)?
-            .clone();
-        let target = call_target_for_source(
-            method_name_span.source,
-            resolution.root_source,
-            target_name.clone(),
-        );
-        Some((target, target_name))
-    }
-
-    fn method_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Member(member) = call.callee.as_ref() else {
-            return None;
-        };
-        let method_name_span = resolution
-            .typecheck_facts
-            .method_call_target(member.member_span)?;
-        let method = resolution
-            .resolved
-            .method_signature_by_name_span(method_name_span)?;
-        let mut return_type = method.signature.return_type.clone();
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .method_call_specialization(member.member_span)
-            .and_then(|specialization| {
-                specialization.with_context_substitutions(&self.generic_substitutions)
-            })
-        {
-            return_type = type_expr_with_self_type(&return_type, &specialization.self_ty);
-            return_type =
-                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
-            return Some(substitute_type_expr_parameters(
-                &return_type,
-                &self.generic_substitutions,
-            ));
-        }
-        if resolution
-            .typecheck_facts
-            .generic_method_call_target(member.member_span)
-            .is_some()
-        {
-            return None;
-        }
-        if let Some(self_ty) = &method.impl_target_ty {
-            return_type = type_expr_with_self_type(&return_type, self_ty);
-        }
-        Some(substitute_type_expr_parameters(
-            &return_type,
-            &self.generic_substitutions,
-        ))
-    }
-
-    fn method_call_argument_parameter_type_expr(
-        &self,
-        call: &CallExpr,
-        index: usize,
-    ) -> Option<TypeExpr> {
-        let resolution = self.call_resolution.as_ref()?;
-        let Expr::Member(member) = call.callee.as_ref() else {
-            return None;
-        };
-        let method_name_span = resolution
-            .typecheck_facts
-            .method_call_target(member.member_span)?;
-        let method = resolution
-            .resolved
-            .method_signature_by_name_span(method_name_span)?;
-        let parameter = method.signature.parameters.get(index)?;
-        let mut ty = parameter.ty.clone();
-        if let Some(specialization) = resolution
-            .typecheck_facts
-            .method_call_specialization(member.member_span)
-            .and_then(|specialization| {
-                specialization.with_context_substitutions(&self.generic_substitutions)
-            })
-        {
-            ty = type_expr_with_self_type(&ty, &specialization.self_ty);
-            ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
-            return Some(substitute_type_expr_parameters(
-                &ty,
-                &self.generic_substitutions,
-            ));
-        }
-        if resolution
-            .typecheck_facts
-            .generic_method_call_target(member.member_span)
-            .is_some()
-        {
-            return None;
-        }
-        if let Some(self_ty) = &method.impl_target_ty {
-            ty = type_expr_with_self_type(&ty, self_ty);
-        }
-        Some(substitute_type_expr_parameters(
-            &ty,
-            &self.generic_substitutions,
-        ))
-    }
-
-    pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
-        self.next_local_index(1).map(I32Location::Local)
-    }
-
-    pub(super) fn next_u8_local_location(&self) -> Result<U8Location, Vec<Diagnostic>> {
-        self.next_local_index(1).map(U8Location::Local)
-    }
-
-    pub(super) fn next_usize_local_location(&self) -> Result<UsizeLocation, Vec<Diagnostic>> {
-        self.next_local_index(1).map(UsizeLocation::Local)
-    }
-
-    pub(super) fn first_temporary_local_index(&self) -> Result<usize, Vec<Diagnostic>> {
-        Ok(self.used_local_abi_words())
-    }
-
-    pub(super) fn next_bool_local_location(&self) -> Result<BoolLocation, Vec<Diagnostic>> {
-        self.next_local_index(1).map(BoolLocation::Local)
-    }
-
-    pub(super) fn next_str_local_location(&self) -> Result<StrLocation, Vec<Diagnostic>> {
-        self.next_local_index(2).map(StrLocation::Local)
-    }
-
-    pub(super) fn next_slice_local_location(&self) -> Result<SliceLocation, Vec<Diagnostic>> {
-        self.next_local_index(2).map(SliceLocation::Local)
-    }
-
-    pub(super) fn with_reserved_local_abi_words(&self, words: usize) -> Self {
-        let mut context = self.clone();
-        context.reserved_local_abi_words += words;
-        context
-    }
-
-    pub(super) fn define_i32_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::I32);
-    }
-
-    pub(super) fn define_u8_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::U8);
-    }
-
-    pub(super) fn define_usize_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::Usize);
-    }
-
-    pub(super) fn define_bool_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::Bool);
-    }
-
-    pub(super) fn define_str_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::Str);
-    }
-
-    pub(super) fn define_slice_local(
-        &mut self,
-        name: String,
-        element_kind: TypecheckSliceElementKind,
-        element_type: Option<TypeExpr>,
-    ) {
-        self.define_local(
-            name,
-            LocalKind::Slice(SliceTypeInfo {
-                element_kind,
-                element_type,
-            }),
-        );
-    }
-
-    pub(super) fn rename_local(&mut self, old_name: &str, new_name: String) -> bool {
-        let Some(local) = self.locals.iter_mut().find(|local| local.name == old_name) else {
-            return false;
-        };
-        local.name = new_name;
-        true
-    }
-
-    pub(super) fn define_aggregate_local(
-        &mut self,
-        name: String,
-        layout: ValueLayout,
-        is_copy: bool,
-        drop_glue: Option<DropGlue>,
-        fields: Vec<AggregateField>,
-    ) -> usize {
-        let slot_index = self.reserve_aggregate_slot_index();
-        self.locals.push(LocalBinding {
-            name,
-            kind: LocalKind::Aggregate {
-                layout,
-                slot_index,
-                is_copy,
-                drop_state: AggregateDropState::from_drop_glue(&drop_glue),
-                drop_glue,
-            },
-            index: 0,
-        });
-        self.aggregate_fields.insert(slot_index, fields);
-        slot_index
-    }
-
-    pub(super) fn define_error_local(
-        &mut self,
-        name: String,
-    ) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
-        let index = self.next_local_index(LocalKind::Error.abi_word_count())?;
-        self.locals.push(LocalBinding {
-            name,
-            kind: LocalKind::Error,
-            index,
-        });
-        Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
-    }
-
-    pub(super) fn next_error_local_locations(
-        &self,
-    ) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
-        let index = self.next_local_index(LocalKind::Error.abi_word_count())?;
-        Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
-    }
-
-    pub(super) fn i32_location(&self, name: &str) -> Option<I32Location> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::I32)
-            .map(|local| I32Location::Local(local.index))
-            .or_else(|| {
-                self.i32_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(I32Location::Parameter)
-            })
-    }
-
-    pub(super) fn usize_location(&self, name: &str) -> Option<UsizeLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Usize)
-            .map(|local| UsizeLocation::Local(local.index))
-            .or_else(|| {
-                self.usize_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(UsizeLocation::Parameter)
-            })
-    }
-
-    pub(super) fn u8_location(&self, name: &str) -> Option<U8Location> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::U8)
-            .map(|local| U8Location::Local(local.index))
-            .or_else(|| {
-                self.u8_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(U8Location::Parameter)
-            })
-    }
-
-    pub(super) fn bool_location(&self, name: &str) -> Option<BoolLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Bool)
-            .map(|local| BoolLocation::Local(local.index))
-            .or_else(|| {
-                self.bool_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(BoolLocation::Parameter)
-            })
-    }
-
-    pub(super) fn str_location(&self, name: &str) -> Option<StrLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Str)
-            .map(|local| StrLocation::Local(local.index))
-            .or_else(|| {
-                self.str_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(StrLocation::Parameter)
-            })
-    }
-
-    pub(super) fn slice_location(&self, name: &str) -> Option<SliceLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && matches!(local.kind, LocalKind::Slice(_)))
-            .map(|local| SliceLocation::Local(local.index))
-            .or_else(|| {
-                self.slice_parameters
-                    .iter()
-                    .position(|parameter| {
-                        parameter
-                            .as_ref()
-                            .is_some_and(|parameter| parameter.name == name)
-                    })
-                    .map(SliceLocation::Parameter)
-            })
-    }
-
-    pub(super) fn slice_element_kind(&self, name: &str) -> Option<TypecheckSliceElementKind> {
-        self.locals
-            .iter()
-            .find_map(|local| match &local.kind {
-                LocalKind::Slice(info) if local.name == name => Some(info.element_kind),
-                _ => None,
-            })
-            .or_else(|| {
-                self.slice_parameters
-                    .iter()
-                    .find_map(|parameter| match parameter {
-                        Some(parameter) if parameter.name == name => {
-                            Some(parameter.info.element_kind)
-                        }
-                        _ => None,
-                    })
-            })
-    }
-
-    pub(super) fn slice_element_type_expr(&self, name: &str) -> Option<&TypeExpr> {
-        self.locals
-            .iter()
-            .find_map(|local| match &local.kind {
-                LocalKind::Slice(info) if local.name == name => info.element_type.as_ref(),
-                _ => None,
-            })
-            .or_else(|| {
-                self.slice_parameters
-                    .iter()
-                    .find_map(|parameter| match parameter {
-                        Some(parameter) if parameter.name == name => {
-                            parameter.info.element_type.as_ref()
-                        }
-                        _ => None,
-                    })
-            })
-    }
-
-    pub(super) fn error_code_location(&self, name: &str) -> Option<StrLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Error)
-            .map(|local| StrLocation::Local(local.index))
-            .or_else(|| {
-                self.error_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(StrLocation::Parameter)
-            })
-    }
-
-    pub(super) fn error_message_location(&self, name: &str) -> Option<StrLocation> {
-        self.locals
-            .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Error)
-            .map(|local| StrLocation::Local(local.index + 2))
-            .or_else(|| {
-                self.error_parameters
-                    .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
-                    .map(|index| StrLocation::Parameter(index + 2))
-            })
-    }
-
-    pub(super) fn aggregate_slot(&self, name: &str) -> Option<(usize, ValueLayout)> {
-        self.aggregate_local(name)
-            .map(|local| (local.slot_index, local.layout))
-    }
-
-    pub(super) fn aggregate_local(&self, name: &str) -> Option<AggregateLocal> {
-        self.locals.iter().find_map(|local| {
-            if local.name == name
-                && let LocalKind::Aggregate {
-                    layout,
-                    slot_index,
-                    is_copy,
-                    ref drop_glue,
-                    ..
-                } = local.kind
-            {
-                return Some(AggregateLocal {
-                    slot_index,
-                    layout,
-                    is_copy,
-                    drop_glue: drop_glue.clone(),
-                });
-            }
-            None
-        })
-    }
-
-    pub(super) fn aggregate_local_by_slot(&self, slot_index: usize) -> Option<AggregateLocal> {
-        self.locals.iter().find_map(|local| {
-            let LocalKind::Aggregate {
-                layout,
-                slot_index: local_slot_index,
-                is_copy,
-                ref drop_glue,
-                ..
-            } = local.kind
-            else {
-                return None;
-            };
-            if local_slot_index == slot_index {
-                return Some(AggregateLocal {
-                    slot_index: local_slot_index,
-                    layout,
-                    is_copy,
-                    drop_glue: drop_glue.clone(),
-                });
-            }
-            None
-        })
-    }
-
-    pub(super) fn aggregate_local_fields(&self, name: &str) -> Option<Vec<AggregateField>> {
-        let local = self.aggregate_local(name)?;
-        self.aggregate_fields.get(&local.slot_index).cloned()
-    }
-
-    pub(super) fn mark_aggregate_local_dropped(&mut self, name: &str) {
-        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
-    }
-
-    pub(super) fn mark_aggregate_local_moved(&mut self, name: &str) {
-        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
-    }
-
-    pub(super) fn mark_aggregate_local_initialized(&mut self, name: &str) {
-        let Some(local) = self
-            .locals
-            .iter_mut()
-            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
-        else {
-            return;
-        };
-        let LocalKind::Aggregate {
-            drop_glue,
-            drop_state,
-            ..
-        } = &mut local.kind
-        else {
-            return;
-        };
-        *drop_state = AggregateDropState::from_drop_glue(drop_glue);
-    }
-
-    pub(super) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
-        self.locals
-            .iter()
-            .rev()
-            .filter_map(|local| {
-                let LocalKind::Aggregate {
-                    layout,
-                    slot_index,
-                    drop_state,
-                    ref drop_glue,
-                    ..
-                } = local.kind
-                else {
-                    return None;
-                };
-                if drop_state != AggregateDropState::NeedsDrop {
-                    return None;
-                }
-                Some(PendingAggregateDrop {
-                    name: local.name.clone(),
-                    slot_index,
-                    layout,
-                    drop_glue: drop_glue.clone()?,
-                })
-            })
-            .collect()
-    }
-
-    pub(super) fn local_mark(&self) -> usize {
-        self.locals.len()
-    }
-
-    pub(super) fn aggregate_local_defined_since(&self, name: &str, local_mark: usize) -> bool {
-        self.locals
-            .get(local_mark..)
-            .unwrap_or(&[])
-            .iter()
-            .any(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
-    }
-
-    pub(super) fn local_defined_since(&self, name: &str, local_mark: usize) -> bool {
-        self.locals
-            .get(local_mark..)
-            .unwrap_or(&[])
-            .iter()
-            .any(|local| local.name == name)
-    }
-
-    pub(super) fn pending_aggregate_drops_since(
-        &self,
-        local_mark: usize,
-    ) -> Vec<PendingAggregateDrop> {
-        let locals = self.locals.get(local_mark..).unwrap_or(&[]);
-        locals
-            .iter()
-            .rev()
-            .filter_map(|local| {
-                let LocalKind::Aggregate {
-                    layout,
-                    slot_index,
-                    drop_state,
-                    ref drop_glue,
-                    ..
-                } = local.kind
-                else {
-                    return None;
-                };
-                if drop_state != AggregateDropState::NeedsDrop {
-                    return None;
-                }
-                Some(PendingAggregateDrop {
-                    name: local.name.clone(),
-                    slot_index,
-                    layout,
-                    drop_glue: drop_glue.clone()?,
-                })
-            })
-            .collect()
-    }
-
-    pub(super) fn pending_aggregate_drop_by_slot(
-        &self,
-        slot_index: usize,
-    ) -> Option<PendingAggregateDrop> {
-        self.locals.iter().find_map(|local| {
-            let LocalKind::Aggregate {
-                layout,
-                slot_index: local_slot_index,
-                drop_state,
-                ref drop_glue,
-                ..
-            } = local.kind
-            else {
-                return None;
-            };
-            if local_slot_index != slot_index || drop_state != AggregateDropState::NeedsDrop {
-                return None;
-            }
-            Some(PendingAggregateDrop {
-                name: local.name.clone(),
-                slot_index,
-                layout,
-                drop_glue: drop_glue.clone()?,
-            })
-        })
-    }
-
-    pub(super) fn aggregate_field(
-        &self,
-        aggregate_name: &str,
-        field_name: &str,
-    ) -> Option<AggregateFieldAccess> {
-        self.aggregate_local_field(aggregate_name, field_name)
-            .or_else(|| self.aggregate_borrow_field(aggregate_name, field_name))
-    }
-
-    fn aggregate_local_field(
-        &self,
-        aggregate_name: &str,
-        field_name: &str,
-    ) -> Option<AggregateFieldAccess> {
-        let aggregate = self.aggregate_local(aggregate_name)?;
-        self.aggregate_fields
-            .get(&aggregate.slot_index)?
-            .iter()
-            .find(|field| field.name == field_name)
-            .map(|field| AggregateFieldAccess {
-                source: AggregateLocation::Slot(aggregate.slot_index),
-                offset: field.offset,
-                kind: field.kind.clone(),
-                is_readwrite: true,
-                is_copy: field.is_copy,
-                drop_glue: field.drop_glue.clone(),
-            })
-    }
-
-    fn aggregate_borrow_field(
-        &self,
-        aggregate_name: &str,
-        field_name: &str,
-    ) -> Option<AggregateFieldAccess> {
-        let borrow = self
-            .aggregate_borrows
-            .iter()
-            .find(|borrow| borrow.name == aggregate_name)?;
-        borrow
-            .fields
-            .iter()
-            .find(|field| field.name == field_name)
-            .map(|field| AggregateFieldAccess {
-                source: AggregateLocation::Parameter(borrow.parameter_index),
-                offset: field.offset,
-                kind: field.kind.clone(),
-                is_readwrite: borrow.is_readwrite,
-                is_copy: field.is_copy,
-                drop_glue: field.drop_glue.clone(),
-            })
-    }
-
-    pub(super) fn aggregate_borrow_parameter(
-        &self,
-        aggregate_name: &str,
-    ) -> Option<&AggregateBorrowParameter> {
-        self.aggregate_borrows
-            .iter()
-            .find(|borrow| borrow.name == aggregate_name)
-    }
-
-    pub(super) fn borrow_parameter(&self, name: &str) -> Option<&BorrowParameter> {
-        self.borrow_parameters
-            .iter()
-            .find(|borrow| borrow.name == name)
-    }
-
-    fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
-        let index = self.used_local_abi_words();
-        index.checked_add(required_words).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "E8008",
-                "local ABI word count overflows host usize",
-            )]
-        })?;
-
-        Ok(index)
-    }
-
-    fn define_local(&mut self, name: String, kind: LocalKind) {
-        let index = self.used_local_abi_words();
-        self.locals.push(LocalBinding { name, kind, index });
-    }
-
-    fn update_aggregate_drop_state(&mut self, name: &str, state: AggregateDropState) {
-        let Some(local) = self
-            .locals
-            .iter_mut()
-            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
-        else {
-            return;
-        };
-        let LocalKind::Aggregate { drop_state, .. } = &mut local.kind else {
-            return;
-        };
-        *drop_state = state;
-    }
-
-    fn used_local_abi_words(&self) -> usize {
-        self.reserved_local_abi_words
-            + self
-                .locals
-                .iter()
-                .map(|local| local.kind.abi_word_count())
-                .sum::<usize>()
-    }
-
-    pub(super) fn reserve_aggregate_slot_index(&self) -> usize {
-        let slot_index = self.next_aggregate_slot_index.get();
-        self.next_aggregate_slot_index.set(slot_index + 1);
-        slot_index
-    }
-
-    pub(super) fn aggregate_slot_mark(&self) -> usize {
-        self.next_aggregate_slot_index.get()
-    }
-
-    pub(super) fn restore_aggregate_slot_mark(&self, mark: usize) {
-        self.next_aggregate_slot_index.set(mark);
-    }
-
-    pub(super) fn aggregate_slot_counter(&self) -> Rc<Cell<usize>> {
-        self.next_aggregate_slot_index.clone()
-    }
-
-    pub(super) fn drop_glue_for_type_expr(&self, ty: &TypeExpr) -> Option<DropGlue> {
-        let (root_source, resolved) = self.resolved_calls()?;
-        let ty = substitute_type_expr_parameters(ty, &self.generic_substitutions);
-        drop_glue_for_type_expr_with_resolver(&ty, root_source, resolved, |source| {
-            self.resolved_source(source)
-        })
-    }
-}
+mod call_resolution;
+mod construction;
+mod drop_glue;
+mod drop_obligation;
+mod drop_queries;
+mod enum_variants;
+mod locals;
+mod type_queries;
+
+pub(super) use drop_glue::{
+    aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
+    drop_glue_for_type_expr_with_resolver,
+};
+pub(super) use drop_obligation::{
+    ArrayElementDropState, DropObligation, PayloadFieldDropState, StructFieldDropState,
+};
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
     if source == root_source {
@@ -1554,7 +378,7 @@ pub(super) struct AggregateLocal {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1562,7 +386,37 @@ pub(super) struct PendingAggregateDrop {
     pub(super) name: String,
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
-    pub(super) drop_glue: DropGlue,
+    pub(super) drop_kind: AggregateDrop,
+    pub(super) obligation: DropObligation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum AggregateDrop {
+    Direct(DropGlue),
+    Struct(StructDrop),
+    Array(ArrayDrop),
+    PayloadEnum(PayloadEnumDrop),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ArrayDrop {
+    pub(super) length: u64,
+    pub(super) stride: u64,
+    pub(super) element_layout: ValueLayout,
+    pub(super) element_drop_kind: Box<AggregateDrop>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StructDrop {
+    pub(super) direct: Option<DropGlue>,
+    pub(super) fields: Vec<StructDropField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StructDropField {
+    pub(super) offset: u32,
+    pub(super) layout: ValueLayout,
+    pub(super) drop_kind: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1571,12 +425,30 @@ pub(super) struct DropGlue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDrop {
+    pub(super) variants: Vec<PayloadEnumDropVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDropVariant {
+    pub(super) tag: u8,
+    pub(super) fields: Vec<PayloadEnumDropField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PayloadEnumDropField {
+    pub(super) payload_offset: u32,
+    pub(super) payload_layout: ValueLayout,
+    pub(super) drop_kind: Box<AggregateDrop>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AggregateField {
     pub(super) name: String,
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1586,14 +458,19 @@ pub(super) struct AggregateFieldAccess {
     pub(super) kind: AggregateFieldKind,
     pub(super) is_readwrite: bool,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum AggregateFieldKind {
+    I8,
+    I16,
     I32,
+    I64,
+    Isize,
     U16,
     U32,
+    U64,
     U8,
     Usize,
     Bool,
@@ -1644,8 +521,8 @@ enum LocalKind {
         layout: ValueLayout,
         slot_index: usize,
         is_copy: bool,
-        drop_state: AggregateDropState,
-        drop_glue: Option<DropGlue>,
+        drop_obligation: DropObligation,
+        drop_kind: Option<AggregateDrop>,
     },
 }
 
@@ -1658,269 +535,4 @@ impl LocalKind {
             Self::Aggregate { .. } => 0,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AggregateDropState {
-    NeedsDrop,
-    Suppressed,
-}
-
-impl AggregateDropState {
-    fn from_drop_glue(drop_glue: &Option<DropGlue>) -> Self {
-        if drop_glue.is_some() {
-            Self::NeedsDrop
-        } else {
-            Self::Suppressed
-        }
-    }
-}
-
-pub(super) fn drop_glue_for_type_expr_with_resolver<'a, F>(
-    ty: &TypeExpr,
-    root_source: SourceId,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: F,
-) -> Option<DropGlue>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    drop_glue_for_type_expr_inner(
-        ty,
-        root_source,
-        fallback_resolved,
-        &resolver,
-        &mut HashSet::new(),
-    )
-}
-
-fn drop_glue_for_type_expr_inner<'a, F>(
-    ty: &TypeExpr,
-    root_source: SourceId,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-    resolving_names: &mut HashSet<String>,
-) -> Option<DropGlue>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    match ty {
-        TypeExpr::Fallible(fallible) => {
-            return drop_glue_for_type_expr_inner(
-                &fallible.success,
-                root_source,
-                fallback_resolved,
-                resolver,
-                resolving_names,
-            );
-        }
-        TypeExpr::Optional(optional) => {
-            return drop_glue_for_type_expr_inner(
-                &optional.inner,
-                root_source,
-                fallback_resolved,
-                resolver,
-                resolving_names,
-            );
-        }
-        _ => {}
-    }
-
-    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-    let (type_name, substitutions) = match ty {
-        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
-        TypeExpr::Generic(generic) => {
-            let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
-            if type_symbol.generic_arity != generic.arguments.len() {
-                return None;
-            }
-            let substitutions = type_symbol
-                .generic_parameters
-                .iter()
-                .cloned()
-                .zip(generic.arguments.iter().cloned())
-                .collect();
-            (generic.name.as_str(), substitutions)
-        }
-        _ => return None,
-    };
-    let (symbol, type_symbol) = type_symbol_definition_by_reference_name(resolved, type_name)?;
-    if type_symbol.kind == TypeSymbolKind::Alias {
-        let target = type_symbol.alias_target.as_ref()?;
-        if !resolving_names.insert(type_symbol.canonical_name.clone()) {
-            return None;
-        }
-        let target = substitute_type_expr_parameters(target, &substitutions);
-        let drop_glue = drop_glue_for_type_expr_inner(
-            &target,
-            root_source,
-            fallback_resolved,
-            resolver,
-            resolving_names,
-        );
-        resolving_names.remove(&type_symbol.canonical_name);
-        return drop_glue;
-    }
-
-    let drop_member = type_symbol.drop_member.as_ref()?;
-    let target_name = if type_symbol.generic_arity > 0 {
-        drop_target_name_from_base_and_type_expr(&drop_member.target_name, ty)
-    } else {
-        drop_member.target_name.clone()
-    };
-    let target = if symbol.declaration_span.source == root_source {
-        CallTarget::same_file(target_name)
-    } else {
-        CallTarget::imported(symbol.declaration_span.source, target_name)
-    };
-    Some(DropGlue { target })
-}
-
-fn payloadless_enum_symbol_for_type_expr<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> Option<&'a TypeSymbol>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    payloadless_enum_symbol_for_type_expr_inner(
-        ty,
-        fallback_resolved,
-        resolver,
-        &mut HashSet::new(),
-    )
-}
-
-fn payloadless_enum_symbol_for_type_expr_inner<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-    resolving_names: &mut HashSet<String>,
-) -> Option<&'a TypeSymbol>
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
-    let (type_name, substitutions) = match ty {
-        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
-        TypeExpr::Generic(generic) => {
-            let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
-            if type_symbol.generic_arity != generic.arguments.len() {
-                return None;
-            }
-            let substitutions = type_symbol
-                .generic_parameters
-                .iter()
-                .cloned()
-                .zip(generic.arguments.iter().cloned())
-                .collect();
-            (generic.name.as_str(), substitutions)
-        }
-        TypeExpr::Pointer(_)
-        | TypeExpr::Borrow(_)
-        | TypeExpr::View(_)
-        | TypeExpr::Array(_)
-        | TypeExpr::Optional(_)
-        | TypeExpr::Fallible(_) => return None,
-    };
-    let type_symbol = type_symbol_by_reference_name(resolved, type_name)?;
-    if type_symbol.kind == TypeSymbolKind::Alias {
-        let target = type_symbol.alias_target.as_ref()?;
-        if !resolving_names.insert(type_symbol.canonical_name.clone()) {
-            return None;
-        }
-        let target = substitute_type_expr_parameters(target, &substitutions);
-        let symbol = payloadless_enum_symbol_for_type_expr_inner(
-            &target,
-            fallback_resolved,
-            resolver,
-            resolving_names,
-        );
-        resolving_names.remove(&type_symbol.canonical_name);
-        return symbol;
-    }
-
-    (type_symbol.kind == TypeSymbolKind::Enum
-        && type_symbol.variants.len() <= 256
-        && type_symbol
-            .variants
-            .iter()
-            .all(|variant| variant.payload.is_empty()))
-    .then_some(type_symbol)
-}
-
-fn resolved_for_type_expr<'a, F>(
-    ty: &TypeExpr,
-    fallback_resolved: &'a ResolveOutput,
-    resolver: &F,
-) -> &'a ResolveOutput
-where
-    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
-{
-    let source_resolved = resolver(ty.span().source);
-    let Some(name) = type_expr_symbol_name(ty) else {
-        return source_resolved.unwrap_or(fallback_resolved);
-    };
-
-    if let Some(resolved) = source_resolved
-        && type_symbol_by_reference_name(resolved, name).is_some()
-    {
-        return resolved;
-    }
-    if type_symbol_by_reference_name(fallback_resolved, name).is_some() {
-        return fallback_resolved;
-    }
-
-    source_resolved.unwrap_or(fallback_resolved)
-}
-
-fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
-    match ty {
-        TypeExpr::Reference(reference) => Some(&reference.name),
-        TypeExpr::Generic(generic) => Some(&generic.name),
-        _ => None,
-    }
-}
-
-fn type_symbol_by_reference_name<'a>(
-    resolved: &'a ResolveOutput,
-    name: &str,
-) -> Option<&'a TypeSymbol> {
-    resolved.type_symbol_by_reference_name(name).or_else(|| {
-        short_qualified_type_name(name)
-            .and_then(|short| resolved.type_symbol_by_reference_name(short))
-    })
-}
-
-fn type_symbol_definition_by_reference_name<'a>(
-    resolved: &'a ResolveOutput,
-    name: &str,
-) -> Option<(&'a Symbol, &'a TypeSymbol)> {
-    resolved
-        .type_symbol_definition_by_reference_name(name)
-        .or_else(|| {
-            short_qualified_type_name(name)
-                .and_then(|short| resolved.type_symbol_definition_by_reference_name(short))
-        })
-}
-
-fn short_qualified_type_name(name: &str) -> Option<&str> {
-    name.rsplit_once('.').map(|(_module, short)| short)
-}
-
-fn drop_target_name_from_base_and_type_expr(base_target_name: &str, ty: &TypeExpr) -> String {
-    let Some(base_type_name) = base_target_name.strip_suffix(".drop") else {
-        return base_target_name.to_string();
-    };
-    let TypeExpr::Generic(generic) = ty else {
-        return base_target_name.to_string();
-    };
-    let arguments = generic
-        .arguments
-        .iter()
-        .map(type_expr_display_lossy)
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("{base_type_name}<{arguments}>.drop")
 }

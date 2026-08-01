@@ -1,0 +1,261 @@
+use super::*;
+
+#[derive(Debug, Clone)]
+pub(super) struct ActiveBorrow {
+    pub(super) source: BorrowPlace,
+    pub(super) borrow_name: String,
+    pub(super) borrow_span: ByteSpan,
+    pub(super) is_readwrite: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct DirectBorrowSource {
+    pub(super) source: BorrowPlace,
+    pub(super) source_span: ByteSpan,
+    pub(super) is_readwrite: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct BorrowAction {
+    pub(super) place: BorrowPlace,
+    pub(super) span: ByteSpan,
+    pub(super) description: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct BorrowPlace {
+    pub(super) root: String,
+    pub(super) fields: Option<Vec<String>>,
+}
+
+impl BorrowPlace {
+    pub(super) fn whole(root: String) -> Self {
+        Self {
+            root,
+            fields: Some(Vec::new()),
+        }
+    }
+
+    pub(super) fn push_field(&mut self, field: String) {
+        if let Some(fields) = &mut self.fields {
+            fields.push(field);
+        }
+    }
+
+    pub(super) fn mark_unknown(&mut self) {
+        self.fields = None;
+    }
+
+    pub(super) fn conflicts_with(&self, other: &Self) -> bool {
+        if self.root != other.root {
+            return false;
+        }
+        let (Some(left), Some(right)) = (&self.fields, &other.fields) else {
+            return true;
+        };
+        left.starts_with(right) || right.starts_with(left)
+    }
+
+    pub(super) fn display(&self) -> String {
+        let Some(fields) = &self.fields else {
+            return self.root.clone();
+        };
+        if fields.is_empty() {
+            self.root.clone()
+        } else {
+            format!("{}.{}", self.root, fields.join("."))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct FlowState {
+    pub(super) reaches_end: bool,
+    pub(super) break_states: Vec<OwnershipState>,
+    pub(super) continue_states: Vec<OwnershipState>,
+}
+
+impl FlowState {
+    pub(super) fn fallthrough() -> Self {
+        Self {
+            reaches_end: true,
+            break_states: Vec::new(),
+            continue_states: Vec::new(),
+        }
+    }
+
+    pub(super) fn terminal() -> Self {
+        Self {
+            reaches_end: false,
+            break_states: Vec::new(),
+            continue_states: Vec::new(),
+        }
+    }
+
+    pub(super) fn break_with(state: OwnershipState) -> Self {
+        Self {
+            reaches_end: false,
+            break_states: vec![state],
+            continue_states: Vec::new(),
+        }
+    }
+
+    pub(super) fn continue_with(state: OwnershipState) -> Self {
+        Self {
+            reaches_end: false,
+            break_states: Vec::new(),
+            continue_states: vec![state],
+        }
+    }
+
+    pub(super) fn from_nested(flow: FlowState) -> Self {
+        flow
+    }
+
+    pub(super) fn extend_nested(&mut self, flow: FlowState) {
+        self.break_states.extend(flow.break_states);
+        self.continue_states.extend(flow.continue_states);
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct OwnershipState {
+    places: PlaceStateForest,
+}
+
+impl OwnershipState {
+    pub(super) fn define_parameters(
+        &mut self,
+        parameters: &[crate::ast::Parameter],
+        environment: &TypeEnvironment,
+        resolved: &ResolveOutput,
+    ) {
+        for parameter in parameters {
+            self.define_binding_from_environment(
+                &parameter.name,
+                parameter.name_span,
+                environment,
+                resolved,
+            );
+        }
+    }
+
+    pub(super) fn define_binding_from_environment(
+        &mut self,
+        name: &str,
+        span: ByteSpan,
+        environment: &TypeEnvironment,
+        resolved: &ResolveOutput,
+    ) {
+        if let Some(ty) = environment.get(name) {
+            self.define_binding(name.to_string(), span, ty, resolved);
+        } else {
+            self.places.remove_root(name);
+        }
+    }
+
+    pub(super) fn ensure_binding_from_environment(
+        &mut self,
+        name: &str,
+        span: ByteSpan,
+        environment: &TypeEnvironment,
+        resolved: &ResolveOutput,
+    ) {
+        if self.places.contains_root(name) {
+            return;
+        }
+        self.define_binding_from_environment(name, span, environment, resolved);
+    }
+
+    pub(super) fn define_binding(
+        &mut self,
+        name: String,
+        span: ByteSpan,
+        ty: &Type,
+        resolved: &ResolveOutput,
+    ) {
+        if non_copy_owned_type_kind(ty, resolved).is_some() || matches!(ty, Type::Parameter(_)) {
+            if self.places.contains_root(&name) {
+                self.places.initialize(&BorrowPlace::whole(name), span);
+            } else {
+                self.places
+                    .define_root(name, PlaceState::Initialized { span });
+            }
+        } else {
+            self.places.remove_root(&name);
+        }
+    }
+
+    pub(super) fn require_initialized(
+        &self,
+        sources: &SourceMap,
+        identifier: &IdentifierExpr,
+        action: &'static str,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> bool {
+        let place = BorrowPlace::whole(identifier.name.clone());
+        let Some(state) = self.places.state(&place) else {
+            return true;
+        };
+        if !state.is_initialized() {
+            diagnostics.push(uninitialized_binding_diagnostic(
+                sources,
+                &identifier.name,
+                identifier.span,
+                action,
+                state.previous_action(),
+                state.previous_span(),
+            ));
+            return false;
+        }
+        true
+    }
+
+    pub(super) fn join_branches(&mut self, branch_ownerships: &[OwnershipState]) {
+        if branch_ownerships.is_empty() {
+            return;
+        }
+        let branches = branch_ownerships
+            .iter()
+            .map(|ownership| ownership.places.clone())
+            .collect::<Vec<_>>();
+        self.places.join_from(&branches);
+    }
+
+    pub(super) fn move_binding(
+        &mut self,
+        sources: &SourceMap,
+        identifier: &IdentifierExpr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if !self.require_initialized(sources, identifier, "move", diagnostics) {
+            return;
+        }
+        self.places.invalidate(
+            &BorrowPlace::whole(identifier.name.clone()),
+            PlaceState::Moved {
+                span: identifier.span,
+            },
+        );
+    }
+
+    pub(super) fn drop_binding(
+        &mut self,
+        sources: &SourceMap,
+        name: &str,
+        span: ByteSpan,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let identifier = IdentifierExpr {
+            span,
+            name: name.to_string(),
+        };
+        if !self.require_initialized(sources, &identifier, "drop", diagnostics) {
+            return;
+        }
+        self.places.invalidate(
+            &BorrowPlace::whole(name.to_string()),
+            PlaceState::Dropped { span },
+        );
+    }
+}

@@ -69,7 +69,7 @@ fn diagnoses_member_assignment_to_let_binding() {
 }
 
 func main(): i32 {
-    let value = Header{ code: 1 }
+    let value = Header { code: 1 }
     value.code = 2
     return value.code
 }
@@ -356,8 +356,8 @@ fn diagnoses_assignment_from_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    var source = Text{ start: 1, len: 2, capacity: 3 }
-    var target = Text{ start: 4, len: 5, capacity: 6 }
+    var source = Text { start: 1, len: 2, capacity: 3 }
+    var target = Text { start: 4, len: 5, capacity: 6 }
     target = source
     return 0
 }
@@ -380,7 +380,7 @@ fn diagnoses_binding_from_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let source = Text { start: 1, len: 2, capacity: 3 }
     let target = source
     return target.len
 }
@@ -402,7 +402,7 @@ fn accepts_binding_from_copy_struct_instantiation_with_copy_type_argument() {
 }
 
 func main(): i32 {
-    let source = Box<i32>{ value: 21 }
+    let source = Box<i32> { value: 21 }
     let target = source
     return source.value + target.value
 }
@@ -424,7 +424,7 @@ copy struct Box<T> {
 }
 
 func main(): i32 {
-    let source = Box<Text>{ value: Text{ len: 42 } }
+    let source = Box<Text> { value: Text { len: 42 } }
     let target = source
     return target.value.len
 }
@@ -451,7 +451,7 @@ fn diagnoses_binding_from_move_only_fixed_array_binding() {
 }
 
 func main(): i32 {
-    let source: [Text; 1] = [Text{ len: 42 }]
+    let source: [Text; 1] = [Text { len: 42 }]
     let target = source
     return 0
 }
@@ -474,7 +474,7 @@ fn diagnoses_binding_from_move_only_optional_binding() {
 }
 
 func main(): i32 {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     let source: Text? = move text
     let target = source
     return 0
@@ -504,7 +504,7 @@ func main(): i32 {
 }
 
 func make(): Text! {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     return move text
 }
 "#,
@@ -530,7 +530,7 @@ struct Wrap {
 }
 
 func main(): i32 {
-    let wrap = Wrap{ text: Text{ len: 42 } }
+    let wrap = Wrap { text: Text { len: 42 } }
     let text = wrap.text
     return text.len
 }
@@ -553,7 +553,7 @@ fn accepts_binding_from_moved_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let source = Text { start: 1, len: 2, capacity: 3 }
     let target = move source
     return target.len
 }
@@ -573,7 +573,7 @@ fn diagnoses_optional_binding_from_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let source = Text { start: 1, len: 2, capacity: 3 }
     let target: Text? = source
     return 0
 }
@@ -597,8 +597,8 @@ fn accepts_assignment_from_moved_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    var source = Text{ start: 1, len: 2, capacity: 3 }
-    var target = Text{ start: 4, len: 5, capacity: 6 }
+    var source = Text { start: 1, len: 2, capacity: 3 }
+    var target = Text { start: 4, len: 5, capacity: 6 }
     target = move source
     return 0
 }
@@ -620,8 +620,8 @@ struct Wrap {
 }
 
 func main(): i32 {
-    var text = Text{ len: 1 }
-    let wrap = Wrap{ text: Text{ len: 42 } }
+    var text = Text { len: 1 }
+    let wrap = Wrap { text: Text { len: 42 } }
     text = wrap.text
     return text.len
 }
@@ -642,8 +642,8 @@ fn diagnoses_assignment_from_move_only_fixed_array_binding() {
 }
 
 func main(): i32 {
-    var source: [Text; 1] = [Text{ len: 1 }]
-    var target: [Text; 1] = [Text{ len: 2 }]
+    var source: [Text; 1] = [Text { len: 1 }]
+    var target: [Text; 1] = [Text { len: 2 }]
     target = source
     return 0
 }
@@ -665,7 +665,7 @@ fn diagnoses_self_move_assignment_from_move_only_fixed_array_binding() {
 }
 
 func main(): i32 {
-    var target: [Text; 1] = [Text{ len: 1 }]
+    var target: [Text; 1] = [Text { len: 1 }]
     target = move target
     return 0
 }
@@ -687,7 +687,7 @@ fn diagnoses_self_move_assignment_from_non_copy_struct_binding() {
 }
 
 func main(): i32 {
-    var target = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text { start: 1, len: 2, capacity: 3 }
     target = move target
     return 0
 }
@@ -709,8 +709,8 @@ fn accepts_assignment_from_copy_struct_binding() {
 }
 
 func main(): i32 {
-    var source = Text{ start: 1, len: 2, capacity: 3 }
-    var target = Text{ start: 4, len: 5, capacity: 6 }
+    var source = Text { start: 1, len: 2, capacity: 3 }
+    var target = Text { start: 4, len: 5, capacity: 6 }
     target = source
     return 0
 }

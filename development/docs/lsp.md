@@ -1,0 +1,107 @@
+# Language Server
+
+The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type
+system for editors.
+
+## Architecture
+
+```text
+open documents + filesystem
+  -> compile-unit frontend
+  -> resolver/typecheck facts
+  -> feature-specific analysis result
+  -> LSP protocol conversion
+```
+
+`driver/lsp` owns JSON-RPC, document state, URI/range conversion, and capability routing.
+`analysis` provides compiler-owned result types for hover, completion, definition, and references.
+Resolver and typechecker decide visibility, type normalization, generic specialization, and
+ownership capability.
+
+## Current Baseline
+
+The server supports document sync, diagnostic publication, semantic tokens, hover, definition,
+references, document symbols, global/member/enum-pattern/struct-field completion, and signature
+help. A shared call-site result combines resolved target, generic specialization, active parameter,
+and documentation for hover and signature help.
+
+Completion derives lexical scope and shadowing, generic member specialization, receiver capability,
+signature detail, documentation, and insertion text from compiler facts. Import paths share the
+frontend module layout and workspace/source roots; imported symbols come from resolved import
+identity and visibility. Call-argument candidates use typechecker assignability for ranking.
+Incomplete calls, member expressions, and imports use a temporary compile-unit recovery overlay
+separate from the authoritative document.
+
+## v0.2.0 Capabilities
+
+### Hover
+
+Hover presentation is built from typechecked facts rather than reconstructed from AST text.
+
+| Target | Required contents |
+|---|---|
+| local / parameter | mutability, borrow capability, resolved type |
+| function / method | full signature, generic parameters or specialization, fallibility |
+| struct / enum / interface | declaration kind, type parameters, documentation |
+| field / variant | owner type, field or payload type, documentation |
+| imported symbol | resolved declaration, module path, visibility |
+| expression | normalized result type when no declaration target is sufficient |
+
+Responses include a source-backed range. During incomplete edits, the server never invents a type:
+it returns only established declaration information or `null`.
+
+### Completion
+
+A completion request classifies cursor context before collecting candidates:
+
+- expression / statement: visible locals, parameters, functions, types, and keywords
+- import: modules and public symbols reachable from the current module
+- member: fields and methods of the receiver type, excluding candidates that violate borrow
+  capability
+- enum pattern: variants and payload fields of the target enum
+- struct literal: fields not yet specified
+- call argument: visible values compatible with the expected type and active parameter
+
+Candidates include at least `label`, `kind`, a type or signature `detail`, a documentation summary,
+and required `insertText`. Completion respects visibility and shadowing and deduplicates semantic
+symbols. Ranking prioritizes exact prefix, locality, and expected-type compatibility, with ordering
+fixed by tests.
+
+### Signature Help
+
+The resolved call target and argument index provide:
+
+- the full callable signature
+- parameters and parameter documentation
+- the active parameter
+- return type and fallibility
+- concrete generic types when specialization is known
+
+The server does not guess overload-like candidates with string matching. Only when resolver or
+typechecker cannot establish a target may recovery analysis return an explicitly incomplete result.
+
+## Reliability Requirements
+
+- Leave no stale diagnostics after didOpen, didChange, or didClose.
+- Centralize conversion between UTF-16 LSP positions and UTF-8 source byte spans.
+- Do not panic on malformed or incomplete source, unknown imports, or missing receivers.
+- Imports see open-document overlays and never mix disk text under a second identity.
+- Hover, completion, and signature help do not report contradictory types at one cursor.
+- Protocol response tests are backed by unit tests for compiler analysis results.
+
+## Acceptance Tests
+
+v0.2.0 integration tests cover:
+
+1. hover and specialized signature help for an imported generic function
+2. `Vec<String>` method completion and receiver borrow capability
+3. payload enum pattern completion and missing struct-literal fields
+4. hover/completion detail for documented standard-library symbols
+5. consecutive didChange operations containing incomplete calls, member access, and imports
+6. definition/reference/diagnostic consistency under a multi-file open-document overlay
+
+## Deferred Features
+
+Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints are not
+v0.2.0 completion criteria. Add them after the semantic facts and recovery APIs used by hover,
+completion, and signature help remain stable.

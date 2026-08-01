@@ -274,7 +274,7 @@ fn distributed_std_public_api_passes_check() {
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
 use std/io.{File, open, print, read, stderr, stdout, write, write_text}
-use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
+use std/mem.{Allocator, Layout, RawBuffer, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
@@ -307,6 +307,27 @@ func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuff
 func allocator_free(allocator: &+Allocator, buffer: RawBuffer): void {
     allocator.free(move buffer)
     return
+}
+
+func allocator_layout(): Layout! {
+    let value = layout(4, 4)?
+    if value.size() != layout_size(&value) {
+        return invalid_argument()
+    }
+    if value.align() != layout_align(&value) {
+        return invalid_argument()
+    }
+    return value
+}
+
+func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void! {
+    grow(allocator, buffer, 8)?
+    allocator.grow(buffer, 16)?
+    return
+}
+
+func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! {
+    return alloc_layout(allocator, Layout.new(8, 8)?)?
 }
 
 func allocator_methods(): void! {
@@ -489,7 +510,7 @@ fn distributed_std_vec_contract_shape_passes_check() {
     let source = project.write_source(
         "vec_contract_shape.nct",
         r#"use std/mem.Allocator
-use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, push, reserve, view, view_mut}
+use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, pop, push, reserve, view, view_mut}
 
 func inspect(values: &Vec<usize>): usize {
     return len(values) + capacity(values) + view(values).len()
@@ -504,6 +525,12 @@ func mutate(values: &+Vec<usize>, value: usize): usize! {
     push(values, value)?
     clear(values)
     return view_mut(values).len()
+}
+
+func pop_shapes(values: &+Vec<usize>): usize? {
+    let free_value = pop(values) otherwise { return none }
+    values.push(free_value)!
+    return values.pop() otherwise { return none }
 }
 
 func method_shape(allocator: &+Allocator, values: &[usize]): usize! {
@@ -820,7 +847,7 @@ func main(): i32! {
     values.push(1)?
     values.push(2)?
 
-    var buffer = Buffer{ data: values.view_mut() }
+    var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] = 9
     buffer.data[1] = 7
 
@@ -866,7 +893,7 @@ func main(): i32! {
     values.push(10)?
     values.push(20)?
 
-    var buffer = Buffer{ data: values.view_mut() }
+    var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] += 5
     buffer.data[1] *= 2
 
@@ -1049,6 +1076,7 @@ func main(): i32! {
 
     return 42
 }
+
 "#,
     );
 
@@ -1063,6 +1091,392 @@ func main(): i32! {
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
     assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_failed_growth_preserves_elements() {
+    let project = TempProject::new("distributed-home-vec-failed-growth-run");
+    let source = project.write_source(
+        "vec_failed_growth.nct",
+        r#"use std/vec.Vec
+
+func grow_huge(values: &+Vec<u8>): void! {
+    values.reserve(18446744073709551614)?
+    return
+}
+
+func preserved(values: &Vec<u8>): i32 {
+    if values.len() != 1 {
+        return 1
+    }
+    if values.capacity() != 1 {
+        return 2
+    }
+    if values.view()[0] != 42 {
+        return 3
+    }
+    return 42
+}
+
+func main(): i32! {
+    var values: Vec<u8> = Vec.empty()
+    values.push(42)?
+    grow_huge(&+values) catch error {
+        return preserved(&values)
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_string_push_clear_and_drop_runs() {
+    let project = TempProject::new("distributed-home-vec-string-ownership-run");
+    let source = project.write_source(
+        "vec_string_ownership.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<String> = Vec.empty()
+    let first = String.from_str(&+allocator, "first")?
+    values.push(move first)?
+    let second = String.from_str(&+allocator, " second")?
+    values.push(move second)?
+    values.clear()
+    if values.len() != 0 {
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_nested_vec_string_clear_and_drop_runs() {
+    let project = TempProject::new("distributed-home-nested-vec-string-ownership-run");
+    let source = project.write_source(
+        "nested_vec_string_ownership.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "nested")?
+    inner.push(move text)?
+
+    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
+    outer.push(move inner)?
+    outer.clear()
+    if outer.len() != 0 {
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_nested_vec_failed_growth_preserves_ownership() {
+    let project = TempProject::new("distributed-home-nested-vec-failed-growth-run");
+    let source = project.write_source(
+        "nested_vec_failed_growth.nct",
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/vec.Vec
+
+func recover(outer: &+Vec<Vec<String>>): i32! {
+    var recovered_inner = outer.pop() otherwise { return 2 }
+    let recovered_text = recovered_inner.pop() otherwise { return 3 }
+    print(recovered_text.view())?
+    return 0
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "preserved")?
+    inner.push(move text)?
+
+    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
+    outer.push(move inner)?
+    outer.reserve(18446744073709551614) catch error {
+        return recover(&+outer)?
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(text(&output.stdout), "preserved");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_file_clear_closes_each_handle_once() {
+    let project = TempProject::new("distributed-home-vec-file-clear-run");
+    let data = project.write_source("data.txt", "payload");
+    let program = r#"use std/io.{File, open}
+use std/mem.{alloc, page_allocator}
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var files: Vec<File> = Vec.empty()
+    let first = open("__DATA_PATH__")?
+    files.push(move first)?
+    files.clear()
+    if files.len() != 0 {
+        return 1
+    }
+
+    var replacement = open("__DATA_PATH__")?
+    drop files
+    var buffer = alloc(&+allocator, 1, 1)?
+    let count: usize = replacement.read(buffer.bytes_mut())?
+    if count != 1 {
+        return 2
+    }
+    if buffer.bytes()[0] != 112 {
+        return 3
+    }
+    replacement.close()
+    return 0
+}
+"#
+    .replace("__DATA_PATH__", &data.display().to_string());
+    let source = project.write_source("vec_file_clear.nct", &program);
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_fixed_array_push_and_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-fixed-array-run");
+    let source = project.write_source(
+        "vec_fixed_array.nct",
+        r#"use std/vec.Vec
+
+func main(): i32! {
+    var values: Vec<[i32; 2]> = Vec.empty()
+    let pair: [i32; 2] = [20, 22]
+    values.push(pair)?
+    let popped = values.pop() otherwise { return 1 }
+    return popped[0] + popped[1]
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_string_pop_transfers_ownership_runs() {
+    let project = TempProject::new("distributed-home-vec-string-pop-run");
+    let source = project.write_source(
+        "vec_string_pop.nct",
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "popped")?
+    values.push(move text)?
+    let popped = values.pop() otherwise { return 2 }
+    drop values
+    print(popped.view())?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(text(&output.stdout), "popped");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_i32_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-i32-pop-run");
+    let source = project.write_source(
+        "vec_i32_pop.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<i32> = Vec.with_capacity(&+allocator, 1)?
+    values.push(42)?
+    let popped = values.pop() otherwise { return 2 }
+    return popped
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_direct_aggregate_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-direct-aggregate-pop-run");
+    let source = project.write_source(
+        "vec_direct_aggregate_pop.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+copy struct Pair {
+    value: i32
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?
+    values.push(Pair { value: 42 })?
+    let popped = values.pop() otherwise { return 2 }
+    return popped.value
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_empty_pop_returns_none() {
+    let project = TempProject::new("distributed-home-vec-empty-pop-run");
+    let source = project.write_source(
+        "vec_empty_pop.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var values: Vec<i32> = Vec.empty()
+    let unexpected = values.pop() otherwise { return 0 }
+    return unexpected
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -1444,7 +1858,7 @@ fn distributed_std_vec_fields_are_private() {
         r#"use std/vec.Vec
 
 func main(): i32 {
-    let values = Vec<usize>{
+    let values = Vec<usize> {
         len: 0,
     }
     return 0
@@ -1568,7 +1982,7 @@ impl Checker {
 func main(): void! {
     var values: Vec<i32> = Vec.empty()
     values.push(1)?
-    let checker = Checker{ seed: 0 }
+    let checker = Checker { seed: 0 }
     checker.touch(&+values.view_mut()[0])
     return
 }
@@ -1694,7 +2108,7 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_rejects_cross_source_generic_non_copy_aggregate_with_capacity() {
+fn distributed_std_vec_builds_cross_source_generic_non_copy_aggregate_with_capacity() {
     let project =
         TempProject::new("distributed-home-vec-cross-source-generic-non-copy-aggregate-capacity");
     project.write_source(
@@ -1731,33 +2145,22 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
     assert!(
-        stderr
-            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
-        "expected Vec element storage diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
-        "expected factory source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for non-copy aggregate Vec.with_capacity"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_cross_source_non_copy_generic_copy_struct_with_capacity() {
+fn distributed_std_vec_builds_cross_source_non_copy_generic_copy_struct_with_capacity() {
     let project =
         TempProject::new("distributed-home-vec-cross-source-non-copy-generic-copy-struct-capacity");
     project.write_source(
@@ -1789,7 +2192,7 @@ use ./factory.make
 use ./types.{Box, Text}
 
 func main(): i32! {
-    let values: Vec<Box<Text>> = make(Box<Text>{ value: Text{ value: "x" } })?
+    let values: Vec<Box<Text>> = make(Box<Text> { value: Text { value: "x" } })?
     return 0
 }
 "#,
@@ -1798,28 +2201,17 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
     assert!(
-        stderr
-            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
-        "expected Vec element storage diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
-        "expected factory source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for non-copy generic aggregate Vec.with_capacity"
     );
 }
 
@@ -1902,6 +2294,45 @@ func main(): i32! {
     assert!(
         executable.exists(),
         "build should produce an executable for copy aggregate Vec.from_slice"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_non_copy_aggregate_from_slice() {
+    let project = TempProject::new("distributed-home-vec-non-copy-from-slice-boundary");
+    let source = project.write_source(
+        "vec_non_copy_from_slice_boundary.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+struct Text {
+    value: &str
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<Text> = Vec.empty()
+    let value = Text { value: "owned" }
+    values.push(move value)?
+    let copy = Vec.from_slice(&+allocator, values.view())?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_non_copy_from_slice_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]")
+            && stderr.contains("`Vec.from_slice` with a non-copy element type"),
+        "expected Vec.from_slice copyability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not produce an executable for non-copy Vec.from_slice"
     );
 }
 
@@ -2337,7 +2768,7 @@ fn distributed_std_string_representation_is_private() {
         r#"use std/string.String
 
 func main(): i32 {
-    let text = String{ len: 0 }
+    let text = String { len: 0 }
     return 0
 }
 "#,
@@ -2626,6 +3057,154 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_allocator_layout_zero_and_grow_run() {
+    let project = TempProject::new("distributed-home-allocator-layout-grow-run");
+    let source = project.write_source(
+        "allocator_layout_grow.nct",
+        r#"use std/mem.{Layout, alloc_layout, free, page_allocator}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let empty_layout = Layout.new(0, 16)?
+    if empty_layout.size() != 0 {
+        return 1
+    }
+    if empty_layout.align() != 16 {
+        return 2
+    }
+    var empty = alloc_layout(&+allocator, empty_layout)?
+    if empty.bytes().len() != 0 {
+        return 3
+    }
+    allocator.grow(&+empty, 2)?
+    empty.bytes_mut()[0] = 20
+    empty.bytes_mut()[1] = 22
+    allocator.grow(&+empty, 8)?
+    if empty.bytes().len() != 8 {
+        return 4
+    }
+    if empty.bytes()[0] != 20 {
+        return 5
+    }
+    if empty.bytes()[1] != 22 {
+        return 6
+    }
+    free(&+allocator, move empty)
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_rejects_non_power_of_two_alignment() {
+    let project = TempProject::new("distributed-home-allocator-invalid-alignment-run");
+    let source = project.write_source(
+        "allocator_invalid_alignment.nct",
+        r#"use std/mem.{alloc, page_allocator}
+
+func main(): void! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 1, 3)?
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.mem.invalid_argument: invalid allocation request\n"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_failed_grow_preserves_the_old_buffer() {
+    let project = TempProject::new("distributed-home-allocator-failed-grow-run");
+    let source = project.write_source(
+        "allocator_failed_grow.nct",
+        r#"use std/mem.{Allocator, RawBuffer, alloc, page_allocator}
+
+func grow_huge(allocator: &+Allocator, buffer: &+RawBuffer): usize! {
+    allocator.grow(buffer, 18446744073709551615)?
+    return buffer.bytes().len()
+}
+
+func preserved(buffer: &RawBuffer): i32 {
+    if buffer.bytes().len() != 1 {
+        return 1
+    }
+    if buffer.bytes()[0] != 42 {
+        return 2
+    }
+    return 42
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var buffer = alloc(&+allocator, 1, 1)?
+    buffer.bytes_mut()[0] = 42
+    let size = grow_huge(&+allocator, &+buffer) catch error {
+        return preserved(&buffer)
+    }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_reports_out_of_memory() {
+    let project = TempProject::new("distributed-home-allocator-out-of-memory-run");
+    let source = project.write_source(
+        "allocator_out_of_memory.nct",
+        r#"use std/mem.{alloc, page_allocator}
+
+func main(): void! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 18446744073709551615, 1)?
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"std.mem.out_of_memory: allocation failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_io_top_level_read_write_runs() {
     let project = TempProject::new("distributed-home-io-top-level-read-write-run");
     fs::write(project.root().join("input.txt"), b"IO").unwrap();
@@ -2729,7 +3308,7 @@ fn distributed_io_file_representation_is_private() {
         r#"use std/io.File
 
 func main(): i32 {
-    let file = File{ close_on_drop: false }
+    let file = File { close_on_drop: false }
     return 0
 }
 "#,
@@ -2966,10 +3545,13 @@ fn distributed_ptr_raw_helpers_are_not_public_api() {
     for helper in [
         "from_addr",
         "pointee_size",
+        "pointee_align",
         "copy_str_to_ptr",
         "copy_ptr_to_ptr",
         "store_u8_to_ptr",
         "store_value_to_ptr",
+        "drop_value_at_ptr",
+        "take_value_at_ptr",
         "str_from_raw_parts",
         "slice_from_raw_parts",
         "slice_from_raw_parts_mut",
@@ -3697,6 +4279,56 @@ func main(): i32! {
         "expected empty stderr, got:\n{}",
         text(&output.stderr)
     );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_failed_growth_preserves_contents() {
+    let project = TempProject::new("distributed-home-string-failed-growth-run");
+    let source = project.write_source(
+        "string_failed_growth.nct",
+        r#"use std/mem.page_allocator
+
+func grow_huge(text: &+String): void! {
+    text.reserve(18446744073709551611)?
+    return
+}
+
+func preserved(text: &String): i32 {
+    if text.view() != "keep" {
+        return 1
+    }
+    if text.len() != 4 {
+        return 2
+    }
+    if text.capacity() != 4 {
+        return 3
+    }
+    return 42
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = String.from_str(&+allocator, "keep")?
+    grow_huge(&+text) catch error {
+        return preserved(&text)
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

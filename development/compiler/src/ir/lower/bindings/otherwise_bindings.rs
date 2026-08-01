@@ -1,0 +1,499 @@
+use super::*;
+
+pub(super) fn optional_success_scalar_binding_kind(
+    statement: &BindingStmt,
+    success_type: &Type,
+    context: &LoweringContext,
+) -> Result<Option<ScalarBindingKind>, Vec<Diagnostic>> {
+    let Some(ty) = &statement.ty else {
+        return Ok(scalar_binding_kind_from_type(success_type));
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower annotated `otherwise` bindings without resolved type information",
+        ));
+    };
+    Ok(match scalar_or_view_type_from_type_expr(ty, resolved) {
+        Some(Type::I32) => Some(ScalarBindingKind::I32),
+        Some(Type::U8) => Some(ScalarBindingKind::U8),
+        Some(Type::Usize) => Some(ScalarBindingKind::Usize),
+        Some(Type::Bool) => Some(ScalarBindingKind::Bool),
+        Some(Type::Str) => Some(ScalarBindingKind::Str),
+        Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice(slice_type_info_from_type_expr(
+            ty, context,
+        ))),
+        _ => None,
+    })
+}
+
+pub(super) fn lower_otherwise_terminal_block(
+    block: &Block,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(result) = &block.result {
+        let mut instructions = Vec::new();
+        for statement in &block.statements {
+            instructions.extend(lower_otherwise_leading_statement(
+                statement,
+                context,
+                loop_control,
+            )?);
+        }
+
+        let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(result, context)?
+        else {
+            return Err(unsupported_binding_diagnostic(
+                "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+            ));
+        };
+        instructions.extend(terminating_instructions);
+        return Ok(instructions);
+    }
+
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower empty `otherwise` fallback blocks",
+        ));
+    };
+
+    let mut instructions = Vec::new();
+    for statement in leading {
+        instructions.extend(lower_otherwise_leading_statement(
+            statement,
+            context,
+            loop_control,
+        )?);
+    }
+
+    match terminal {
+        Stmt::Return(statement) => {
+            instructions.extend(lower_return_statement_with_scope_drops(
+                statement, context, "E8008",
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(&statement.expression, context)?
+            else {
+                return Err(unsupported_binding_diagnostic(
+                    "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+                ));
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
+        Stmt::Break(_) => {
+            instructions.extend(lower_otherwise_loop_control_statement(
+                Instruction::Break,
+                context,
+                loop_control,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Continue(_) => {
+            instructions.extend(lower_otherwise_loop_control_statement(
+                Instruction::Continue,
+                context,
+                loop_control,
+            )?);
+            Ok(instructions)
+        }
+        _ => Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+        )),
+    }
+}
+
+pub(super) fn lower_otherwise_leading_statement(
+    statement: &Stmt,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match statement {
+        Stmt::Import(_) | Stmt::FromImport(_) => Ok(Vec::new()),
+        Stmt::Binding(statement) => lower_local_binding_with_loop_control(
+            statement,
+            context,
+            loop_control,
+        ),
+        Stmt::Assignment(statement) => lower_assignment(statement, context),
+        Stmt::Drop(statement) => lower_drop_statement(statement, context),
+        Stmt::Expression(statement) => {
+            lower_void_expression_statement(&statement.expression, context)?.ok_or_else(|| {
+                unsupported_binding_diagnostic(
+                    "IR v0 can only lower `otherwise` leading expression statements that make effect-only calls",
+                )
+            })
+        }
+        _ => Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower this statement inside `otherwise` fallback blocks",
+        )),
+    }
+}
+
+pub(super) fn lower_otherwise_loop_control_statement(
+    instruction: Instruction,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(loop_control) = loop_control else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower `break` and `continue` inside `otherwise` fallback blocks when the binding is inside a nonterminal loop",
+        ));
+    };
+
+    let mut instructions =
+        lower_scope_end_drops_for_locals_since(context, loop_control.loop_scope_mark)?;
+    if matches!(instruction, Instruction::Continue) {
+        instructions.extend(loop_control.continue_instructions.iter().cloned());
+    }
+    instructions.push(instruction);
+    Ok(instructions)
+}
+
+pub(super) fn lower_otherwise_recover_or_handle_failure_mode<F>(
+    fallback: &Block,
+    context: &LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+    mut lower_result: F,
+    unsupported_message: &'static str,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>>
+where
+    F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+{
+    let mut fallback_context = context.clone();
+    let local_mark = fallback_context.local_mark();
+
+    if let Some(result) = &fallback.result {
+        let mut instructions = Vec::new();
+        for statement in &fallback.statements {
+            instructions.extend(lower_otherwise_leading_statement(
+                statement,
+                &mut fallback_context,
+                loop_control,
+            )?);
+        }
+
+        if let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(result, &mut fallback_context)?
+        {
+            instructions.extend(terminating_instructions);
+            return Ok(FallibleFailureMode::Handle { instructions });
+        }
+
+        instructions.extend(
+            lower_result(result, &fallback_context)
+                .map_err(|_| unsupported_binding_diagnostic(unsupported_message))?,
+        );
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut fallback_context,
+            local_mark,
+        )?);
+        return Ok(FallibleFailureMode::Recover { instructions });
+    }
+
+    let instructions =
+        lower_otherwise_terminal_block(fallback, &mut fallback_context, loop_control)?;
+    Ok(FallibleFailureMode::Handle { instructions })
+}
+
+pub(super) fn lower_otherwise_scalar_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Otherwise(otherwise) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Ok(None);
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower `otherwise` bindings without resolved call information",
+        ));
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
+        return Ok(None);
+    }
+
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let Some(kind) =
+        optional_success_scalar_binding_kind(statement, success_type.as_ref(), context)?
+    else {
+        return Ok(None);
+    };
+    lower_otherwise_scalar_call_binding(
+        statement,
+        call,
+        &otherwise.fallback,
+        kind,
+        context,
+        loop_control,
+    )
+    .map(Some)
+}
+
+pub(super) fn lower_otherwise_scalar_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    fallback: &Block,
+    kind: ScalarBindingKind,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let expression_context = context.with_reserved_local_abi_words(kind.abi_word_count());
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    match kind {
+        ScalarBindingKind::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_i32_expression_to_location(expression, destination, context)
+                },
+                "IR v0 can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
+            )?;
+            let instructions = lower_fallible_i32_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_i32_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_u8_expression_to_location(expression, destination, context)
+                },
+                "IR v0 can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
+            )?;
+            let instructions = lower_fallible_u8_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_u8_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_usize_expression_to_location(expression, destination, context)
+                },
+                "IR v0 can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
+            )?;
+            let instructions = lower_fallible_usize_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_usize_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_bool_expression_to_location(expression, destination, context, "E8008")
+                },
+                "IR v0 can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
+            )?;
+            let instructions = lower_fallible_bool_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_bool_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Str => {
+            let destination = context.next_str_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_str_expression_to_location(expression, destination, context)
+                },
+                "IR v0 can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
+            )?;
+            let instructions = lower_fallible_str_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_str_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Slice(info) => {
+            let destination = context.next_slice_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_slice_expression_to_location(expression, destination, context)
+                },
+                "IR v0 can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
+            )?;
+            let instructions = lower_fallible_slice_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_slice_local(
+                statement.name.clone(),
+                info.element_kind,
+                info.element_type,
+            );
+            Ok(instructions)
+        }
+    }
+}
+
+pub(super) fn lower_otherwise_aggregate_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Otherwise(otherwise) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&otherwise.value) else {
+        return Ok(None);
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower aggregate `otherwise` bindings without resolved call information",
+        ));
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
+        return Ok(None);
+    }
+    let success_abi_value =
+        top_level_optional_success_abi_value_with_resolver(&return_type, resolved, |source| {
+            context.resolved_source(source)
+        });
+
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Ok(None);
+    };
+
+    let is_copy = call_success_type_is_copy_aggregate_value(call, context);
+    let drop_kind = call_success_aggregate_drop(call, context);
+    let fields = call_success_aggregate_fields(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
+    let failure_mode = lower_otherwise_aggregate_failure_mode(
+        &otherwise.fallback,
+        layout,
+        success_abi_value.as_ref().map(|value| &value.ty),
+        AggregateLocation::Slot(slot_index),
+        resolved,
+        context,
+        loop_control,
+        &unsupported_assignment_diagnostic,
+    )?;
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
+    instructions.append(&mut argument_instructions);
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
+    Ok(Some(instructions))
+}
+
+pub(super) fn lower_otherwise_aggregate_failure_mode(
+    fallback: &Block,
+    layout: ValueLayout,
+    expected_abi_type: Option<&AbiType>,
+    destination: AggregateLocation,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+    unsupported_diagnostic: &impl Fn() -> Vec<Diagnostic>,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    lower_otherwise_recover_or_handle_failure_mode(
+        fallback,
+        context,
+        loop_control,
+        |expression, context| {
+            if let Expr::ArrayLiteral(literal) = unwrap_group(expression) {
+                let Some(expected_abi_type) = expected_abi_type else {
+                    return Err(unsupported_diagnostic());
+                };
+                return lower_aggregate_array_literal_to_location(
+                    literal,
+                    expected_abi_type,
+                    layout,
+                    destination,
+                    "E8008",
+                    "`otherwise` binding fallbacks",
+                    resolved,
+                    context,
+                )
+                .map_err(|_| unsupported_diagnostic());
+            }
+            lower_aggregate_member_value_assignment(destination, 0, layout, expression, context)
+                .map_err(|_| unsupported_diagnostic())
+        },
+        "IR v0 can only lower aggregate `otherwise` fallback blocks with supported aggregate values or exits",
+    )
+}

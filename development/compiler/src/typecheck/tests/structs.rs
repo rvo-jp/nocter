@@ -184,7 +184,7 @@ fn accepts_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         label: "home",
         x: 1,
     }
@@ -204,7 +204,7 @@ fn accepts_generic_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: 1,
     }
     return box.value
@@ -223,8 +223,8 @@ fn accepts_nested_generic_struct_literal_expression() {
 }
 
 func main(): i32 {
-    let nested: Box<Box<i32>> = Box<Box<i32>>{
-        value: Box<i32>{
+    let nested: Box<Box<i32>> = Box<Box<i32>> {
+        value: Box<i32> {
             value: 1,
         },
     }
@@ -290,10 +290,10 @@ type IntBox = Box<i32>
 type Alias<T> = Box<T>
 
 func main(): i32 {
-    let one = IntBox{
+    let one = IntBox {
         value: 1,
     }
-    let two = Alias<i32>{
+    let two = Alias<i32> {
         value: one.value,
     }
     return two.value
@@ -334,7 +334,7 @@ fn accepts_contextual_integer_struct_literal_field() {
 }
 
 func main(): i32 {
-    let byte = Byte{
+    let byte = Byte {
         value: 255,
     }
     return 0
@@ -351,7 +351,7 @@ fn diagnoses_non_struct_literal_target() {
         r#"type Number = i32
 
 func main(): i32 {
-    let value = Number{
+    let value = Number {
         value: 1,
     }
     return 0
@@ -371,7 +371,7 @@ fn diagnoses_unknown_struct_literal_field() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         x: 1,
         y: 2,
     }
@@ -393,7 +393,7 @@ fn diagnoses_duplicate_struct_literal_field() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         x: 1,
         x: 2,
     }
@@ -416,7 +416,7 @@ fn diagnoses_missing_struct_literal_field() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         x: 1,
     }
     return 0
@@ -437,7 +437,7 @@ fn diagnoses_struct_literal_field_type_mismatch() {
 }
 
 func main(): i32 {
-    let point = Point{
+    let point = Point {
         x: "bad",
     }
     return 0
@@ -459,7 +459,7 @@ fn diagnoses_generic_struct_literal_field_type_mismatch() {
 }
 
 func main(): i32 {
-    let box = Box<i32>{
+    let box = Box<i32> {
         value: "bad",
     }
     return 0
@@ -481,8 +481,8 @@ fn diagnoses_nested_generic_struct_literal_field_type_mismatch() {
 }
 
 func main(): i32 {
-    let nested = Box<Box<i32>>{
-        value: Box<&str>{
+    let nested = Box<Box<i32>> {
+        value: Box<&str> {
             value: "bad",
         },
     }
@@ -505,7 +505,7 @@ fn diagnoses_generic_struct_literal_type_parameter_field_mismatch() {
 }
 
 func build<T>(): Box<T> {
-    return Box<T>{
+    return Box<T> {
         value: 1,
     }
 }

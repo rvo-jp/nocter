@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compiler Maintenance Policy - Nocter</title>
-    <meta name="description" content="This document records long-lived maintenance rules for the Nocter compiler. Short-term handoff notes belong in ../TODO.md. Normative language rules belong ">
+    <title>Development Maintenance - Nocter</title>
+    <meta name="description" content="This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/docs/maintenance/">
@@ -12,20 +12,20 @@
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Compiler Maintenance Policy - Nocter">
-    <meta property="og:description" content="This document records long-lived maintenance rules for the Nocter compiler. Short-term handoff notes belong in ../TODO.md. Normative language rules belong ">
+    <meta property="og:title" content="Development Maintenance - Nocter">
+    <meta property="og:description" content="This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.">
     <meta property="og:url" content="https://nocter.dev/development/docs/maintenance/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-07-30">
+    <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Compiler Maintenance Policy - Nocter">
-    <meta name="twitter:description" content="This document records long-lived maintenance rules for the Nocter compiler. Short-term handoff notes belong in ../TODO.md. Normative language rules belong ">
+    <meta name="twitter:title" content="Development Maintenance - Nocter">
+    <meta name="twitter:description" content="This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Compiler Maintenance Policy - Nocter","description":"This document records long-lived maintenance rules for the Nocter compiler. Short-term handoff notes belong in ../TODO.md. Normative language rules belong ","url":"https://nocter.dev/development/docs/maintenance/","mainEntityOfPage":"https://nocter.dev/development/docs/maintenance/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Maintenance","item":"https://nocter.dev/development/docs/maintenance/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Maintenance - Nocter","description":"This document contains long-lived maintenance policy. Keep short-term handoff state in TODO and public language rules in the specification.","url":"https://nocter.dev/development/docs/maintenance/","mainEntityOfPage":"https://nocter.dev/development/docs/maintenance/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Maintenance","item":"https://nocter.dev/development/docs/maintenance/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -126,16 +126,13 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">../../spec</a></li>
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../implementation-status/index.html#content">Implementation Status</a></li>
-                <li><a href="../v0-closure/index.html#content">v0 Closure Definition</a></li>
-                <li><a href="../backend-v0/index.html#content">Backend V0</a></li>
-                <li><a href="../std-runtime-status/index.html#content">Std Runtime Status</a></li>
-                <li><a href="../interpolation-lowering/index.html#content">Interpolation Lowering</a></li>
-                <li><a href="../roadmap/index.html#content">Roadmap</a></li>
-                <li><a href="./index.html#content" aria-current="page">Maintenance Policy</a></li>
-                <li><a href="../../../spec/00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="./index.html#content" aria-current="page">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -143,23 +140,12 @@
                 <span class="markdown-path-text">/development/docs/maintenance.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="compiler-maintenance-policy">Compiler Maintenance Policy</h1><p>This document records long-lived maintenance rules for the Nocter compiler. Short-term handoff notes belong in <code>../TODO.md</code>. Normative language rules belong in <code>../../spec/</code>.</p><h2 id="goal">Goal</h2><p>Keep the compiler structure maintainable as it grows from a small bootstrap implementation to a multi-phase compiler.</p><p>Small diffs are not the primary goal. A change is successful when the next feature can be added without duplicating semantics, hiding phase boundaries, or increasing accidental coupling between unrelated compiler layers.</p><h2 id="module-boundary-rules">Module Boundary Rules</h2><p>Split by responsibility and abstraction layer, not by line count.</p><p>Good module boundaries have these properties:</p><ul><li>callers can name what the module owns</li><li>the module exposes a small API instead of forcing callers to inspect internal data</li><li>tests can target the module without constructing unrelated compiler phases</li><li>future features in the same phase naturally reuse the module</li></ul><p>Avoid these shapes:</p><ul><li>a driver module that owns language semantics</li><li>a type checker module that formats diagnostics directly</li><li>a backend module that re-parses source-level syntax</li><li>an LSP feature that resolves names without using compiler analysis</li><li>a single file that mixes transport, document state, semantic analysis, and response rendering</li></ul><h2 id="lsp-structure">LSP Structure</h2><p><code>driver/lsp/</code> should move toward this structure:</p><pre><code class="language-text">driver/lsp/
-    mod.rs          # server loop, request routing, feature orchestration
-    protocol.rs     # JSON-RPC framing, LSP position/range helpers
-    documents.rs    # open document state, URI/path handling, sync params
-    diagnostics.rs  # publishDiagnostics conversion and stale clearing
-    semantic.rs     # semantic token classification
-    hover.rs        # hover contents and hover symbol lookup
-    definition.rs   # go-to-definition lookup and locations
-    completion.rs   # completion items
-    symbols.rs      # document symbols
-    analysis.rs     # bridge from open documents to compiler analysis
-</code></pre><p>Do not create all files preemptively. Extract a module when there is a stable responsibility boundary and the extracted API is smaller than the copied context.</p><p>LSP must treat the compiler as the semantic source of truth. TextMate grammar, snippets, and editor-side code may improve presentation, but name resolution, type information, diagnostics, and syntax interpretation must come from compiler modules.</p><h2 id="refactoring-rules">Refactoring Rules</h2><p>Refactor before adding a feature when the current design would require:</p><ul><li>copying traversal logic</li><li>adding protocol-specific fields to core compiler data</li><li>exposing mutable internals across phases</li><li>adding another large helper to an already mixed-responsibility file</li><li>testing through a full CLI/LSP path when a phase-level test would be clearer</li></ul><p>Prefer small APIs with owned result types over returning raw internal maps. Prefer compiler-phase tests for compiler semantics and LSP tests for protocol behavior.</p><h2 id="documentation-ownership">Documentation Ownership</h2><p>Keep one source of truth for each kind of information:</p><ul><li>root <code>README.md</code>: short Nocter language introduction, getting-started flow,
-  and documentation map</li><li><code>../../spec/</code>: normative language rules, standard-library rules, and public
-  design principles</li><li><code>README.md</code>: development root entrance</li><li><code>docs/README.md</code>: compiler documentation map</li><li><code>docs/architecture.md</code>: compiler phase ownership and pipeline design</li><li><code>docs/implementation-status.md</code>: current user-visible implementation
-  capability</li><li><code>docs/v0-closure.md</code>: fixed v0 implementation completion gates</li><li><code>docs/backend-v0.md</code>: backend and ABI implementation notes</li><li><code>docs/std-runtime-status.md</code>: implementation status of tracked
-  <code>development/std/</code> as packaged into a Nocter home</li><li><code>docs/roadmap.md</code>: recommended implementation order</li><li><code>../TODO.md</code>: short-lived handoff state</li></ul><p>Do not copy large language rules into compiler docs. Link to <code>spec/</code> and record only implementation status or compiler design.</p><h2 id="progress-recording">Progress Recording</h2><p>Every session that changes compiler behavior or structure should leave the repository easier to resume.</p><p>Use this rule:</p><ul><li>update <code>../TODO.md</code> for the next concrete action and current uncommitted state</li><li>update <code>v0-closure.md</code> when the v0 completion gate, target scope, or
-  <code>ship</code>/<code>reject</code>/<code>defer</code> decision changes</li><li>update <code>implementation-status.md</code> when user-visible behavior changes</li><li>update <code>std-runtime-status.md</code> when distributed std runtime behavior changes</li><li>update <code>roadmap.md</code> when the recommended next task changes</li><li>update <code>architecture.md</code> when module responsibilities change</li></ul><p>Do not record every command or every passing test in long-lived documents. Record only durable facts: implemented capability, remaining gap, design decision, or next action.</p><h2 id="commit-hygiene">Commit Hygiene</h2><p>Keep unrelated user changes out of commits.</p><p>Create a commit whenever a coherent chunk of work is complete and verified before moving on to the next chunk. This applies especially when a change touches multiple compiler phases, adds a new module, or changes user-visible behavior. Do not wait for a large session to accumulate many independent changes before committing.</p><p>Prefer these commit shapes:</p><ul><li>one behavior change plus tests and docs</li><li>one structural refactor with no behavior change</li><li>one documentation update that changes development policy</li></ul><p>Avoid commits that mix:</p><ul><li>generated assets and compiler logic</li><li>root project files and compiler internals without a shared purpose</li><li>formatting-only churn and semantic changes</li></ul><p>When a rename plus extraction is needed, make the extraction behavior-preserving first, then continue feature work in a later change.</p>
+                <h1 id="development-maintenance">Development Maintenance</h1><p>This document contains long-lived maintenance policy. Keep short-term handoff state in <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a> and public language rules in the <a href="../../../spec/index.html#content">specification</a>.</p><h2 id="design-rules">Design Rules</h2><ul><li>Prefer coherent responsibilities and easy future changes over small diffs.</li><li>Split by responsibility and abstraction layer, not by line count.</li><li>Prefer narrow APIs that return purpose-specific owned results over callers exploring internal maps
+  or mutable state.</li><li>Do not mix compiler phases, protocol transport, and presentation in one file.</li><li>Extract a shared responsibility when a change would duplicate AST traversal, lookup, type
+  formatting, or drop logic.</li><li>Do not add compatibility shims for removed repository locations or unpublished behavior.</li></ul><p>Put a new responsibility in a new module or file. Add it to an existing file only when the existing responsibility naturally explains it.</p><h2 id="sources-of-truth">Sources of Truth</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>Language and public standard-library semantics</td><td><code>spec/</code></td></tr><tr><td>Current release completion and priorities</td><td><code>docs/v0.2.0.md</code></td></tr><tr><td>Compiler phase boundaries</td><td><code>docs/architecture.md</code></td></tr><tr><td>Allocator, ownership, and drop invariants</td><td><code>docs/allocator-ownership.md</code></td></tr><tr><td>Distributed standard-library implementation</td><td><code>docs/standard-library.md</code></td></tr><tr><td>LSP capabilities and analysis design</td><td><code>docs/lsp.md</code></td></tr><tr><td>Next task and handoff facts</td><td><code>TODO.md</code></td></tr><tr><td>Historical sequence</td><td>Git history</td></tr></tbody></table><p>Do not keep the same status table in multiple documents. Keep the v0.2.0 checklist only in <code>v0.2.0.md</code>; focused documents own design and concrete acceptance behavior.</p><h2 id="update-triggers">Update Triggers</h2><ul><li>Release gate, non-goal, or work order changed: update <code>v0.2.0.md</code>.</li><li>Compiler module ownership or phase data flow changed: update <code>architecture.md</code>.</li><li>Allocation, drop, or collection invariant changed: update <code>allocator-ownership.md</code>.</li><li>Runtime behavior in tracked <code>development/std</code> changed: update <code>standard-library.md</code>.</li><li>Editor-facing capability or analysis API changed: update <code>lsp.md</code>.</li><li>Next concrete task, blocker, or uncommitted state changed: update <code>TODO.md</code>.</li></ul><p>Do not append command logs, commit lists, or a chronology of completed items. Replace only the facts needed for current decisions.</p><h2 id="public-documentation">Public Documentation</h2><p>Public-facing documentation is written in English. The repository-level <code>AGENTS.md</code> defines the scope and the exceptions for internal files. Edit source Markdown and regenerate the website with <code>node docs/build-docs.js</code>.</p><h2 id="verification">Verification</h2><p>Run the standard verification for commits that change shared compiler behavior from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
+<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--check</span>
+<span class="token-function">git</span> diff <span class="token-option">--check</span>
+</code></pre><p>Run a narrow test first, then the complete verification. A standard-library runtime promotion needs a distributed-home or CLI run test. LSP behavior needs an analysis unit test and a JSON-RPC integration test.</p><p>For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run <code>node docs/build-docs.js</code>, and run <code>git diff --check</code>.</p><h2 id="commit-checkpoints">Commit Checkpoints</h2><ul><li>Keep a behavior change, its tests, and its documentation in one coherent commit.</li><li>Keep pure refactors separate from behavior promotion.</li><li>Do not stage, revert, or format unrelated user changes.</li><li>Commit each coherent verified chunk without waiting for a long session to end.</li><li>If verification cannot run, record why in the final response and, when relevant, in <code>TODO.md</code>.</li></ul><p>Commit messages describe the result. Do not use chronological notes such as “continue.”</p>
             </div>
         </main>
     </div>

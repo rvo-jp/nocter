@@ -157,6 +157,14 @@ pub func write_text(file: &+File, text: &str): void! {
     return
 }
 
+pub func close(file: &+File): void {
+    if file.close_on_drop {
+        close_fd(file.fd)
+        file.close_on_drop = false
+    }
+    return
+}
+
 impl File {
     pub method &+self.read(buffer: &+[u8]): usize! {
         return read(self, buffer)?
@@ -172,10 +180,13 @@ impl File {
         return
     }
 
+    pub method &+self.close(): void {
+        close(self)
+        return
+    }
+
     drop &+self {
-        if self.close_on_drop {
-            close_fd(self.fd)
-        }
+        close(self)
         return
     }
 }

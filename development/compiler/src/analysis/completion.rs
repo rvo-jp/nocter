@@ -1,22 +1,26 @@
 //! Completion candidates derived from lexical keywords and resolver symbols.
 
-use super::FileAnalysis;
 use super::completion_recovery::completion_recovery_text;
 use super::scoped_imports::visible_scoped_import_spans_at_offset;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
+use super::visible_locals::visible_local_bindings_at_offset;
+use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, StructLiteralExpr,
-    SwitchArm, SwitchStmt, TypeExpr,
+    SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
-    AssociatedFunctionSignature, EnumVariantSignature, MethodSignature, ResolveOutput,
-    StructFieldSignature, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, EnumVariantSignature, FunctionSignature, MethodSignature,
+    ParameterSignature, ResolveOutput, StructFieldSignature, Symbol, SymbolKind, TypeSymbol,
+    TypeSymbolKind,
 };
 use crate::source::ByteSpan;
+use crate::source::SourceMap;
+use crate::typecheck::type_expr_presentation_label;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
@@ -30,6 +34,7 @@ pub(crate) enum CompletionItemKind {
     Field,
     Keyword,
     Struct,
+    Variable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +42,10 @@ pub(crate) struct CompletionItemInfo {
     pub(crate) label: String,
     pub(crate) kind: CompletionItemKind,
     pub(crate) detail: Option<String>,
+    pub(crate) documentation: Option<String>,
+    pub(crate) insert_text: Option<String>,
+    pub(crate) sort_text: Option<String>,
+    pub(crate) declaration_span: Option<ByteSpan>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,10 +76,72 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         return items;
     }
 
-    completion_items_for_resolved_symbols(
+    let mut items = local_completion_items(&file.ast, &file.typecheck_facts, offset);
+    let local_names = items
+        .iter()
+        .map(|item| item.label.clone())
+        .collect::<HashSet<_>>();
+    items.extend(completion_items_for_resolved_symbols_excluding(
         &file.resolved,
         visible_scoped_import_spans_at_offset(&file.ast, offset),
-    )
+        &local_names,
+    ));
+    items
+}
+
+pub(crate) fn completion_items_for_compile_unit_at_offset(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Vec<CompletionItemInfo> {
+    let mut items = super::import_completion::import_symbol_items_at_offset(analysis, file, offset)
+        .unwrap_or_else(|| completion_items_for_file_analysis_at_offset(file, offset));
+    let compatible_locals = super::expected_completion::compatible_local_spans_at_offset(
+        sources, analysis, file, offset,
+    );
+    let prefix = sources
+        .get(file.ast.span.source)
+        .map(|source| identifier_prefix_at_offset(source.text(), offset))
+        .unwrap_or_default();
+    for item in &mut items {
+        let expected_rank = if item
+            .declaration_span
+            .is_some_and(|span| compatible_locals.contains(&span))
+        {
+            0
+        } else {
+            1
+        };
+        let prefix_rank = usize::from(!prefix.is_empty() && !item.label.starts_with(prefix));
+        let locality_rank = usize::from(item.kind != CompletionItemKind::Variable);
+        item.sort_text = Some(format!(
+            "{prefix_rank}{locality_rank}{expected_rank}-{}",
+            item.label
+        ));
+        let Some(target) = item.declaration_span else {
+            continue;
+        };
+        let Some(target_file) = analysis.file_by_source(target.source) else {
+            continue;
+        };
+        item.documentation =
+            super::hover::hover_for_file_analysis(sources, analysis, target_file, target.start)
+                .and_then(|hover| hover.documentation);
+    }
+    items
+}
+
+fn identifier_prefix_at_offset(text: &str, offset: usize) -> &str {
+    let Some(prefix) = text.get(..offset) else {
+        return "";
+    };
+    let start = prefix
+        .char_indices()
+        .rev()
+        .find(|(_, char)| !(*char == '_' || char.is_alphanumeric()))
+        .map_or(0, |(index, char)| index + char.len_utf8());
+    &prefix[start..]
 }
 
 pub(crate) fn completion_items_for_text_at_offset(
@@ -97,10 +168,17 @@ pub(crate) fn completion_items_for_text_at_offset(
         return Some(items);
     }
 
-    Some(completion_items_for_resolved_symbols(
+    let mut items = local_completion_items(&parsed.ast, &facts, offset);
+    let local_names = items
+        .iter()
+        .map(|item| item.label.clone())
+        .collect::<HashSet<_>>();
+    items.extend(completion_items_for_resolved_symbols_excluding(
         &resolved,
         visible_scoped_import_spans_at_offset(&parsed.ast, offset),
-    ))
+        &local_names,
+    ));
+    Some(items)
 }
 
 pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
@@ -110,19 +188,37 @@ pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
             label: (*keyword).to_string(),
             kind: CompletionItemKind::Keyword,
             detail: Some("keyword".to_string()),
+            documentation: None,
+            insert_text: Some((*keyword).to_string()),
+            sort_text: None,
+            declaration_span: None,
         })
         .collect()
 }
 
+#[cfg(test)]
 fn completion_items_for_resolved_symbols(
     resolved: &ResolveOutput,
     visible_hidden_symbol_spans: HashSet<ByteSpan>,
+) -> Vec<CompletionItemInfo> {
+    completion_items_for_resolved_symbols_excluding(
+        resolved,
+        visible_hidden_symbol_spans,
+        &HashSet::new(),
+    )
+}
+
+fn completion_items_for_resolved_symbols_excluding(
+    resolved: &ResolveOutput,
+    visible_hidden_symbol_spans: HashSet<ByteSpan>,
+    excluded_names: &HashSet<String>,
 ) -> Vec<CompletionItemInfo> {
     let mut items = keyword_completion_items();
     let mut seen = KEYWORD_LEXEMES
         .iter()
         .map(|keyword| (*keyword).to_string())
         .collect::<HashSet<_>>();
+    seen.extend(excluded_names.iter().cloned());
 
     let mut symbols = resolved
         .symbols
@@ -140,11 +236,41 @@ fn completion_items_for_resolved_symbols(
         items.push(CompletionItemInfo {
             label: symbol.name.clone(),
             kind: completion_kind_for_symbol(symbol),
-            detail: Some(symbol_detail(symbol)),
+            detail: Some(symbol_detail(symbol, resolved)),
+            documentation: None,
+            insert_text: Some(symbol_insert_text(symbol)),
+            sort_text: None,
+            declaration_span: Some(symbol.declaration_span),
         });
     }
 
     items
+}
+
+fn local_completion_items(
+    ast: &AstFile,
+    facts: &TypecheckFacts,
+    offset: usize,
+) -> Vec<CompletionItemInfo> {
+    visible_local_bindings_at_offset(ast, offset)
+        .into_iter()
+        .map(|binding| {
+            let name = binding.name;
+            let detail = facts
+                .binding_type_label(binding.name_span)
+                .map(|ty| format!("{} {name}: {ty}", binding.kind))
+                .unwrap_or_else(|| format!("{} {name}", binding.kind));
+            CompletionItemInfo {
+                label: name.clone(),
+                kind: CompletionItemKind::Variable,
+                detail: Some(detail),
+                documentation: None,
+                insert_text: Some(name),
+                sort_text: None,
+                declaration_span: Some(binding.name_span),
+            }
+        })
+        .collect()
 }
 
 fn completion_kind_for_symbol(symbol: &Symbol) -> CompletionItemKind {
@@ -160,18 +286,87 @@ fn completion_kind_for_symbol(symbol: &Symbol) -> CompletionItemKind {
     }
 }
 
-fn symbol_detail(symbol: &Symbol) -> String {
+pub(super) fn completion_item_for_symbol(
+    symbol: &Symbol,
+    resolved: &ResolveOutput,
+) -> CompletionItemInfo {
+    CompletionItemInfo {
+        label: symbol.name.clone(),
+        kind: completion_kind_for_symbol(symbol),
+        detail: Some(symbol_detail(symbol, resolved)),
+        documentation: None,
+        insert_text: Some(symbol_insert_text(symbol)),
+        sort_text: None,
+        declaration_span: Some(symbol.declaration_span),
+    }
+}
+
+fn symbol_detail(symbol: &Symbol, resolved: &ResolveOutput) -> String {
     match &symbol.kind {
-        SymbolKind::Function(_) => "function".to_string(),
-        SymbolKind::Primitive(_) => "primitive".to_string(),
+        SymbolKind::Function(signature) => {
+            callable_detail("func", &symbol.name, signature, resolved)
+        }
+        SymbolKind::Primitive(signature) => {
+            callable_detail("primitive", &symbol.name, signature, resolved)
+        }
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
-            TypeSymbolKind::Alias => "type".to_string(),
-            TypeSymbolKind::Struct => "struct".to_string(),
-            TypeSymbolKind::Enum => "enum".to_string(),
-            TypeSymbolKind::Interface => "interface".to_string(),
+            TypeSymbolKind::Alias => format!("type {}{}", symbol.name, generic_suffix(type_symbol)),
+            TypeSymbolKind::Struct => {
+                format!("struct {}{}", symbol.name, generic_suffix(type_symbol))
+            }
+            TypeSymbolKind::Enum => format!("enum {}{}", symbol.name, generic_suffix(type_symbol)),
+            TypeSymbolKind::Interface => {
+                format!("interface {}{}", symbol.name, generic_suffix(type_symbol))
+            }
         },
         SymbolKind::Imported(imported) => format!("imported from {}", imported.path),
     }
+}
+
+fn symbol_insert_text(symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) => format!("{}()", symbol.name),
+        SymbolKind::Type(_) | SymbolKind::Imported(_) => symbol.name.clone(),
+    }
+}
+
+fn generic_suffix(symbol: &TypeSymbol) -> String {
+    if symbol.generic_parameters.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", symbol.generic_parameters.join(", "))
+    }
+}
+
+fn callable_detail(
+    kind: &str,
+    name: &str,
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+) -> String {
+    let generics = if signature.generic_parameters.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", signature.generic_parameters.join(", "))
+    };
+    format!(
+        "{kind} {name}{generics}({}): {}",
+        signature
+            .parameters
+            .iter()
+            .map(|parameter| parameter_detail(parameter, resolved))
+            .collect::<Vec<_>>()
+            .join(", "),
+        type_expr_presentation_label(&signature.return_type, resolved)
+    )
+}
+
+fn parameter_detail(parameter: &ParameterSignature, resolved: &ResolveOutput) -> String {
+    format!(
+        "{}: {}",
+        parameter.name,
+        type_expr_presentation_label(&parameter.ty, resolved)
+    )
 }
 
 fn contextual_completion_items(
@@ -184,7 +379,7 @@ fn contextual_completion_items(
         CompletionContext::EnumPatternMembers(enum_name) => Some(
             resolved
                 .type_symbol_by_name(enum_name)
-                .map(enum_variant_completion_items)
+                .map(|symbol| enum_variant_completion_items(symbol, resolved))
                 .unwrap_or_default(),
         ),
         CompletionContext::MemberAccess {
@@ -206,48 +401,67 @@ fn member_completion_items(
     owner_span: ByteSpan,
 ) -> Vec<CompletionItemInfo> {
     if let Some(symbol) = resolved.type_symbol_by_name(owner_name) {
-        return type_member_completion_items(symbol);
+        return type_member_completion_items(symbol, resolved);
     }
 
     let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
         return Vec::new();
     };
-    let Some(symbol) = type_symbol_for_value_member_completion(resolved, owner_ty) else {
+    let Some(owner) = value_member_owner(resolved, owner_ty) else {
         return Vec::new();
     };
-    value_member_completion_items(symbol)
+    let can_readwrite = owner_type_is_readwrite(owner_ty)
+        || (!matches!(owner_ty, TypeExpr::Borrow(_))
+            && !facts.binding_is_readonly(owner_span).unwrap_or(true));
+    let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
+    value_member_completion_items(&owner, resolved, can_readwrite, can_move)
 }
 
-fn type_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
+fn type_member_completion_items(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+) -> Vec<CompletionItemInfo> {
     let mut items = Vec::new();
     if symbol.kind == TypeSymbolKind::Enum {
-        items.extend(enum_variant_completion_items(symbol));
+        items.extend(enum_variant_completion_items(symbol, resolved));
     }
     items.extend(
         symbol
             .associated_functions
             .iter()
             .filter(|function| function.is_accessible)
-            .map(associated_function_completion_item),
+            .map(|function| associated_function_completion_item(function, resolved)),
     );
     items
 }
 
-fn value_member_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
+fn value_member_completion_items(
+    owner: &ValueMemberOwner<'_>,
+    resolved: &ResolveOutput,
+    can_readwrite: bool,
+    can_move: bool,
+) -> Vec<CompletionItemInfo> {
     let mut items = Vec::new();
     items.extend(
-        symbol
+        owner
+            .symbol
             .fields
             .iter()
             .filter(|field| field.is_accessible)
-            .map(struct_field_completion_item),
+            .map(|field| {
+                struct_field_completion_item(field, resolved, false, &owner.substitutions)
+            }),
     );
     items.extend(
-        symbol
+        owner
+            .symbol
             .methods
             .iter()
-            .filter(|method| method.is_accessible)
-            .map(method_completion_item),
+            .filter(|method| {
+                method.is_accessible
+                    && method_receiver_is_available(method, can_readwrite, can_move)
+            })
+            .map(|method| method_completion_item(method, resolved, &owner.substitutions)),
     );
     items
 }
@@ -257,7 +471,7 @@ fn struct_literal_field_completion_items(
     literal: &StructLiteralExpr,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    let Some(symbol) = type_symbol_for_value_member_completion(resolved, &literal.ty) else {
+    let Some(owner) = value_member_owner(resolved, &literal.ty) else {
         return Vec::new();
     };
     let used_fields = literal
@@ -267,71 +481,196 @@ fn struct_literal_field_completion_items(
         .map(|field| field.name.as_str())
         .collect::<HashSet<_>>();
 
-    symbol
+    owner
+        .symbol
         .fields
         .iter()
         .filter(|field| field.is_accessible && !used_fields.contains(field.name.as_str()))
-        .map(struct_field_completion_item)
+        .map(|field| struct_field_completion_item(field, resolved, true, &owner.substitutions))
         .collect()
 }
 
-fn enum_variant_completion_items(symbol: &TypeSymbol) -> Vec<CompletionItemInfo> {
+fn enum_variant_completion_items(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+) -> Vec<CompletionItemInfo> {
     symbol
         .variants
         .iter()
-        .map(enum_variant_completion_item)
+        .map(|variant| enum_variant_completion_item(variant, resolved))
         .collect()
 }
 
-fn enum_variant_completion_item(variant: &EnumVariantSignature) -> CompletionItemInfo {
+fn enum_variant_completion_item(
+    variant: &EnumVariantSignature,
+    resolved: &ResolveOutput,
+) -> CompletionItemInfo {
+    let payload = variant
+        .payload
+        .iter()
+        .map(|parameter| parameter_detail(parameter, resolved))
+        .collect::<Vec<_>>();
     CompletionItemInfo {
         label: variant.name.clone(),
         kind: CompletionItemKind::EnumMember,
-        detail: Some("enum variant".to_string()),
+        detail: Some(if payload.is_empty() {
+            format!("variant {}", variant.name)
+        } else {
+            format!("variant {}({})", variant.name, payload.join(", "))
+        }),
+        documentation: None,
+        insert_text: Some(if payload.is_empty() {
+            variant.name.clone()
+        } else {
+            format!("{}(_)", variant.name)
+        }),
+        sort_text: None,
+        declaration_span: Some(variant.name_span),
     }
 }
 
 fn associated_function_completion_item(
     function: &AssociatedFunctionSignature,
+    resolved: &ResolveOutput,
 ) -> CompletionItemInfo {
     CompletionItemInfo {
         label: function.name.clone(),
         kind: CompletionItemKind::Function,
-        detail: Some("associated function".to_string()),
+        detail: Some(callable_detail(
+            "func",
+            &function.name,
+            &function.signature,
+            resolved,
+        )),
+        documentation: None,
+        insert_text: Some(format!("{}()", function.name)),
+        sort_text: None,
+        declaration_span: Some(function.name_span),
     }
 }
 
-fn struct_field_completion_item(field: &StructFieldSignature) -> CompletionItemInfo {
+fn struct_field_completion_item(
+    field: &StructFieldSignature,
+    resolved: &ResolveOutput,
+    literal: bool,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> CompletionItemInfo {
+    let ty = substitute_type_expr_parameters(&field.ty, substitutions);
     CompletionItemInfo {
         label: field.name.clone(),
         kind: CompletionItemKind::Field,
-        detail: Some("field".to_string()),
+        detail: Some(format!(
+            "field {}: {}",
+            field.name,
+            type_expr_presentation_label(&ty, resolved)
+        )),
+        documentation: None,
+        insert_text: Some(if literal {
+            format!("{}: ", field.name)
+        } else {
+            field.name.clone()
+        }),
+        sort_text: None,
+        declaration_span: Some(field.name_span),
     }
 }
 
-fn method_completion_item(method: &MethodSignature) -> CompletionItemInfo {
+fn method_completion_item(
+    method: &MethodSignature,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> CompletionItemInfo {
+    let mut substitutions = substitutions.clone();
+    if let Some(impl_target) = &method.impl_target_ty {
+        let impl_target = substitute_type_expr_parameters(impl_target, &substitutions);
+        substitutions.insert("Self".to_string(), impl_target);
+    }
+    let receiver = substitute_type_expr_parameters(&method.receiver.ty, &substitutions);
+    let return_type =
+        substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
     CompletionItemInfo {
         label: method.name.clone(),
         kind: CompletionItemKind::Method,
-        detail: Some("method".to_string()),
+        detail: Some(format!(
+            "method {}.{}({}): {}",
+            type_expr_presentation_label(&receiver, resolved),
+            method.name,
+            method
+                .signature
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let ty = substitute_type_expr_parameters(&parameter.ty, &substitutions);
+                    format!(
+                        "{}: {}",
+                        parameter.name,
+                        type_expr_presentation_label(&ty, resolved)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            type_expr_presentation_label(&return_type, resolved)
+        )),
+        documentation: None,
+        insert_text: Some(format!("{}()", method.name)),
+        sort_text: None,
+        declaration_span: Some(method.name_span),
     }
 }
 
-fn type_symbol_for_value_member_completion<'a>(
+struct ValueMemberOwner<'a> {
+    symbol: &'a TypeSymbol,
+    substitutions: HashMap<String, TypeExpr>,
+}
+
+fn value_member_owner<'a>(
     resolved: &'a ResolveOutput,
     ty: &TypeExpr,
-) -> Option<&'a TypeSymbol> {
+) -> Option<ValueMemberOwner<'a>> {
     match ty {
-        TypeExpr::Reference(reference) => resolved.type_symbol_by_reference_name(&reference.name),
-        TypeExpr::Generic(generic) => resolved.type_symbol_by_reference_name(&generic.name),
-        TypeExpr::Borrow(borrow) => {
-            type_symbol_for_value_member_completion(resolved, &borrow.inner)
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions: HashMap::from([("Self".to_string(), ty.clone())]),
+            })
         }
-        TypeExpr::View(view) => type_symbol_for_value_member_completion(resolved, &view.element),
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            let mut substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect::<HashMap<_, _>>();
+            substitutions.insert("Self".to_string(), ty.clone());
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions,
+            })
+        }
+        TypeExpr::Borrow(borrow) => value_member_owner(resolved, &borrow.inner),
+        TypeExpr::View(view) => value_member_owner(resolved, &view.element),
         TypeExpr::Pointer(_)
         | TypeExpr::Array(_)
         | TypeExpr::Optional(_)
         | TypeExpr::Fallible(_) => None,
+    }
+}
+
+fn owner_type_is_readwrite(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Borrow(borrow) if borrow.is_readwrite)
+}
+
+fn method_receiver_is_available(
+    method: &MethodSignature,
+    can_readwrite: bool,
+    can_move: bool,
+) -> bool {
+    match &method.receiver.ty {
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => can_readwrite,
+        TypeExpr::Borrow(_) => true,
+        _ => can_move,
     }
 }
 
@@ -631,530 +970,4 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
-
-    #[test]
-    fn completion_candidates_include_keywords_and_symbols() {
-        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    return 0\n}\n";
-        let (sources, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let source = sources.get(file.ast.span.source).expect("expected source");
-
-        let items = completion_items_for_file_analysis(file);
-
-        assert!(items.iter().any(|item| {
-            item.label == "func"
-                && item.kind == CompletionItemKind::Keyword
-                && item.detail.as_deref() == Some("keyword")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "File"
-                && item.kind == CompletionItemKind::Struct
-                && item.detail.as_deref() == Some("struct")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "main"
-                && item.kind == CompletionItemKind::Function
-                && item.detail.as_deref() == Some("function")
-        }));
-        assert_eq!(source.text(), text);
-    }
-
-    #[test]
-    fn completion_candidates_hide_namespace_import_members() {
-        let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
-        let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
-        let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
-        let file = analysis.root_file().expect("expected root file");
-
-        let items = completion_items_for_file_analysis(file);
-
-        assert!(items.iter().any(|item| {
-            item.label == "math"
-                && item.kind == CompletionItemKind::Module
-                && item.detail.as_deref() == Some("imported from lib/math")
-        }));
-        assert!(!items.iter().any(|item| item.label == "answer"));
-    }
-
-    #[test]
-    fn completion_candidates_include_block_imports_only_inside_scope() {
-        let text = r#"func main(): i32 {
-    use lib/math.answer
-
-    return answer()
-}
-
-func other(): i32 {
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let inside_offset = text.rfind("answer()").expect("expected answer call");
-        let outside_offset = text.rfind("return 0").expect("expected other function");
-
-        let inside_items = completion_items_for_file_analysis_at_offset(file, inside_offset);
-        let outside_items = completion_items_for_file_analysis_at_offset(file, outside_offset);
-
-        assert!(inside_items.iter().any(|item| item.label == "answer"));
-        assert!(!outside_items.iter().any(|item| item.label == "answer"));
-    }
-
-    #[test]
-    fn completion_candidates_include_enum_variants_after_pattern_dot() {
-        let text = r#"enum Choice {
-    hit(value: i32)
-    miss
-}
-
-func main(choice: Choice): i32 {
-    if choice is Choice.hit(_) {
-    }
-    return match choice {
-        Choice.hit(_) { 1 }
-        Choice.miss { 2 }
-    }
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let if_is_offset =
-            text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
-        let match_offset =
-            text.rfind("Choice.hit").expect("expected match pattern") + "Choice.".len();
-
-        for offset in [if_is_offset, match_offset] {
-            let items = completion_items_for_file_analysis_at_offset(file, offset);
-            assert!(items.iter().any(|item| {
-                item.label == "hit"
-                    && item.kind == CompletionItemKind::EnumMember
-                    && item.detail.as_deref() == Some("enum variant")
-            }));
-            assert!(items.iter().any(|item| {
-                item.label == "miss"
-                    && item.kind == CompletionItemKind::EnumMember
-                    && item.detail.as_deref() == Some("enum variant")
-            }));
-            assert!(!items.iter().any(|item| item.label == "Choice"));
-        }
-    }
-
-    #[test]
-    fn completion_candidates_include_enum_variants_after_type_member_dot() {
-        let text = r#"enum Choice {
-    yes
-    no
-}
-
-func main(): i32 {
-    let choice = Choice.yes
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.find("Choice.yes").expect("expected enum member") + "Choice.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "yes"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "no"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(!items.iter().any(|item| item.label == "Choice"));
-    }
-
-    #[test]
-    fn completion_candidates_include_associated_functions_after_type_member_dot() {
-        let text = r#"struct File {
-    fd: i32
-}
-
-func File.open(): File {
-    return File{ fd: 1 }
-}
-
-func main(): i32 {
-    let file = File.open()
-    return file.fd
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text
-            .rfind("File.open")
-            .expect("expected associated function call")
-            + "File.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "open"
-                && item.kind == CompletionItemKind::Function
-                && item.detail.as_deref() == Some("associated function")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_type_members_after_incomplete_member_dot() {
-        let text = r#"enum Choice {
-    yes
-    no
-}
-
-func main(): i32 {
-    let choice = Choice.
-    return 0
-}
-"#;
-        let offset = text
-            .find("Choice.")
-            .expect("expected incomplete enum member")
-            + "Choice.".len();
-
-        let items =
-            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
-
-        assert!(items.iter().any(|item| {
-            item.label == "yes"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "no"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(!items.iter().any(|item| item.label == "Choice"));
-    }
-
-    #[test]
-    fn completion_candidates_do_not_fall_back_to_globals_after_unknown_type_member_dot() {
-        let text = r#"enum Choice {
-    yes
-}
-
-func main(): i32 {
-    let choice = Missing.yes
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.find("Missing.yes").expect("expected unknown member") + "Missing.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(
-            items.is_empty(),
-            "expected no global fallback, got {items:#?}"
-        );
-    }
-
-    #[test]
-    fn completion_candidates_include_fields_and_methods_after_value_member_dot() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-impl File {
-    method &self.describe(): i32 {
-        return self.size
-    }
-}
-
-func main(): i32 {
-    let file = File{ fd: 1, size: 2 }
-    return file.fd
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "describe"
-                && item.kind == CompletionItemKind::Method
-                && item.detail.as_deref() == Some("method")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_fields_and_methods_after_incomplete_value_member_dot() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-impl File {
-    method &self.describe(): i32 {
-        return self.size
-    }
-}
-
-func main(): i32 {
-    let file = File{ fd: 1, size: 2 }
-    return file.
-}
-"#;
-        let offset = text
-            .rfind("file.")
-            .expect("expected incomplete field access")
-            + "file.".len();
-
-        let items =
-            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "describe"
-                && item.kind == CompletionItemKind::Method
-                && item.detail.as_deref() == Some("method")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_struct_fields_inside_struct_literal_field_name() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-func main(): i32 {
-    let file = File{ fd: 1 }
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.find("fd: 1").expect("expected struct literal field");
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_skip_used_struct_fields_inside_struct_literal() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-func main(): i32 {
-    let file = File{ fd: 1,  }
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text
-            .find("File{ fd: 1,  }")
-            .expect("expected struct literal")
-            + "File{ fd: 1, ".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(!items.iter().any(|item| item.label == "fd"));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_struct_fields_after_empty_struct_literal_braces() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-func main(): i32 {
-    let file = File{  }
-    return 0
-}
-"#;
-        let offset = text.find("File{  }").expect("expected struct literal") + "File{ ".len();
-
-        let items =
-            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_struct_fields_after_unclosed_struct_literal_brace() {
-        let text = r#"struct File {
-    fd: i32
-    size: i32
-}
-
-func main(): i32 {
-    let file = File{
-    return 0
-}
-"#;
-        let offset = text.find("File{").expect("expected struct literal") + "File{".len();
-
-        let items =
-            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "size"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_fields_and_methods_after_borrowed_value_member_dot() {
-        let text = r#"struct File {
-    fd: i32
-}
-
-impl File {
-    method &self.describe(): i32 {
-        return self.fd
-    }
-}
-
-func inspect(file: &File): i32 {
-    return file.fd
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(items.iter().any(|item| {
-            item.label == "fd"
-                && item.kind == CompletionItemKind::Field
-                && item.detail.as_deref() == Some("field")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "describe"
-                && item.kind == CompletionItemKind::Method
-                && item.detail.as_deref() == Some("method")
-        }));
-        assert!(!items.iter().any(|item| item.label == "File"));
-    }
-
-    #[test]
-    fn completion_candidates_include_pattern_members_after_incomplete_pattern_dot() {
-        let text = r#"enum Choice {
-    hit(value: i32)
-    miss
-}
-
-func main(choice: Choice): i32 {
-    if choice is Choice. {
-    }
-    return 0
-}
-"#;
-        let offset = text.find("Choice.").expect("expected incomplete pattern") + "Choice.".len();
-
-        let items =
-            completion_items_for_text_at_offset(text, offset).expect("expected completion items");
-
-        assert!(items.iter().any(|item| {
-            item.label == "hit"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(items.iter().any(|item| {
-            item.label == "miss"
-                && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
-        }));
-        assert!(!items.iter().any(|item| item.label == "Choice"));
-    }
-
-    #[test]
-    fn completion_candidates_do_not_fall_back_to_globals_after_unknown_pattern_dot() {
-        let text = r#"enum Choice {
-    hit
-}
-
-func main(choice: Choice): i32 {
-    if choice is Missing.hit {
-    }
-    return 0
-}
-"#;
-        let (_, analysis) = analyze_text(text);
-        let file = analysis.root_file().expect("expected root file");
-        let offset = text.find("Missing.hit").expect("expected unknown pattern") + "Missing.".len();
-
-        let items = completion_items_for_file_analysis_at_offset(file, offset);
-
-        assert!(
-            items.is_empty(),
-            "expected no global fallback, got {items:#?}"
-        );
-    }
-}
+mod tests;

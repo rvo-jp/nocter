@@ -573,7 +573,7 @@ pub struct User {
 ```
 
 ```nct
-let user = User{
+let user = User {
     id: 1,
     name: String.copy(allocator, "alice")?,
 }
@@ -581,7 +581,7 @@ let user = User{
 
 Rules:
 
-- Struct literal syntax is `Type{ field: value, ... }`.
+- Struct literal syntax is `Type { field: value, ... }`.
 - The type in a struct literal must name a struct type. For generic structs, the type may include type arguments.
 - Every field must be initialized exactly once.
 - Field order in the literal is free.
@@ -603,7 +603,7 @@ When initialization logic or validation is needed, use an ordinary associated fu
 
 ```nct
 pub func User.create(id: u64, name: String): User {
-    return User{
+    return User {
         id: id,
         name: move name,
     }
@@ -680,10 +680,48 @@ Rules:
 - `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
 - In the v0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
-- Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
-- `build` and `run` reject payload-carrying enum runtime positions during v0
-  buildability validation. `check` may still accept them for source-level
-  typechecking.
+- Payload-carrying enum construction, local storage, returns, and value
+  arguments lower in the current runtime-supported payload subset: copy/no-drop
+  payloads, plus aggregate payload fields with runtime-supported recursive drop
+  glue when active payload cleanup is required.
+- Tag-only payload-carrying enum `if is Enum.variant(_)` statements and
+  tag-only payload-carrying enum `match` statements lower over existing enum
+  bindings and parameters in the current runtime-supported payload subset,
+  including wildcard-only, nonexhaustive no-wildcard, and exhaustive
+  no-wildcard statement forms.
+- Payload-carrying enum `if is Enum.variant(binding)` statements/value
+  expressions and `match` statement/value-expression arms lower over existing
+  enum bindings and parameters when the payload ABI is `i32`, `u8`, `usize`,
+  `bool`, `&str`, a slice view, a copy aggregate value, or an owned aggregate
+  value with runtime-supported recursive drop glue, or a fixed array of
+  supported recursively droppable struct elements. The binding is loaded or
+  moved only inside the matching branch.
+- A copy payload binding copies the payload into its branch-local binding. A
+  move-only payload binding transfers ownership out of an owned pattern target.
+  Matching an existing local requires an explicit `move` target, such as
+  `match move result`; a call result, a direct-call success value extracted by
+  postfix `?`, postfix `!`, or `catch`, a direct optional-call value recovered
+  by `otherwise`, or a direct variant constructor is already an owned
+  temporary. Member targets cannot supply move-only payload bindings until
+  field moves are supported. Runtime lowering currently supports this transfer
+  for aggregate payloads and supported move-only fixed-array payloads with
+  runtime-supported recursive drop glue.
+  The selected branch owns and drops the binding; the source enum is suppressed
+  after the transfer. A non-selected branch retains and drops the source enum.
+- Payload-carrying enum active payload cleanup lowers for runtime-supported enum
+  values whose droppable variants have supported aggregate drop trees.
+  Scope-end cleanup, parameter cleanup, discarded call results, call-result
+  bindings, and whole-local replacement drop only the active payload fields.
+  Multi-field payload cleanup drops active fields in reverse aggregate field
+  order and applies supported struct and fixed-array drop trees recursively;
+  fixed-array elements drop in reverse index order.
+- Payload-carrying enum `if is` / `match` over call results, direct-call
+  success values extracted by postfix `?`, postfix `!`, or `catch`, direct
+  optional-call values recovered by `otherwise`, direct variant constructors,
+  and explicit `move` of an enum local lower in the current runtime-supported
+  payload subset. Other pattern target expressions and move-only payload
+  bindings with unsupported recursive drop trees still reject before
+  build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

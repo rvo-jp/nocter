@@ -1,130 +1,80 @@
-# Compiler Maintenance Policy
+# Development Maintenance
 
-This document records long-lived maintenance rules for the Nocter compiler.
-Short-term handoff notes belong in `../TODO.md`. Normative language rules
-belong in `../../spec/`.
+This document contains long-lived maintenance policy. Keep short-term handoff state in
+[TODO](../TODO.md) and public language rules in the [specification](../../spec/README.md).
 
-## Goal
+## Design Rules
 
-Keep the compiler structure maintainable as it grows from a small bootstrap implementation to a multi-phase compiler.
+- Prefer coherent responsibilities and easy future changes over small diffs.
+- Split by responsibility and abstraction layer, not by line count.
+- Prefer narrow APIs that return purpose-specific owned results over callers exploring internal maps
+  or mutable state.
+- Do not mix compiler phases, protocol transport, and presentation in one file.
+- Extract a shared responsibility when a change would duplicate AST traversal, lookup, type
+  formatting, or drop logic.
+- Do not add compatibility shims for removed repository locations or unpublished behavior.
 
-Small diffs are not the primary goal.
-A change is successful when the next feature can be added without duplicating semantics, hiding phase boundaries, or increasing accidental coupling between unrelated compiler layers.
+Put a new responsibility in a new module or file. Add it to an existing file only when the existing
+responsibility naturally explains it.
 
-## Module Boundary Rules
+## Sources of Truth
 
-Split by responsibility and abstraction layer, not by line count.
+| Information | Owner |
+|---|---|
+| Language and public standard-library semantics | `spec/` |
+| Current release completion and priorities | `docs/v0.2.0.md` |
+| Compiler phase boundaries | `docs/architecture.md` |
+| Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
+| Distributed standard-library implementation | `docs/standard-library.md` |
+| LSP capabilities and analysis design | `docs/lsp.md` |
+| Next task and handoff facts | `TODO.md` |
+| Historical sequence | Git history |
 
-Good module boundaries have these properties:
+Do not keep the same status table in multiple documents. Keep the v0.2.0 checklist only in
+`v0.2.0.md`; focused documents own design and concrete acceptance behavior.
 
-- callers can name what the module owns
-- the module exposes a small API instead of forcing callers to inspect internal data
-- tests can target the module without constructing unrelated compiler phases
-- future features in the same phase naturally reuse the module
+## Update Triggers
 
-Avoid these shapes:
+- Release gate, non-goal, or work order changed: update `v0.2.0.md`.
+- Compiler module ownership or phase data flow changed: update `architecture.md`.
+- Allocation, drop, or collection invariant changed: update `allocator-ownership.md`.
+- Runtime behavior in tracked `development/std` changed: update `standard-library.md`.
+- Editor-facing capability or analysis API changed: update `lsp.md`.
+- Next concrete task, blocker, or uncommitted state changed: update `TODO.md`.
 
-- a driver module that owns language semantics
-- a type checker module that formats diagnostics directly
-- a backend module that re-parses source-level syntax
-- an LSP feature that resolves names without using compiler analysis
-- a single file that mixes transport, document state, semantic analysis, and response rendering
+Do not append command logs, commit lists, or a chronology of completed items. Replace only the facts
+needed for current decisions.
 
-## LSP Structure
+## Public Documentation
 
-`driver/lsp/` should move toward this structure:
+Public-facing documentation is written in English. The repository-level `AGENTS.md` defines the
+scope and the exceptions for internal files. Edit source Markdown and regenerate the website with
+`node docs/build-docs.js`.
 
-```text
-driver/lsp/
-    mod.rs          # server loop, request routing, feature orchestration
-    protocol.rs     # JSON-RPC framing, LSP position/range helpers
-    documents.rs    # open document state, URI/path handling, sync params
-    diagnostics.rs  # publishDiagnostics conversion and stale clearing
-    semantic.rs     # semantic token classification
-    hover.rs        # hover contents and hover symbol lookup
-    definition.rs   # go-to-definition lookup and locations
-    completion.rs   # completion items
-    symbols.rs      # document symbols
-    analysis.rs     # bridge from open documents to compiler analysis
+## Verification
+
+Run the standard verification for commits that change shared compiler behavior from the repository
+root:
+
+```sh
+./development/compiler/scripts/verify.sh
+cargo fmt --manifest-path development/compiler/Cargo.toml --check
+git diff --check
 ```
 
-Do not create all files preemptively.
-Extract a module when there is a stable responsibility boundary and the extracted API is smaller than the copied context.
+Run a narrow test first, then the complete verification. A standard-library runtime promotion needs
+a distributed-home or CLI run test. LSP behavior needs an analysis unit test and a JSON-RPC
+integration test.
 
-LSP must treat the compiler as the semantic source of truth.
-TextMate grammar, snippets, and editor-side code may improve presentation, but name resolution, type information, diagnostics, and syntax interpretation must come from compiler modules.
+For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run
+`node docs/build-docs.js`, and run `git diff --check`.
 
-## Refactoring Rules
+## Commit Checkpoints
 
-Refactor before adding a feature when the current design would require:
+- Keep a behavior change, its tests, and its documentation in one coherent commit.
+- Keep pure refactors separate from behavior promotion.
+- Do not stage, revert, or format unrelated user changes.
+- Commit each coherent verified chunk without waiting for a long session to end.
+- If verification cannot run, record why in the final response and, when relevant, in `TODO.md`.
 
-- copying traversal logic
-- adding protocol-specific fields to core compiler data
-- exposing mutable internals across phases
-- adding another large helper to an already mixed-responsibility file
-- testing through a full CLI/LSP path when a phase-level test would be clearer
-
-Prefer small APIs with owned result types over returning raw internal maps.
-Prefer compiler-phase tests for compiler semantics and LSP tests for protocol behavior.
-
-## Documentation Ownership
-
-Keep one source of truth for each kind of information:
-
-- root `README.md`: short Nocter language introduction, getting-started flow,
-  and documentation map
-- `../../spec/`: normative language rules, standard-library rules, and public
-  design principles
-- `README.md`: development root entrance
-- `docs/README.md`: compiler documentation map
-- `docs/architecture.md`: compiler phase ownership and pipeline design
-- `docs/implementation-status.md`: current user-visible implementation
-  capability
-- `docs/v0-closure.md`: fixed v0 implementation completion gates
-- `docs/backend-v0.md`: backend and ABI implementation notes
-- `docs/std-runtime-status.md`: implementation status of tracked
-  `development/std/` as packaged into a Nocter home
-- `docs/roadmap.md`: recommended implementation order
-- `../TODO.md`: short-lived handoff state
-
-Do not copy large language rules into compiler docs. Link to `spec/` and record
-only implementation status or compiler design.
-
-## Progress Recording
-
-Every session that changes compiler behavior or structure should leave the repository easier to resume.
-
-Use this rule:
-
-- update `../TODO.md` for the next concrete action and current uncommitted state
-- update `v0-closure.md` when the v0 completion gate, target scope, or
-  `ship`/`reject`/`defer` decision changes
-- update `implementation-status.md` when user-visible behavior changes
-- update `std-runtime-status.md` when distributed std runtime behavior changes
-- update `roadmap.md` when the recommended next task changes
-- update `architecture.md` when module responsibilities change
-
-Do not record every command or every passing test in long-lived documents.
-Record only durable facts: implemented capability, remaining gap, design decision, or next action.
-
-## Commit Hygiene
-
-Keep unrelated user changes out of commits.
-
-Create a commit whenever a coherent chunk of work is complete and verified before moving on to the next chunk.
-This applies especially when a change touches multiple compiler phases, adds a new module, or changes user-visible behavior.
-Do not wait for a large session to accumulate many independent changes before committing.
-
-Prefer these commit shapes:
-
-- one behavior change plus tests and docs
-- one structural refactor with no behavior change
-- one documentation update that changes development policy
-
-Avoid commits that mix:
-
-- generated assets and compiler logic
-- root project files and compiler internals without a shared purpose
-- formatting-only churn and semantic changes
-
-When a rename plus extraction is needed, make the extraction behavior-preserving first, then continue feature work in a later change.
+Commit messages describe the result. Do not use chronological notes such as “continue.”

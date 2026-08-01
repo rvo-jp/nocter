@@ -11,28 +11,21 @@
 //! through restricted runtime pointer primitives.
 
 use std/error.Error
-use std/mem.Allocator
-use std/mem.alloc_pages as alloc_pages_impl
-use std/mem.free_pages as free_pages_impl
-use std/ptr.addr
+use std/mem.{Allocator, RawBuffer, alloc, empty_page_buffer, grow_owned}
 use std/ptr.copy_str_to_ptr
-use std/ptr.from_addr
 use std/ptr.str_from_raw_parts
 
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub struct String {
-    ptr: *u8
+    storage: RawBuffer
     len: usize
-    capacity: usize
 }
 
 pub func String.empty(): String {
-    // Empty strings never dereference the raw pointer.
     return String {
-        ptr: from_addr(1),
+        storage: empty_page_buffer(1),
         len: 0,
-        capacity: 0,
     }
 }
 
@@ -41,15 +34,9 @@ pub func empty(): String {
 }
 
 pub func String.with_capacity(allocator: &+Allocator, requested_capacity: usize): String! {
-    if requested_capacity == 0 {
-        return String.empty()
-    }
-
-    let address: usize = alloc_pages_impl(requested_capacity)?
     return String {
-        ptr: from_addr(address),
+        storage: alloc(allocator, requested_capacity, 1)?,
         len: 0,
-        capacity: requested_capacity,
     }
 }
 
@@ -59,17 +46,10 @@ pub func with_capacity(allocator: &+Allocator, requested_capacity: usize): Strin
 
 pub func String.from_str(allocator: &+Allocator, value: &str): String! {
     let value_len: usize = value.len()
-    if value_len == 0 {
-        return String.empty()
-    }
-
-    let address: usize = alloc_pages_impl(value_len)?
-    copy_str_to_ptr(from_addr(address), 0, value)
-    return String {
-        ptr: from_addr(address),
-        len: value_len,
-        capacity: value_len,
-    }
+    var result = String.with_capacity(allocator, value_len)?
+    copy_str_to_ptr(result.storage.ptr, 0, value)
+    result.len = value_len
+    return move result
 }
 
 pub func from_str(allocator: &+Allocator, value: &str): String! {
@@ -81,7 +61,7 @@ pub func String.copy(allocator: &+Allocator, value: &str): String! {
 }
 
 pub func view(text: &String): &str {
-    return str_from_raw_parts(text.ptr, text.len)
+    return str_from_raw_parts(text.storage.ptr, text.len)
 }
 
 pub func len(text: &String): usize {
@@ -90,7 +70,7 @@ pub func len(text: &String): usize {
 }
 
 pub func capacity(text: &String): usize {
-    let text_capacity: usize = text.capacity
+    let text_capacity: usize = text.storage.len
     return text_capacity
 }
 
@@ -106,17 +86,11 @@ pub func reserve(text: &+String, additional: usize): void! {
     }
 
     let required_capacity: usize = text_len + additional
-    if required_capacity <= text.capacity {
+    if required_capacity <= text.storage.len {
         return
     }
 
-    let address: usize = alloc_pages_impl(required_capacity)?
-    copy_str_to_ptr(from_addr(address), 0, str_from_raw_parts(text.ptr, text_len))
-    if text.capacity != 0 {
-        free_pages_impl(addr(text.ptr), text.capacity)
-    }
-    text.ptr = from_addr(address)
-    text.capacity = required_capacity
+    grow_owned(&+text.storage, required_capacity)?
     return
 }
 
@@ -133,7 +107,7 @@ pub func push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
     reserve(text, value_len)?
-    copy_str_to_ptr(text.ptr, old_len, value)
+    copy_str_to_ptr(text.storage.ptr, old_len, value)
     text.len = old_len + value_len
     return
 }
@@ -178,11 +152,4 @@ impl String {
         return
     }
 
-    drop &+self {
-        if self.capacity == 0 {
-            return
-        }
-        free_pages_impl(addr(self.ptr), self.capacity)
-        return
-    }
 }

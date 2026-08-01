@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Server - Nocter</title>
+    <meta name="description" content="The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type system for editors.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/lsp/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Language Server - Nocter">
+    <meta property="og:description" content="The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type system for editors.">
+    <meta property="og:url" content="https://nocter.dev/development/docs/lsp/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-01">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Language Server - Nocter">
+    <meta name="twitter:description" content="The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type system for editors.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Language Server - Nocter","description":"The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type system for editors.","url":"https://nocter.dev/development/docs/lsp/","mainEntityOfPage":"https://nocter.dev/development/docs/lsp/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Lsp","item":"https://nocter.dev/development/docs/lsp/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="./index.html#content" aria-current="page">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/lsp.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="language-server">Language Server</h1><p>The Nocter LSP is a protocol view of compiler facts. It does not create a separate resolver or type system for editors.</p><h2 id="architecture">Architecture</h2><pre><code class="language-text">open documents + filesystem
+  -&gt; compile-unit frontend
+  -&gt; resolver/typecheck facts
+  -&gt; feature-specific analysis result
+  -&gt; LSP protocol conversion
+</code></pre><p><code>driver/lsp</code> owns JSON-RPC, document state, URI/range conversion, and capability routing. <code>analysis</code> provides compiler-owned result types for hover, completion, definition, and references. Resolver and typechecker decide visibility, type normalization, generic specialization, and ownership capability.</p><h2 id="current-baseline">Current Baseline</h2><p>The server supports document sync, diagnostic publication, semantic tokens, hover, definition, references, document symbols, global/member/enum-pattern/struct-field completion, and signature help. A shared call-site result combines resolved target, generic specialization, active parameter, and documentation for hover and signature help.</p><p>Completion derives lexical scope and shadowing, generic member specialization, receiver capability, signature detail, documentation, and insertion text from compiler facts. Import paths share the frontend module layout and workspace/source roots; imported symbols come from resolved import identity and visibility. Call-argument candidates use typechecker assignability for ranking. Incomplete calls, member expressions, and imports use a temporary compile-unit recovery overlay separate from the authoritative document.</p><h2 id="v0-2-0-capabilities">v0.2.0 Capabilities</h2><h3 id="hover">Hover</h3><p>Hover presentation is built from typechecked facts rather than reconstructed from AST text.</p><table><thead><tr><th>Target</th><th>Required contents</th></tr></thead><tbody><tr><td>local / parameter</td><td>mutability, borrow capability, resolved type</td></tr><tr><td>function / method</td><td>full signature, generic parameters or specialization, fallibility</td></tr><tr><td>struct / enum / interface</td><td>declaration kind, type parameters, documentation</td></tr><tr><td>field / variant</td><td>owner type, field or payload type, documentation</td></tr><tr><td>imported symbol</td><td>resolved declaration, module path, visibility</td></tr><tr><td>expression</td><td>normalized result type when no declaration target is sufficient</td></tr></tbody></table><p>Responses include a source-backed range. During incomplete edits, the server never invents a type: it returns only established declaration information or <code>null</code>.</p><h3 id="completion">Completion</h3><p>A completion request classifies cursor context before collecting candidates:</p><ul><li>expression / statement: visible locals, parameters, functions, types, and keywords</li><li>import: modules and public symbols reachable from the current module</li><li>member: fields and methods of the receiver type, excluding candidates that violate borrow
+  capability</li><li>enum pattern: variants and payload fields of the target enum</li><li>struct literal: fields not yet specified</li><li>call argument: visible values compatible with the expected type and active parameter</li></ul><p>Candidates include at least <code>label</code>, <code>kind</code>, a type or signature <code>detail</code>, a documentation summary, and required <code>insertText</code>. Completion respects visibility and shadowing and deduplicates semantic symbols. Ranking prioritizes exact prefix, locality, and expected-type compatibility, with ordering fixed by tests.</p><h3 id="signature-help">Signature Help</h3><p>The resolved call target and argument index provide:</p><ul><li>the full callable signature</li><li>parameters and parameter documentation</li><li>the active parameter</li><li>return type and fallibility</li><li>concrete generic types when specialization is known</li></ul><p>The server does not guess overload-like candidates with string matching. Only when resolver or typechecker cannot establish a target may recovery analysis return an explicitly incomplete result.</p><h2 id="reliability-requirements">Reliability Requirements</h2><ul><li>Leave no stale diagnostics after didOpen, didChange, or didClose.</li><li>Centralize conversion between UTF-16 LSP positions and UTF-8 source byte spans.</li><li>Do not panic on malformed or incomplete source, unknown imports, or missing receivers.</li><li>Imports see open-document overlays and never mix disk text under a second identity.</li><li>Hover, completion, and signature help do not report contradictory types at one cursor.</li><li>Protocol response tests are backed by unit tests for compiler analysis results.</li></ul><h2 id="acceptance-tests">Acceptance Tests</h2><p>v0.2.0 integration tests cover:</p><ol><li>1. hover and specialized signature help for an imported generic function</li><li><code>Vec&lt;String&gt;</code> method completion and receiver borrow capability</li><li>payload enum pattern completion and missing struct-literal fields</li><li>hover/completion detail for documented standard-library symbols</li><li>consecutive didChange operations containing incomplete calls, member access, and imports</li><li>definition/reference/diagnostic consistency under a multi-file open-document overlay</li></ol><h2 id="deferred-features">Deferred Features</h2><p>Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints are not v0.2.0 completion criteria. Add them after the semantic facts and recovery APIs used by hover, completion, and signature help remain stable.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

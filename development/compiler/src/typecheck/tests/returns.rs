@@ -351,6 +351,326 @@ func leak(value: &i32, condition: bool): &i32 {
 }
 
 #[test]
+fn diagnoses_body_result_if_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(condition: bool): &i32 {
+    let local = 1
+    if condition {
+        &local
+    } else {
+        &local
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_body_result_match_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Choice {
+    left
+    right
+}
+
+func leak(choice: Choice): &i32 {
+    let local = 1
+    match choice {
+        Choice.left {
+            &local
+        }
+        _ {
+            &local
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_return_if_is_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    if result is Result.ok(value) {
+        return value
+    }
+    return fallback
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_body_result_if_is_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    if result is Result.ok(value) {
+        value
+    } else {
+        fallback
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_return_match_payload_borrow_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    return match result {
+        Result.ok(value) {
+            value
+        }
+        _ {
+            fallback
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_return_if_is_payload_borrow_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    if result is Result.ok(value) {
+        return value
+    }
+    return fallback
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_match_payload_borrow_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    return match result {
+        Result.ok(value) {
+            value
+        }
+        _ {
+            fallback
+        }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_if_is_payload_borrow_alias_assignment_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    var selected = fallback
+    if result is Result.ok(value) {
+        selected = value
+    }
+    return selected
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_return_if_is_payload_borrow_alias_assignment_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    var selected = fallback
+    if result is Result.ok(value) {
+        selected = value
+    }
+    return selected
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_match_payload_borrow_alias_assignment_from_local_enum_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func leak(fallback: &i32): &i32 {
+    let local = 1
+    let result = Result.ok(&local)
+    var selected = fallback
+    match result {
+        Result.ok(value) {
+            selected = value
+        }
+        _ {
+            selected = fallback
+        }
+    }
+    return selected
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_return_match_payload_borrow_alias_assignment_from_parameter_enum() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum Result {
+    ok(value: &i32)
+    failed
+}
+
+func passthrough(result: Result, fallback: &i32): &i32 {
+    var selected = fallback
+    match result {
+        Result.ok(value) {
+            selected = value
+        }
+        _ {
+            selected = fallback
+        }
+    }
+    return selected
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_borrow_alias_after_all_if_branches_reassign_to_parameter() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -440,6 +760,105 @@ func same(value: &i32): &i32 {
 }
 
 #[test]
+fn accepts_return_static_borrow_like_call_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(value: &i32): &str {
+    return "static"
+}
+
+func ok(): &str {
+    let local = 1
+    return label(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_transitive_static_borrow_like_call_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(value: &i32): &str {
+    return "static"
+}
+
+func label2(value: &i32): &str {
+    return label(value)
+}
+
+func ok(): &str {
+    let local = 1
+    return label2(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_borrow_like_associated_function_with_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Label {
+    code: i32
+}
+
+func Label.text(value: &i32): &str {
+    return "static"
+}
+
+func ok(): &str {
+    let local = 1
+    return Label.text(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_borrow_like_method_with_local_receiver_and_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Label {
+    code: i32
+}
+
+impl Label {
+    method &self.text(value: &i32): &str {
+        return "static"
+    }
+}
+
+func ok(): &str {
+    let label = Label { code: 1 }
+    let local = 2
+    return label.text(&local)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_borrow_like_call_alias_from_local_borrow() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -482,7 +901,7 @@ impl Text {
 }
 
 func leak(): &Text {
-    let text = Text{ len: 42 }
+    let text = Text { len: 42 }
     return text.self_ref()
 }
 "#,
@@ -524,7 +943,32 @@ copy struct View {
 
 func leak(): View {
     let value = 1
-    return View{ value: &value }
+    return View { value: &value }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_struct_literal_after_static_field_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func leak(): View {
+    let value = 1
+    return View { label: "static", value: &value }
 }
 "#,
     );
@@ -548,6 +992,28 @@ func leak(): error {
     let value = 1
     let failure = make_error(&value)
     return failure
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_error_after_static_argument_and_local_borrow_argument() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func leak(): error {
+    let value = 1
+    return make_error("static", &value)
 }
 "#,
     );
@@ -590,7 +1056,7 @@ copy struct View {
 
 func leak(): View {
     let value = 1
-    let view = View{ value: &value }
+    let view = View { value: &value }
     return view
 }
 "#,
@@ -600,6 +1066,460 @@ func leak(): View {
     assert_eq!(diagnostics[0].code, "E0433");
     assert!(diagnostics[0].message.contains("local binding"));
     assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_struct_member_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func leak(): &i32 {
+    let value = 1
+    let view = View { value: &value }
+    return view.value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_struct_member_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func passthrough(view: View): &i32 {
+    return view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_struct_member_after_local_borrow_field() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func label(): &str {
+    let value = 1
+    let view = View { label: "static", value: &value }
+    return view.label
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_struct_member_borrow_from_local_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func make(value: &i32): View {
+    return View { label: "static", value: value }
+}
+
+func leak(): &i32 {
+    let value = 1
+    let view = make(&value)
+    return view.value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_struct_member_borrow_from_parameter_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    label: &str
+    value: &i32
+}
+
+func make(value: &i32): View {
+    return View { label: "static", value: value }
+}
+
+func passthrough(value: &i32): &i32 {
+    let view = make(value)
+    return view.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_array_index_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &i32 {
+    let value = 1
+    let values: [&i32; 1] = [&value]
+    return values[0]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_array_index_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func passthrough(value: &i32): &i32 {
+    let values: [&i32; 1] = [value]
+    return values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_static_array_index_after_local_borrow_element() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func label(): &str {
+    let value = 1
+    let labels: [&str; 2] = ["static", "also-static"]
+    let values: [&i32; 1] = [&value]
+    return labels[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_dynamic_array_index_with_local_borrow_element() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(fallback: &i32, index: usize): &i32 {
+    let value = 1
+    let values: [&i32; 2] = [fallback, &value]
+    return values[index]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_array_index_borrow_from_local_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func make(value: &i32): [&i32; 1] {
+    return [value]
+}
+
+func leak(): &i32 {
+    let value = 1
+    let values = make(&value)
+    return values[0]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_array_index_borrow_from_parameter_through_helper() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func make(value: &i32): [&i32; 1] {
+    return [value]
+}
+
+func passthrough(value: &i32): &i32 {
+    let values = make(value)
+    return values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_force_unwrapped_optional_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func leak(): &i32 {
+    let value = 1
+    return maybe(&value)!
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_force_unwrapped_optional_borrow_from_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func passthrough(value: &i32): &i32 {
+    return maybe(value)!
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_force_unwrapped_fallible_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func okay(value: &i32): &i32! {
+    return value
+}
+
+func leak(): &i32 {
+    let value = 1
+    return okay(&value)!
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_force_unwrapped_fallible_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func passthrough(success: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(success, &value, choose)!
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_propagated_optional_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe(value: &i32): &i32? {
+    return value
+}
+
+func leak(): &i32? {
+    let value = 1
+    return maybe(&value)?
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_propagated_fallible_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func leak(success: &i32, choose: bool): &i32! {
+    let value = 1
+    return maybe_fail(success, &value, choose)?
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_catch_success_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func leak(fallback: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(&value, fallback, choose) catch error {
+        return fallback
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_catch_failure_borrow_from_local() {
+    let diagnostics = check_text(
+        r#"primitive make_error(label: &str, value: &i32): error
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_fail(success: &i32, failure: &i32, choose: bool): &i32! {
+    if choose {
+        return success
+    }
+    return make_error("code", failure)
+}
+
+func recover(success: &i32, choose: bool): &i32 {
+    let value = 1
+    return maybe_fail(success, &value, choose) catch error {
+        return success
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -619,7 +1539,7 @@ copy struct Outer {
 
 func leak(): Outer {
     let value = 1
-    return Outer{ inner: Inner{ value: &value } }
+    return Outer { inner: Inner { value: &value } }
 }
 "#,
     );
@@ -643,7 +1563,7 @@ struct Box<T> {
 
 func leak(): Box<&i32> {
     let value = 1
-    return Box<&i32>{ value: &value }
+    return Box<&i32> { value: &value }
 }
 "#,
     );
@@ -691,7 +1611,7 @@ copy struct View {
 }
 
 func wrap(value: &i32): View {
-    return View{ value: value }
+    return View { value: value }
 }
 "#,
     );
@@ -711,7 +1631,7 @@ copy struct View {
 }
 
 func wrap(value: &i32): View {
-    let view = View{ value: value }
+    let view = View { value: value }
     return view
 }
 "#,
@@ -787,7 +1707,7 @@ struct Text {
 }
 
 func make(): Text {
-    let text = Text{ start: 1, len: 42 }
+    let text = Text { start: 1, len: 42 }
     return text
 }
 "#,
@@ -815,7 +1735,7 @@ copy struct Box<T> {
 }
 
 func make(): Box<Text> {
-    let box = Box<Text>{ value: Text{ len: 42 } }
+    let box = Box<Text> { value: Text { len: 42 } }
     return box
 }
 "#,
@@ -872,7 +1792,7 @@ struct Wrap {
 }
 
 func extract(): Text {
-    let wrap = Wrap{ text: Text{ len: 42 } }
+    let wrap = Wrap { text: Text { len: 42 } }
     return wrap.text
 }
 "#,
@@ -897,7 +1817,7 @@ struct Text {
 }
 
 func make(): Text {
-    let text = Text{ start: 1, len: 42 }
+    let text = Text { start: 1, len: 42 }
     return move text
 }
 "#,

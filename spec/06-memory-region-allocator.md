@@ -63,14 +63,15 @@ Initial public surface:
 
 ```nct
 pub copy struct Layout {
-    pub size: usize
-    pub align: usize
+    pub(nocter) size: usize
+    pub(nocter) align: usize
 }
 
 pub struct RawBuffer {
     pub(nocter) ptr: *u8
     pub(nocter) len: usize
     pub(nocter) align: usize
+    ...
 }
 
 pub struct Allocator {
@@ -78,13 +79,19 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
+pub func Layout.new(size: usize, align: usize): Layout!
+pub func layout(size: usize, align: usize): Layout!
+pub func layout_size(value: &Layout): usize
+pub func layout_align(value: &Layout): usize
 pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
+pub func alloc_layout(allocator: &+Allocator, layout: Layout): RawBuffer!
+pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void!
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
 pub func out_of_memory(): error
 pub func invalid_argument(): error
 ```
 
-In primitive set v0, allocator operations are not compiler primitives. These public functions should be implemented in the standard library, eventually through target-overlay syscall wrappers and ordinary Nocter code. Names such as `raw_alloc` and `raw_free` are not part of the compiler's closed primitive set.
+In v0.2.0, allocator operations are not compiler primitives. These public functions are implemented in the standard library through target-gated syscall wrappers and ordinary Nocter code. Names such as `raw_alloc` and `raw_free` are not part of the compiler's closed primitive set.
 
 Rules:
 
@@ -94,11 +101,15 @@ Rules:
 - Out-of-memory is reported as `"std.mem.out_of_memory"`.
 - Invalid size / alignment requests are reported as `"std.mem.invalid_argument"`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
+- Alignment must be a non-zero power of two supported by the target allocator.
+- A zero-size request produces a canonical empty buffer and performs no OS allocation.
+- `grow` is failure-atomic: allocation failure leaves pointer, length, alignment, provenance, and bytes unchanged.
 - `RawBuffer` is a low-level standard-library type for owned untyped bytes.
 - `RawBuffer`'s representation fields are `pub(nocter)`. User code cannot
   construct a `RawBuffer` literal or inspect its pointer, length, and alignment
   fields directly; it must use `std/mem` functions and methods such as `bytes`,
   `bytes_mut`, `prefix`, `prefix_mut`, and `free`.
+- `RawBuffer` retains the private provenance required to release through its creating allocator and drops its allocation automatically if it is not explicitly consumed by `free`.
 - General application code should prefer owning wrappers such as `String` and `Buffer<T>`.
 - `RawBuffer` values allocated from a region allocator are region-owned and cannot escape that region.
 - `Allocator` values derived from a region handle cannot escape that region.

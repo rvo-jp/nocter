@@ -139,7 +139,7 @@ Adopted: v0 tracks disjoint named struct fields for simple places.
 Field-sensitive tracking applies only to direct named field paths whose base is a local binding, parameter binding, or borrow binding that the compiler can resolve statically.
 
 ```nct
-var user = User{
+var user = User {
     name: String.copy(allocator, "alice")?,
     count: 0,
 }
@@ -166,7 +166,7 @@ Adopted: parameters are immutable bindings inside the function body.
 func create(name: String, count: i32, out: &+File): User! {
     out.write_text(name.view())?
 
-    return User{
+    return User {
         name: move name,
         count: count,
     }
@@ -266,6 +266,9 @@ Rules:
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
+- Struct drop glue invokes the struct's own `drop` member first when present,
+  then drops owned fields in reverse declaration order. Field drop glue follows
+  the same rule recursively.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
 - `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
@@ -364,7 +367,7 @@ Rules:
 Examples:
 
 ```nct
-let p1 = Point{x: 1, y: 2}
+let p1 = Point { x: 1, y: 2 }
 let p2 = p1 // OK: Point is copy
 
 let text1 = String.new()
@@ -435,7 +438,14 @@ move array[index]
 move copy_value
 ```
 
-To change one field of a move-only struct, move the whole value into a new binding, mutate that binding, then return or pass the whole value.
+Assignment may replace a live move-only field when the right-hand side produces
+a complete replacement value. The replacement is evaluated first, then the old
+field is dropped, and ownership of the replacement transfers into the field.
+Moving a value out of a field remains invalid in v0 because it would require
+tracking the field as separately dead. Code that needs to transfer a field
+separately must transfer or rebuild the whole owner instead. To update a field
+in a functional style, move the whole owner into a new binding, replace the
+field, then return or pass the whole value.
 
 ```nct
 func rename(user: User, name: String): User {
@@ -477,7 +487,7 @@ func make_text(): String {
 
 ```nct
 func make_user(name: String): User {
-    return User{
+    return User {
         name: move name,
     }
 }

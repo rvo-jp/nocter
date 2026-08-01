@@ -1,42 +1,35 @@
-# Development Documentation Index
+# Nocter Development Documents
 
-This directory is for engineers and AI coding agents working on Nocter
-development: the Rust bootstrap compiler, standard library implementation, and
-release packaging. It must not become a second language specification.
-Normative user-facing language rules live in [../../spec](../../spec/README.md).
+This directory contains implementation design and completion criteria. The public language
+[specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
+those rules here.
+
+The recorded milestone is **v0.2.0**. Do not use `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [Architecture](architecture.md): pipeline, module ownership, shared facts, and
-  the buildability boundary.
-- [Implementation Status](implementation-status.md): current implementation
-  capability and known gaps.
-- [v0 Closure Definition](v0-closure.md): the fixed completion checklist for
-  Nocter v0 implementation work.
-- [Backend V0](backend-v0.md): ARM64 Darwin backend, Nocter ABI lowering, frame
-  and call model, aggregate handling, and backend non-goals.
-- [Std Runtime Status](std-runtime-status.md): what the tracked standard
-  library ships, rejects, or keeps check-only when packaged as distributed
-  `std/`.
-- [Interpolation Lowering](interpolation-lowering.md): design note for promoting
-  bare string interpolation.
-- [Roadmap](roadmap.md): near-term implementation order.
-- [Maintenance Policy](maintenance.md): refactoring, testing, documentation, and
-  commit hygiene rules.
+- [v0.2.0 Development Contract](v0.2.0.md): completion criteria, non-goals, implementation order,
+  and release gates; the single entry point for milestone status
+- [Architecture](architecture.md): compiler phase responsibilities and boundaries
+- [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
+  initialization, `String`, and `Vec<T>` foundation
+- [Standard Library](standard-library.md): distributed standard-library behavior and v0.2.0
+  runtime acceptance criteria
+- [LSP](lsp.md): compiler-backed LSP design and v0.2.0 acceptance criteria
+- [Maintenance](maintenance.md): update ownership, verification, and commit policy
+- [TODO](../TODO.md): internal short-term handoff state
 
-## Ownership Rules
+## Information Ownership
 
-- Put source language rules in `spec/`.
-- Use [Design Principles](../../spec/00-design-principles.md) when a compiler
-  implementation choice exposes new source behavior.
-- Put Rust compiler implementation in `development/compiler/`.
-- Put compiler architecture, implementation status, and internal ABI work in
-  `development/docs/`.
-- Put short-lived handoff notes in `development/TODO.md`.
-- Keep root `README.md` as the short Nocter language introduction,
-  getting-started flow, and documentation map.
-- Do not copy whole feature specifications into this directory. Link to the
-  relevant spec chapter and describe only implementation status or compiler
-  design.
-- When a user-visible behavior changes, update the relevant `spec/` chapter
-  first, then update implementation status and closure gates if needed.
+| Information | Owner |
+|---|---|
+| Public language rules | `spec/` |
+| v0.2.0 completion criteria, scope, and priority | `v0.2.0.md` |
+| Compiler responsibility boundaries | `architecture.md` |
+| Allocator, ownership, and drop design | `allocator-ownership.md` |
+| Distributed `std` implementation state | `standard-library.md` |
+| LSP capabilities and analysis boundary | `lsp.md` |
+| Next concrete internal task | `../TODO.md` |
+
+Do not copy chronological completion lists or commit history into design documents. Git owns the
+history.

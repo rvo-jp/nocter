@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn definition_query_resolves_struct_field_references() {
-        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.rfind("fd").expect("expected field reference");
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn definition_query_resolves_struct_literal_fields() {
-        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.find("fd: 1").expect("expected literal field");
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn definition_query_resolves_associated_function_calls() {
-        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self { fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
         let (sources, analysis) = analyze_text(text);
         let file = analysis.root_file().expect("expected root file");
         let offset = text.rfind("open()").expect("expected associated call");

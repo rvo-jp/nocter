@@ -1,6 +1,152 @@
 use super::check_text;
 
 #[test]
+fn diagnoses_non_copy_if_is_payload_binding_from_unmoved_local() {
+    let diagnostics = check_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    if result is Result.ok(detail) {
+        return detail.code
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0438");
+    assert!(
+        diagnostics[0]
+            .help
+            .as_deref()
+            .is_some_and(|help| help.contains("if move result"))
+    );
+}
+
+#[test]
+fn accepts_non_copy_if_is_payload_binding_from_moved_local() {
+    let diagnostics = check_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    if move result is Result.ok(detail) {
+        return detail.code
+    }
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_non_copy_match_payload_binding_from_unmoved_local() {
+    let diagnostics = check_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.failed
+    return match result {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0438");
+    assert!(
+        diagnostics[0]
+            .help
+            .as_deref()
+            .is_some_and(|help| help.contains("match move result"))
+    );
+}
+
+#[test]
+fn diagnoses_non_copy_match_payload_binding_from_member_without_invalid_move_help() {
+    let diagnostics = check_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+struct Holder {
+    result: Result
+}
+
+func main(): i32 {
+    let holder = Holder { result: Result.failed }
+    return match holder.result {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0438");
+    let help = diagnostics[0].help.as_deref().unwrap_or_default();
+    assert!(help.contains("member pattern target"), "{diagnostics:?}");
+    assert!(!help.contains("move holder.result"), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_non_copy_match_payload_binding_from_owned_temporary() {
+    let diagnostics = check_text(
+        r#"struct Detail {
+    code: i32
+}
+
+enum Result {
+    ok(value: Detail)
+    failed
+}
+
+func main(): i32 {
+    return match Result.ok(Detail { code: 42 }) {
+        Result.ok(detail) { detail.code }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_switch_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {

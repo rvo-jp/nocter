@@ -114,7 +114,7 @@ fn fmt_command_formats_wildcard_match_and_payload_discard_patterns() {
     let project = TempProject::new("cli-fmt-wildcard-patterns");
     let source = project.write_source(
         "app.nct",
-        r#"enum AppError{missing_path open_failed(path:&str)}
+        r#"enum AppError {missing_path open_failed(path:&str)}
 func main(error:AppError):i32{match error{AppError.open_failed(_){return 1}_ {return 0}}}
 func code(error:AppError):i32{if error is AppError.open_failed(_){return 2}else{return 3}}
 "#,

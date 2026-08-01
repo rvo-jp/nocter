@@ -210,8 +210,23 @@ Rules:
 
 Initial check-only or not-yet-buildable surfaces:
 
-- payload-carrying enum values in runtime positions, including payload enum
-  construction, `match`, and `if is` lowering
+- payload-carrying enum move-only payload binding with unsupported
+  recursive drop trees and broader pattern target expressions;
+  payload-carrying enum construction, locals, returns, value arguments,
+  tag-only `if is Enum.variant(_)` statements, tag-only `match` statements, and
+  scalar, string/slice view, copy aggregate payload binding, and owned
+  recursively droppable aggregate or supported move-only fixed-array payload
+  binding over existing enum
+  values and supported owned call-expression, constructor, and move-local
+  pattern targets are buildable for the current payload subset; owned call
+  expressions include plain calls, direct fallible calls handled by `?`, `!`,
+  or `catch`, and direct optional calls handled by `otherwise`, with active
+  payload cleanup additionally supported for aggregate and fixed-array payload
+  fields with supported recursive drop glue
+- fixed-array elements whose type tree contains a payload enum, until the array
+  obligation model can represent the current element's nested partial state;
+  payload enums nested in ordinary struct fields and other payload enums are
+  buildable across the documented aggregate value boundaries
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -223,6 +238,11 @@ Initial check-only or not-yet-buildable surfaces:
   promoted
 - `Vec<T>` storage paths outside the runtime-supported scalar, `&str`, and
   explicitly promoted copy-aggregate element subset
+- move-only fixed arrays outside the completed local, callable, and fully
+  initialized struct-field storage/replacement lifecycle for supported
+  recursively droppable struct elements; recursive field construction now
+  tracks exiting struct and payload initializers, while field extraction moves
+  remain deferred
 
 ## Aggregate Type Contract
 
@@ -250,9 +270,49 @@ Rules fixed for v0:
 - struct fields are laid out in declaration order
 - struct layout does not change when a `drop` member exists
 - payloadless enum values use the explicit `u8` tag layout specified by ABI v0
-- payload-carrying enum values are typechecked in v0 but rejected before
-  build/run lowering until their runtime layout is promoted into ABI v0
+- payload-carrying enum values use the tag-plus-payload-union layout specified
+  by ABI v0
+- payload-carrying enum construction, locals, returns, value arguments,
+  tag-only `if is Enum.variant(_)` statements, and tag-only `match` statements
+  may lower in the current payload subset over existing enum values and
+  supported owned call-expression, constructor, and move-local pattern targets;
+  scalar, string/slice view, copy aggregate payload binding, and owned
+  recursively droppable aggregate or supported move-only fixed-array payload
+  binding may lower in `if is` and `match`
+  branches over existing enum values and supported pattern targets; active
+  payload cleanup may lower for supported recursive payload drop trees,
+  including fixed-array elements in reverse index order and multi-field payload
+  cleanup in reverse aggregate field order; variant-specific construction
+  obligations track exiting payload initializers across locals, replacements,
+  returns, and owned call arguments for the supported payload field shapes;
+  move-only payload binding with
+  unsupported recursive drop trees and broader
+  pattern target expressions still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
+- fully initialized local fixed-array literals and whole-local literal
+  replacements of supported recursively droppable struct elements may lower;
+  their live elements are dropped in reverse index order at replacement,
+  explicit drop, or scope exit
+- local fixed-array literals, whole-local replacements, direct literal returns,
+  and direct value arguments may contain atomic fallible aggregate-call
+  elements handled by postfix `?`; lowering tracks the completed element
+  prefix, drops only that prefix on propagation, and publishes the complete
+  array only after every element succeeds
+- call argument evaluation retains completed owned temporaries until the call
+  begins, dropping earlier temporaries in reverse evaluation order if a later
+  argument exits
+- explicit moves transfer a supported move-only fixed array's cleanup
+  obligation between local bindings; moved or explicitly dropped `var` locals
+  regain that obligation when reinitialized
+- supported move-only fixed arrays may cross function boundaries as direct or
+  indirect returns, call-result bindings and replacements, value arguments, and
+  owned parameters; plain, optional, and fallible calls transfer one cleanup
+  obligation only after a successful result, while failure paths leave existing
+  assignment targets live and never drop an uninitialized result slot
+- fully initialized struct fields may store supported move-only fixed arrays;
+  replacement stages the new array before recursively dropping the old field,
+  and explicit moves from local arrays transfer their cleanup obligation into
+  the field
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification
 - values larger than 16 bytes use indirect ABI classification

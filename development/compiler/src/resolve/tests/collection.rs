@@ -88,7 +88,7 @@ fn collects_associated_function_symbols() {
 }
 
 pub func Point.origin(): Point {
-    return Point{ x: 0 }
+    return Point { x: 0 }
 }
 
 impl Point {
