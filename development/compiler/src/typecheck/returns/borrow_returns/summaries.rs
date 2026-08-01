@@ -65,8 +65,11 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                             &environment,
                             previous,
                         )
-                        .unwrap_or(BorrowReturnProvenance::Static);
-                        summaries.insert(function_summary_key(function), provenance);
+                        .unwrap_or_else(BorrowReturnProvenance::static_storage);
+                        summaries.insert(
+                            CallableId::declared_at(function_summary_key(function)),
+                            provenance,
+                        );
                     }
                 }
                 Item::Impl(impl_) => {
@@ -91,8 +94,8 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                                 &environment,
                                 previous,
                             )
-                            .unwrap_or(BorrowReturnProvenance::Static);
-                            summaries.insert(method.name_span, provenance);
+                            .unwrap_or_else(BorrowReturnProvenance::static_storage);
+                            summaries.insert(CallableId::declared_at(method.name_span), provenance);
                         }
                     }
                 }

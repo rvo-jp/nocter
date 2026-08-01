@@ -64,7 +64,7 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 binding_kind_is_mutable(statement.kind),
             );
             borrow_provenance.define_binding(
-                statement.name.clone(),
+                statement.name_span,
                 type_contains_borrow_like(&binding_type, resolved),
                 provenance,
             );
@@ -101,11 +101,13 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                     borrow_provenance,
                     summaries,
                 );
-                borrow_provenance.define_binding(
-                    identifier.name.clone(),
-                    type_contains_borrow_like(target_type, resolved),
-                    provenance,
-                );
+                if let Some(symbol) = resolved.local_symbol_for_identifier(identifier) {
+                    borrow_provenance.define_binding(
+                        symbol.name_span,
+                        type_contains_borrow_like(target_type, resolved),
+                        provenance,
+                    );
+                }
             }
         }
         Stmt::If(statement) => {

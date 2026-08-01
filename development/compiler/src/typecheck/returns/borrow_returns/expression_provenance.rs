@@ -41,7 +41,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             borrow_provenance,
             summaries,
         ),
-        Expr::StringLiteral(_) => Some(BorrowReturnProvenance::Static),
+        Expr::StringLiteral(_) => Some(BorrowReturnProvenance::static_storage()),
         Expr::StructLiteral(literal) => {
             let mut fields = BTreeMap::new();
             for field in &literal.fields {
@@ -337,7 +337,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     let signature = resolved_call_signature(resolved, call, environment)?;
     let return_type = call_return_type(call, &signature, resolved, environment);
     if let Some(declaration_span) = signature.declaration_span
-        && let Some(summary) = summaries.get(&declaration_span)
+        && let Some(summary) = summaries.get(&CallableId::declared_at(declaration_span))
     {
         return borrow_return_provenance_for_call_summary(
             summary,
@@ -414,8 +414,34 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
     summaries: &BorrowReturnSummaries,
 ) -> Option<BorrowReturnProvenance> {
     match summary {
-        BorrowReturnProvenance::Static => Some(BorrowReturnProvenance::Static),
-        BorrowReturnProvenance::Escaping { .. } => None,
+        BorrowReturnProvenance::Independent => Some(BorrowReturnProvenance::Independent),
+        BorrowReturnProvenance::Origins(origins) => {
+            let mut provenance = None;
+            for origin in origins {
+                match origin {
+                    StorageOrigin::Static => merge_borrow_return_provenance(
+                        &mut provenance,
+                        Some(BorrowReturnProvenance::static_storage()),
+                    ),
+                    StorageOrigin::Input(source) => merge_borrow_return_provenance(
+                        &mut provenance,
+                        borrow_return_provenance_for_call_input(
+                            *source,
+                            call,
+                            signature,
+                            resolved,
+                            environment,
+                            borrow_provenance,
+                            summaries,
+                        ),
+                    ),
+                    StorageOrigin::Scope { .. } | StorageOrigin::Unknown => {
+                        return Some(BorrowReturnProvenance::unknown());
+                    }
+                }
+            }
+            provenance
+        }
         BorrowReturnProvenance::Fallible { success, error } => {
             let mapped_success = success.as_deref().and_then(|provenance| {
                 borrow_return_provenance_for_call_summary(
@@ -495,29 +521,11 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
                 })
             }
         }
-        BorrowReturnProvenance::InputBorrow { sources } => {
-            let mut provenance = None;
-            for source in sources {
-                merge_borrow_return_provenance(
-                    &mut provenance,
-                    borrow_return_provenance_for_call_input(
-                        source,
-                        call,
-                        signature,
-                        resolved,
-                        environment,
-                        borrow_provenance,
-                        summaries,
-                    ),
-                );
-            }
-            provenance
-        }
     }
 }
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
-    source: &str,
+    source: InputId,
     call: &crate::ast::CallExpr,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     resolved: &ResolveOutput,
@@ -527,7 +535,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
 ) -> Option<BorrowReturnProvenance> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
-        && method.receiver.name == source
+        && InputId::declared_at(method.receiver.name_span) == source
         && let Some(member) = method_member_for_call(call)
     {
         return borrow_return_provenance_for_borrowed_input(
@@ -540,7 +548,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
     }
 
     for (index, parameter) in signature.signature.parameters.iter().enumerate() {
-        if parameter.name == source {
+        if InputId::declared_at(parameter.name_span) == source {
             return call.arguments.get(index).and_then(|argument| {
                 borrow_return_provenance_for_borrowed_input(
                     argument,

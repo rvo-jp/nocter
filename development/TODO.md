@@ -21,11 +21,14 @@ region/provenance の実装境界は [Region, Provenance, and Allocation Context
 
 ## Current Objective
 
-既存の borrow-return 専用 provenance を、return 検査・NLL・region escape・allocation effect・
-analysis が共有できる model へ抽出する。最初の behavior-preserving checkpoint では、
-parameter 名の文字列ではなく resolver の declaration/input identity で origin を表す。
+共有 `typecheck/provenance` model を callable summary の正式な semantic fact に昇格させ、
+borrow-like call result を ownership/NLL に接続する。`ValueProvenance`、`StorageOrigin`、
+`CallableId`、`InputId` と宣言 identity ベースの binding environment は導入済みで、既存の
+return 検査が共有 model を consume している。
 
-この抽出が完了するまで、region parser、ambient allocator、literal 構文を追加しない。
+次の checkpoint では result provenance と allocation effect を保持する
+`CallableProvenanceSummary` を導入し、return 専用 alias を除去する。その query API を
+ownership が利用できるまで、region parser、ambient allocator、literal 構文を追加しない。
 
 Phase 0 gate:
 
@@ -36,5 +39,5 @@ git diff --check
 ```
 
 - v0.2.0 release gate: passed at tag `v0.2.0`
-- v0.3.0 Phase 0 implementation: not started
+- v0.3.0 Phase 0 implementation: shared provenance identity foundation in progress
 - current documentation contract: defined

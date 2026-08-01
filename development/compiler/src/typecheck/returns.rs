@@ -23,6 +23,7 @@ use super::model::{
 };
 use super::numeric::integer_literal_expr_value;
 use super::operations::is_expression_assignable;
+use super::provenance::*;
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
@@ -32,7 +33,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod borrow_returns;
 mod return_checks;
