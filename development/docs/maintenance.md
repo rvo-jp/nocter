@@ -56,6 +56,16 @@ Public-facing documentation is written in English. The repository-level `AGENTS.
 scope and the exceptions for internal files. Edit source Markdown and regenerate the website with
 `node docs/build-docs.js`.
 
+## Documentation Placement
+
+- Keep the repository-root `README.md` focused on released-product overview, installation, use, and
+  links to deeper documentation.
+- Keep language and public standard-library semantics in `spec/`.
+- Keep contributor setup, repository-local commands, compiler architecture, implementation design,
+  milestone plans, maintenance policy, and handoff state under `development/`.
+- Use `development/README.md` as the single root-to-development entry point. Do not duplicate
+  developer instructions or active milestone status in root documentation.
+
 ## Verification
 
 Run the standard verification for commits that change shared compiler behavior from the repository

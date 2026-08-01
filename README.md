@@ -12,11 +12,6 @@ Nocter v0.2.0 provides a complete Allocator and ownership foundation for
 practical `String` and `Vec<T>` programs, together with richer compiler-backed
 LSP support. The implementation target is `arm64-darwin`.
 
-Active v0.3.0 development begins with a region and allocation-context foundation: convenient
-aborting allocation for ordinary code, explicit recoverable allocation, lexical regions, and
-compiler-wide storage provenance. See the
-[v0.3.0 development contract](development/docs/v0.3.0.md).
-
 ## Why Nocter Exists
 
 Nocter exists because trying a programming language should not require accepting
@@ -123,21 +118,6 @@ rm /usr/local/bin/nocter
 rm -rf "$HOME/.nocter"
 ```
 
-Release archives use the `.nocter/` layout above. During repository-local
-development, source builds and the local release image remain the way to test
-changes before cutting an archive. Development setup lives in
-[development/](development/README.md).
-
-For repository-local release testing, the canonical standard-library source is
-tracked in `development/std/` and release metadata lives in
-`development/packaging/`. Generate a local installation image under
-`dist/.nocter/` plus the archive
-`dist/nocter-v<version>-arm64-darwin.tar.gz` with:
-
-```sh
-./development/compiler/scripts/package-local-release.sh
-```
-
 ## First Program
 
 Create `main.nct`:
@@ -186,9 +166,8 @@ The v0.2.0 compiler parses, checks, builds, and runs the supported language on
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The released boundary is defined in the
-[v0.2.0 release record](development/docs/v0.2.0.md); active work is defined in
-the [v0.3.0 development contract](development/docs/v0.3.0.md).
+machine code is emitted. The released language boundary is defined in the
+[v0.2.0 Language Contract](spec/00-v0.2.0-contract.md).
 
 ## Learn More
 
@@ -200,9 +179,8 @@ the [v0.3.0 development contract](development/docs/v0.3.0.md).
   the separation between explicit contracts and composition-based reuse.
 - [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the implemented
   language boundary of the released compiler.
-- [Development](development/README.md): Rust bootstrap compiler, tracked
-  standard library, release packaging inputs, implementation status, tests, and
-  maintenance notes.
+- [Contributor Documentation](development/README.md): development setup,
+  compiler architecture, milestone plans, tests, and maintenance policy.
 
 ## License
 

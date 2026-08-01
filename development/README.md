@@ -30,6 +30,10 @@ To build and run a repository-local distribution:
 ./dist/.nocter/nocter example.nct
 ```
 
+The canonical standard-library source is tracked in `development/std/`, and release metadata lives
+in `development/packaging/`. The packaging script creates a local installation image at
+`dist/.nocter/` and an archive named `dist/nocter-v<version>-arm64-darwin.tar.gz`.
+
 Rust and Cargo are required only for development. The release archive runs from a single
 `.nocter/` home containing the compiler and `std/`; users do not need LLVM, `clang`, `as`, `ld`, an
 external runtime library, or the Xcode Command Line Tools.
