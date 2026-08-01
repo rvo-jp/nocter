@@ -2119,7 +2119,8 @@ return file.fd
         open_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
     );
-    assert_eq!(open_item["detail"].as_str(), Some("associated function"));
+    assert_eq!(open_item["detail"].as_str(), Some("func open(): File"));
+    assert_eq!(open_item["insertText"].as_str(), Some("open()"));
     assert!(completion_item_with_label(function_items, "File").is_none());
 }
 
@@ -2175,12 +2176,17 @@ return file.fd
         fd_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
     );
-    assert_eq!(fd_item["detail"].as_str(), Some("field"));
+    assert_eq!(fd_item["detail"].as_str(), Some("field fd: i32"));
+    assert_eq!(fd_item["insertText"].as_str(), Some("fd"));
     assert_eq!(
         describe_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_METHOD as u64)
     );
-    assert_eq!(describe_item["detail"].as_str(), Some("method"));
+    assert_eq!(
+        describe_item["detail"].as_str(),
+        Some("method &File.describe(): i32")
+    );
+    assert_eq!(describe_item["insertText"].as_str(), Some("describe()"));
     assert!(completion_item_with_label(items, "File").is_none());
 }
 
@@ -2822,6 +2828,179 @@ fn clears_diagnostics_for_uris_missing_from_next_publish() {
     assert!(text.contains(&uri));
     assert!(text.contains("\"diagnostics\":[]"));
     assert!(server.published_diagnostic_uris.is_empty());
+}
+
+#[test]
+fn returns_only_lexically_visible_local_completion_items() {
+    let project = TempProject::new("lsp-local-completion-scope");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"func main(input: i32): i32 {
+    let outer = input
+    if true {
+        let inner = 2
+        return inner
+    }
+    let later = 3
+    return later
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        text,
+        text.find("return inner").expect("expected inner return"),
+    );
+
+    let response = server.completion_response(
+        json!(4),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+
+    for expected in ["input", "outer", "inner"] {
+        let item = completion_item_with_label(items, expected)
+            .unwrap_or_else(|| panic!("expected local `{expected}`"));
+        assert_eq!(item["kind"], json!(6));
+        assert!(
+            item["detail"]
+                .as_str()
+                .is_some_and(|detail| detail.contains("i32"))
+        );
+    }
+    assert!(completion_item_with_label(items, "later").is_none());
+}
+
+#[test]
+fn completion_items_include_signature_documentation_and_insert_text() {
+    let project = TempProject::new("lsp-documented-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"/// Computes an answer.
+func answer(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return answer(1)
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.rfind("answer(1)").unwrap());
+
+    let response = server.completion_response(
+        json!(5),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let answer = completion_item_with_label(items, "answer").expect("expected answer completion");
+
+    assert_eq!(answer["detail"], json!("func answer(value: i32): i32"));
+    assert_eq!(answer["insertText"], json!("answer()"));
+    assert_eq!(
+        answer["documentation"]["value"],
+        json!("Computes an answer.")
+    );
+}
+
+#[test]
+fn vec_string_completion_specializes_methods_and_includes_std_documentation() {
+    let project = TempProject::new("lsp-vec-string-completion");
+    let home = project.write_nocter_home();
+    std::fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> {
+    len: usize
+}
+
+impl<T> Vec<T> {
+    /// Transfers `value` into the end of the initialized prefix.
+    pub method &+self.push(value: T): void! {
+        return
+    }
+
+    pub method &self.len(): usize {
+        return self.len
+    }
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        home.join("std/string.nct"),
+        "pub struct String {\n    len: usize\n}\n",
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/string.String
+use std/vec.Vec
+
+func edit(values: &+Vec<String>): void {
+    values.clear()
+    return
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position =
+        byte_offset_to_lsp_position(text, text.find("values.clear").unwrap() + "values.".len());
+
+    let response = server.completion_response(
+        json!(6),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let push = completion_item_with_label(items, "push")
+        .unwrap_or_else(|| panic!("expected Vec.push completion, got {items:#?}"));
+
+    assert_eq!(
+        push["detail"],
+        json!("method &+Vec<String>.push(value: String): void!")
+    );
+    assert_eq!(push["insertText"], json!("push()"));
+    assert_eq!(
+        push["documentation"]["value"],
+        json!("Transfers `value` into the end of the initialized prefix.")
+    );
 }
 
 fn frame(message: &Value) -> Vec<u8> {

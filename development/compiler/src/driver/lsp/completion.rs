@@ -1,16 +1,18 @@
 use super::documents::OpenDocument;
-use crate::analysis::FileAnalysis;
 use crate::analysis::completion::{
     CompletionItemInfo, CompletionItemKind,
-    completion_items_for_file_analysis_at_offset as analysis_completion_items_for_file_at_offset,
+    completion_items_for_compile_unit_at_offset as analysis_completion_items_for_compile_unit,
     completion_items_for_text_at_offset,
     keyword_completion_items as analysis_keyword_completion_items,
 };
+use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
+use crate::source::SourceMap;
 use serde_json::{Value, json};
 
 pub(super) const LSP_COMPLETION_ITEM_KIND_METHOD: u8 = 2;
 pub(super) const LSP_COMPLETION_ITEM_KIND_FUNCTION: u8 = 3;
 pub(super) const LSP_COMPLETION_ITEM_KIND_FIELD: u8 = 5;
+const LSP_COMPLETION_ITEM_KIND_VARIABLE: u8 = 6;
 const LSP_COMPLETION_ITEM_KIND_CLASS: u8 = 7;
 const LSP_COMPLETION_ITEM_KIND_INTERFACE: u8 = 8;
 pub(super) const LSP_COMPLETION_ITEM_KIND_MODULE: u8 = 9;
@@ -20,10 +22,14 @@ pub(super) const LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER: u8 = 20;
 pub(super) const LSP_COMPLETION_ITEM_KIND_STRUCT: u8 = 22;
 
 pub(super) fn completion_items_for_file_analysis_at_offset(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<Value> {
-    completion_values(analysis_completion_items_for_file_at_offset(file, offset))
+    completion_values(analysis_completion_items_for_compile_unit(
+        sources, analysis, file, offset,
+    ))
 }
 
 pub(super) fn completion_items_for_document_at_offset(
@@ -53,6 +59,21 @@ fn completion_item(item: &CompletionItemInfo) -> Value {
         object.insert("detail".to_string(), Value::String(detail.clone()));
     }
 
+    if let Some(documentation) = &item.documentation
+        && let Some(object) = value.as_object_mut()
+    {
+        object.insert(
+            "documentation".to_string(),
+            json!({ "kind": "markdown", "value": documentation }),
+        );
+    }
+
+    if let Some(insert_text) = &item.insert_text
+        && let Some(object) = value.as_object_mut()
+    {
+        object.insert("insertText".to_string(), Value::String(insert_text.clone()));
+    }
+
     value
 }
 
@@ -68,5 +89,6 @@ const fn lsp_completion_kind(kind: CompletionItemKind) -> u8 {
         CompletionItemKind::Field => LSP_COMPLETION_ITEM_KIND_FIELD,
         CompletionItemKind::Keyword => LSP_COMPLETION_ITEM_KIND_KEYWORD,
         CompletionItemKind::Struct => LSP_COMPLETION_ITEM_KIND_STRUCT,
+        CompletionItemKind::Variable => LSP_COMPLETION_ITEM_KIND_VARIABLE,
     }
 }

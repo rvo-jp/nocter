@@ -18,12 +18,12 @@ fn completion_candidates_include_keywords_and_symbols() {
     assert!(items.iter().any(|item| {
         item.label == "File"
             && item.kind == CompletionItemKind::Struct
-            && item.detail.as_deref() == Some("struct")
+            && detail_starts_with(item, "struct File")
     }));
     assert!(items.iter().any(|item| {
         item.label == "main"
             && item.kind == CompletionItemKind::Function
-            && item.detail.as_deref() == Some("function")
+            && detail_starts_with(item, "func main")
     }));
     assert_eq!(source.text(), text);
 }
@@ -52,7 +52,6 @@ fn completion_candidates_include_block_imports_only_inside_scope() {
 
     return answer()
 }
-
 func other(): i32 {
     return 0
 }
@@ -67,6 +66,46 @@ func other(): i32 {
 
     assert!(inside_items.iter().any(|item| item.label == "answer"));
     assert!(!outside_items.iter().any(|item| item.label == "answer"));
+}
+
+#[test]
+fn completion_candidates_follow_lexical_local_scope() {
+    let text = r#"func main(input: i32): i32 {
+    let outer = input
+    if true {
+        let inner = 2
+        return inner
+    }
+    let later = 3
+    return outer
+}
+
+func other(hidden: i32): i32 {
+    return hidden
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let inner_offset = text.find("return inner").expect("expected inner return");
+    let outer_offset = text.rfind("return outer").expect("expected outer return");
+
+    let inner_items = completion_items_for_file_analysis_at_offset(file, inner_offset);
+    for expected in ["input", "outer", "inner"] {
+        assert!(
+            inner_items.iter().any(|item| item.label == expected),
+            "expected `{expected}` inside branch: {inner_items:#?}"
+        );
+    }
+    for excluded in ["later", "hidden"] {
+        assert!(!inner_items.iter().any(|item| item.label == excluded));
+    }
+
+    let outer_items = completion_items_for_file_analysis_at_offset(file, outer_offset);
+    for expected in ["input", "outer", "later"] {
+        assert!(outer_items.iter().any(|item| item.label == expected));
+    }
+    assert!(!outer_items.iter().any(|item| item.label == "inner"));
+    assert!(!outer_items.iter().any(|item| item.label == "hidden"));
 }
 
 #[test]
@@ -95,12 +134,12 @@ func main(choice: Choice): i32 {
         assert!(items.iter().any(|item| {
             item.label == "hit"
                 && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
+                && detail_starts_with(item, "variant ")
         }));
         assert!(items.iter().any(|item| {
             item.label == "miss"
                 && item.kind == CompletionItemKind::EnumMember
-                && item.detail.as_deref() == Some("enum variant")
+                && detail_starts_with(item, "variant ")
         }));
         assert!(!items.iter().any(|item| item.label == "Choice"));
     }
@@ -127,12 +166,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "yes"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "no"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(!items.iter().any(|item| item.label == "Choice"));
 }
@@ -164,7 +203,7 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "open"
             && item.kind == CompletionItemKind::Function
-            && item.detail.as_deref() == Some("associated function")
+            && detail_starts_with(item, "func open")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -192,12 +231,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "yes"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "no"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(!items.iter().any(|item| item.label == "Choice"));
 }
@@ -252,17 +291,17 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "describe"
             && item.kind == CompletionItemKind::Method
-            && item.detail.as_deref() == Some("method")
+            && detail_starts_with(item, "method ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -296,17 +335,17 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "describe"
             && item.kind == CompletionItemKind::Method
-            && item.detail.as_deref() == Some("method")
+            && detail_starts_with(item, "method ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -332,12 +371,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -366,7 +405,7 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(!items.iter().any(|item| item.label == "fd"));
     assert!(!items.iter().any(|item| item.label == "File"));
@@ -392,12 +431,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -425,12 +464,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -460,12 +499,12 @@ func inspect(file: &File): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && item.detail.as_deref() == Some("field")
+            && detail_starts_with(item, "field ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "describe"
             && item.kind == CompletionItemKind::Method
-            && item.detail.as_deref() == Some("method")
+            && detail_starts_with(item, "method ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -491,12 +530,12 @@ func main(choice: Choice): i32 {
     assert!(items.iter().any(|item| {
         item.label == "hit"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(items.iter().any(|item| {
         item.label == "miss"
             && item.kind == CompletionItemKind::EnumMember
-            && item.detail.as_deref() == Some("enum variant")
+            && detail_starts_with(item, "variant ")
     }));
     assert!(!items.iter().any(|item| item.label == "Choice"));
 }
@@ -522,5 +561,53 @@ func main(choice: Choice): i32 {
     assert!(
         items.is_empty(),
         "expected no global fallback, got {items:#?}"
+    );
+}
+
+fn detail_starts_with(item: &CompletionItemInfo, prefix: &str) -> bool {
+    item.detail
+        .as_deref()
+        .is_some_and(|detail| detail.starts_with(prefix))
+}
+
+#[test]
+fn member_completion_specializes_generics_and_filters_receiver_capability() {
+    let text = r#"struct Box<T> {
+    value: T
+}
+
+impl<T> Box<T> {
+    method &self.inspect(): void {
+        return
+    }
+
+    method &+self.mutate(value: T): void {
+        return
+    }
+}
+
+func use_boxes(readonly: &Box<i32>, readwrite: &+Box<i32>): void {
+    readonly.inspect()
+    readwrite.inspect()
+    return
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let readonly_offset = text.find("readonly.inspect").unwrap() + "readonly.".len();
+    let readwrite_offset = text.find("readwrite.inspect").unwrap() + "readwrite.".len();
+
+    let readonly_items = completion_items_for_file_analysis_at_offset(file, readonly_offset);
+    assert!(readonly_items.iter().any(|item| item.label == "inspect"));
+    assert!(!readonly_items.iter().any(|item| item.label == "mutate"));
+
+    let readwrite_items = completion_items_for_file_analysis_at_offset(file, readwrite_offset);
+    let mutate = readwrite_items
+        .iter()
+        .find(|item| item.label == "mutate")
+        .expect("readwrite receiver should include mutate");
+    assert_eq!(
+        mutate.detail.as_deref(),
+        Some("method &+Box<i32>.mutate(value: i32): void")
     );
 }

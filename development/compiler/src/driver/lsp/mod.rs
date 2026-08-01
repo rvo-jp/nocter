@@ -442,10 +442,12 @@ impl LspServer {
         uri: &str,
         position: &LspPosition,
     ) -> Option<Vec<Value>> {
-        self.with_workspace_file_for_uri(uri, |document, _workspace, file| {
+        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
             Some(completion_items_for_file_analysis_at_offset(
+                &workspace.sources,
+                &workspace.analysis,
                 file,
                 root_offset,
             ))

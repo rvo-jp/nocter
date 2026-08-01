@@ -14,6 +14,7 @@ mod single_file;
 pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;
+mod visible_locals;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;

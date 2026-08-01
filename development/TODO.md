@@ -21,11 +21,10 @@
 
 Complete the v0.2.0 LSP contract on top of compiler-owned semantic facts.
 
-1. Add scope-correct local and parameter completion without recreating name resolution.
-2. Present callable/member/field types, receiver capability, documentation, and insert text in
-   completion items.
-3. Recover signature help and completion for incomplete call/member/import edits, then fix the
-   multi-file JSON-RPC acceptance sequence.
+1. Recover signature help and completion for incomplete call/member/import edits without replacing
+   the authoritative open-document overlay.
+2. Add import-path and expected call-argument completion from resolver/typecheck facts.
+3. Fix the multi-file JSON-RPC acceptance sequence, then run the release gate.
 
 ## Required Verification
 

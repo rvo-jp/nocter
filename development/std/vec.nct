@@ -22,6 +22,7 @@ use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
 
+/// An owning, growable sequence with an initialized prefix of elements.
 pub struct Vec<T> {
     ptr: *T
     storage: RawBuffer
@@ -189,6 +190,7 @@ pub func capacity_overflow(): error {
 }
 
 impl<T> Vec<T> {
+    /// Returns the number of initialized elements.
     pub method &self.len(): usize {
         return len(self)
     }
@@ -209,21 +211,25 @@ impl<T> Vec<T> {
         return view_mut(self)
     }
 
+    /// Ensures capacity for at least `additional` more elements.
     pub method &+self.reserve(additional: usize): void! {
         reserve(self, additional)?
         return
     }
 
+    /// Destroys every initialized element and keeps the allocation for reuse.
     pub method &+self.clear(): void {
         clear(self)
         return
     }
 
+    /// Transfers `value` into the end of the initialized prefix.
     pub method &+self.push(value: T): void! {
         push(self, move value)?
         return
     }
 
+    /// Transfers and returns the last initialized element, or `none` when empty.
     pub method &+self.pop(): T? {
         return pop(self) otherwise { return none }
     }

@@ -346,7 +346,21 @@ pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
         Type::Pointer(inner) => format!("*{}", type_hover_label(inner, resolved)),
         Type::Optional(inner) => format!("{}?", type_hover_label(inner, resolved)),
         Type::Fallible { success, .. } => format!("{}!", type_hover_label(success, resolved)),
-        Type::Named(name) => display_type_name(name, resolved).to_string(),
+        Type::Named(name) => {
+            if let Some(inner) = name.strip_prefix("&+") {
+                format!(
+                    "&+{}",
+                    type_hover_label(&simple_type_from_display_name(inner), resolved)
+                )
+            } else if let Some(inner) = name.strip_prefix('&') {
+                format!(
+                    "&{}",
+                    type_hover_label(&simple_type_from_display_name(inner), resolved)
+                )
+            } else {
+                display_type_name(name, resolved).to_string()
+            }
+        }
         Type::Generic { name, arguments } => {
             let name = display_type_name(name, resolved);
             let arguments = arguments

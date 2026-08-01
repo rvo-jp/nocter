@@ -23,8 +23,10 @@ resolver/typechecker が決める。
 現在は document sync と diagnostics publish、semantic tokens、hover、definition、references、
 document symbols、global/member/enum-pattern/struct-field completion、signature help を持つ。
 call-site analysis は resolved target、generic specialization、active parameter、documentation を
-一つの compiler result に統合し、hover と signature help が共有する。残る未達は local / import /
-call-argument completion、候補の signature・documentation・insert text、編集途中の call 回復である。
+一つの compiler result に統合し、hover と signature help が共有する。completion は lexical
+scope と shadowing、generic member specialization、receiver capability、signature detail、
+documentation、insert text を compiler facts から返す。残る未達は import / call-argument completion
+と、編集途中の call・member・import に対する compile-unit 回復である。
 
 ## v0.2.0 Capabilities
 
