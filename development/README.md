@@ -1,36 +1,36 @@
 # Nocter Development
 
-このディレクトリは Rust bootstrap compiler、配布標準ライブラリ、release packaging input、
-実装者向け文書を持つ。公開説明は [repository README](../README.md)、言語規則は
-[spec](../spec/README.md) に置く。
+This directory contains the Rust bootstrap compiler, the distributed standard library, release
+packaging inputs, and implementation documentation. See the [repository README](../README.md) for
+the public overview and the [specification](../spec/README.md) for language rules.
 
-現行の開発対象は **Nocter v0.2.0** だけである。終了条件は
-[v0.2.0 Development Contract](docs/v0.2.0.md) を参照する。
+The completed development milestone is **Nocter v0.2.0**. Its completion criteria are recorded in
+the [v0.2.0 Development Contract](docs/v0.2.0.md).
 
 ## Quick Start
 
-repository root から全検証を実行する。
+Run the complete verification suite from the repository root:
 
 ```sh
 ./development/compiler/scripts/verify.sh
 ```
 
-compiler だけを検証する場合:
+To verify only the compiler:
 
 ```sh
 cargo test --manifest-path development/compiler/Cargo.toml
 ```
 
-repository-local distribution を生成して実行する場合:
+To build and run a repository-local distribution:
 
 ```sh
 ./development/compiler/scripts/package-local-release.sh
 ./dist/.nocter/nocter example.nct
 ```
 
-Rust/Cargo は開発時だけ必要である。配布 archive は compiler と `std/` を含む一つの
-`.nocter/` home で動作し、LLVM、`clang`、`as`、`ld`、外部 runtime library を user に
-要求しない。
+Rust and Cargo are required only for development. The release archive runs from a single
+`.nocter/` home containing the compiler and `std/`; users do not need LLVM, `clang`, `as`, `ld`, an
+external runtime library, or the Xcode Command Line Tools.
 
 ## Documents
 
@@ -41,7 +41,7 @@ Rust/Cargo は開発時だけ必要である。配布 archive は compiler と `
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)
 - [Maintenance](docs/maintenance.md)
-- [Current Handoff](TODO.md)
+- [Internal Handoff](TODO.md)
 
 ## Layout
 
@@ -61,7 +61,7 @@ development/
 ```
 
 - `compiler/src`: compiler implementation
-- `compiler/tests`: CLI、runtime、distributed-home、LSP、corpus integration tests
-- `std`: packaged standard-library source of truth
+- `compiler/tests`: CLI, runtime, distributed-home, LSP, and corpus integration tests
+- `std`: canonical source for the packaged standard library
 - `packaging`: release metadata copied into generated homes
-- `docs`: current design and acceptance documents; Git history is not duplicated here
+- `docs`: current design and acceptance documents; Git retains history

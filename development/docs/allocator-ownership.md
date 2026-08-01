@@ -1,44 +1,45 @@
 # Allocator and Ownership
 
-この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。
-公開構文と型規則は [spec](../../spec/README.md) に従う。
+This document defines the shared design that makes v0.2.0 owning runtime values possible. Public
+syntax and type rules follow the [specification](../../spec/README.md).
 
 ## Separation of Responsibilities
 
 | Layer | Responsibility |
 |---|---|
-| type checker | source place の initialized / moved / borrowed state |
-| aggregate drop shape | 型ごとの再帰的 drop 構造。実行経路に依存しない |
-| runtime drop obligation | その経路で実際に所有済みの subtree / prefix |
-| IR | obligation の activate、publish、transfer、drop を明示する |
-| backend | IR の状態遷移を ABI layout に従って実行する |
-| `std/mem` | allocation layout、growth、deallocation、allocator provenance |
-| `std/string`, `std/vec` | buffer と initialized length の型固有 invariant |
+| type checker | initialized, moved, and borrowed state of source places |
+| aggregate drop shape | recursive per-type drop structure, independent of execution paths |
+| runtime drop obligation | subtrees and prefixes actually owned on a path |
+| IR | explicit activation, publication, transfer, and drop of obligations |
+| backend | execution of IR state transitions according to ABI layout |
+| `std/mem` | allocation layout, growth, deallocation, allocator provenance |
+| `std/string`, `std/vec` | type-specific buffer and initialized-length invariants |
 
-source place state と runtime cleanup state を同じ bitset や ad-hoc flag に畳まない。
-前者は不正な source operation を拒否し、後者は失敗経路で取得済み資源だけを破棄する。
+Do not collapse source-place state and runtime cleanup state into one bitset or ad hoc flag. The
+former rejects invalid source operations; the latter drops only resources acquired on a failure
+path.
 
 ## Allocator Contract
 
-`Layout` は `size` と `align` の組ではなく、検証済み allocation request として扱う。
+`Layout` is a validated allocation request, not merely a size/alignment pair.
 
-- alignment は 0 ではなく power of two で、target 上限を満たす。
-- `count * element_size` と growth 計算は allocation 前に checked arithmetic を通す。
-- zero-sized value と zero-capacity collection は allocation を持たない canonical empty
-  state を使う。free は allocation の有無を識別する。
-- `RawBuffer` は pointer、allocated byte length、alignment、allocator provenance を保持する。
-- free は確保時と同じ allocator と実 layout を使う。logical length を allocation size の
-  代用にしない。
-- grow は allocate → initialized bytes/elements の transfer → new state publish → old free
-  の順で行う。publish 前の失敗は old state を変更しない。
-- public callers は `RawBuffer` の representation を構築・改変できない。
+- Alignment is nonzero, a power of two, and within the target limit.
+- `count * element_size` and growth calculations use checked arithmetic before allocation.
+- Zero-sized values and zero-capacity collections use a canonical empty state with no allocation.
+  Free distinguishes the presence of an allocation.
+- `RawBuffer` retains its pointer, allocated byte length, alignment, and allocator provenance.
+- Free uses the allocator and actual layout from allocation time, never logical length as allocation
+  size.
+- Grow proceeds as allocate → transfer initialized bytes/elements → publish new state → free old
+  allocation. Failure before publication leaves the old state unchanged.
+- Public callers cannot construct or mutate the `RawBuffer` representation.
 
-OS syscall は allocator implementation の内側に置く。`String` と `Vec<T>` は private
-`RawBuffer` へ移行済みであり、page primitive を直接呼ばない。
+OS syscalls stay inside allocator implementations. `String` and `Vec<T>` use a private `RawBuffer`
+and do not call page primitives directly.
 
 ## Recursive Drop Model
 
-runtime obligation は最低限、次の状態を再帰的に表現する。
+A runtime obligation represents at least these states recursively:
 
 ```text
 Inactive
@@ -48,51 +49,55 @@ StructFields { initialized fields }
 PayloadFields { active variant, initialized fields }
 ```
 
-fixed array の要素を構築するときは、配列 prefix へ即座に追加しない。
+Constructing a fixed-array element does not add it immediately to the completed array prefix:
 
-1. 現在要素用の独立した recursive obligation を作る。
-2. field / payload を一つずつ初期化し、その obligation に publish する。
-3. 要素全体の完了後に current obligation を配列へ移し、completed prefix を増やす。
-4. 途中失敗では current element を再帰的に破棄し、その後 completed prefix を逆順に
-   破棄する。
+1. Create an independent recursive obligation for the current element.
+2. Initialize fields or payloads one at a time and publish them to that obligation.
+3. After the whole element completes, move the current obligation into the array and increment the
+   completed prefix.
+4. On intermediate failure, recursively drop the current element, then drop the completed prefix in
+   reverse order.
 
-これにより「完了した要素数」だけでは表せない nested partial initialization を扱う。
+This represents nested partial initialization that a completed-element count alone cannot express.
 
 ## Collection Ownership
 
-`Vec<T>` の invariant は次の通り。
+`Vec<T>` maintains these invariants:
 
 - `0 <= len <= capacity`
-- allocation は capacity 分の storage を持つが、所有値は `[0, len)` のみ
-- `[0, len)` は全要素が complete で、`[len, capacity)` は uninitialized
-- drop と clear は `[0, len)` を逆順に一度だけ破棄する
-- reserve は要素の ownership を新 storage へ transfer し、要素を複製しない
-- push は destination element の complete obligation を publish した後だけ `len` を増やす
-- pop は末尾要素を tracked return storage へ transfer し、vector の `len` を減らす
+- the allocation provides capacity elements of storage, but only `[0, len)` is owned
+- every element in `[0, len)` is complete; `[len, capacity)` is uninitialized
+- drop and clear destroy `[0, len)` exactly once in reverse order
+- reserve transfers element ownership to new storage without duplicating elements
+- push increments `len` only after publishing a complete destination-element obligation
+- pop transfers the last element to tracked return storage and decrements vector `len`
 
-non-copy `T` に raw byte copy を使う場合でも、意味は copy ではなく storage relocation
-である。旧 storage の obligation を無効化してから解放し、drop glue を二度走らせない。
+Even when non-copy `T` storage moves through raw bytes, the semantic operation is relocation rather
+than copying. Invalidate obligations in the old storage before freeing it so drop glue cannot run
+twice.
 
-`String` は UTF-8 byte prefix を所有する特殊化された buffer である。byte 自体に drop は
-ないが、`0 <= len <= capacity`、failure atomic growth、allocator provenance は
-`Vec<T>` と共有する。
+`String` is a specialized buffer that owns a UTF-8 byte prefix. Bytes have no drop behavior, but
+`String` shares `0 <= len <= capacity`, failure-atomic growth, and allocator provenance with
+`Vec<T>`.
 
 ## Error-path Invariants
 
-- initializer が取得した値は、次の fallible operation より前に obligation へ登録する。
-- complete として publish するのは全 subvalue の初期化後だけにする。
-- replacement は新値を別 obligation で完成させてから旧値を破棄・置換する。
-- cleanup は取得順の逆順で行い、元の error を cleanup の都合で置換しない。
-- ownership transfer は source obligation の無効化と destination obligation の有効化を
-  一つの IR-level operation として表現する。
+- Register every value acquired by an initializer in an obligation before the next fallible
+  operation.
+- Publish a value as complete only after all subvalues initialize.
+- Complete a replacement value under a separate obligation before destroying and replacing the old
+  value.
+- Clean up in reverse acquisition order without replacing the original error.
+- Represent ownership transfer as one IR-level transition that invalidates the source obligation and
+  activates the destination obligation.
 
 ## Rejected Shortcuts
 
-- `Vec<T>.clear` で `len = 0` だけを行う
-- non-copy element の storage bytes を複製して両側を live にする
-- allocation size の代わりに logical length で free する
-- failure 後に old pointer と new capacity を組み合わせた半更新状態を残す
-- backend が AST を見て drop 対象を推測する
-- 任意位置 remove を prefix model の例外処理で実装する
+- implementing `Vec<T>.clear` as only `len = 0`
+- duplicating non-copy element bytes while both copies remain live
+- freeing by logical length instead of allocation size
+- leaving a half-updated state with an old pointer and new capacity after failure
+- letting the backend inspect AST to guess what to drop
+- implementing arbitrary-position removal as an exception to the prefix model
 
-任意位置 remove が必要になった時点で sparse ownership state を独立設計する。
+If arbitrary-position removal becomes necessary, design sparse ownership state as a separate model.

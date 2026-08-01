@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Development Documentation</title>
-    <meta name="description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <title>Nocter v0.2.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.2.0 completes the Allocator and ownership foundation required for practical owned String and Vec programs and substantially expands the compiler-">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/packaging/v0.2.0-release-notes/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Development Documentation">
-    <meta property="og:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
-    <meta property="og:url" content="https://nocter.dev/development/">
+    <meta property="og:title" content="Nocter v0.2.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.2.0 completes the Allocator and ownership foundation required for practical owned String and Vec programs and substantially expands the compiler-">
+    <meta property="og:url" content="https://nocter.dev/development/packaging/v0.2.0-release-notes/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Development Documentation">
-    <meta name="twitter:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <meta name="twitter:title" content="Nocter v0.2.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.2.0 completes the Allocator and ownership foundation required for practical owned String and Vec programs and substantially expands the compiler-">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.2.0 Release Notes - Nocter","description":"Nocter v0.2.0 completes the Allocator and ownership foundation required for practical owned String and Vec programs and substantially expands the compiler-","url":"https://nocter.dev/development/packaging/v0.2.0-release-notes/","mainEntityOfPage":"https://nocter.dev/development/packaging/v0.2.0-release-notes/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"},{"@type":"ListItem","position":4,"name":"V0.2.0 Release Notes","item":"https://nocter.dev/development/packaging/v0.2.0-release-notes/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -123,43 +123,20 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../index.html#content">repository README</a></li>
-                <li><a href="../spec/index.html#content">specification</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
-                <li><a href="./docs/index.html#content">Documentation Index</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
-                <li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li>
-                <li><a href="./docs/lsp/index.html#content">Language Server</a></li>
-                <li><a href="./docs/maintenance/index.html#content">Maintenance</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/README.md</span>
+                <span class="markdown-path-text">/development/packaging/v0.2.0-release-notes.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development">Nocter Development</h1><p>This directory contains the Rust bootstrap compiler, the distributed standard library, release packaging inputs, and implementation documentation. See the <a href="../index.html#content">repository README</a> for the public overview and the <a href="../spec/index.html#content">specification</a> for language rules.</p><p>The completed development milestone is <strong>Nocter v0.2.0</strong>. Its completion criteria are recorded in the <a href="./docs/v0.2.0/index.html#content">v0.2.0 Development Contract</a>.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
-</code></pre><p>To verify only the compiler:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml
-</code></pre><p>To build and run a repository-local distribution:</p><pre><code class="language-sh">./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter example.nct
-</code></pre><p>Rust and Cargo are required only for development. The release archive runs from a single <code>.nocter/</code> home containing the compiler and <code>std/</code>; users do not need LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools.</p><h2 id="documents">Documents</h2><ul><li><a href="./docs/index.html#content">Documentation Index</a></li><li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Development Contract</a></li><li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li><li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li><li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li><li><a href="./docs/lsp/index.html#content">Language Server</a></li><li><a href="./docs/maintenance/index.html#content">Maintenance</a></li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">Internal Handoff</a></li></ul><h2 id="layout">Layout</h2><pre><code class="language-text">development/
-├── AGENTS.md
-├── README.md
-├── TODO.md
-├── compiler/
-│   ├── Cargo.toml
-│   ├── scripts/
-│   ├── src/
-│   └── tests/
-├── docs/
-├── packaging/
-└── std/
-</code></pre><ul><li><code>compiler/src</code>: compiler implementation</li><li><code>compiler/tests</code>: CLI, runtime, distributed-home, LSP, and corpus integration tests</li><li><code>std</code>: canonical source for the packaged standard library</li><li><code>packaging</code>: release metadata copied into generated homes</li><li><code>docs</code>: current design and acceptance documents; Git retains history</li></ul>
+                <h1 id="nocter-v0-2-0-release-notes">Nocter v0.2.0 Release Notes</h1><p>Nocter v0.2.0 completes the Allocator and ownership foundation required for practical owned <code>String</code> and <code>Vec&lt;T&gt;</code> programs and substantially expands the compiler-backed language server.</p><h2 id="highlights">Highlights</h2><ul><li>A checked <code>Layout</code>, provenance-carrying <code>RawBuffer</code>, and explicit <code>Allocator</code> contract provide
+  failure-atomic allocation, growth, and deallocation.</li><li>Recursive drop obligations cover partially initialized structs, fixed arrays, payload enums, and
+  initialized vector prefixes.</li><li><code>String</code> supports empty construction, allocation, copy/from-string, reserve, append, clear,
+  views, and deterministic drop.</li><li><code>Vec&lt;T&gt;</code> supports empty construction, capacity management, reserve, push, pop, clear, views, and
+  deterministic recursive drop for copy and non-copy elements.</li><li>Runtime acceptance covers <code>Vec&lt;String&gt;</code>, <code>Vec&lt;File&gt;</code>, and <code>Vec&lt;Vec&lt;String&gt;&gt;</code>, including failed
+  growth and close-once behavior.</li><li>LSP support includes diagnostics, semantic tokens, hover, definition, references, document
+  symbols, semantic completion, generic signature help, incomplete-edit recovery, and consistent
+  multi-file open-document overlays.</li></ul><h2 id="distribution">Distribution</h2><p>The release asset contains one <code>.nocter/</code> directory with the compiler, metadata, license files, and standard library. The supported native host and target are <code>arm64-darwin</code>.</p><p>Unpack the archive, move <code>.nocter/</code> to the desired installation location, and place a symlink to <code>.nocter/nocter</code> on <code>PATH</code>. The compiler resolves the real executable path to find its standard library, so the binary should remain inside the <code>.nocter/</code> directory.</p><p>Normal Nocter builds do not require LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools.</p><h2 id="verification">Verification</h2><p>The release gate passed compiler checks, formatting, Clippy with warnings denied, 1,866 library tests, 294 CLI build tests, 423 native run tests, 112 distributed-home tests, LSP integration tests, and packaged-home execution. The generated release image passed <code>nocter doctor</code> and reported <code>Nocter 0.2.0</code>.</p><p>See the <a href="../../docs/v0.2.0/index.html#content">v0.2.0 development contract</a> for the complete scope and explicit non-goals.</p>
             </div>
         </main>
     </div>
@@ -175,6 +152,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

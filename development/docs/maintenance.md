@@ -1,52 +1,60 @@
 # Development Maintenance
 
-この文書は長期運用規約を持つ。短期引き継ぎは [TODO](../TODO.md)、公開言語規則は
-[spec](../../spec/README.md) に置く。
+This document contains long-lived maintenance policy. Keep short-term handoff state in
+[TODO](../TODO.md) and public language rules in the [specification](../../spec/README.md).
 
 ## Design Rules
 
-- diff の小ささより、責務の一貫性と次の変更の容易さを優先する。
-- line count ではなく responsibility と abstraction layer で分割する。
-- caller が内部 map や mutable state を探索する API より、目的を表す owned result を返す。
-- compiler phase、protocol transport、presentation を一つの file に混ぜない。
-- AST traversal、lookup、type formatting、drop logic の複製が必要になった時点で共通責務を
-  抽出する。
-- removed repository location や未公開 behavior の compatibility shim を追加しない。
+- Prefer coherent responsibilities and easy future changes over small diffs.
+- Split by responsibility and abstraction layer, not by line count.
+- Prefer narrow APIs that return purpose-specific owned results over callers exploring internal maps
+  or mutable state.
+- Do not mix compiler phases, protocol transport, and presentation in one file.
+- Extract a shared responsibility when a change would duplicate AST traversal, lookup, type
+  formatting, or drop logic.
+- Do not add compatibility shims for removed repository locations or unpublished behavior.
 
-新しい責務は新しい module/file に作る。既存 file への追加で責務が自然に説明できる場合だけ
-同居させる。
+Put a new responsibility in a new module or file. Add it to an existing file only when the existing
+responsibility naturally explains it.
 
 ## Sources of Truth
 
 | Information | Owner |
 |---|---|
-| language and public std semantics | `spec/` |
-| current release completion and priorities | `docs/v0.2.0.md` |
-| compiler phase boundaries | `docs/architecture.md` |
-| allocator, ownership, drop invariants | `docs/allocator-ownership.md` |
-| distributed standard-library implementation | `docs/standard-library.md` |
-| LSP capability and analysis design | `docs/lsp.md` |
-| next task and handoff facts | `TODO.md` |
-| historical sequence | Git history |
+| Language and public standard-library semantics | `spec/` |
+| Current release completion and priorities | `docs/v0.2.0.md` |
+| Compiler phase boundaries | `docs/architecture.md` |
+| Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
+| Distributed standard-library implementation | `docs/standard-library.md` |
+| LSP capabilities and analysis design | `docs/lsp.md` |
+| Next task and handoff facts | `TODO.md` |
+| Historical sequence | Git history |
 
-同じ status table を複数文書に置かない。v0.2.0 の checklist は `v0.2.0.md` だけに置き、
-個別文書は設計と具体的な acceptance behavior を持つ。
+Do not keep the same status table in multiple documents. Keep the v0.2.0 checklist only in
+`v0.2.0.md`; focused documents own design and concrete acceptance behavior.
 
 ## Update Triggers
 
-- release gate、non-goal、work order を変えた: `v0.2.0.md`
-- compiler module ownership や phase data flow を変えた: `architecture.md`
-- allocation/drop/collection invariant を変えた: `allocator-ownership.md`
-- tracked `development/std` の runtime behavior を変えた: `standard-library.md`
-- editor-facing capabilityまたは analysis API を変えた: `lsp.md`
-- 次の具体的 task、blocker、uncommitted state が変わった: `TODO.md`
+- Release gate, non-goal, or work order changed: update `v0.2.0.md`.
+- Compiler module ownership or phase data flow changed: update `architecture.md`.
+- Allocation, drop, or collection invariant changed: update `allocator-ownership.md`.
+- Runtime behavior in tracked `development/std` changed: update `standard-library.md`.
+- Editor-facing capability or analysis API changed: update `lsp.md`.
+- Next concrete task, blocker, or uncommitted state changed: update `TODO.md`.
 
-文書へ command log、commit list、完了項目の年代記を追記しない。現在の判断に必要な fact だけを
-置き換える。
+Do not append command logs, commit lists, or a chronology of completed items. Replace only the facts
+needed for current decisions.
+
+## Public Documentation
+
+Public-facing documentation is written in English. The repository-level `AGENTS.md` defines the
+scope and the exceptions for internal files. Edit source Markdown and regenerate the website with
+`node docs/build-docs.js`.
 
 ## Verification
 
-共有 compiler behavior を変更した commit の標準検証は repository root から行う。
+Run the standard verification for commits that change shared compiler behavior from the repository
+root:
 
 ```sh
 ./development/compiler/scripts/verify.sh
@@ -54,18 +62,19 @@ cargo fmt --manifest-path development/compiler/Cargo.toml --check
 git diff --check
 ```
 
-変更に応じて narrow test を先に実行し、最後に full verification を行う。標準ライブラリの
-runtime promotion には distributed-home または CLI run test、LSP behavior には analysis unit
-test と JSON-RPC integration test を含める。
+Run a narrow test first, then the complete verification. A standard-library runtime promotion needs
+a distributed-home or CLI run test. LSP behavior needs an analysis unit test and a JSON-RPC
+integration test.
 
-docs-only change では link/path search、Markdown structure、`git diff --check` を最低条件とする。
+For documentation-only changes, at minimum check links and paths, inspect Markdown structure, run
+`node docs/build-docs.js`, and run `git diff --check`.
 
 ## Commit Checkpoints
 
-- behavior change と test/doc update を一つの coherent commit にする。
-- pure refactor は behavior promotion と分離する。
-- unrelated user changes を stage、revert、format しない。
-- coherent chunk が検証済みになったら、長い session の終了を待たず commit する。
-- verification を実行できない場合は理由を final response と必要なら `TODO.md` に残す。
+- Keep a behavior change, its tests, and its documentation in one coherent commit.
+- Keep pure refactors separate from behavior promotion.
+- Do not stage, revert, or format unrelated user changes.
+- Commit each coherent verified chunk without waiting for a long session to end.
+- If verification cannot run, record why in the final response and, when relevant, in `TODO.md`.
 
-commit message は変更の結果を述べる。時系列メモや「続き」は使わない。
+Commit messages describe the result. Do not use chronological notes such as “continue.”

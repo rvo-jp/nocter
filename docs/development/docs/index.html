@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocter Development Documents - Nocter</title>
-    <meta name="description" content="このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は spec が唯一の規範であり、ここへ複製しない。">
+    <meta name="description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/docs/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Nocter Development Documents - Nocter">
-    <meta property="og:description" content="このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は spec が唯一の規範であり、ここへ複製しない。">
+    <meta property="og:description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
     <meta property="og:url" content="https://nocter.dev/development/docs/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -22,10 +22,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Nocter Development Documents - Nocter">
-    <meta name="twitter:description" content="このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は spec が唯一の規範であり、ここへ複製しない。">
+    <meta name="twitter:description" content="This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は spec が唯一の規範であり、ここへ複製しない。","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documents - Nocter","description":"This directory contains implementation design and completion criteria. The public language specification is the sole authority for language semantics; do n","url":"https://nocter.dev/development/docs/","mainEntityOfPage":"https://nocter.dev/development/docs/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -126,7 +126,7 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">spec</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
                 <li><a href="./v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
                 <li><a href="./architecture/index.html#content">Architecture</a></li>
                 <li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a></li>
@@ -140,10 +140,10 @@
                 <span class="markdown-path-text">/development/docs/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は <a href="../../spec/index.html#content">spec</a> が唯一の規範であり、ここへ複製しない。</p><p>現行の開発マイルストーンは <strong>v0.2.0 のみ</strong>である。本文中で <code>v0</code> を リリース名や作業範囲の略称として使わない。</p><h2 id="documents">Documents</h2><ul><li><a href="./v0.2.0/index.html#content">v0.2.0 Development Contract</a>: 終了条件、非目標、実装順序、
-  リリース判定。進捗判断の唯一の入口。</li><li><a href="./architecture/index.html#content">Architecture</a>: コンパイラのフェーズ責務と境界。</li><li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a>: メモリ確保、所有値、部分初期化、
-  <code>String</code> と <code>Vec&lt;T&gt;</code> を成立させる共通基盤。</li><li><a href="./standard-library/index.html#content">Standard Library</a>: 配布標準ライブラリの現状と v0.2.0 の
-  実行時受入条件。</li><li><a href="./lsp/index.html#content">LSP</a>: コンパイラ解析を再利用する LSP の設計と v0.2.0 の受入条件。</li><li><a href="./maintenance/index.html#content">Maintenance</a>: 更新責務、検証、コミット規約。</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>: 次の作業に必要な短期引き継ぎ。</li></ul><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>情報</th><th>更新先</th></tr></thead><tbody><tr><td>公開言語規則</td><td><code>spec/</code></td></tr><tr><td>v0.2.0 の終了条件・範囲・優先順位</td><td><code>v0.2.0.md</code></td></tr><tr><td>コンパイラの責務境界</td><td><code>architecture.md</code></td></tr><tr><td>Allocator・所有権・drop の設計</td><td><code>allocator-ownership.md</code></td></tr><tr><td>配布 <code>std</code> の実装状態</td><td><code>standard-library.md</code></td></tr><tr><td>LSP の能力と解析境界</td><td><code>lsp.md</code></td></tr><tr><td>次に行う一つの具体的作業</td><td><code>../TODO.md</code></td></tr></tbody></table><p>コミット履歴や完了項目の時系列一覧は文書へ転記しない。必要な履歴は Git が持つ。</p>
+                <h1 id="nocter-development-documents">Nocter Development Documents</h1><p>This directory contains implementation design and completion criteria. The public language <a href="../../spec/index.html#content">specification</a> is the sole authority for language semantics; do not duplicate those rules here.</p><p>The recorded milestone is <strong>v0.2.0</strong>. Do not use <code>v0</code> as shorthand for a release name or work scope.</p><h2 id="documents">Documents</h2><ul><li><a href="./v0.2.0/index.html#content">v0.2.0 Development Contract</a>: completion criteria, non-goals, implementation order,
+  and release gates; the single entry point for milestone status</li><li><a href="./architecture/index.html#content">Architecture</a>: compiler phase responsibilities and boundaries</li><li><a href="./allocator-ownership/index.html#content">Allocator and Ownership</a>: the shared allocation, ownership, partial
+  initialization, <code>String</code>, and <code>Vec&lt;T&gt;</code> foundation</li><li><a href="./standard-library/index.html#content">Standard Library</a>: distributed standard-library behavior and v0.2.0
+  runtime acceptance criteria</li><li><a href="./lsp/index.html#content">LSP</a>: compiler-backed LSP design and v0.2.0 acceptance criteria</li><li><a href="./maintenance/index.html#content">Maintenance</a>: update ownership, verification, and commit policy</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>: internal short-term handoff state</li></ul><h2 id="information-ownership">Information Ownership</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>Public language rules</td><td><code>spec/</code></td></tr><tr><td>v0.2.0 completion criteria, scope, and priority</td><td><code>v0.2.0.md</code></td></tr><tr><td>Compiler responsibility boundaries</td><td><code>architecture.md</code></td></tr><tr><td>Allocator, ownership, and drop design</td><td><code>allocator-ownership.md</code></td></tr><tr><td>Distributed <code>std</code> implementation state</td><td><code>standard-library.md</code></td></tr><tr><td>LSP capabilities and analysis boundary</td><td><code>lsp.md</code></td></tr><tr><td>Next concrete internal task</td><td><code>../TODO.md</code></td></tr></tbody></table><p>Do not copy chronological completion lists or commit history into design documents. Git owns the history.</p>
             </div>
         </main>
     </div>

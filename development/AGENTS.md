@@ -19,10 +19,11 @@ Before compiler changes, read:
 Run `git status --short` before editing. Preserve unrelated user changes and never stage, revert, or
 rewrite them.
 
-## Current Milestone
+## Recorded Milestone
 
-The only active development milestone is v0.2.0. Do not use `v0` as shorthand for a release scope.
-Use [docs/v0.2.0.md](docs/v0.2.0.md) for completion gates and work order.
+v0.2.0 is complete. Do not use `v0` as shorthand for a release scope. Use
+[docs/v0.2.0.md](docs/v0.2.0.md) for its completion record. Define a new version contract and
+non-goals before beginning the next milestone.
 
 ## Engineering Priority
 

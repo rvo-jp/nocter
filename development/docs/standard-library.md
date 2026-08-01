@@ -1,41 +1,44 @@
 # Standard Library Runtime
 
-この文書は repository に追跡され、配布時に `.nocter/std` へ入る実装の状態を記録する。
-公開 API の規範は [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md)
-であり、この文書は仕様を追加しない。
+This document records the implementation tracked in the repository and packaged under
+`.nocter/std`. [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md) is the
+authority for public API semantics; this document adds no specification rules.
 
 ## Current Modules
 
-| Module | Current role | v0.2.0 work |
+| Module | Current role | v0.2.0 result |
 |---|---|---|
-| `error` | structured recoverable error | allocator / collection error IDs を安定化 |
-| `fmt` | scalar and text formatting helpers | owning text の動作確認 |
-| `io` | file open/read/write/close and stdout/stderr | deterministic handle ownership 完了 |
-| `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | layout/grow/free 契約完了 |
-| `os` | target-gated syscall boundary | allocator の内側へ限定 |
-| `prelude` | implicit common declarations | v0.2.0 で拡張しない |
-| `process` | exit/abort/cwd/args; env is check-only | allocator 完成に必要な範囲だけ維持 |
-| `ptr` | restricted pointer primitives | `pub(nocter)` trust boundary を維持 |
-| `string` | owning UTF-8 bytes | common allocator、failure-atomic growth |
-| `vec` | owning generic sequence | non-copy initialized-prefix drop と pop |
+| `error` | structured recoverable errors | stable allocator and collection error IDs |
+| `fmt` | scalar and text formatting helpers | owning-text behavior verified |
+| `io` | file open/read/write/close and stdout/stderr | deterministic handle ownership |
+| `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | complete layout/grow/free contract |
+| `os` | target-gated syscall boundary | restricted to allocator internals |
+| `prelude` | implicit common declarations | unchanged for v0.2.0 |
+| `process` | exit/abort/cwd/args; env is check-only | maintained where allocator completion requires it |
+| `ptr` | restricted pointer primitives | retained within the `pub(nocter)` trust boundary |
+| `string` | owned UTF-8 bytes | common allocator and failure-atomic growth |
+| `vec` | owned generic sequence | non-copy initialized-prefix drop and pop |
 
 ## Runtime Baseline
 
-`std/mem` は checked `Layout`、canonical empty buffer、private allocator provenance、
-failure-atomic grow、deterministic `RawBuffer` drop を持つ。alignment、zero-size、OOM、grow失敗
-後の内容保持は distributed-home runtime tests で固定されている。
+`std/mem` provides checked `Layout`, a canonical empty buffer, private allocator provenance,
+failure-atomic growth, and deterministic `RawBuffer` drop. Distributed-home runtime tests fix the
+alignment, zero-size, out-of-memory, and failed-growth preservation behavior.
 
-現在の `String` は private `RawBuffer` に allocator provenance と capacity を保持し、
-empty、with_capacity、from/copy、view、len/capacity、reserve、clear、push_str、deterministic
-storage release を共通 Allocator 上で実行する。grow failure 後の内容・len・capacity 保持も
-runtime test で固定されている。現在の `Vec<T>` も byte capacity と allocator provenance を
-private `RawBuffer` に集約し、typed pointer は非所有 alias として扱う。empty、
-with_capacity、from_slice、len/capacity、reserve、push、clear、views、storage release は共通
-Allocator 上へ移行済みである。non-copy push は所有権を storage へ移し、clear と drop は
-initialized prefix を逆順に再帰 drop する。pop も末尾 obligation を返り値へ移す。
-`Vec<File>.clear()` 後に同じ descriptor 番号へ再割当された handle が vector drop 後も
-読めることを確認し、handle の close-once を外部効果として固定している。nested Vec も
-growth failure 後に内側の `String` を回収して利用できることを確認済みである。
+`String` stores allocator provenance and capacity in a private `RawBuffer`. Its common Allocator
+supports empty, with_capacity, from/copy, view, len/capacity, reserve, clear, push_str, and
+deterministic storage release. Runtime tests prove content, length, and capacity preservation after
+failed growth.
+
+`Vec<T>` also centralizes byte capacity and allocator provenance in private `RawBuffer`; its typed
+pointer is a non-owning alias. Empty, with_capacity, from_slice, len/capacity, reserve, push, clear,
+views, and storage release use the common Allocator. Non-copy push transfers ownership into storage;
+clear and drop recursively destroy the initialized prefix in reverse order; pop transfers the final
+obligation into the return value.
+
+An externally observable test proves that a descriptor number reallocated after
+`Vec<File>.clear()` remains readable after vector drop, fixing close-once behavior. A nested-vector
+test proves that an inner `String` remains recoverable and usable after failed growth.
 
 ## v0.2.0 Required Behavior
 
@@ -43,33 +46,33 @@ growth failure 後に内側の `String` を回収して利用できることを�
 
 - checked `Layout` construction
 - canonical empty allocation state
-- allocation、growth、free の allocator identity 保持
-- overflow、invalid alignment、out of memory の recoverable error
-- old allocation を保つ failure-atomic growth
-- representation fields を `pub(nocter)` より外へ公開しない
+- allocator identity retained through allocation, growth, and free
+- recoverable overflow, invalid alignment, and out-of-memory errors
+- failure-atomic growth that retains the old allocation
+- representation fields hidden outside `pub(nocter)`
 
 ### `std/string`
 
 - empty / with_capacity / from_str / copy
 - len / capacity / is_empty / view / bytes
 - reserve / push_str / clear / drop
-- repeated growth 後も UTF-8 view と所有 storage が一致する
-- allocation failure 後も元の内容、len、capacity が変わらない
+- agreement between UTF-8 view and owned storage after repeated growth
+- unchanged content, length, and capacity after allocation failure
 
-Unicode scalar/character indexing と normalization は v0.2.0 の条件に含めない。境界を
-曖昧にした byte indexing API は追加しない。
+Unicode scalar/character indexing and normalization are not v0.2.0 criteria. Do not add an
+ambiguously bounded byte-indexing API.
 
 ### `std/vec`
 
-- copy と non-copy の両方で empty / with_capacity / reserve / push / clear / drop
-- copy element に対する from_slice と immutable/mutable view
-- 末尾 ownership extraction としての pop
-- nested owning element の再帰 drop
-- capacity overflow と allocation failure の原子性
+- empty / with_capacity / reserve / push / clear / drop for both copy and non-copy elements
+- from_slice and immutable/mutable views for copy elements
+- pop as ownership extraction from the end
+- recursive drop of nested owning elements
+- atomic behavior on capacity overflow and allocation failure
 
-non-copy element を借用 slice から複製する意味はまだ定義しないため、`from_slice` は
-copyable `T` に限る。制約を型システムで表せない間は、公開範囲を不正に広げず
-source-backed diagnostic で拒否する。
+The meaning of duplicating non-copy elements from a borrowed slice is not defined, so `from_slice`
+is limited to copyable `T`. Until the type system can express that constraint, the compiler keeps
+the public boundary narrow and rejects misuse with a source-backed diagnostic.
 
 ## Acceptance Matrix
 
@@ -77,18 +80,18 @@ source-backed diagnostic で拒否する。
 |---|---|
 | `String` repeated growth | bytes preserved; one final storage free |
 | failed `String.reserve` | pointer/content/len/capacity unchanged |
-| `Vec<String>` growth | each string remains usable; each drops once |
+| `Vec<String>` growth | every string remains usable and drops once |
 | `Vec<String>.pop()` | returned string remains owned after vector drop |
 | `Vec<File>.clear()` | initialized handles close once; later vector drop is empty |
 | `Vec<Vec<String>>` early `?` | completed prefixes unwind in reverse order |
 | zero-capacity values | no allocation and no invalid free |
-| packaged-home execution | same behavior as repository-local source |
+| packaged-home execution | behavior matches repository-local source |
 
-Tests should observe semantic effects such as handle closure, output, error identity, and post-operation
+Tests observe semantic effects such as handle closure, output, error identity, and post-operation
 state. Backend instruction snapshots alone do not prove the standard-library contract.
 
 ## Deferred Surface
 
 Environment value retrieval, rich path APIs, insert/remove, iterator protocols, multiple allocator
-families, implicit allocator selection, interpolation allocation, and collection literal/spread are not
-v0.2.0 release gates. Add them only after their ownership and failure behavior is specified.
+families, implicit allocator selection, interpolation allocation, and collection literal/spread are
+not v0.2.0 release gates. Add them only after specifying ownership and failure behavior.
