@@ -520,6 +520,37 @@ func make_file(): File! {
 }
 
 #[test]
+fn does_not_report_recursive_drop_fixed_array_local_moves_and_reinitialization() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var first: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    let second = move first
+    first = [File { fd: 3 }, File { fd: 4 }]
+    var third: [File; 2] = [File { fd: 5 }, File { fd: 6 }]
+    third = move second
+    drop third
+    third = [File { fd: 7 }, File { fd: 8 }]
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn does_not_report_payload_enum_if_is_constructor_pattern_target() {
     let (sources, analysis) = analyze_text(
         r#"enum Result {

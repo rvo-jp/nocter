@@ -68,12 +68,12 @@ for v0.2.0:
   fallible calls handled by `?`, `!`, or `catch` and direct optional calls
   handled by `otherwise`. Struct cleanup now invokes an outer destructor and
   recursively drops owned struct fields in reverse order. Fully initialized
-  local fixed-array literals and whole-local literal replacement now clean
-  supported droppable struct elements in reverse index order. Remaining array
-  work requires per-element initialization state and move-aware non-literal
-  assignment/argument/return boundaries; remaining member and value-control
-  pattern targets likewise depend on field moves or ownership-aware control
-  joins.
+  move-only fixed arrays of supported droppable struct elements now complete
+  their local ownership lifecycle: literals, whole-local replacement, explicit
+  local moves, explicit drop, reinitialization, and reverse-index cleanup.
+  Remaining array work requires per-element initialization state and move-aware
+  ABI/field boundaries; remaining member and value-control pattern targets
+  likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.

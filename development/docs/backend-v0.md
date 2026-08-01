@@ -156,7 +156,8 @@ includes:
 - drop-aware whole-binding and field replacement in supported paths
 - reverse-index recursive cleanup for fully initialized local fixed-array
   literals and whole-local literal replacement of supported droppable struct
-  elements, including explicit drop and moved element ownership transfer
+  elements, including explicit local moves, explicit drop, reinitialization,
+  and moved element ownership transfer
 - optional and fallible aggregate call results in supported positions
 - copy aggregate storage and slice indexing through current `Vec<T>` and
   slice-view paths
@@ -165,8 +166,9 @@ Remaining aggregate backend work is concentrated around payload-carrying enum
 move-only aggregate payload bindings with unsupported recursive drop trees,
 broader payload enum pattern target expressions, broader field-level live-state
 tracking, per-element initialization state, non-copy aggregate collection
-elements, broader move-only array positions, broad control-flow joins, and
-unsupported expression shapes.
+elements, move-only array ABI/field positions outside the completed local
+ownership lifecycle, broad control-flow joins, and unsupported expression
+shapes.
 
 ## Safety Checks
 

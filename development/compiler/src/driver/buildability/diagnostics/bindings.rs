@@ -28,6 +28,16 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         return None;
     }
 
+    if fixed_array_move_binding_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return None;
+    }
+
     if fixed_array_call_binding_is_buildable(
         statement,
         resolved,

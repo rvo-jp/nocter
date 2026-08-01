@@ -299,6 +299,37 @@ pub(super) fn fixed_array_copy_binding_is_buildable(
     )
 }
 
+pub(super) fn fixed_array_move_binding_is_buildable(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::Unary(unary) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    if unary.operator != UnaryOperator::Move {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) else {
+        return false;
+    };
+    let Some(target_ty) =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+    else {
+        return false;
+    };
+    fixed_array_move_between_local_types_is_buildable(
+        &target_ty,
+        identifier,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
 pub(super) fn fixed_array_call_binding_is_buildable(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
@@ -424,6 +455,92 @@ pub(super) fn fixed_array_copy_assignment_is_buildable(
     };
 
     fixed_array_abi_matches_buildable_element(
+        &target_element,
+        target_length,
+        target_layout,
+        &source_element,
+        source_length,
+        source_layout,
+    )
+}
+
+pub(super) fn fixed_array_move_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign
+        || !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_))
+    {
+        return false;
+    }
+    let Expr::Unary(unary) = unwrap_group_expr(&statement.value) else {
+        return false;
+    };
+    if unary.operator != UnaryOperator::Move {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) else {
+        return false;
+    };
+    let Some(target_ty) = fixed_array_assignment_target_type_expr(
+        &statement.target,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    fixed_array_move_between_local_types_is_buildable(
+        &target_ty,
+        identifier,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn fixed_array_move_between_local_types_is_buildable(
+    target_ty: &TypeExpr,
+    source: &IdentifierExpr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Some((target_element, target_length, target_layout)) =
+        fixed_array_type_abi_for_sources(target_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    if !fixed_array_literal_recursive_drop_element_type_is_buildable(
+        target_ty,
+        &target_element,
+        resolved,
+        resolved_sources,
+    ) {
+        return false;
+    }
+
+    let Some(source_ty) = local_identifier_type_expr_with_substitutions(
+        source,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((source_element, source_length, source_layout)) =
+        fixed_array_type_abi_for_sources(&source_ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+
+    fixed_array_abi_matches(
         &target_element,
         target_length,
         target_layout,
@@ -581,10 +698,27 @@ pub(super) fn fixed_array_abi_matches_buildable_element(
     source_length: u64,
     source_layout: crate::abi::ValueLayout,
 ) -> bool {
+    fixed_array_abi_matches(
+        target_element,
+        target_length,
+        target_layout,
+        source_element,
+        source_length,
+        source_layout,
+    ) && fixed_array_element_abi_is_buildable(source_element)
+}
+
+fn fixed_array_abi_matches(
+    target_element: &AbiType,
+    target_length: u64,
+    target_layout: crate::abi::ValueLayout,
+    source_element: &AbiType,
+    source_length: u64,
+    source_layout: crate::abi::ValueLayout,
+) -> bool {
     target_element == source_element
         && target_length == source_length
         && target_layout == source_layout
-        && fixed_array_element_abi_is_buildable(source_element)
 }
 
 pub(super) fn fixed_array_binding_call_result_type_expr(
@@ -833,6 +967,12 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         typecheck_facts,
         generic_substitutions,
     ) || fixed_array_copy_assignment_is_buildable(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) || fixed_array_move_assignment_is_buildable(
         statement,
         resolved,
         resolved_sources,
