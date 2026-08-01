@@ -12,21 +12,22 @@
   lowering, buildability, ownership, backend, and analysis modules
 - recursive drop obligations cover nested struct fields, fixed-array completed prefixes and the
   partially constructed current element, and payload enum fields
-- tracked std provides initial `Allocator`, `RawBuffer`, `String`, `Vec<T>`, file/process/fmt support
+- tracked std provides checked `Layout`, provenance-carrying `RawBuffer`, failure-atomic allocator
+  growth, initial `String`/`Vec<T>`, and file/process/fmt support
 - LSP provides diagnostics, semantic tokens, hover, definition, references, document symbols, and
   several completion contexts
 
 ## Next Concrete Area
 
-Complete the common Allocator contract before promoting ownership-safe variable-length collections.
+Move owning collections onto the completed common Allocator contract, then promote non-copy
+elements.
 
-1. Make `Layout` the checked constructor for size/alignment/overflow/zero-size rules.
-2. Give `RawBuffer` enough allocation provenance to free through the allocator that created it.
-3. Add failure-atomic grow and runtime tests for invalid layout, overflow, allocation failure, and
-   canonical empty buffers.
-4. Move `String` and `Vec<T>` from direct page primitives to the common Allocator contract.
-5. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
+1. Store `String` capacity through `RawBuffer` and replace direct page allocation/free with
+   allocator allocation/grow/drop.
+2. Store `Vec<T>` byte capacity through the same buffer contract without exposing raw ownership.
+3. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
    drop.
+4. Implement ownership-transferring `pop` after initialized-prefix cleanup is correct.
 
 Do not implement arbitrary indexed `remove` as an exception to prefix ownership. It requires a later
 sparse-live-element design. `pop` is allowed after initialized-prefix transfer is correct.

@@ -274,7 +274,7 @@ fn distributed_std_public_api_passes_check() {
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
 use std/io.{File, open, print, read, stderr, stdout, write, write_text}
-use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
+use std/mem.{Allocator, Layout, RawBuffer, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
@@ -307,6 +307,27 @@ func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuff
 func allocator_free(allocator: &+Allocator, buffer: RawBuffer): void {
     allocator.free(move buffer)
     return
+}
+
+func allocator_layout(): Layout! {
+    let value = layout(4, 4)?
+    if value.size() != layout_size(&value) {
+        return invalid_argument()
+    }
+    if value.align() != layout_align(&value) {
+        return invalid_argument()
+    }
+    return value
+}
+
+func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void! {
+    grow(allocator, buffer, 8)?
+    allocator.grow(buffer, 16)?
+    return
+}
+
+func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! {
+    return alloc_layout(allocator, Layout.new(8, 8)?)?
 }
 
 func allocator_methods(): void! {
@@ -2622,6 +2643,154 @@ func main(): i32! {
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
     assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_layout_zero_and_grow_run() {
+    let project = TempProject::new("distributed-home-allocator-layout-grow-run");
+    let source = project.write_source(
+        "allocator_layout_grow.nct",
+        r#"use std/mem.{Layout, alloc_layout, free, page_allocator}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let empty_layout = Layout.new(0, 16)?
+    if empty_layout.size() != 0 {
+        return 1
+    }
+    if empty_layout.align() != 16 {
+        return 2
+    }
+    var empty = alloc_layout(&+allocator, empty_layout)?
+    if empty.bytes().len() != 0 {
+        return 3
+    }
+    allocator.grow(&+empty, 2)?
+    empty.bytes_mut()[0] = 20
+    empty.bytes_mut()[1] = 22
+    allocator.grow(&+empty, 8)?
+    if empty.bytes().len() != 8 {
+        return 4
+    }
+    if empty.bytes()[0] != 20 {
+        return 5
+    }
+    if empty.bytes()[1] != 22 {
+        return 6
+    }
+    free(&+allocator, move empty)
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_rejects_non_power_of_two_alignment() {
+    let project = TempProject::new("distributed-home-allocator-invalid-alignment-run");
+    let source = project.write_source(
+        "allocator_invalid_alignment.nct",
+        r#"use std/mem.{alloc, page_allocator}
+
+func main(): void! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 1, 3)?
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.mem.invalid_argument: invalid allocation request\n"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_failed_grow_preserves_the_old_buffer() {
+    let project = TempProject::new("distributed-home-allocator-failed-grow-run");
+    let source = project.write_source(
+        "allocator_failed_grow.nct",
+        r#"use std/mem.{Allocator, RawBuffer, alloc, page_allocator}
+
+func grow_huge(allocator: &+Allocator, buffer: &+RawBuffer): usize! {
+    allocator.grow(buffer, 18446744073709551615)?
+    return buffer.bytes().len()
+}
+
+func preserved(buffer: &RawBuffer): i32 {
+    if buffer.bytes().len() != 1 {
+        return 1
+    }
+    if buffer.bytes()[0] != 42 {
+        return 2
+    }
+    return 42
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var buffer = alloc(&+allocator, 1, 1)?
+    buffer.bytes_mut()[0] = 42
+    let size = grow_huge(&+allocator, &+buffer) catch error {
+        return preserved(&buffer)
+    }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_reports_out_of_memory() {
+    let project = TempProject::new("distributed-home-allocator-out-of-memory-run");
+    let source = project.write_source(
+        "allocator_out_of_memory.nct",
+        r#"use std/mem.{alloc, page_allocator}
+
+func main(): void! {
+    var allocator = page_allocator()
+    let buffer = alloc(&+allocator, 18446744073709551615, 1)?
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"std.mem.out_of_memory: allocation failed\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

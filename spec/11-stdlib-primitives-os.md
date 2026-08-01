@@ -196,20 +196,21 @@ Rules:
 
 ### Memory and Allocator API
 
-Adopted: v0 exposes a small explicit allocator surface in `std/mem`.
+Adopted: v0.2.0 exposes a small explicit allocator surface in `std/mem`.
 
 Initial public surface:
 
 ```nct
 pub copy struct Layout {
-    pub size: usize
-    pub align: usize
+    pub(nocter) size: usize
+    pub(nocter) align: usize
 }
 
 pub struct RawBuffer {
     pub(nocter) ptr: *u8
     pub(nocter) len: usize
     pub(nocter) align: usize
+    ...
 }
 
 pub struct Allocator {
@@ -217,7 +218,13 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
+pub func Layout.new(size: usize, align: usize): Layout!
+pub func layout(size: usize, align: usize): Layout!
+pub func layout_size(value: &Layout): usize
+pub func layout_align(value: &Layout): usize
 pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
+pub func alloc_layout(allocator: &+Allocator, layout: Layout): RawBuffer!
+pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void!
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
 pub func bytes(buffer: &RawBuffer): &[u8]
 pub func bytes_mut(buffer: &+RawBuffer): &+[u8]
@@ -228,7 +235,13 @@ pub func invalid_argument(): error
 
 impl Allocator {
     pub method &+self.alloc(size: usize, align: usize): RawBuffer!
+    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void!
     pub method &+self.free(buffer: RawBuffer): void
+}
+
+impl Layout {
+    pub method &self.size(): usize
+    pub method &self.align(): usize
 }
 
 impl RawBuffer {
@@ -243,11 +256,14 @@ Rules:
 
 - Allocation failure is recoverable and returns the built-in `error` payload.
 - The initial allocator is page-backed. General allocator families are deferred.
+- Layout alignment is a non-zero supported power of two; zero-sized layouts produce canonical empty buffers without an OS allocation.
+- Growth is failure-atomic and preserves the old buffer when allocation fails.
 - `RawBuffer` owns raw byte storage and is not a typed collection.
 - `RawBuffer`'s representation fields are `pub(nocter)`: trusted std modules
   may inspect and pass the raw storage boundary onward, but user project modules
   must obtain views through the public `bytes`, `bytes_mut`, `prefix`,
   `prefix_mut`, and method APIs.
+- `RawBuffer` keeps private allocator provenance and releases owned storage during deterministic drop; `free` consumes the buffer and therefore cannot be followed by another use or release.
 - User-facing collection APIs should be built on ordinary std types such as
   `Vec<T>`, not by exposing unchecked raw buffer mutation.
 - Target-dependent allocation helpers are std-internal and target-gated.

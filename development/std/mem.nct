@@ -6,34 +6,56 @@
 //! provenance from the `region ... using ...` language construct.
 //!
 //! The public functions below are ordinary standard-library APIs. Allocation is
-//! not part of the compiler primitive set in v0; target-gated std internals
+//! not part of the compiler primitive set; target-gated std internals
 //! provide the OS boundary behind this common API.
 
 use std/error.Error
 use std/os.{syscall2, syscall6}
 use std/ptr.addr
+use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts
 use std/ptr.slice_from_raw_parts_mut
 
 pub copy struct Layout {
-    pub size: usize
-    pub align: usize
+    pub(nocter) size: usize
+    pub(nocter) align: usize
 }
 
 pub struct RawBuffer {
     pub(nocter) ptr: *u8
     pub(nocter) len: usize
     pub(nocter) align: usize
+    pub(nocter) allocator_state: usize
+    pub(nocter) allocator_kind: usize
 }
 
 pub struct Allocator {
     state: usize
-    kind: u64
+    kind: usize
 }
 
 pub func page_allocator(): Allocator {
     return Allocator { state: 0, kind: 0 }
+}
+
+pub func Layout.new(size: usize, align: usize): Layout! {
+    if !valid_alignment(align) {
+        return invalid_argument()
+    }
+    return Layout { size: size, align: align }
+}
+
+pub func layout(size: usize, align: usize): Layout! {
+    return Layout.new(size, align)?
+}
+
+pub func layout_size(value: &Layout): usize {
+    return value.size
+}
+
+pub func layout_align(value: &Layout): usize {
+    return value.align
 }
 
 #target("arm64-darwin")
@@ -56,26 +78,76 @@ pub func alloc(
     size: usize,
     align: usize,
 ): RawBuffer! {
-    if size == 0 {
-        return invalid_argument()
-    }
-    if align == 0 {
-        return invalid_argument()
-    }
-    if align > 16384 {
-        return invalid_argument()
+    let requested = Layout.new(size, align)?
+    return alloc_layout(allocator, requested)?
+}
+
+pub func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer! {
+    if requested.size == 0 {
+        return RawBuffer {
+            ptr: from_addr(1),
+            len: 0,
+            align: requested.align,
+            allocator_state: allocator.state,
+            allocator_kind: allocator.kind,
+        }
     }
 
-    let address: usize = alloc_pages(size)?
+    let address: usize = alloc_pages(requested.size)?
     return RawBuffer {
         ptr: from_addr(address),
-        len: size,
-        align: align,
+        len: requested.size,
+        align: requested.align,
+        allocator_state: allocator.state,
+        allocator_kind: allocator.kind,
     }
 }
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
-    free_pages(addr(buffer.ptr), buffer.len)
+    // Consuming `buffer` transfers its one deallocation obligation into this
+    // call. RawBuffer.drop performs the provenance-aware release on return.
+    return
+}
+
+pub func grow(
+    allocator: &+Allocator,
+    buffer: &+RawBuffer,
+    new_size: usize,
+): void! {
+    if new_size < buffer.len {
+        return invalid_argument()
+    }
+    if new_size == buffer.len {
+        return
+    }
+    if allocator.state != buffer.allocator_state {
+        return invalid_argument()
+    }
+    if allocator.kind != buffer.allocator_kind {
+        return invalid_argument()
+    }
+
+    var replacement = alloc(allocator, new_size, buffer.align)?
+    if buffer.len != 0 {
+        copy_ptr_to_ptr(replacement.ptr, buffer.ptr, buffer.len)
+    }
+
+    var previous = RawBuffer {
+        ptr: buffer.ptr,
+        len: buffer.len,
+        align: buffer.align,
+        allocator_state: buffer.allocator_state,
+        allocator_kind: buffer.allocator_kind,
+    }
+
+    buffer.ptr = replacement.ptr
+    buffer.len = replacement.len
+    buffer.align = replacement.align
+    buffer.allocator_state = replacement.allocator_state
+    buffer.allocator_kind = replacement.allocator_kind
+
+    replacement.ptr = from_addr(1)
+    replacement.len = 0
     return
 }
 
@@ -110,6 +182,11 @@ impl Allocator {
         free(self, move buffer)
         return
     }
+
+    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void! {
+        grow(self, buffer, new_size)?
+        return
+    }
 }
 
 impl RawBuffer {
@@ -128,6 +205,43 @@ impl RawBuffer {
     pub method &+self.prefix_mut(len: usize): &+[u8]! {
         return prefix_mut(self, len)?
     }
+
+    drop &+self {
+        if self.len != 0 {
+            free_pages(addr(self.ptr), self.len)
+            self.ptr = from_addr(1)
+            self.len = 0
+        }
+        return
+    }
+}
+
+impl Layout {
+    pub method &self.size(): usize {
+        return layout_size(self)
+    }
+
+    pub method &self.align(): usize {
+        return layout_align(self)
+    }
+}
+
+func valid_alignment(align: usize): bool {
+    if align == 0 {
+        return false
+    }
+    if align > 16384 {
+        return false
+    }
+
+    var remaining = align
+    while remaining > 1 {
+        if remaining % 2 != 0 {
+            return false
+        }
+        remaining = remaining / 2
+    }
+    return true
 }
 
 pub func out_of_memory(): error {
