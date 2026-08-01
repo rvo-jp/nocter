@@ -10,6 +10,9 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `5954c65 Track struct construction across value boundaries`
+  - `097643b Track nested array field initialization`
+  - `552ab03 Track partial struct initialization`
   - `42c8f63 Track owned call argument evaluation`
   - `89f8e75 Track partial fixed array returns`
   - `900bad3 Track partial fixed array replacements`
@@ -150,9 +153,11 @@ Recommended order:
    direct literal returns and direct value arguments now track a completed
    runtime prefix for atomic aggregate-call elements handled by `?`. Call
    evaluation retains completed owned temporaries until ownership transfers to
-   the callee. Remaining array paths require per-field initialization state for
-   exiting initializers, nested payload state, sparse indexed live state, or
-   field extraction ownership; do not promote them as mere expression shapes.
+   the callee. Struct construction now tracks recursive per-field obligations
+   across locals, nested struct and array fields, staged replacements, returns,
+   and owned call arguments. Remaining array paths require nested payload
+   construction state, sparse indexed live state, or field extraction
+   ownership; do not promote them as mere expression shapes.
    Payload enums now carry these
    arrays through direct and indirect construction, generic substitution,
    scope/call cleanup, and
@@ -346,14 +351,15 @@ Recommended order:
   parameters across plain, optional, and fallible calls. Local literal,
   whole-local replacement, direct literal return, and direct value-argument
   paths track initialized prefixes for atomic aggregate-call elements handled
-  by `?`; nested-field and payload-construction exits remain diagnosed until
-  their broader obligation scopes are implemented.
+  by `?`; nested struct and fixed-array field construction uses recursive child
+  obligations, while payload-construction exits remain diagnosed until their
+  variant-specific obligation scope is implemented.
   Fully initialized struct fields store and replace the same arrays from
   literals, calls, optional/fallible success values, and explicit local moves;
   replacement stages the new value, recursively drops the old field, and works
-  through local, read-write-borrowed, and nested struct owners. Field
-  initializers that can exit early remain diagnosed until per-field
-  initialization state is tracked, and field extraction moves remain deferred.
+  through local, read-write-borrowed, and nested struct owners. Exiting struct
+  field initializers are tracked without exposing incomplete values to direct
+  drop glue. Field extraction moves remain deferred.
 - Release packaging layout now separates tracked inputs from generated output:
   `development/std` is the canonical standard-library source,
   `development/packaging` contains release metadata inputs, and

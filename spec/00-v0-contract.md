@@ -236,10 +236,9 @@ Initial check-only or not-yet-buildable surfaces:
   explicitly promoted copy-aggregate element subset
 - move-only fixed arrays outside the completed local, callable, and fully
   initialized struct-field storage/replacement lifecycle for supported
-  recursively droppable struct elements; field extraction moves remain
-  deferred, field initialization that can exit early remains check-only until
-  per-field initialization state is tracked, and element initialization nested
-  inside struct fields or payload construction remains check-only
+  recursively droppable struct elements; recursive field construction now
+  tracks exiting initializers, while field extraction moves remain deferred and
+  element initialization nested inside payload construction remains check-only
 
 ## Aggregate Type Contract
 

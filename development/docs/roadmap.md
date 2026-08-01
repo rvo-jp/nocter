@@ -78,10 +78,12 @@ for v0.2.0:
   these arrays. Payload enum variants may now own the same arrays, including
   direct and indirect enum layouts, concrete generic payload substitution,
   construction, call-boundary transfer, move-pattern binding, reverse-index
-  cleanup, and success-only cleanup on fallible pattern targets. Remaining array
-  work requires per-element initialization state, per-field initialization
-  state for exiting initializers, and field extraction moves; remaining member
-  and value-control pattern targets
+  cleanup, and success-only cleanup on fallible pattern targets. Recursive
+  per-field obligations now cover exiting struct initializers, including nested
+  struct and fixed-array literals, across locals, replacements, returns, and
+  owned arguments. Remaining array work is payload-constructor partial state,
+  sparse extraction, and field extraction moves; remaining member and
+  value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,

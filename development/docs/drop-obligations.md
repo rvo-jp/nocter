@@ -31,6 +31,11 @@ The lowering model currently uses:
 - `Complete`: the complete value described by `AggregateDrop` is live.
 - `ArrayPrefix { initialized }`: elements in `0..initialized` are live. Cleanup
   tests the runtime count and drops matching elements in reverse index order.
+- `StructFields { fields }`: each owned field has a completion flag and an
+  optional child obligation. Cleanup follows reverse source initialization
+  order, drops a complete field through its full type shape, and otherwise
+  recurses into the child's partial array or struct state. Direct user drop
+  glue runs only after the containing struct is complete.
 
 The initialized count advances only after one element has been written
 completely. A fallible initializer therefore observes the count from before
@@ -40,6 +45,11 @@ Obligations may belong to named local slots or hidden temporary slots. Hidden
 replacement and return slots participate in propagation cleanup while they are
 being constructed, then transfer their bytes to the published destination and
 release their temporary obligation.
+
+Struct obligations use the same lifetime for local bindings, staged
+replacements, direct or indirect returns, and owned call arguments. Nested
+struct literals and fixed-array fields form a tree rather than flattening ABI
+offsets into unrelated flags.
 
 Call evaluation uses a dedicated cloned lowering context. Completed owned
 argument temporaries remain registered until the call begins. If a later
@@ -67,10 +77,9 @@ the caller-side evaluation scope.
 The existing states deliberately do not pretend to solve non-prefix ownership.
 Future promotions extend the same obligation model:
 
-- Struct construction needs per-field obligations. A field becomes live only
-  after its initializer completes; an exit drops live fields in reverse
-  initialization order. A struct with direct user drop glue cannot expose a
-  partially initialized value to that glue.
+- Payload enum construction needs variant-specific field obligations before
+  exiting payload initializers can be promoted. The active tag alone cannot
+  distinguish a complete payload from a partially initialized one.
 - Field extraction needs path masks over the drop shape and must reject partial
   moves through any ancestor whose direct destructor requires the whole value.
 - Indexed array extraction needs a sparse live set rather than an initialized
