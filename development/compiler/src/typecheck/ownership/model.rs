@@ -120,7 +120,7 @@ impl FlowState {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct OwnershipState {
-    bindings: HashMap<String, OwnedBinding>,
+    places: PlaceStateForest,
 }
 
 impl OwnershipState {
@@ -150,7 +150,7 @@ impl OwnershipState {
         if let Some(ty) = environment.get(name) {
             self.define_binding(name.to_string(), span, ty, resolved);
         } else {
-            self.bindings.remove(name);
+            self.places.remove_root(name);
         }
     }
 
@@ -161,7 +161,7 @@ impl OwnershipState {
         environment: &TypeEnvironment,
         resolved: &ResolveOutput,
     ) {
-        if self.bindings.contains_key(name) {
+        if self.places.contains_root(name) {
             return;
         }
         self.define_binding_from_environment(name, span, environment, resolved);
@@ -175,14 +175,14 @@ impl OwnershipState {
         resolved: &ResolveOutput,
     ) {
         if non_copy_owned_type_kind(ty, resolved).is_some() {
-            self.bindings.insert(
-                name,
-                OwnedBinding {
-                    state: BindingState::Initialized { span },
-                },
-            );
+            if self.places.contains_root(&name) {
+                self.places.initialize(&BorrowPlace::whole(name), span);
+            } else {
+                self.places
+                    .define_root(name, PlaceState::Initialized { span });
+            }
         } else {
-            self.bindings.remove(&name);
+            self.places.remove_root(&name);
         }
     }
 
@@ -193,20 +193,21 @@ impl OwnershipState {
         action: &'static str,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> bool {
-        let Some(binding) = self.bindings.get(&identifier.name) else {
+        let place = BorrowPlace::whole(identifier.name.clone());
+        let Some(state) = self.places.state(&place) else {
             return true;
         };
-        let BindingState::Initialized { .. } = binding.state else {
+        if !state.is_initialized() {
             diagnostics.push(uninitialized_binding_diagnostic(
                 sources,
                 &identifier.name,
                 identifier.span,
                 action,
-                binding.state.previous_action(),
-                binding.state.previous_span(),
+                state.previous_action(),
+                state.previous_span(),
             ));
             return false;
-        };
+        }
         true
     }
 
@@ -214,22 +215,11 @@ impl OwnershipState {
         if branch_ownerships.is_empty() {
             return;
         }
-        for (name, binding) in &mut self.bindings {
-            let mut joined_state = branch_ownerships[0]
-                .bindings
-                .get(name)
-                .map(|binding| binding.state)
-                .unwrap_or(binding.state);
-            for branch_ownership in &branch_ownerships[1..] {
-                let branch_state = branch_ownership
-                    .bindings
-                    .get(name)
-                    .map(|binding| binding.state)
-                    .unwrap_or(binding.state);
-                joined_state = BindingState::join(joined_state, branch_state);
-            }
-            binding.state = joined_state;
-        }
+        let branches = branch_ownerships
+            .iter()
+            .map(|ownership| ownership.places.clone())
+            .collect::<Vec<_>>();
+        self.places.join_from(&branches);
     }
 
     pub(super) fn move_binding(
@@ -241,11 +231,12 @@ impl OwnershipState {
         if !self.require_initialized(sources, identifier, "move", diagnostics) {
             return;
         }
-        if let Some(binding) = self.bindings.get_mut(&identifier.name) {
-            binding.state = BindingState::Moved {
+        self.places.invalidate(
+            &BorrowPlace::whole(identifier.name.clone()),
+            PlaceState::Moved {
                 span: identifier.span,
-            };
-        }
+            },
+        );
     }
 
     pub(super) fn drop_binding(
@@ -262,81 +253,9 @@ impl OwnershipState {
         if !self.require_initialized(sources, &identifier, "drop", diagnostics) {
             return;
         }
-        if let Some(binding) = self.bindings.get_mut(name) {
-            binding.state = BindingState::Dropped { span };
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct OwnedBinding {
-    state: BindingState,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum BindingState {
-    Initialized { span: ByteSpan },
-    Moved { span: ByteSpan },
-    Dropped { span: ByteSpan },
-    Uninitialized { span: ByteSpan },
-    MaybeInitialized { span: ByteSpan },
-}
-
-impl BindingState {
-    pub(super) fn join(left: Self, right: Self) -> Self {
-        match (left, right) {
-            (BindingState::Initialized { span }, BindingState::Initialized { .. }) => {
-                BindingState::Initialized { span }
-            }
-            (BindingState::Moved { span }, BindingState::Moved { .. }) => {
-                BindingState::Moved { span }
-            }
-            (BindingState::Dropped { span }, BindingState::Dropped { .. }) => {
-                BindingState::Dropped { span }
-            }
-            (BindingState::Uninitialized { span }, BindingState::Uninitialized { .. }) => {
-                BindingState::Uninitialized { span }
-            }
-            (
-                BindingState::Moved { span }
-                | BindingState::Dropped { span }
-                | BindingState::Uninitialized { span },
-                BindingState::Moved { .. }
-                | BindingState::Dropped { .. }
-                | BindingState::Uninitialized { .. },
-            ) => BindingState::Uninitialized { span },
-            (BindingState::MaybeInitialized { span }, _)
-            | (_, BindingState::MaybeInitialized { span }) => {
-                BindingState::MaybeInitialized { span }
-            }
-            (BindingState::Initialized { .. }, BindingState::Moved { span })
-            | (BindingState::Moved { span }, BindingState::Initialized { .. })
-            | (BindingState::Initialized { .. }, BindingState::Dropped { span })
-            | (BindingState::Dropped { span }, BindingState::Initialized { .. })
-            | (BindingState::Initialized { .. }, BindingState::Uninitialized { span })
-            | (BindingState::Uninitialized { span }, BindingState::Initialized { .. }) => {
-                BindingState::MaybeInitialized { span }
-            }
-        }
-    }
-
-    pub(super) fn previous_action(self) -> &'static str {
-        match self {
-            BindingState::Moved { .. } => "moved",
-            BindingState::Dropped { .. } => "dropped",
-            BindingState::Uninitialized { .. } => "uninitialized",
-            BindingState::MaybeInitialized { .. } => "maybe uninitialized",
-            BindingState::Initialized { .. } => "initialized",
-        }
-    }
-
-    pub(super) fn previous_span(self) -> ByteSpan {
-        match self {
-            BindingState::Initialized { span }
-            | BindingState::Moved { span }
-            | BindingState::Dropped { span }
-            | BindingState::Uninitialized { span }
-            | BindingState::MaybeInitialized { span } => span,
-        }
+        self.places.invalidate(
+            &BorrowPlace::whole(name.to_string()),
+            PlaceState::Dropped { span },
+        );
     }
 }

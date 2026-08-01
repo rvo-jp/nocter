@@ -23,13 +23,12 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
-use std::collections::HashMap;
-
 mod borrow_collection;
 mod borrow_conflicts;
 mod entrypoints;
 mod liveness;
 mod model;
+mod place_state;
 mod places;
 mod state_checks;
 
@@ -46,6 +45,7 @@ use liveness::{expression_uses_identifier, statements_or_result_use_identifier_b
 use model::{
     ActiveBorrow, BorrowAction, BorrowPlace, DirectBorrowSource, FlowState, OwnershipState,
 };
+use place_state::{PlaceState, PlaceStateForest};
 use places::{
     assignment_target_place, expression_place, expression_place_has_only_named_fields,
     index_expression_place, member_expression_place, owned_method_receiver_identifier,
