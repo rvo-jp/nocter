@@ -389,7 +389,8 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   expressions and <code>match</code> statement/value-expression arms lower over existing
   enum bindings and parameters when the payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>,
   <code>bool</code>, <code>&amp;str</code>, a slice view, a copy aggregate value, or an owned aggregate
-  value with runtime-supported recursive drop glue. The binding is loaded or
+  value with runtime-supported recursive drop glue, or a fixed array of
+  supported recursively droppable struct elements. The binding is loaded or
   moved only inside the matching branch.</li><li>A copy payload binding copies the payload into its branch-local binding. A
   move-only payload binding transfers ownership out of an owned pattern target.
   Matching an existing local requires an explicit <code>move</code> target, such as
@@ -398,19 +399,21 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   by <code>otherwise</code>, or a direct variant constructor is already an owned
   temporary. Member targets cannot supply move-only payload bindings until
   field moves are supported. Runtime lowering currently supports this transfer
-  for aggregate payloads with runtime-supported recursive drop glue.
+  for aggregate payloads and supported move-only fixed-array payloads with
+  runtime-supported recursive drop glue.
   The selected branch owns and drops the binding; the source enum is suppressed
   after the transfer. A non-selected branch retains and drops the source enum.</li><li>Payload-carrying enum active payload cleanup lowers for runtime-supported enum
   values whose droppable variants have supported aggregate drop trees.
   Scope-end cleanup, parameter cleanup, discarded call results, call-result
   bindings, and whole-local replacement drop only the active payload fields.
   Multi-field payload cleanup drops active fields in reverse aggregate field
-  order and applies supported struct drop trees recursively.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over call results, direct-call
+  order and applies supported struct and fixed-array drop trees recursively;
+  fixed-array elements drop in reverse index order.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over call results, direct-call
   success values extracted by postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, direct
   optional-call values recovered by <code>otherwise</code>, direct variant constructors,
   and explicit <code>move</code> of an enum local lower in the current runtime-supported
-  payload subset. Other pattern target expressions and move-only aggregate
-  payload bindings with unsupported recursive drop trees still reject before
+  payload subset. Other pattern target expressions and move-only payload
+  bindings with unsupported recursive drop trees still reject before
   build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid
   <code>if is</code> pattern.</li></ul><p>Example value selection:</p><pre><code class="language-nct"><span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>

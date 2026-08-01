@@ -75,17 +75,22 @@ for v0.2.0:
   parameter boundaries for plain, optional, and fallible calls, including
   success-only cleanup activation. Fully initialized struct fields also support
   storage, staged replacement, local-to-field moves, and recursive cleanup for
-  these arrays. Remaining array work requires per-element initialization state,
-  per-field initialization state for exiting initializers, and field extraction
-  moves; remaining member and value-control pattern targets
+  these arrays. Payload enum variants may now own the same arrays, including
+  direct and indirect enum layouts, concrete generic payload substitution,
+  construction, call-boundary transfer, move-pattern binding, reverse-index
+  cleanup, and success-only cleanup on fallible pattern targets. Remaining array
+  work requires per-element initialization state, per-field initialization
+  state for exiting initializers, and field extraction moves; remaining member
+  and value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.
 - Promote non-copy `Vec<T>` storage only after per-element drop behavior is
   designed and tested.
-- Promote move-only payload bindings with unsupported recursive drop trees and
-  broader pattern target expressions only after array/collection element drop
-  glue and field-level ownership state are stable.
+- Promote move-only payload bindings with recursive drop trees beyond supported
+  droppable structs and their fixed arrays, and broader pattern target
+  expressions, only after collection element drop glue and field-level
+  ownership state are stable.
 - Promote `std/process.env` only after nested fallible/optional return lowering
   and process-context storage are ready.

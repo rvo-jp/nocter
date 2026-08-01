@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-07-30">
+    <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="ABI and Layout - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"ABI and Layout - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/09-abi-layout/","mainEntityOfPage":"https://nocter.dev/spec/09-abi-layout/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"09 Abi Layout","item":"https://nocter.dev/spec/09-abi-layout/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"ABI and Layout - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/09-abi-layout/","mainEntityOfPage":"https://nocter.dev/spec/09-abi-layout/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"09 Abi Layout","item":"https://nocter.dev/spec/09-abi-layout/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -182,7 +182,9 @@ pointer, borrow    align 8
   layout.</li><li>A variant with multiple payload fields uses an anonymous struct payload with
   fields laid out in declaration order using normal struct layout.</li><li>The payload union size is the maximum payload size across variants.</li><li>Payload and padding bytes outside the active payload have unspecified
   contents and must not be inspected by safe source code.</li><li>Drop glue drops only the active payload. Multi-field payloads drop their
-  fields according to ordinary aggregate drop order.</li><li>No niche optimization is part of ABI v0.</li></ul><h3 id="built-in-error-layout">Built-In Error Layout</h3><p>The built-in <code>error</code> payload is represented as two borrowed string slices:</p><pre><code class="language-text">error:
+  fields according to ordinary aggregate drop order. Recursive payload drop
+  glue includes fixed arrays, whose initialized elements drop in reverse index
+  order.</li><li>No niche optimization is part of ABI v0.</li></ul><h3 id="built-in-error-layout">Built-In Error Layout</h3><p>The built-in <code>error</code> payload is represented as two borrowed string slices:</p><pre><code class="language-text">error:
   code:    &amp;str
   message: &amp;str
 </code></pre><p>Layout:</p><pre><code class="language-text">word 0: code.ptr

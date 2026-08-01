@@ -184,7 +184,9 @@ Rules:
 - Payload and padding bytes outside the active payload have unspecified
   contents and must not be inspected by safe source code.
 - Drop glue drops only the active payload. Multi-field payloads drop their
-  fields according to ordinary aggregate drop order.
+  fields according to ordinary aggregate drop order. Recursive payload drop
+  glue includes fixed arrays, whose initialized elements drop in reverse index
+  order.
 - No niche optimization is part of ABI v0.
 
 ### Built-In Error Layout

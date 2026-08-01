@@ -124,8 +124,9 @@ includes:
   expressions over existing enum bindings and parameters, plus supported
   owned call-expression, constructor, and move-local pattern targets, when the
   bound payload ABI is `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a
-  copy aggregate value, or an owned aggregate value with runtime-supported
-  recursive drop glue
+  copy aggregate value, an owned aggregate value with runtime-supported
+  recursive drop glue, or a fixed array of supported recursively droppable
+  struct elements
 - tag-only payload-carrying enum `match` statements over existing enum bindings
   and parameters, plus supported owned call-expression, constructor, and
   move-local pattern targets, in the current runtime-supported payload subset,
@@ -135,8 +136,9 @@ includes:
   existing enum bindings and parameters, plus supported
   owned call-expression, constructor, and move-local pattern targets, when the
   bound payload ABI is `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a
-  copy aggregate value, or an owned aggregate value with runtime-supported
-  recursive drop glue
+  copy aggregate value, an owned aggregate value with runtime-supported
+  recursive drop glue, or a fixed array of supported recursively droppable
+  struct elements
 - owned call-expression pattern targets include plain calls, direct fallible
   calls handled by `?`, `!`, or `catch`, and direct optional calls handled by
   `otherwise`; a value-producing `otherwise` fallback rejoins pattern matching
@@ -145,7 +147,8 @@ includes:
   variants have runtime-supported recursive aggregate drop trees, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
   bindings, whole-local replacement, and multi-field payload cleanup in reverse
-  aggregate field order
+  aggregate field order; recursive trees include supported fixed arrays, whose
+  elements drop in reverse index order
 - aggregate call arguments crossing register and stack argument boundaries
 - aggregate returns from literals, local slots, member copies, calls, explicit
   moves, and terminal branches in the supported subset
@@ -173,7 +176,8 @@ includes:
   slice-view paths
 
 Remaining aggregate backend work is concentrated around payload-carrying enum
-move-only aggregate payload bindings with unsupported recursive drop trees,
+move-only payload bindings with recursive drop trees beyond supported structs
+and their fixed arrays,
 broader payload enum pattern target expressions, broader field-level live-state
 tracking, per-element initialization state, non-copy aggregate collection
 elements, move-only field extraction, broad control-flow joins, and unsupported

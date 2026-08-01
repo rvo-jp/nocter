@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `c80f77d Support move-only array enum payloads`
+  - `df2857a Document move-only array field ownership`
   - `4d5acd0 Cover recursive move-only array field cleanup`
   - `17b7baf Support move-only fixed array fields`
   - `1236ba1 Document move-only array call ownership`
@@ -125,8 +127,8 @@ Recommended order:
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
    over existing values and supported owned call-expression, constructor, and
    move-local pattern targets, plus scalar, string/slice view, copy aggregate
-   payload binding, and
-   owned recursively droppable aggregate payload move binding in `if is`
+   payload binding, and owned recursively droppable aggregate or supported
+   move-only fixed-array payload binding in `if is`
    statements and value expressions and `match` statement/value-expression arms. The frontend
    records copy-versus-move payload binding mode and requires explicit `move`
    when a move-only binding extracts from an existing local; member extraction
@@ -142,8 +144,12 @@ Recommended order:
    optional, and fallible calls. Remaining array paths require per-element
    initialization state, per-field initialization state for exiting
    initializers, or field extraction ownership; do not promote them as mere
-   expression shapes. Member and value-control pattern targets likewise require
-   field moves or ownership-aware control joins.
+   expression shapes. Payload enums now carry these arrays through direct and
+   indirect construction, generic substitution, scope/call cleanup, and
+   move-pattern ownership transfer; propagation cleanup reserves the original
+   error payload before lowering recursive drop temporaries. Member and
+   value-control pattern targets likewise require field moves or
+   ownership-aware control joins.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -449,8 +455,13 @@ Recommended order:
   or after normal control-flow completion. Move bindings transfer payload bytes
   into a branch-local owner, clear the source temporary's conditional drop flag,
   and leave non-selected branches responsible for source cleanup. Move-only
-  aggregate payload bindings with unsupported recursive drop trees plus broader
-  pattern target expressions remain the next promotion boundary.
+  fixed-array payloads of supported recursively droppable struct elements now
+  follow the same construction, generic substitution, pattern-target, call,
+  reverse-index cleanup, and conditional ownership-transfer paths. Cleanup on
+  `?` propagation preserves the original four-word `error` payload even when
+  recursive enum cleanup needs scalar temporaries or calls a destructor.
+  Unsupported recursive drop trees plus broader pattern target expressions
+  remain the next promotion boundary.
 - Static `error` payload helpers are now limited to input-free function or
   associated-function wrappers. Helpers with parameters and methods returning
   `error` reject before IR lowering so runtime input or receiver evaluation is
@@ -475,7 +486,7 @@ Recommended order:
   standalone scalar lowering is promoted.
 - Payload-pattern buildability diagnostics classify unsupported binding types
   separately from unsupported `if is` / `match` target shapes. Unsupported
-  move-only aggregate payload bindings point at the binding itself and state the
+  move-only payload bindings point at the binding itself and state the
   shipped scalar/view/copy-aggregate/owned-recursively-droppable boundary,
   providing a stable array/collection-drop promotion seam instead of a generic
   control-expression rejection.
