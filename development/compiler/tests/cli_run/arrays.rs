@@ -1121,3 +1121,68 @@ func main(): i32 {
     assert_eq!(output.stdout, b"febahgdc");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_keeps_move_only_fixed_array_cleanup_on_terminal_branch_owner() {
+    let project = TempProject::new("cli-run-move-only-fixed-array-terminal-branch-owner");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "move_only_fixed_array_terminal_branch_owner.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func run(move_files: bool): void {
+    let files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    if move_files {
+        let moved = move files
+        return
+    }
+    return
+}
+
+func main(): i32 {
+    run(true)
+    run(false)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"baba");
+    assert!(output.stderr.is_empty());
+}

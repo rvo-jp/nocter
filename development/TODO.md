@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `b0e4a65 Complete move-only array local lifecycle`
   - `86015f8 Cover recursive array element cleanup`
   - `f56df9b Replace local move-only array literals`
   - `2cde566 Drop local move-only array elements`
