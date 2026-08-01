@@ -1,130 +1,71 @@
-# Compiler Maintenance Policy
+# Development Maintenance
 
-This document records long-lived maintenance rules for the Nocter compiler.
-Short-term handoff notes belong in `../TODO.md`. Normative language rules
-belong in `../../spec/`.
+この文書は長期運用規約を持つ。短期引き継ぎは [TODO](../TODO.md)、公開言語規則は
+[spec](../../spec/README.md) に置く。
 
-## Goal
+## Design Rules
 
-Keep the compiler structure maintainable as it grows from a small bootstrap implementation to a multi-phase compiler.
+- diff の小ささより、責務の一貫性と次の変更の容易さを優先する。
+- line count ではなく responsibility と abstraction layer で分割する。
+- caller が内部 map や mutable state を探索する API より、目的を表す owned result を返す。
+- compiler phase、protocol transport、presentation を一つの file に混ぜない。
+- AST traversal、lookup、type formatting、drop logic の複製が必要になった時点で共通責務を
+  抽出する。
+- removed repository location や未公開 behavior の compatibility shim を追加しない。
 
-Small diffs are not the primary goal.
-A change is successful when the next feature can be added without duplicating semantics, hiding phase boundaries, or increasing accidental coupling between unrelated compiler layers.
+新しい責務は新しい module/file に作る。既存 file への追加で責務が自然に説明できる場合だけ
+同居させる。
 
-## Module Boundary Rules
+## Sources of Truth
 
-Split by responsibility and abstraction layer, not by line count.
+| Information | Owner |
+|---|---|
+| language and public std semantics | `spec/` |
+| current release completion and priorities | `docs/v0.2.0.md` |
+| compiler phase boundaries | `docs/architecture.md` |
+| allocator, ownership, drop invariants | `docs/allocator-ownership.md` |
+| distributed standard-library implementation | `docs/standard-library.md` |
+| LSP capability and analysis design | `docs/lsp.md` |
+| next task and handoff facts | `TODO.md` |
+| historical sequence | Git history |
 
-Good module boundaries have these properties:
+同じ status table を複数文書に置かない。v0.2.0 の checklist は `v0.2.0.md` だけに置き、
+個別文書は設計と具体的な acceptance behavior を持つ。
 
-- callers can name what the module owns
-- the module exposes a small API instead of forcing callers to inspect internal data
-- tests can target the module without constructing unrelated compiler phases
-- future features in the same phase naturally reuse the module
+## Update Triggers
 
-Avoid these shapes:
+- release gate、non-goal、work order を変えた: `v0.2.0.md`
+- compiler module ownership や phase data flow を変えた: `architecture.md`
+- allocation/drop/collection invariant を変えた: `allocator-ownership.md`
+- tracked `development/std` の runtime behavior を変えた: `standard-library.md`
+- editor-facing capabilityまたは analysis API を変えた: `lsp.md`
+- 次の具体的 task、blocker、uncommitted state が変わった: `TODO.md`
 
-- a driver module that owns language semantics
-- a type checker module that formats diagnostics directly
-- a backend module that re-parses source-level syntax
-- an LSP feature that resolves names without using compiler analysis
-- a single file that mixes transport, document state, semantic analysis, and response rendering
+文書へ command log、commit list、完了項目の年代記を追記しない。現在の判断に必要な fact だけを
+置き換える。
 
-## LSP Structure
+## Verification
 
-`driver/lsp/` should move toward this structure:
+共有 compiler behavior を変更した commit の標準検証は repository root から行う。
 
-```text
-driver/lsp/
-    mod.rs          # server loop, request routing, feature orchestration
-    protocol.rs     # JSON-RPC framing, LSP position/range helpers
-    documents.rs    # open document state, URI/path handling, sync params
-    diagnostics.rs  # publishDiagnostics conversion and stale clearing
-    semantic.rs     # semantic token classification
-    hover.rs        # hover contents and hover symbol lookup
-    definition.rs   # go-to-definition lookup and locations
-    completion.rs   # completion items
-    symbols.rs      # document symbols
-    analysis.rs     # bridge from open documents to compiler analysis
+```sh
+./development/compiler/scripts/verify.sh
+cargo fmt --manifest-path development/compiler/Cargo.toml --check
+git diff --check
 ```
 
-Do not create all files preemptively.
-Extract a module when there is a stable responsibility boundary and the extracted API is smaller than the copied context.
+変更に応じて narrow test を先に実行し、最後に full verification を行う。標準ライブラリの
+runtime promotion には distributed-home または CLI run test、LSP behavior には analysis unit
+test と JSON-RPC integration test を含める。
 
-LSP must treat the compiler as the semantic source of truth.
-TextMate grammar, snippets, and editor-side code may improve presentation, but name resolution, type information, diagnostics, and syntax interpretation must come from compiler modules.
+docs-only change では link/path search、Markdown structure、`git diff --check` を最低条件とする。
 
-## Refactoring Rules
+## Commit Checkpoints
 
-Refactor before adding a feature when the current design would require:
+- behavior change と test/doc update を一つの coherent commit にする。
+- pure refactor は behavior promotion と分離する。
+- unrelated user changes を stage、revert、format しない。
+- coherent chunk が検証済みになったら、長い session の終了を待たず commit する。
+- verification を実行できない場合は理由を final response と必要なら `TODO.md` に残す。
 
-- copying traversal logic
-- adding protocol-specific fields to core compiler data
-- exposing mutable internals across phases
-- adding another large helper to an already mixed-responsibility file
-- testing through a full CLI/LSP path when a phase-level test would be clearer
-
-Prefer small APIs with owned result types over returning raw internal maps.
-Prefer compiler-phase tests for compiler semantics and LSP tests for protocol behavior.
-
-## Documentation Ownership
-
-Keep one source of truth for each kind of information:
-
-- root `README.md`: short Nocter language introduction, getting-started flow,
-  and documentation map
-- `../../spec/`: normative language rules, standard-library rules, and public
-  design principles
-- `README.md`: development root entrance
-- `docs/README.md`: compiler documentation map
-- `docs/architecture.md`: compiler phase ownership and pipeline design
-- `docs/implementation-status.md`: current user-visible implementation
-  capability
-- `docs/v0-closure.md`: fixed v0 implementation completion gates
-- `docs/backend-v0.md`: backend and ABI implementation notes
-- `docs/std-runtime-status.md`: implementation status of tracked
-  `development/std/` as packaged into a Nocter home
-- `docs/roadmap.md`: recommended implementation order
-- `../TODO.md`: short-lived handoff state
-
-Do not copy large language rules into compiler docs. Link to `spec/` and record
-only implementation status or compiler design.
-
-## Progress Recording
-
-Every session that changes compiler behavior or structure should leave the repository easier to resume.
-
-Use this rule:
-
-- update `../TODO.md` for the next concrete action and current uncommitted state
-- update `v0-closure.md` when the v0 completion gate, target scope, or
-  `ship`/`reject`/`defer` decision changes
-- update `implementation-status.md` when user-visible behavior changes
-- update `std-runtime-status.md` when distributed std runtime behavior changes
-- update `roadmap.md` when the recommended next task changes
-- update `architecture.md` when module responsibilities change
-
-Do not record every command or every passing test in long-lived documents.
-Record only durable facts: implemented capability, remaining gap, design decision, or next action.
-
-## Commit Hygiene
-
-Keep unrelated user changes out of commits.
-
-Create a commit whenever a coherent chunk of work is complete and verified before moving on to the next chunk.
-This applies especially when a change touches multiple compiler phases, adds a new module, or changes user-visible behavior.
-Do not wait for a large session to accumulate many independent changes before committing.
-
-Prefer these commit shapes:
-
-- one behavior change plus tests and docs
-- one structural refactor with no behavior change
-- one documentation update that changes development policy
-
-Avoid commits that mix:
-
-- generated assets and compiler logic
-- root project files and compiler internals without a shared purpose
-- formatting-only churn and semantic changes
-
-When a rename plus extraction is needed, make the extraction behavior-preserving first, then continue feature work in a later change.
+commit message は変更の結果を述べる。時系列メモや「続き」は使わない。

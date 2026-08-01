@@ -8,8 +8,10 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.1.0 is the first narrow v0 release. The current development line is
-`v0.2.0-dev`. The implementation target is `arm64-darwin`.
+The current development line is `v0.2.0-dev`. Its focus is a complete Allocator
+and ownership foundation for practical `String` and `Vec<T>` programs, together
+with richer compiler-backed LSP support. The implementation target is
+`arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -93,7 +95,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.1.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.2.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -175,15 +177,13 @@ nocter fmt main.nct
 
 ## Current Status
 
-The v0.1.0 release and current v0.2.0-dev compiler can parse, check, build,
-and run a meaningful v0 subset on `arm64-darwin`. They emit ARM64 Mach-O
-executables directly.
+The current v0.2.0-dev compiler parses, checks, builds, and runs the supported
+language on `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
-Unsupported runtime forms are part of the post-v0.1.0 roadmap unless promoted;
-they should reject with source-backed diagnostics before machine code is
-emitted. For the exact implementation boundary, see
-[development/docs/implementation-status.md](development/docs/implementation-status.md).
+Unsupported runtime forms must reject with source-backed diagnostics before
+machine code is emitted. The exact v0.2.0 completion boundary is defined in
+[development/docs/v0.2.0.md](development/docs/v0.2.0.md).
 
 ## Learn More
 
@@ -193,8 +193,8 @@ emitted. For the exact implementation boundary, see
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [Nocter v0 Contract](spec/00-v0-contract.md): user-facing v0 language
-  boundary.
+- [Language Contract](spec/00-v0-contract.md): the current normative language
+  boundary inherited by v0.2.0 development.
 - [Development](development/README.md): Rust bootstrap compiler, tracked
   standard library, release packaging inputs, implementation status, tests, and
   maintenance notes.

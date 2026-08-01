@@ -1,166 +1,123 @@
 # Nocter Compiler Architecture
 
-This document describes the Rust bootstrap compiler architecture. It is for
-compiler engineers and AI coding agents. It is not the source of truth for
-Nocter source-language rules; those live in [../../spec](../../spec/README.md).
+この文書は Rust bootstrap compiler の安定した責務境界を定義する。公開言語規則は
+[spec](../../spec/README.md)、現在の完了条件は [v0.2.0](v0.2.0.md) を参照する。
 
-## Design Goal
-
-The compiler should remain self-contained:
+## Pipeline
 
 ```text
 .nct source
-  -> source map
-  -> lexer
-  -> parser
-  -> import loading and resolution
-  -> type checking, ownership, and buildability checks
+  -> SourceMap
+  -> lexer / parser
+  -> module loading / resolution
+  -> type checking / ownership facts
+  -> buildability preflight
   -> IR lowering
   -> ABI classification
-  -> ARM64 Darwin code generation
-  -> Mach-O executable image
+  -> ARM64 code generation
+  -> Mach-O image
 ```
 
-Normal user builds must not depend on LLVM, `clang`, `as`, `ld`, Xcode Command
-Line Tools, or an external runtime library.
+通常の user build は LLVM、`clang`、`as`、`ld`、Xcode Command Line Tools、外部 runtime
+library を要求しない。v0.2.0 の native target は `arm64-darwin` である。
 
 ## Phase Ownership
 
-Each phase owns one kind of fact. Later phases may consume facts from earlier
-phases, but they should not reimplement earlier decisions.
-
 | Area | Owns |
 |---|---|
-| `source` | loaded source files, canonical file identity, byte spans, line mapping |
-| `lexer` | tokenization and lexical diagnostics |
-| `parser` | AST construction, parser recovery, removed-syntax diagnostics |
-| `ast` | syntax tree data, AST JSON, syntax documentation extraction helpers |
-| `resolve` | use graph loading, visibility, scopes, symbols, declaration identity |
-| `typecheck` | expression types, signatures, ownership, borrow, drop, interface conformance |
-| `driver/buildability` | source-backed rejection of checked forms outside the runtime subset |
-| `ir` | compiler IR and source-to-IR lowering |
-| `abi` | layout, ABI values, call/return classification |
-| `backend` | ARM64 Darwin code generation and Mach-O output |
-| `diagnostics` | structured diagnostic data and rendering |
-| `driver` | CLI orchestration, JSON output, LSP server integration |
+| `source` | canonical file identity、byte spans、line mapping |
+| `lexer` | tokens と lexical diagnostics |
+| `parser` | AST construction、syntax recovery、removed-syntax diagnostics |
+| `ast` | syntax data、AST JSON、documentation extraction |
+| `frontend` | compile-unit loading、prelude、frontend orchestration |
+| `resolve` | imports、visibility、scopes、symbols、declaration identity |
+| `typecheck` | types、generic specialization、places、ownership、borrows、drop semantics |
+| `analysis` | compiler facts から editor/query 用の owned results を作る |
+| `driver/buildability` | checked だが runtime 未対応の source を preflight rejection する |
+| `ir` | typed facts から explicit lower-level operations への変換 |
+| `abi` | data layout、argument/return classification |
+| `backend` | IR validation、ARM64 emission、Mach-O output |
+| `target` | machine encoding と target-specific output details |
+| `diagnostics` | structured diagnostics と text/JSON rendering |
+| `driver` | CLI、pipeline、LSP protocol orchestration |
 
-The LSP server belongs in `driver/lsp`, but language facts must come from
-`resolve` and `typecheck`. LSP code may translate facts into protocol objects;
-it must not define separate lookup, type, ownership, or visibility rules.
+後段は前段の facts を消費できるが、前段の判断を再実装しない。新しい責務が既存領域に
+収まらない場合は、広い helper を足す前に専用 module と狭い API を作る。
 
-## Source And Compile Unit Model
+## Compile-unit and Source Identity
 
-The source root, import resolution rules, synthetic prelude rules, and Nocter
-home rules are specified in
-[Modules and Use Declarations](../../spec/01-modules-use.md) and
-[Targets and Distribution](../../spec/10-targets-distribution.md).
+- `SourceMap` が compiler 全体の source identity を所有する。
+- import graph 内の各 file は canonical identity を一つだけ持つ。
+- diagnostics は場所が分かる限り source-backed span を持つ。
+- LSP の open document は disk content を overlay できるが、別 identity を作らない。
+- parser recovery 後も resolver/typechecker は synthetic node と real declaration を区別する。
 
-Compiler implementation rules:
+## Semantic Boundary
 
-- `SourceMap` is the shared source identity layer.
-- Diagnostics should carry source-backed spans when the source location is
-  known.
-- Import loading must produce one canonical source identity per loaded file.
-- Open LSP documents may override on-disk text for compile-unit analysis, but
-  must still follow the same source identity rules.
+parser が受理した形は次のいずれかに到達しなければならない。
 
-## Frontend Boundary
+1. resolver/typechecker が compiler-owned facts を生成する。
+2. parser、resolver、typechecker、buildability のいずれかが source-backed diagnostic で拒否する。
 
-The parser may accept syntax that is not yet runtime-buildable, but accepted
-syntax must eventually reach one of these states:
-
-- resolved and typechecked with compiler-owned facts
-- rejected by parser, resolver, typechecker, or buildability with a stable
-  user-facing diagnostic
-- explicitly deferred in the v0 closure document
-
-The backend must not infer missing language semantics from raw AST structure.
-If lowering needs a fact, that fact belongs in resolver or typechecker output.
+backend が raw AST から不足した言語意味を推測する第三の経路は作らない。lowering に必要な
+型、symbol、ownership、variant、drop shape は resolver/typechecker output に置く。
 
 ## Buildability Boundary
 
-The current compiler intentionally separates "checkable" from "buildable".
-`driver/buildability` is the source-backed preflight for code that has valid
-frontend facts but is outside the v0 runtime subset.
+checkable language と native runtime subset は同一ではない。`driver/buildability` は frontend
+で正しいが IR/backend が安全に実行できない形を、machine-code error になる前に拒否する。
 
-This boundary exists to avoid accidental backend errors such as:
+feature を buildable へ昇格するときは、必要な parser → resolver → typecheck → ownership →
+IR → ABI → backend → CLI/std/LSP の経路を確認する。純粋な AST shape classification は共有
+してよいが、symbol identity や type compatibility など phase-specific facts は混ぜない。
 
-- unsupported IR instruction paths reached by normal user source
-- backend diagnostics phrased in machine-code implementation terms
-- implicit semantic decisions made after type checking
+## IR, ABI, and Backend
 
-When a feature is promoted to runtime support:
+- IR は ownership transfer、drop obligation、fallible exit を explicit operation として持つ。
+- ABI classification は `abi` に一元化し、lowering と backend validation が共有する。
+- user source の未対応形状は buildability で止め、backend validation は drifted/hand-built IR
+  の防壁として使う。
+- target-specific syscall と encoding は backend/target および target-gated std internals に
+  閉じ込める。
+- layout/ABI の公開動作を変えるときは
+  [ABI and Layout](../../spec/09-abi-layout.md) も更新する。
 
-1. update the relevant `spec/` chapter if user behavior changes
-2. update `v0-closure.md` when a `ship` or `reject` decision changes
-3. update `implementation-status.md`
-4. add parser, resolver, typecheck, buildability, lowering, backend, std, CLI,
-   or LSP tests at the narrowest sufficient layers
+## Allocator and Drop Boundary
 
-When buildability and IR lowering recognize the same purely syntactic
-expression subset, define that shape once on the AST and reuse it. Each phase
-must still apply its own semantic facts, such as resolved enum-variant identity;
-shared syntax classification must not become backend semantic inference.
+Allocator は標準ライブラリの通常 API だが、compiler は所有値の runtime drop を表現できる
+必要がある。型ごとの immutable drop shape、経路ごとの mutable drop obligation、allocator
+provenance を分離する。詳細は [Allocator and Ownership](allocator-ownership.md) に置く。
 
-## IR And ABI Boundary
+compiler は `Allocator`、`String`、`Vec` という公開名を special-case しない。必要な primitive
+は `pub(nocter)` の trust boundary と明示的 IR operation に限定する。
 
-IR lowering should consume typed facts and emit explicit operations. ABI
-classification should be centralized in `abi` and reused by lowering and
-backend validation.
+## LSP Boundary
 
-Backend rules:
-
-- validate IR shape before emission when drift would otherwise corrupt codegen
-- use source-backed buildability diagnostics for ordinary user source outside
-  the runtime subset
-- keep target-specific machine details in backend and target-gated std
-  internals
-- keep Nocter ABI updates synchronized with
-  [ABI and Layout](../../spec/09-abi-layout.md) and
-  [Backend V0](backend-v0.md)
-
-## Standard Library Boundary
-
-The public standard-library specification lives in
-[Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md).
-
-Compiler docs may describe:
-
-- which public std APIs currently build and run
-- which APIs are check-only or recoverably unsupported
-- which primitives are trusted active-home boundaries
-- which target-gated declarations are required by the current backend
-
-Compiler docs must not become a second public std specification. The runtime
-status is tracked in [Std Runtime Status](std-runtime-status.md).
+`driver/lsp` は transport、document state、protocol conversion を担当する。hover、completion、
+definition、references、signature help の semantic data は `analysis` が resolver/typechecker facts
+から構築する。詳細は [LSP](lsp.md) に置く。
 
 ## Diagnostics
 
-Diagnostic text should describe Nocter source concepts, not compiler internals.
+- malformed user source で panic しない。
+- text diagnostics は file、line、column、snippet、primary marker、必要なら help を持つ。
+- JSON/LSP diagnostics は安定した machine-readable spans を保持する。
+- ordinary user source に backend implementation terminology を見せない。
+- 同じ semantic error は check、build、run、LSP で同じ診断経路を通す。
 
-Required behavior:
+## Testing Layers
 
-- malformed user source must not panic the compiler
-- source-backed diagnostics should include file, line, column, source snippet,
-  primary marker, and help when useful
-- JSON diagnostics must preserve stable machine-readable spans
-- LSP diagnostics must be derived from the same diagnostics pipeline
-- backend validation diagnostics are acceptable for hand-built or drifted IR,
-  but ordinary user source should be stopped earlier when possible
+| Layer | Proves |
+|---|---|
+| lexer/parser | syntax shape、recovery、removed syntax |
+| resolver | imports、visibility、symbol identity、source loading |
+| typecheck | types、generics、ownership、borrows、drop、diagnostics |
+| buildability | runtime 未対応形の early rejection |
+| IR | operation shape、ownership/drop transitions、ABI handoff |
+| backend/target | frame/layout assumptions、instruction encoding、emission |
+| CLI build/run | user-visible native behavior |
+| distributed home | packaged std visibility と runtime behavior |
+| analysis/LSP | compiler facts と protocol response の一致 |
 
-## Testing Strategy
-
-Use the narrowest test layer that proves the behavior:
-
-- parser tests for syntax shape and removed syntax
-- resolver tests for use, visibility, symbol identity, and source loading
-- typecheck tests for typing, ownership, borrowing, interfaces, and diagnostics
-- buildability tests for stable rejection before IR/backend
-- IR lowering tests for instruction shape and ABI handoff
-- backend unit tests for instruction encoding, frame layout, and emission
-- CLI integration tests for user-visible build/run/check behavior
-- distributed-home tests for packaged `std/` visibility and public API behavior
-- LSP tests for protocol behavior backed by compiler facts
-
-Broad language promotions should include at least one CLI or distributed-home
-test when they are user-visible.
+user-visible promotion には最小 phase test に加え、少なくとも一つの CLI、distributed-home、
+または LSP integration test を付ける。

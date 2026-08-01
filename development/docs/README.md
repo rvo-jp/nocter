@@ -1,44 +1,34 @@
-# Development Documentation Index
+# Nocter Development Documents
 
-This directory is for engineers and AI coding agents working on Nocter
-development: the Rust bootstrap compiler, standard library implementation, and
-release packaging. It must not become a second language specification.
-Normative user-facing language rules live in [../../spec](../../spec/README.md).
+このディレクトリは実装者向けの設計と進行条件だけを扱う。言語の公開仕様は
+[spec](../../spec/README.md) が唯一の規範であり、ここへ複製しない。
+
+現行の開発マイルストーンは **v0.2.0 のみ**である。本文中で `v0` を
+リリース名や作業範囲の略称として使わない。
 
 ## Documents
 
-- [Architecture](architecture.md): pipeline, module ownership, shared facts, and
-  the buildability boundary.
-- [Implementation Status](implementation-status.md): current implementation
-  capability and known gaps.
-- [v0 Closure Definition](v0-closure.md): the fixed completion checklist for
-  Nocter v0 implementation work.
-- [Backend V0](backend-v0.md): ARM64 Darwin backend, Nocter ABI lowering, frame
-  and call model, aggregate handling, and backend non-goals.
-- [Drop Obligation Design](drop-obligations.md): separation of semantic place
-  state, aggregate drop shape, runtime live state, and construction cleanup.
-- [Std Runtime Status](std-runtime-status.md): what the tracked standard
-  library ships, rejects, or keeps check-only when packaged as distributed
-  `std/`.
-- [Interpolation Lowering](interpolation-lowering.md): design note for promoting
-  bare string interpolation.
-- [Roadmap](roadmap.md): near-term implementation order.
-- [Maintenance Policy](maintenance.md): refactoring, testing, documentation, and
-  commit hygiene rules.
+- [v0.2.0 Development Contract](v0.2.0.md): 終了条件、非目標、実装順序、
+  リリース判定。進捗判断の唯一の入口。
+- [Architecture](architecture.md): コンパイラのフェーズ責務と境界。
+- [Allocator and Ownership](allocator-ownership.md): メモリ確保、所有値、部分初期化、
+  `String` と `Vec<T>` を成立させる共通基盤。
+- [Standard Library](standard-library.md): 配布標準ライブラリの現状と v0.2.0 の
+  実行時受入条件。
+- [LSP](lsp.md): コンパイラ解析を再利用する LSP の設計と v0.2.0 の受入条件。
+- [Maintenance](maintenance.md): 更新責務、検証、コミット規約。
+- [TODO](../TODO.md): 次の作業に必要な短期引き継ぎ。
 
-## Ownership Rules
+## Information Ownership
 
-- Put source language rules in `spec/`.
-- Use [Design Principles](../../spec/00-design-principles.md) when a compiler
-  implementation choice exposes new source behavior.
-- Put Rust compiler implementation in `development/compiler/`.
-- Put compiler architecture, implementation status, and internal ABI work in
-  `development/docs/`.
-- Put short-lived handoff notes in `development/TODO.md`.
-- Keep root `README.md` as the short Nocter language introduction,
-  getting-started flow, and documentation map.
-- Do not copy whole feature specifications into this directory. Link to the
-  relevant spec chapter and describe only implementation status or compiler
-  design.
-- When a user-visible behavior changes, update the relevant `spec/` chapter
-  first, then update implementation status and closure gates if needed.
+| 情報 | 更新先 |
+|---|---|
+| 公開言語規則 | `spec/` |
+| v0.2.0 の終了条件・範囲・優先順位 | `v0.2.0.md` |
+| コンパイラの責務境界 | `architecture.md` |
+| Allocator・所有権・drop の設計 | `allocator-ownership.md` |
+| 配布 `std` の実装状態 | `standard-library.md` |
+| LSP の能力と解析境界 | `lsp.md` |
+| 次に行う一つの具体的作業 | `../TODO.md` |
+
+コミット履歴や完了項目の時系列一覧は文書へ転記しない。必要な履歴は Git が持つ。
