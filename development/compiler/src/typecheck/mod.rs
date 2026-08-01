@@ -21,6 +21,7 @@ mod operations;
 mod ownership;
 mod places;
 mod provenance;
+mod regions;
 mod returns;
 mod sized;
 mod strings;
@@ -39,6 +40,7 @@ use entry::*;
 use generics::*;
 use interfaces::*;
 use ownership::*;
+use regions::*;
 use returns::*;
 use sized::*;
 
@@ -117,7 +119,8 @@ pub(crate) fn check_module_with_summary_sources(
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
-    let provenance_summaries = borrow_return_summaries(summary_sources);
+    check_region_statements(sources, ast, &mut diagnostics);
+    let provenance_summaries = callable_provenance_summaries(summary_sources);
     check_ownership_states(
         sources,
         ast,

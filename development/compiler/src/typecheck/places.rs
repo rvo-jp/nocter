@@ -19,6 +19,15 @@ pub(super) fn expression_is_writable_place(
     }
 }
 
+pub(super) fn expression_is_established_place(expression: &Expr) -> bool {
+    match unwrap_group(expression) {
+        Expr::Identifier(_) => true,
+        Expr::Member(member) => expression_is_established_place(&member.object),
+        Expr::Index(index) => expression_is_established_place(&index.object),
+        _ => false,
+    }
+}
+
 pub(super) fn field_member_is_writable_place(
     member: &MemberExpr,
     resolved: &ResolveOutput,

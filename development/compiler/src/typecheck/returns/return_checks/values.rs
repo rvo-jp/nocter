@@ -7,8 +7,8 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let expected = context.success_type();
     let actual = expression_type(expression, resolved, environment);
@@ -83,8 +83,8 @@ pub(in crate::typecheck::returns) fn check_return_statement(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let expected = context.success_type();
     if expected == &Type::Never {

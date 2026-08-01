@@ -29,10 +29,14 @@ result bindingの最終利用まで有効になる。`region name using allocato
 parser、JSON、formatter、resolver identity を持ち、allocator operand は child binding の導入前に
 parent scope で解決される。runtime lowering が完成するまでは buildability が明示的に拒否する。
 
-次の checkpoint では return 専用 aliasを除去し、storage-dependent owned valueと
-aggregate projectionに使えるoutlives queryを共有modelへ追加する。その query を使う
-`typecheck/regions` が allocator place、region handle の不変性、直接・間接 escape を一貫して
-判定する。region runtime lowering と ambient allocator はその後に接続する。
+return 専用 provenance alias は除去済み。共有 model は `RegionId`、region origin、aggregate
+projection、lexical parent relation を持ち、`typecheck/regions` は `using` operand を確立済み
+place に制限する。region handle の直接 return、owned aggregate 内の間接 return、外側 binding
+への代入を同じ provenance environment で拒否し、pure copy result は許可する。
+
+次の checkpoint では callable summary を borrow-like result だけでなく storage-dependent owned
+result と allocation effect に拡張する。trusted allocation declaration metadata と allocator
+capability role を追加し、`using` の型検査と current allocation context の静的伝播を接続する。
 
 Phase 0 gate:
 

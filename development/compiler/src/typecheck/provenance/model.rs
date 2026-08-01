@@ -1,7 +1,7 @@
 use crate::source::ByteSpan;
 use crate::typecheck::model::Type;
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(in crate::typecheck) struct CallableId(ByteSpan);
@@ -18,6 +18,19 @@ pub(in crate::typecheck) struct InputId(ByteSpan);
 impl InputId {
     pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
         Self(span)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(in crate::typecheck) struct RegionId(ByteSpan);
+
+impl RegionId {
+    pub(in crate::typecheck) const fn declared_at(span: ByteSpan) -> Self {
+        Self(span)
+    }
+
+    pub(in crate::typecheck) const fn declaration_span(self) -> ByteSpan {
+        self.0
     }
 }
 
@@ -43,6 +56,10 @@ pub(in crate::typecheck) enum StorageOrigin {
         binding: ByteSpan,
         description: String,
     },
+    Region {
+        region: RegionId,
+        description: String,
+    },
     Unknown,
 }
 
@@ -62,6 +79,28 @@ pub(in crate::typecheck) enum ValueProvenance {
 }
 
 impl ValueProvenance {
+    pub(in crate::typecheck) fn has_storage_dependency(&self) -> bool {
+        match self {
+            Self::Independent => false,
+            Self::Origins(_) => true,
+            Self::Aggregate {
+                fallback,
+                fields,
+                elements,
+            } => {
+                fallback
+                    .as_deref()
+                    .is_some_and(Self::has_storage_dependency)
+                    || fields.values().any(Self::has_storage_dependency)
+                    || elements.values().any(Self::has_storage_dependency)
+            }
+            Self::Fallible { success, error } => {
+                success.as_deref().is_some_and(Self::has_storage_dependency)
+                    || error.as_deref().is_some_and(Self::has_storage_dependency)
+            }
+        }
+    }
+
     pub(in crate::typecheck) fn static_storage() -> Self {
         Self::Origins(vec![StorageOrigin::Static])
     }
@@ -77,6 +116,13 @@ impl ValueProvenance {
         }])
     }
 
+    pub(in crate::typecheck) fn region(region: RegionId, description: String) -> Self {
+        Self::Origins(vec![StorageOrigin::Region {
+            region,
+            description,
+        }])
+    }
+
     pub(in crate::typecheck) fn unknown() -> Self {
         Self::Origins(vec![StorageOrigin::Unknown])
     }
@@ -85,6 +131,7 @@ impl ValueProvenance {
         match self {
             Self::Origins(origins) => origins.iter().find_map(|origin| match origin {
                 StorageOrigin::Scope { description, .. } => Some(description.as_str()),
+                StorageOrigin::Region { description, .. } => Some(description.as_str()),
                 StorageOrigin::Unknown => Some("unknown storage"),
                 StorageOrigin::Static | StorageOrigin::Input(_) => None,
             }),
@@ -109,6 +156,47 @@ impl ValueProvenance {
         let mut inputs = Vec::new();
         self.collect_input_origins(&mut inputs);
         inputs
+    }
+
+    pub(in crate::typecheck) fn first_region_origin(
+        &self,
+        matching: impl Fn(RegionId) -> bool + Copy,
+    ) -> Option<(RegionId, &str)> {
+        match self {
+            Self::Origins(origins) => origins.iter().find_map(|origin| match origin {
+                StorageOrigin::Region {
+                    region,
+                    description,
+                } if matching(*region) => Some((*region, description.as_str())),
+                _ => None,
+            }),
+            Self::Aggregate {
+                fallback,
+                fields,
+                elements,
+            } => fallback
+                .as_deref()
+                .and_then(|provenance| provenance.first_region_origin(matching))
+                .or_else(|| {
+                    fields
+                        .values()
+                        .find_map(|provenance| provenance.first_region_origin(matching))
+                })
+                .or_else(|| {
+                    elements
+                        .values()
+                        .find_map(|provenance| provenance.first_region_origin(matching))
+                }),
+            Self::Fallible { success, error } => success
+                .as_deref()
+                .and_then(|provenance| provenance.first_region_origin(matching))
+                .or_else(|| {
+                    error
+                        .as_deref()
+                        .and_then(|provenance| provenance.first_region_origin(matching))
+                }),
+            Self::Independent => None,
+        }
     }
 
     fn collect_input_origins(&self, inputs: &mut Vec<InputId>) {
@@ -283,9 +371,36 @@ impl ValueProvenance {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(in crate::typecheck) struct LexicalRegionTree {
+    parents: HashMap<RegionId, Option<RegionId>>,
+}
+
+impl LexicalRegionTree {
+    pub(in crate::typecheck) fn define(&mut self, region: RegionId, parent: Option<RegionId>) {
+        self.parents.insert(region, parent);
+    }
+
+    pub(in crate::typecheck) fn is_same_or_nested_within(
+        &self,
+        candidate: RegionId,
+        ancestor: RegionId,
+    ) -> bool {
+        let mut current = Some(candidate);
+        while let Some(region) = current {
+            if region == ancestor {
+                return true;
+            }
+            current = self.parents.get(&region).copied().flatten();
+        }
+        false
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(in crate::typecheck) struct ProvenanceEnvironment {
     bindings: HashMap<ByteSpan, ValueProvenance>,
+    known_bindings: HashSet<ByteSpan>,
 }
 
 impl ProvenanceEnvironment {
@@ -299,6 +414,7 @@ impl ProvenanceEnvironment {
         contains_storage: bool,
         provenance: Option<ValueProvenance>,
     ) {
+        self.known_bindings.insert(binding);
         if contains_storage {
             if let Some(provenance) = provenance {
                 self.bindings.insert(binding, provenance);
@@ -312,7 +428,9 @@ impl ProvenanceEnvironment {
 
     pub(in crate::typecheck) fn join_reachable(&mut self, states: &[ProvenanceEnvironment]) {
         let mut joined = HashMap::new();
+        let mut known = self.known_bindings.clone();
         for state in states {
+            known.extend(state.known_bindings.iter().copied());
             for (binding, provenance) in &state.bindings {
                 joined
                     .entry(*binding)
@@ -321,6 +439,31 @@ impl ProvenanceEnvironment {
             }
         }
         self.bindings = joined;
+        self.known_bindings = known;
+    }
+
+    pub(in crate::typecheck) fn update_existing_from(&mut self, state: &ProvenanceEnvironment) {
+        for binding in self.known_bindings.clone() {
+            if let Some(next) = state.bindings.get(&binding) {
+                self.bindings.insert(binding, next.clone());
+            } else {
+                self.bindings.remove(&binding);
+            }
+        }
+    }
+
+    pub(in crate::typecheck) fn first_existing_binding_with_region<'a>(
+        &self,
+        state: &'a ProvenanceEnvironment,
+        region: RegionId,
+    ) -> Option<(ByteSpan, &'a str)> {
+        self.known_bindings.iter().find_map(|binding| {
+            state
+                .bindings
+                .get(binding)?
+                .first_region_origin(|candidate| candidate == region)
+                .map(|(_, description)| (*binding, description))
+        })
     }
 }
 
@@ -490,5 +633,37 @@ mod tests {
         };
 
         assert_eq!(provenance.input_origins(), vec![first, second]);
+    }
+
+    #[test]
+    fn region_tree_finds_transitive_children_by_declaration_identity() {
+        let outer = RegionId::declared_at(span(10));
+        let inner = RegionId::declared_at(span(11));
+        let sibling = RegionId::declared_at(span(12));
+        let mut tree = LexicalRegionTree::default();
+        tree.define(outer, None);
+        tree.define(inner, Some(outer));
+        tree.define(sibling, None);
+
+        assert!(tree.is_same_or_nested_within(inner, outer));
+        assert!(!tree.is_same_or_nested_within(sibling, outer));
+    }
+
+    #[test]
+    fn finds_region_origin_inside_aggregate_projection() {
+        let region = RegionId::declared_at(span(20));
+        let provenance = ValueProvenance::Aggregate {
+            fallback: None,
+            fields: BTreeMap::from([(
+                "text".into(),
+                ValueProvenance::region(region, "region `temp`".into()),
+            )]),
+            elements: BTreeMap::new(),
+        };
+
+        assert_eq!(
+            provenance.first_region_origin(|candidate| candidate == region),
+            Some((region, "region `temp`"))
+        );
     }
 }

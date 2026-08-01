@@ -139,7 +139,14 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 let mut body_environment = environment.clone();
-                body_environment.define(statement.name.clone(), Type::Unknown);
+                body_environment.define(
+                    statement.name.clone(),
+                    crate::typecheck::regions::region_binding_type(
+                        statement,
+                        self.resolved,
+                        environment,
+                    ),
+                );
                 self.record_environment_binding(
                     statement.name_span,
                     &statement.name,

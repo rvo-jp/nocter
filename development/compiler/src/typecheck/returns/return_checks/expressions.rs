@@ -7,8 +7,8 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     match expression {
         Expr::Propagate(expression) => {

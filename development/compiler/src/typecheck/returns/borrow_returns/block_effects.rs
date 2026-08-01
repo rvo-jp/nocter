@@ -4,9 +4,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_block_result(
     block: &crate::ast::Block,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let Some(result) = &block.result else {
         return None;
     };
@@ -34,8 +34,8 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effects(
     block: &crate::ast::Block,
     resolved: &ResolveOutput,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     for statement in &block.statements {
         apply_borrow_return_statement_effect(
@@ -52,8 +52,8 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
     statement: &Stmt,
     resolved: &ResolveOutput,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     match statement {
         Stmt::Binding(statement) => {
@@ -75,7 +75,10 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
             );
             borrow_provenance.define_binding(
                 statement.name_span,
-                type_contains_borrow_like(&binding_type, resolved),
+                type_contains_borrow_like(&binding_type, resolved)
+                    || provenance
+                        .as_ref()
+                        .is_some_and(ValueProvenance::has_storage_dependency),
                 provenance,
             );
         }
@@ -94,7 +97,10 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
                 if let Some(symbol) = resolved.local_symbol_for_identifier(identifier) {
                     borrow_provenance.define_binding(
                         symbol.name_span,
-                        type_contains_borrow_like(target_type, resolved),
+                        type_contains_borrow_like(target_type, resolved)
+                            || provenance
+                                .as_ref()
+                                .is_some_and(ValueProvenance::has_storage_dependency),
                         provenance,
                     );
                 }
@@ -203,6 +209,30 @@ pub(in crate::typecheck::returns) fn apply_borrow_return_statement_effect(
             }
             borrow_provenance.join_reachable(&incoming);
         }
+        Stmt::Region(statement) => {
+            let mut body_environment = environment.clone();
+            body_environment.define(
+                statement.name.clone(),
+                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
+            );
+            let mut body_provenance = borrow_provenance.clone();
+            body_provenance.define_binding(
+                statement.name_span,
+                true,
+                Some(ValueProvenance::region(
+                    crate::typecheck::regions::region_id(statement),
+                    format!("region `{}`", statement.name),
+                )),
+            );
+            apply_borrow_return_statement_effects(
+                &statement.body,
+                resolved,
+                &mut body_environment,
+                &mut body_provenance,
+                summaries,
+            );
+            borrow_provenance.update_existing_from(&body_provenance);
+        }
         _ => {}
     }
 }
@@ -212,8 +242,8 @@ pub(in crate::typecheck::returns) fn define_if_is_payload_borrow_return_binding(
     resolved: &ResolveOutput,
     source_environment: &TypeEnvironment,
     payload_environment: &TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let Some(binding) = statement
         .payload
@@ -239,8 +269,8 @@ pub(in crate::typecheck::returns) fn define_switch_arm_payload_borrow_return_bin
     resolved: &ResolveOutput,
     source_environment: &TypeEnvironment,
     payload_environment: &TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let Some(binding) = arm.payload.as_ref().and_then(|payload| payload.binding()) else {
         return;
@@ -262,8 +292,8 @@ pub(in crate::typecheck::returns) fn define_payload_borrow_return_binding(
     resolved: &ResolveOutput,
     source_environment: &TypeEnvironment,
     payload_environment: &TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let Some(binding_type) = payload_environment.get(&binding.name) else {
         borrow_provenance.define_binding(binding.span, false, None);

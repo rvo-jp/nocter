@@ -10,6 +10,7 @@ mod methods;
 mod operators;
 mod optional;
 mod ownership;
+mod regions;
 mod returns;
 mod strings;
 mod structs;

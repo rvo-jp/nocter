@@ -5,7 +5,7 @@ pub(in crate::typecheck::returns) fn check_impl_member_return_types(
     impl_: &ImplDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
-    summaries: &BorrowReturnSummaries,
+    summaries: &CallableProvenanceSummaries,
 ) {
     for member in &impl_.members {
         match member {
@@ -14,7 +14,7 @@ pub(in crate::typecheck::returns) fn check_impl_member_return_types(
                     continue;
                 };
                 let mut environment = environment_for_method(method, resolved, impl_);
-                let mut borrow_provenance = BorrowReturnEnvironment::default();
+                let mut borrow_provenance = ProvenanceEnvironment::default();
                 let context = ReturnContext::new(
                     CallableKind::Method(impl_member_name(impl_, &method.name)),
                     type_expr_to_type_in_environment(&method.return_type, resolved, &environment),
@@ -43,7 +43,7 @@ pub(in crate::typecheck::returns) fn check_impl_member_return_types(
                     resolved,
                     impl_,
                 );
-                let mut borrow_provenance = BorrowReturnEnvironment::default();
+                let mut borrow_provenance = ProvenanceEnvironment::default();
                 check_block_returns(
                     sources,
                     &drop_.body,

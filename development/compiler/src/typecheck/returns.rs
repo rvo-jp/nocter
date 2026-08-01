@@ -8,7 +8,8 @@ use super::diagnostics::{
     body_result_type_mismatch_diagnostic, borrow_return_escapes_diagnostic,
     catch_block_fallthrough_diagnostic, fallible_success_error_diagnostic,
     missing_return_diagnostic, missing_return_value_diagnostic, never_return_statement_diagnostic,
-    non_copy_struct_return_diagnostic, return_type_mismatch_diagnostic,
+    non_copy_struct_return_diagnostic, region_binding_escape_diagnostic,
+    region_return_escape_diagnostic, return_type_mismatch_diagnostic,
     unexpected_body_result_diagnostic, unexpected_return_value_diagnostic,
 };
 use super::environments::{
@@ -40,7 +41,7 @@ mod return_checks;
 mod terminal;
 mod utility;
 
-pub(super) use borrow_returns::borrow_return_summaries;
+pub(super) use borrow_returns::callable_provenance_summaries;
 use borrow_returns::*;
 use return_checks::*;
 use utility::*;
@@ -55,14 +56,14 @@ pub(super) fn check_return_types(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
-    summaries: &BorrowReturnSummaries,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for item in &ast.items {
         match item {
             Item::Function(function) => {
                 let mut environment = environment_for_function(function, resolved);
-                let mut borrow_provenance = BorrowReturnEnvironment::default();
+                let mut borrow_provenance = ProvenanceEnvironment::default();
                 let context = ReturnContext::new(
                     if function.owner.is_some() {
                         CallableKind::AssociatedFunction(function.name.clone())

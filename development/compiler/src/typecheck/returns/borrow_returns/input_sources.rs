@@ -10,9 +10,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let ty = expression_type(expression, resolved, environment);
     if type_contains_borrow_like(&ty, resolved) {
         return borrow_return_provenance_for_expression(
@@ -26,7 +26,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input
     }
 
     let Some(identifier) = expression_root_identifier(expression) else {
-        return Some(BorrowReturnProvenance::scope(
+        return Some(ValueProvenance::scope(
             expression.span(),
             "temporary expression".to_string(),
         ));
@@ -50,8 +50,8 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+) -> Option<ValueProvenance> {
     let local_symbol = resolved.local_symbol_for_identifier(identifier)?;
     if let Some(provenance) = borrow_provenance.get(local_symbol.name_span) {
         return Some(provenance.clone());
@@ -62,7 +62,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
             .get(&identifier.name)
             .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
     {
-        return Some(BorrowReturnProvenance::input(InputId::declared_at(
+        return Some(ValueProvenance::input(InputId::declared_at(
             local_symbol.name_span,
         )));
     }
@@ -73,7 +73,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
     expression: &Expr,
     resolved: &ResolveOutput,
-) -> Option<BorrowReturnProvenance> {
+) -> Option<ValueProvenance> {
     let Expr::Borrow(borrow) = unwrap_group(expression) else {
         return None;
     };
@@ -82,7 +82,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
         Expr::Identifier(identifier) => {
             borrow_return_provenance_for_local_storage(identifier, resolved)
         }
-        expression => Some(BorrowReturnProvenance::scope(
+        expression => Some(ValueProvenance::scope(
             expression.span(),
             "temporary expression".to_string(),
         )),
@@ -92,7 +92,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
     identifier: &crate::ast::IdentifierExpr,
     resolved: &ResolveOutput,
-) -> Option<BorrowReturnProvenance> {
+) -> Option<ValueProvenance> {
     let symbol = resolved.local_symbol_for_identifier(identifier)?;
     let source = match symbol.kind {
         LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
@@ -103,5 +103,5 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
         LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
     };
 
-    Some(BorrowReturnProvenance::scope(symbol.name_span, source))
+    Some(ValueProvenance::scope(symbol.name_span, source))
 }

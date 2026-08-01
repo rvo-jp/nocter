@@ -23,7 +23,7 @@ use super::expressions::{
     check_error_member_expression, collection_builtin_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
-use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
     check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
@@ -387,7 +387,10 @@ fn check_statement_expressions(
                 loop_depth,
             );
             let mut body_environment = environment.clone();
-            body_environment.define(statement.name.clone(), Type::Unknown);
+            body_environment.define(
+                statement.name.clone(),
+                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
+            );
             check_block_expressions(
                 sources,
                 &statement.body,

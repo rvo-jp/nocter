@@ -1,11 +1,11 @@
 use super::*;
 
-pub(in crate::typecheck) fn borrow_return_summaries(
+pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
-) -> BorrowReturnSummaries {
-    let mut summaries = BorrowReturnSummaries::default();
+) -> CallableProvenanceSummaries {
+    let mut summaries = CallableProvenanceSummaries::default();
     for _ in 0..=borrow_return_callable_count(summary_sources) {
-        let next = collect_borrow_return_summaries(summary_sources, &summaries);
+        let next = collect_callable_provenance_summaries(summary_sources, &summaries);
         if next == summaries {
             return summaries;
         }
@@ -42,11 +42,11 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
     }
 }
 
-pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
+pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
-    previous: &BorrowReturnSummaries,
-) -> BorrowReturnSummaries {
-    let mut summaries = BorrowReturnSummaries::default();
+    previous: &CallableProvenanceSummaries,
+) -> CallableProvenanceSummaries {
+    let mut summaries = CallableProvenanceSummaries::default();
     for source in summary_sources {
         for item in &source.ast.items {
             match item {
@@ -65,7 +65,7 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                             &environment,
                             previous,
                         )
-                        .unwrap_or_else(BorrowReturnProvenance::static_storage);
+                        .unwrap_or_else(ValueProvenance::static_storage);
                         summaries.insert_result(
                             CallableId::declared_at(function_summary_key(function)),
                             provenance,
@@ -94,7 +94,7 @@ pub(in crate::typecheck::returns) fn collect_borrow_return_summaries(
                                 &environment,
                                 previous,
                             )
-                            .unwrap_or_else(BorrowReturnProvenance::static_storage);
+                            .unwrap_or_else(ValueProvenance::static_storage);
                             summaries.insert_result(
                                 CallableId::declared_at(method.name_span),
                                 provenance,
@@ -124,15 +124,15 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_callable_body(
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     if !type_contains_borrow_like(return_type, resolved) {
         return None;
     }
 
-    let mut flow = BorrowReturnFlow::default();
+    let mut flow = ProvenanceFlow::default();
     let mut body_environment = environment.clone();
-    let mut body_borrow_provenance = BorrowReturnEnvironment::default();
+    let mut body_borrow_provenance = ProvenanceEnvironment::default();
     collect_return_statement_provenance(
         block,
         return_type,
@@ -147,7 +147,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_callable_body(
         return_type,
         resolved,
         environment,
-        &BorrowReturnEnvironment::default(),
+        &ProvenanceEnvironment::default(),
         summaries,
         &mut flow,
     );

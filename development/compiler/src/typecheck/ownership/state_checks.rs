@@ -379,7 +379,10 @@ pub(super) fn check_statement_ownership(
                 ownership,
             );
             let mut body_environment = environment.clone();
-            body_environment.define(statement.name.clone(), Type::Unknown);
+            body_environment.define(
+                statement.name.clone(),
+                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
+            );
             let mut body_ownership = ownership.clone();
             let flow = check_block_ownership(
                 sources,

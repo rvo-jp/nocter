@@ -7,8 +7,8 @@ pub(in crate::typecheck::returns) fn check_block_returns(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     if context.success_type().first_unsized_part().is_some() {
         return;
@@ -57,8 +57,8 @@ pub(in crate::typecheck::returns) fn check_block_return_statements(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) -> bool {
     for statement in &block.statements {
         check_statement_returns(

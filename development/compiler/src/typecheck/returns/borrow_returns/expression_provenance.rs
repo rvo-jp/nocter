@@ -2,16 +2,12 @@ use super::*;
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
     expression: &Expr,
-    ty: &Type,
+    _ty: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
-    if !type_contains_borrow_like(ty, resolved) {
-        return None;
-    }
-
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     match unwrap_group(expression) {
         Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(expression, resolved),
         Expr::Identifier(identifier) => borrow_return_provenance_for_identifier(
@@ -41,7 +37,11 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             borrow_provenance,
             summaries,
         ),
-        Expr::StringLiteral(_) => Some(BorrowReturnProvenance::static_storage()),
+        Expr::StringLiteral(_) => Some(ValueProvenance::static_storage()),
+        Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => Some(ValueProvenance::Independent),
         Expr::StructLiteral(literal) => {
             let mut fields = BTreeMap::new();
             for field in &literal.fields {
@@ -57,7 +57,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                     fields.insert(field.name.clone(), field_provenance);
                 }
             }
-            (!fields.is_empty()).then_some(BorrowReturnProvenance::Aggregate {
+            (!fields.is_empty()).then_some(ValueProvenance::Aggregate {
                 fallback: None,
                 fields,
                 elements: BTreeMap::new(),
@@ -92,7 +92,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                     elements.insert(index, element_provenance);
                 }
             }
-            (!elements.is_empty()).then_some(BorrowReturnProvenance::Aggregate {
+            (!elements.is_empty()).then_some(ValueProvenance::Aggregate {
                 fallback: None,
                 fields: BTreeMap::new(),
                 elements,
@@ -102,7 +102,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             let mut provenance = None;
             for argument in &call.arguments {
                 let argument_type = expression_type(argument, resolved, environment);
-                merge_borrow_return_provenance(
+                merge_provenance(
                     &mut provenance,
                     borrow_return_provenance_for_expression(
                         argument,
@@ -132,7 +132,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                 borrow_provenance,
                 summaries,
             );
-            merge_borrow_return_provenance(
+            merge_provenance(
                 &mut provenance,
                 borrow_return_provenance_for_block_result(
                     &expression.fallback,
@@ -155,7 +155,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                 borrow_provenance,
                 summaries,
             );
-            merge_borrow_return_provenance(
+            merge_provenance(
                 &mut provenance,
                 borrow_return_provenance_for_block_result(
                     else_block,
@@ -188,7 +188,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                 &then_borrow_provenance,
                 summaries,
             );
-            merge_borrow_return_provenance(
+            merge_provenance(
                 &mut provenance,
                 borrow_return_provenance_for_block_result(
                     else_block,
@@ -215,7 +215,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                     &mut arm_borrow_provenance,
                     summaries,
                 );
-                merge_borrow_return_provenance(
+                merge_provenance(
                     &mut provenance,
                     borrow_return_provenance_for_block_result(
                         &arm.body,
@@ -227,7 +227,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
                 );
             }
             if let Some(wildcard_arm) = &expression.wildcard_arm {
-                merge_borrow_return_provenance(
+                merge_provenance(
                     &mut provenance,
                     borrow_return_provenance_for_block_result(
                         &wildcard_arm.body,
@@ -248,9 +248,9 @@ pub(in crate::typecheck::returns) fn borrow_return_success_provenance_for_expres
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let expression_type = expression_type(expression, resolved, environment);
     borrow_return_provenance_for_expression(
         expression,
@@ -267,9 +267,9 @@ pub(in crate::typecheck::returns) fn borrow_return_fallible_error_provenance_for
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let expression_type = expression_type(expression, resolved, environment);
     if !matches!(expression_type, Type::Fallible { .. }) {
         return None;
@@ -289,9 +289,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_member(
     member: &crate::ast::MemberExpr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let object_type = expression_type(&member.object, resolved, environment);
     borrow_return_provenance_for_expression(
         &member.object,
@@ -308,9 +308,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_index(
     index: &crate::ast::IndexExpr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let object_type = expression_type(&index.object, resolved, environment);
     borrow_return_provenance_for_expression(
         &index.object,
@@ -331,9 +331,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     let signature = resolved_call_signature(resolved, call, environment)?;
     let return_type = call_return_type(call, &signature, resolved, environment);
     if let Some(declaration_span) = signature.declaration_span
@@ -350,6 +350,10 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         );
     }
 
+    if !type_contains_borrow_like(&return_type, resolved) {
+        return Some(ValueProvenance::Independent);
+    }
+
     let mut provenance = None;
     if let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
         && method_receiver_is_borrow(method)
@@ -362,7 +366,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             summaries,
         )
     {
-        merge_borrow_return_provenance(&mut provenance, Some(receiver_provenance));
+        merge_provenance(&mut provenance, Some(receiver_provenance));
     }
 
     for (argument, parameter) in call.arguments.iter().zip(&signature.signature.parameters) {
@@ -378,7 +382,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             continue;
         }
 
-        merge_borrow_return_provenance(
+        merge_provenance(
             &mut provenance,
             borrow_return_provenance_for_borrowed_input(
                 argument,
@@ -398,32 +402,31 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
             let error_provenance = type_contains_borrow_like(&error, resolved)
                 .then_some(provenance)
                 .flatten();
-            borrow_return_fallible_provenance(success_provenance, error_provenance)
+            fallible_provenance(success_provenance, error_provenance)
         }
         _ => provenance,
     }
 }
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
-    summary: &BorrowReturnProvenance,
+    summary: &ValueProvenance,
     call: &crate::ast::CallExpr,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     match summary {
-        BorrowReturnProvenance::Independent => Some(BorrowReturnProvenance::Independent),
-        BorrowReturnProvenance::Origins(origins) => {
+        ValueProvenance::Independent => Some(ValueProvenance::Independent),
+        ValueProvenance::Origins(origins) => {
             let mut provenance = None;
             for origin in origins {
                 match origin {
-                    StorageOrigin::Static => merge_borrow_return_provenance(
-                        &mut provenance,
-                        Some(BorrowReturnProvenance::static_storage()),
-                    ),
-                    StorageOrigin::Input(source) => merge_borrow_return_provenance(
+                    StorageOrigin::Static => {
+                        merge_provenance(&mut provenance, Some(ValueProvenance::static_storage()))
+                    }
+                    StorageOrigin::Input(source) => merge_provenance(
                         &mut provenance,
                         borrow_return_provenance_for_call_input(
                             *source,
@@ -435,14 +438,16 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
                             summaries,
                         ),
                     ),
-                    StorageOrigin::Scope { .. } | StorageOrigin::Unknown => {
-                        return Some(BorrowReturnProvenance::unknown());
+                    StorageOrigin::Scope { .. }
+                    | StorageOrigin::Region { .. }
+                    | StorageOrigin::Unknown => {
+                        return Some(ValueProvenance::unknown());
                     }
                 }
             }
             provenance
         }
-        BorrowReturnProvenance::Fallible { success, error } => {
+        ValueProvenance::Fallible { success, error } => {
             let mapped_success = success.as_deref().and_then(|provenance| {
                 borrow_return_provenance_for_call_summary(
                     provenance,
@@ -465,9 +470,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
                     summaries,
                 )
             });
-            borrow_return_fallible_provenance(mapped_success, mapped_error)
+            fallible_provenance(mapped_success, mapped_error)
         }
-        BorrowReturnProvenance::Aggregate {
+        ValueProvenance::Aggregate {
             fallback,
             fields,
             elements,
@@ -514,7 +519,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
             if mapped_fallback.is_none() && mapped_fields.is_empty() && mapped_elements.is_empty() {
                 None
             } else {
-                Some(BorrowReturnProvenance::Aggregate {
+                Some(ValueProvenance::Aggregate {
                     fallback: mapped_fallback.map(Box::new),
                     fields: mapped_fields,
                     elements: mapped_elements,
@@ -530,9 +535,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-) -> Option<BorrowReturnProvenance> {
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
         && InputId::declared_at(method.receiver.name_span) == source
