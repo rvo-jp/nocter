@@ -660,7 +660,7 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_with_prog
         resolved,
         context,
         &mut temporaries,
-        Some(&progress),
+        Some(progress),
     )
 }
 
