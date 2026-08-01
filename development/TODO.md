@@ -25,11 +25,14 @@ region/provenance の実装境界は [Region, Provenance, and Allocation Context
 `ValueProvenance`、`StorageOrigin`、`CallableId`、`InputId`、宣言 identity ベースの binding
 environment、`CallableProvenanceSummary` は導入済みで、return 検査と ownership/NLL が同じ
 call result summary を consume している。helper result の loan は全input originを保持し、
-result bindingの最終利用まで有効になる。
+result bindingの最終利用まで有効になる。`region name using allocator { ... }` は専用 AST、
+parser、JSON、formatter、resolver identity を持ち、allocator operand は child binding の導入前に
+parent scope で解決される。runtime lowering が完成するまでは buildability が明示的に拒否する。
 
 次の checkpoint では return 専用 aliasを除去し、storage-dependent owned valueと
-aggregate projectionに使えるoutlives queryを共有modelへ追加する。それがlocal/scope escapeを
-一貫して判定できるまで、region parserとambient allocatorを追加しない。
+aggregate projectionに使えるoutlives queryを共有modelへ追加する。その query を使う
+`typecheck/regions` が allocator place、region handle の不変性、直接・間接 escape を一貫して
+判定する。region runtime lowering と ambient allocator はその後に接続する。
 
 Phase 0 gate:
 
@@ -40,5 +43,5 @@ git diff --check
 ```
 
 - v0.2.0 release gate: passed at tag `v0.2.0`
-- v0.3.0 Phase 0 implementation: shared provenance identity foundation in progress
+- v0.3.0 Phase 0 implementation: shared provenance and lexical region frontend in progress
 - current documentation contract: defined

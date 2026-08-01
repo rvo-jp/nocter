@@ -154,6 +154,9 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
             expression_contains_call(&statement.condition) || block_contains_call(&statement.body)
         }
         crate::ast::Stmt::Loop(statement) => block_contains_call(&statement.body),
+        crate::ast::Stmt::Region(statement) => {
+            expression_contains_call(&statement.allocator) || block_contains_call(&statement.body)
+        }
         crate::ast::Stmt::Expression(statement) => expression_contains_call(&statement.expression),
         crate::ast::Stmt::Break(_) | crate::ast::Stmt::Continue(_) | crate::ast::Stmt::Drop(_) => {
             false
@@ -296,6 +299,10 @@ fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool 
                 || block_contains_interpolated_string(&statement.body)
         }
         crate::ast::Stmt::Loop(statement) => block_contains_interpolated_string(&statement.body),
+        crate::ast::Stmt::Region(statement) => {
+            expression_contains_interpolated_string(&statement.allocator)
+                || block_contains_interpolated_string(&statement.body)
+        }
         crate::ast::Stmt::Expression(statement) => {
             expression_contains_interpolated_string(&statement.expression)
         }

@@ -95,6 +95,10 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
                 collect_block_import_paths(&statement.body, paths);
             }
             Stmt::Loop(statement) => collect_block_import_paths(&statement.body, paths),
+            Stmt::Region(statement) => {
+                collect_expression_import_paths(&statement.allocator, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
             Stmt::Expression(statement) => {
                 collect_expression_import_paths(&statement.expression, paths);
             }

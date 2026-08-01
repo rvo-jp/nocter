@@ -132,6 +132,11 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             collect_block_targets(text, &statement.body, targets);
         }
         Stmt::Loop(statement) => collect_block_targets(text, &statement.body, targets),
+        Stmt::Region(statement) => {
+            push_target(text, statement.span, targets);
+            collect_expression_targets(text, &statement.allocator, targets);
+            collect_block_targets(text, &statement.body, targets);
+        }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_targets(text, &statement.expression, targets);

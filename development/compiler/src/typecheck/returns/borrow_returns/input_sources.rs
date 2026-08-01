@@ -97,6 +97,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
     let source = match symbol.kind {
         LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
         LocalSymbolKind::Binding(_) => format!("local binding `{}`", identifier.name),
+        LocalSymbolKind::Region => format!("region binding `{}`", identifier.name),
         LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
         LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
         LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),

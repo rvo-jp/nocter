@@ -360,6 +360,31 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 summaries,
             );
         }
+        Stmt::Region(statement) => {
+            check_expression_for_nested_returns(
+                sources,
+                &statement.allocator,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            let mut body_environment = environment.clone();
+            body_environment.define(statement.name.clone(), Type::Unknown);
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+        }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             check_expression_for_nested_returns(

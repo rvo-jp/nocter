@@ -132,6 +132,21 @@ impl TypecheckFactCollector<'_> {
                 let mut body_environment = environment.clone();
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
+            Stmt::Region(statement) => {
+                self.collect_expression_facts_in_context(
+                    &statement.allocator,
+                    environment,
+                    return_type,
+                );
+                let mut body_environment = environment.clone();
+                body_environment.define(statement.name.clone(), Type::Unknown);
+                self.record_environment_binding(
+                    statement.name_span,
+                    &statement.name,
+                    &body_environment,
+                );
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
+            }
             Stmt::Expression(statement) => {
                 self.collect_expression_facts_in_context(
                     &statement.expression,

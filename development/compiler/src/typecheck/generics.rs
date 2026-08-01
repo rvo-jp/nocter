@@ -412,6 +412,10 @@ fn check_statement(
         Stmt::Loop(statement) => {
             check_block(sources, &statement.body, resolved, scope, diagnostics)
         }
+        Stmt::Region(statement) => {
+            check_expression(sources, &statement.allocator, resolved, scope, diagnostics);
+            check_block(sources, &statement.body, resolved, scope, diagnostics);
+        }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 check_expression(sources, expression, resolved, scope, diagnostics);

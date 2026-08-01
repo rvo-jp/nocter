@@ -69,7 +69,7 @@ impl Resolver<'_> {
         }
     }
 
-    fn resolve_block(&mut self, block: &Block, scope: &mut Scope) {
+    pub(super) fn resolve_block(&mut self, block: &Block, scope: &mut Scope) {
         for statement in &block.statements {
             self.resolve_statement(statement, scope);
         }
@@ -174,6 +174,7 @@ impl Resolver<'_> {
                 let mut body_scope = scope.clone();
                 self.resolve_block(&statement.body, &mut body_scope);
             }
+            Stmt::Region(statement) => self.resolve_region_statement(statement, scope),
             Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Drop(statement) => {
                 if let Some(local_id) = scope.resolve(&statement.name) {
@@ -194,7 +195,7 @@ impl Resolver<'_> {
         }
     }
 
-    fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
+    pub(super) fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
         match expression {
             Expr::Identifier(expression) => self.resolve_identifier(expression, scope),
             Expr::Propagate(expression) => self.resolve_expression(&expression.expression, scope),
@@ -416,7 +417,7 @@ impl Resolver<'_> {
             })
     }
 
-    fn define_local_name(
+    pub(super) fn define_local_name(
         &mut self,
         name: String,
         span: ByteSpan,

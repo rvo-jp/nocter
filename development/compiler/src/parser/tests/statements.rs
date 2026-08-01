@@ -1,5 +1,40 @@
-use super::support::{assert_rejects_discard_name, assert_rejects_self_name, parse_text};
+use super::support::{
+    assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
+    parse_text_with_sources,
+};
 use crate::ast::{AssignmentOperator, Expr, Item, Stmt};
+
+#[test]
+fn parses_lexical_region_statement_and_json_shape() {
+    let (sources, output) = parse_text_with_sources(
+        r#"func main(arena: usize): void {
+    region temp using arena {
+        let value = temp
+    }
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Region(region) = &function.body.statements[0] else {
+        panic!("expected region statement");
+    };
+    assert_eq!(region.name, "temp");
+    assert!(matches!(region.allocator, Expr::Identifier(_)));
+    assert_eq!(region.body.statements.len(), 1);
+
+    let json = ast.to_json(&sources);
+    let region = find_json_node(&json, "region_statement").expect("expected region JSON node");
+    assert_eq!(region.value.as_deref(), Some("temp"));
+    assert_eq!(region.items[0].kind, "region_binding");
+    assert_eq!(region.items[1].kind, "identifier");
+    assert_eq!(region.items[2].kind, "body");
+}
 
 #[test]
 fn rejects_optional_let_else_binding() {

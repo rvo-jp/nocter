@@ -6,6 +6,7 @@ mod collector;
 mod diagnostics;
 mod imports;
 mod module_index;
+mod regions;
 mod signatures;
 mod symbols;
 

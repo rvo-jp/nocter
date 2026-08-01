@@ -360,6 +360,17 @@ pub(in crate::ir::lower) fn statement_contains_explicit_aggregate_move_matching(
         Stmt::Loop(statement) => {
             block_contains_explicit_aggregate_move_matching(&statement.body, context, matches_move)
         }
+        Stmt::Region(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.allocator,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.body,
+                context,
+                matches_move,
+            )
+        }
         Stmt::Expression(statement) => expression_contains_explicit_aggregate_move_matching(
             &statement.expression,
             context,
@@ -533,6 +544,7 @@ pub(in crate::ir::lower) fn mark_lowered_statement_aggregate_uses(
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Break(_)
         | Stmt::Continue(_) => {}
     }

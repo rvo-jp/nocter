@@ -130,6 +130,7 @@ pub(in crate::analysis::hover) fn local_symbol_hover_label(symbol: &LocalSymbol)
     match symbol.kind {
         LocalSymbolKind::Parameter => format!("parameter {}", symbol.name),
         LocalSymbolKind::Binding(kind) => format!("{} {}", binding_kind_label(kind), symbol.name),
+        LocalSymbolKind::Region => format!("region {}", symbol.name),
         LocalSymbolKind::PatternPayload => format!("payload {}", symbol.name),
         LocalSymbolKind::CatchError => format!("catch {}", symbol.name),
         LocalSymbolKind::ForRange => format!("for {}", symbol.name),

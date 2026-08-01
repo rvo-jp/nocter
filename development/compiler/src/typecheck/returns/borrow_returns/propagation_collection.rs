@@ -197,6 +197,17 @@ pub(in crate::typecheck::returns) fn collect_statement_fallible_propagation_prov
             );
         }
         Stmt::Loop(_) => {}
+        Stmt::Region(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.allocator,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
         Stmt::Expression(statement) => {
             collect_expression_fallible_propagation_provenance(
                 &statement.expression,

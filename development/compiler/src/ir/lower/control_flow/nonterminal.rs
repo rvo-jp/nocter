@@ -731,6 +731,13 @@ fn lower_nonterminal_loop_block_statements(
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?,
             ),
+            Stmt::Region(_) => {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                    sources,
+                    statement.span(),
+                ));
+            }
             Stmt::Break(_) => {
                 instructions.extend(
                     lower_nonterminal_loop_control_statement(

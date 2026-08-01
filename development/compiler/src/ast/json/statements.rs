@@ -161,6 +161,21 @@ impl Stmt {
                 json_span(sources, statement.span),
                 vec![statement.body.to_json_with_kind(sources, "body")],
             ),
+            Stmt::Region(statement) => JsonAstNode::with_value(
+                "region_statement",
+                statement.name.clone(),
+                json_span(sources, statement.span),
+                vec![
+                    JsonAstNode::with_value(
+                        "region_binding",
+                        statement.name.clone(),
+                        json_span(sources, statement.name_span),
+                        Vec::new(),
+                    ),
+                    statement.allocator.to_json(sources),
+                    statement.body.to_json_with_kind(sources, "body"),
+                ],
+            ),
             Stmt::Break(statement) => JsonAstNode::new(
                 "break_statement",
                 json_span(sources, statement.span),

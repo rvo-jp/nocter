@@ -5,6 +5,34 @@ use crate::parser::parse;
 use std::collections::HashMap;
 
 #[test]
+fn reports_region_runtime_boundary_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"func use_region(arena: usize): i32 {
+    region temp using arena {
+        let value = 1
+    }
+    return 0
+}
+
+func main(): i32 {
+    return use_region(0)
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0435");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("lexical `region` statements")
+    );
+    assert!(diagnostics[0].primary_span.is_some());
+}
+
+#[test]
 fn reports_reachable_unloaded_imported_call_before_ir_lowering() {
     let (sources, analysis) = analyze_text(
         r#"use std/io.print

@@ -368,6 +368,33 @@ pub(super) fn check_statement_ownership(
                 FlowState::fallthrough()
             }
         }
+        Stmt::Region(statement) => {
+            check_expression_ownership(
+                sources,
+                &statement.allocator,
+                resolved,
+                summaries,
+                diagnostics,
+                environment,
+                ownership,
+            );
+            let mut body_environment = environment.clone();
+            body_environment.define(statement.name.clone(), Type::Unknown);
+            let mut body_ownership = ownership.clone();
+            let flow = check_block_ownership(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+            );
+            if flow.reaches_end {
+                *ownership = body_ownership;
+            }
+            flow
+        }
         Stmt::Drop(statement) => {
             let Some(ty) = environment.get(&statement.name) else {
                 diagnostics.push(invalid_drop_target_diagnostic(

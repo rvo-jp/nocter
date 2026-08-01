@@ -37,6 +37,22 @@ if x>3{return x}else{return 0}
 }
 
 #[test]
+fn formats_lexical_regions_stably() {
+    assert_formats_stably(
+        r#"func main(arena:usize):void{region temp using arena{let value=temp}return}
+"#,
+        concat!(
+            "func main(arena: usize): void {\n",
+            "    region temp using arena {\n",
+            "        let value = temp\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_type_and_data_declarations() {
     assert_formats_stably(
         r#"pub(nocter) type Path= [u8]

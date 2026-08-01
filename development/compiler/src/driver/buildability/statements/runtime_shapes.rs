@@ -107,6 +107,7 @@ pub(in crate::driver::buildability) fn catch_block_leading_statement_runtime_sha
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Return(_)
         | Stmt::Break(_)
         | Stmt::Continue(_)
@@ -147,6 +148,7 @@ pub(in crate::driver::buildability) fn catch_block_terminal_statement_runtime_sh
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Break(_)
         | Stmt::Continue(_)
         | Stmt::Drop(_) => false,
@@ -202,6 +204,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_runtime_shape_i
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Break(_)
         | Stmt::Continue(_)
         | Stmt::Drop(_) => false,
@@ -257,6 +260,7 @@ pub(in crate::driver::buildability) fn otherwise_binding_fallback_runtime_shape_
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Drop(_) => false,
     }
 }
@@ -287,6 +291,7 @@ pub(in crate::driver::buildability) fn otherwise_return_fallback_leading_stateme
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Return(_)
         | Stmt::Break(_)
         | Stmt::Continue(_) => false,

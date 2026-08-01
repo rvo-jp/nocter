@@ -621,6 +621,24 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_statement
             generic_substitutions,
             scope,
         ),
+        Stmt::Region(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.allocator,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(
+                &statement.body,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
+        }),
         Stmt::Expression(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,

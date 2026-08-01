@@ -113,6 +113,15 @@ pub(super) fn collect_direct_borrow_expressions_in_statement(
             environment,
             borrows,
         ),
+        Stmt::Region(statement) => {
+            collect_direct_borrow_expressions(&statement.allocator, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
         Stmt::Expression(statement) => {
             collect_direct_borrow_expressions(&statement.expression, resolved, environment, borrows)
         }

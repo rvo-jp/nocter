@@ -100,6 +100,10 @@ pub(in crate::analysis::hover) fn module_path_in_statement_at_offset(
         Stmt::While(statement) => module_path_in_expression_at_offset(&statement.condition, offset)
             .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
         Stmt::Loop(statement) => module_path_in_block_at_offset(&statement.body, offset),
+        Stmt::Region(statement) => {
+            module_path_in_expression_at_offset(&statement.allocator, offset)
+                .or_else(|| module_path_in_block_at_offset(&statement.body, offset))
+        }
         Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
         Stmt::Expression(statement) => {
             module_path_in_expression_at_offset(&statement.expression, offset)

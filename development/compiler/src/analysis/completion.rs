@@ -770,6 +770,10 @@ fn completion_context_in_statement_at_offset(
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
         }
         Stmt::Loop(statement) => completion_context_in_block_at_offset(&statement.body, offset),
+        Stmt::Region(statement) => {
+            completion_context_in_expression_at_offset(&statement.allocator, offset)
+                .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
+        }
         Stmt::Expression(statement) => {
             completion_context_in_expression_at_offset(&statement.expression, offset)
         }

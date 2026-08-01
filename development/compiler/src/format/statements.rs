@@ -81,6 +81,14 @@ impl Formatter {
                 self.write("loop ");
                 self.format_block(&statement.body);
             }
+            Stmt::Region(statement) => {
+                self.write("region ");
+                self.write(&statement.name);
+                self.write(" using ");
+                self.format_expression(&statement.allocator);
+                self.write(" ");
+                self.format_block(&statement.body);
+            }
             Stmt::Break(_) => self.write("break"),
             Stmt::Continue(_) => self.write("continue"),
             Stmt::Drop(statement) => {

@@ -107,6 +107,10 @@ fn collect_statement(
         }
         Stmt::While(statement) => collect_while(statement, root_source, resolved, targets),
         Stmt::Loop(statement) => collect_block(&statement.body, root_source, resolved, targets),
+        Stmt::Region(statement) => {
+            collect_expression(&statement.allocator, root_source, resolved, targets);
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
         Stmt::Expression(statement) => {
             collect_expression(&statement.expression, root_source, resolved, targets);
         }

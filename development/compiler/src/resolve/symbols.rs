@@ -278,6 +278,7 @@ pub struct LocalSymbol {
 pub enum LocalSymbolKind {
     Parameter,
     Binding(BindingKind),
+    Region,
     PatternPayload,
     CatchError,
     ForRange,

@@ -267,6 +267,10 @@ fn statement_conflicting_action(
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_move_action(&statement.body, source, resolved, environment),
+        Stmt::Region(statement) => {
+            expression_move_action(&statement.allocator, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
+        }
         Stmt::Expression(statement) => {
             expression_move_action(&statement.expression, source, resolved, environment)
         }
@@ -357,6 +361,10 @@ fn statement_read_action(
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_read_action(&statement.body, source, resolved, environment),
+        Stmt::Region(statement) => {
+            expression_read_action(&statement.allocator, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
+        }
         Stmt::Expression(statement) => {
             expression_read_action(&statement.expression, source, resolved, environment)
         }

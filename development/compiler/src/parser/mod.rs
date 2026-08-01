@@ -3,6 +3,7 @@
 mod cursor;
 mod expressions;
 mod items;
+mod regions;
 mod statements;
 mod support;
 mod types;

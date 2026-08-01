@@ -139,6 +139,10 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
         }
         Stmt::While(statement) => collect_matching_block(&statement.body, offset, locals),
         Stmt::Loop(statement) => collect_matching_block(&statement.body, offset, locals),
+        Stmt::Region(statement) if contains(statement.body.span, offset) => {
+            define(locals, &statement.name, statement.name_span, "region");
+            collect_block(&statement.body, offset, locals);
+        }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_expression_scope(expression, offset, locals);
@@ -159,6 +163,7 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
         | Stmt::Break(_)
         | Stmt::Continue(_)
         | Stmt::Drop(_)
+        | Stmt::Region(_)
         | Stmt::ForRange(_) => {}
     }
 }

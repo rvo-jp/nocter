@@ -94,6 +94,10 @@ fn collect_scoped_import_name_spans_in_statement(statement: &Stmt, spans: &mut H
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
         Stmt::Loop(statement) => collect_scoped_import_name_spans_in_block(&statement.body, spans),
+        Stmt::Region(statement) => {
+            collect_scoped_import_name_spans_in_expression(&statement.allocator, spans);
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
         Stmt::Expression(statement) => {
             collect_scoped_import_name_spans_in_expression(&statement.expression, spans);
         }
@@ -320,6 +324,12 @@ fn scoped_import_spans_in_statement_at_offset(
         }
         Stmt::Loop(statement) => {
             scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+        }
+        Stmt::Region(statement) => {
+            scoped_import_spans_in_expression_at_offset(&statement.allocator, offset, visible)
+                .or_else(|| {
+                    scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+                })
         }
         Stmt::Expression(statement) => {
             scoped_import_spans_in_expression_at_offset(&statement.expression, offset, visible)

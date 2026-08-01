@@ -329,6 +329,7 @@ pub enum Stmt {
     ForRange(ForRangeStmt),
     While(WhileStmt),
     Loop(LoopStmt),
+    Region(RegionStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
     Drop(DropStmt),
@@ -481,6 +482,17 @@ pub struct WhileStmt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopStmt {
     pub span: ByteSpan,
+    pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionStmt {
+    pub span: ByteSpan,
+    pub keyword_span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub using_span: ByteSpan,
+    pub allocator: Expr,
     pub body: Block,
 }
 
@@ -799,6 +811,7 @@ impl Stmt {
             Stmt::ForRange(statement) => statement.span,
             Stmt::While(statement) => statement.span,
             Stmt::Loop(statement) => statement.span,
+            Stmt::Region(statement) => statement.span,
             Stmt::Break(statement) => statement.span,
             Stmt::Continue(statement) => statement.span,
             Stmt::Drop(statement) => statement.span,

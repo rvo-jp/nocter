@@ -118,6 +118,10 @@ fn call_in_statement_at_offset(
                 .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
         }
         Stmt::Loop(statement) => call_in_block_at_offset(&statement.body, offset, region),
+        Stmt::Region(statement) => {
+            call_in_expression_at_offset(&statement.allocator, offset, region)
+                .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
+        }
         Stmt::Expression(statement) => {
             call_in_expression_at_offset(&statement.expression, offset, region)
         }

@@ -351,6 +351,17 @@ pub(in crate::analysis::hover) fn collect_statement_hover_symbols(
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
         Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),
+        Stmt::Region(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("region {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.allocator, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
         Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_hover_symbols(text, &statement.expression, symbols);

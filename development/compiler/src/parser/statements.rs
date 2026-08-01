@@ -88,6 +88,10 @@ impl Parser<'_> {
             return self.parse_loop_statement();
         }
 
+        if self.at_keyword(Keyword::Region) {
+            return self.parse_region_statement();
+        }
+
         if self.at_keyword(Keyword::Break) {
             return self.parse_break_statement();
         }

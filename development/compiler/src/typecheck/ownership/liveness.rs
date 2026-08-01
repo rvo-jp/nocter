@@ -64,6 +64,10 @@ fn statement_uses_identifier(
         Stmt::Loop(statement) => {
             block_uses_identifier(&statement.body, name, resolved, environment)
         }
+        Stmt::Region(statement) => {
+            expression_uses_identifier(&statement.allocator, name, resolved, environment)
+                || block_uses_identifier(&statement.body, name, resolved, environment)
+        }
         Stmt::Expression(statement) => {
             expression_uses_identifier(&statement.expression, name, resolved, environment)
         }

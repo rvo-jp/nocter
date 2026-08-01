@@ -269,6 +269,7 @@ fn semantic_kind_for_local_symbol_kind(kind: LocalSymbolKind) -> SemanticTokenKi
     match kind {
         LocalSymbolKind::Parameter => SemanticTokenKind::Parameter,
         LocalSymbolKind::Binding(_)
+        | LocalSymbolKind::Region
         | LocalSymbolKind::PatternPayload
         | LocalSymbolKind::CatchError
         | LocalSymbolKind::ForRange => SemanticTokenKind::Variable,
@@ -277,9 +278,9 @@ fn semantic_kind_for_local_symbol_kind(kind: LocalSymbolKind) -> SemanticTokenKi
 
 fn local_symbol_modifiers(symbol: &LocalSymbol, span: ByteSpan, facts: &TypecheckFacts) -> u32 {
     match symbol.kind {
-        LocalSymbolKind::Parameter | LocalSymbolKind::Binding(BindingKind::Let) => {
-            SEMANTIC_READONLY_MODIFIER
-        }
+        LocalSymbolKind::Parameter
+        | LocalSymbolKind::Binding(BindingKind::Let)
+        | LocalSymbolKind::Region => SEMANTIC_READONLY_MODIFIER,
         LocalSymbolKind::Binding(BindingKind::Var) => 0,
         LocalSymbolKind::PatternPayload
         | LocalSymbolKind::CatchError

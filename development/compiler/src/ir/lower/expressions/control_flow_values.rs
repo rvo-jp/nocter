@@ -987,6 +987,7 @@ pub(super) fn lower_value_control_leading_statements(
             | Stmt::ForRange(_)
             | Stmt::While(_)
             | Stmt::Loop(_)
+            | Stmt::Region(_)
             | Stmt::Break(_)
             | Stmt::Continue(_) => return Err(unsupported_value_control_expression_diagnostic()),
         }

@@ -16,6 +16,12 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
 ) {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => {}
+        Stmt::Region(statement) => diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            statement.keyword_span,
+            "lexical `region` statements",
+            "`region` is accepted by the v0.3 frontend, but runtime allocation-context lowering is not implemented yet",
+        )),
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_terminal_return_expression_diagnostics(

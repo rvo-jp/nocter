@@ -83,6 +83,9 @@ pub(in crate::typecheck) fn statement_evaluates_never_before_fallthrough(
         Stmt::While(statement) => {
             expression_type(&statement.condition, resolved, environment) == Type::Never
         }
+        Stmt::Region(statement) => {
+            expression_type(&statement.allocator, resolved, environment) == Type::Never
+        }
         Stmt::Expression(statement) => {
             expression_type(&statement.expression, resolved, environment) == Type::Never
         }
@@ -257,6 +260,7 @@ pub(super) fn statement_guarantees_return(statement: &Stmt) -> bool {
                 && block_guarantees_return(&wildcard_arm.body)
         }),
         Stmt::Loop(statement) => block_guarantees_return(&statement.body),
+        Stmt::Region(statement) => block_guarantees_return(&statement.body),
         Stmt::Import(_) | Stmt::FromImport(_) => false,
         Stmt::Binding(_)
         | Stmt::Assignment(_)
