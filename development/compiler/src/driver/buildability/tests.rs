@@ -2000,6 +2000,80 @@ func main(): i32 {
     );
 }
 
+#[test]
+fn accepts_move_only_fixed_array_owned_parameter_boundaries() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(files: [File; 2]): void {
+    return
+}
+
+func forward(files: [File; 2]): void {
+    consume(move files)
+    return
+}
+
+func main(): i32 {
+    let files: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    consume(move files)
+    forward([File { fd: 3 }, File { fd: 4 }])
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_move_only_fixed_array_argument_partial_initialization_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func open(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func consume(files: [File; 2]): void {
+    return
+}
+
+func main(): i32! {
+    consume([File { fd: 1 }, open(2)?])
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0435");
+    assert_eq!(
+        diagnostics[0].message,
+        "Nocter v0 build cannot lower fixed array argument literals whose element initialization can exit early yet"
+    );
+}
+
 fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());

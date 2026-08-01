@@ -1247,3 +1247,136 @@ func main(): i32 {
     assert_eq!(output.stdout, b"bafedc");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_move_only_fixed_arrays_to_owned_parameters() {
+    let project = TempProject::new("cli-run-move-only-fixed-array-owned-parameters");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "move_only_fixed_array_owned_parameters.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func consume(files: [File; 2]): void {
+    return
+}
+
+func forward(files: [File; 2]): void {
+    consume(move files)
+    return
+}
+
+func main(): i32 {
+    let files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    consume(move files)
+    forward([File { name: "c" }, File { name: "d" }])
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badc");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_direct_move_only_fixed_array_call_arguments() {
+    let project = TempProject::new("cli-run-direct-move-only-fixed-array-call-argument");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "direct_move_only_fixed_array_call_argument.nct",
+        r#"use std/log.write
+
+struct Token {
+    tag: u8
+}
+
+impl Token {
+    drop &+self {
+        if self.tag == 1 {
+            write("a")!
+        } else {
+            write("b")!
+        }
+        return
+    }
+}
+
+func make(): [Token; 2] {
+    return [Token { tag: 1 }, Token { tag: 2 }]
+}
+
+func consume(tokens: [Token; 2]): void {
+    return
+}
+
+func main(): i32 {
+    consume(make())
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ba");
+    assert!(output.stderr.is_empty());
+}
