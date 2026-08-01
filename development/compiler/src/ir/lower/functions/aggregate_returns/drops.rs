@@ -198,6 +198,63 @@ pub(in crate::ir::lower) fn lower_struct_fields_drop_instructions(
     Ok(instructions)
 }
 
+pub(in crate::ir::lower) fn lower_payload_fields_drop_instructions(
+    name: &str,
+    location: AggregateLocation,
+    base_offset: u32,
+    drop_kind: &AggregateDrop,
+    tag: u8,
+    fields: &[PayloadFieldDropState],
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let AggregateDrop::PayloadEnum(drop_) = drop_kind else {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    };
+    let Some(variant) = drop_.variants.iter().find(|variant| variant.tag == tag) else {
+        return fields
+            .is_empty()
+            .then(Vec::new)
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name));
+    };
+    if fields.len() != variant.fields.len() {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    }
+
+    let mut instructions = Vec::with_capacity(fields.len());
+    for state in fields.iter().rev() {
+        let Some(field) = variant
+            .fields
+            .iter()
+            .find(|field| field.payload_offset == state.payload_offset)
+        else {
+            return Err(unsupported_drop_statement_diagnostic(name));
+        };
+        let offset = base_offset
+            .checked_add(field.payload_offset)
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+        instructions.push(Instruction::If {
+            condition: BoolValue::Location(state.initialized),
+            then_instructions: lower_payload_enum_drop_field(
+                name,
+                location,
+                base_offset,
+                field,
+                context,
+            )?,
+            else_instructions: lower_partial_aggregate_drop_at_offset(
+                name,
+                location,
+                offset,
+                field.payload_layout,
+                field.drop_kind.as_ref(),
+                state.partial.as_ref(),
+                context,
+            )?,
+        });
+    }
+    Ok(instructions)
+}
+
 fn lower_partial_aggregate_drop_at_offset(
     name: &str,
     location: AggregateLocation,
@@ -222,6 +279,9 @@ fn lower_partial_aggregate_drop_at_offset(
         ),
         DropObligation::StructFields { fields } => lower_struct_fields_drop_instructions(
             name, location, offset, drop_kind, fields, context,
+        ),
+        DropObligation::PayloadFields { tag, fields } => lower_payload_fields_drop_instructions(
+            name, location, offset, drop_kind, *tag, fields, context,
         ),
     }
 }

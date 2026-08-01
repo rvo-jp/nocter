@@ -324,6 +324,24 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_constructor_value_to_l
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if matches!(&value.ty, AbiType::Enum(_))
+        && let Some(return_type_expr) = fixed_array_return_value_type_expr(context)
+        && let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) =
+            context.aggregate_drop_for_type_expr(return_type_expr)
+    {
+        return lower_tracked_payload_enum_constructor_return(
+            expression,
+            &value.ty,
+            expected_layout,
+            destination,
+            function_name,
+            resolved,
+            drop_kind,
+            context,
+        )
+        .map(Some);
+    }
+
     let subject = format!("returns from function `{function_name}`");
     let aggregate_slot_mark = context.aggregate_slot_mark();
     let lowered_direct = lower_payload_enum_constructor_to_location(
@@ -354,6 +372,73 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_constructor_value_to_l
         Err(error) => return Err(error),
     };
     Ok(Some(instructions))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_tracked_payload_enum_constructor_return(
+    expression: &Expr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    drop_kind: AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(expected_layout) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+    let AbiType::Enum(enum_) = expected_type else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+
+    let mut initialization_context = context.clone();
+    let slot_index = initialization_context.reserve_aggregate_slot_index();
+    let progress = PayloadInitializationProgress::with_allocator(
+        expression,
+        enum_,
+        &drop_kind,
+        &mut initialization_context,
+    )?;
+    if !initialization_context.register_temporary_payload_fields_drop(
+        slot_index,
+        expected_layout,
+        drop_kind,
+        progress.tag(),
+        progress.drop_states(),
+    ) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let subject = format!("returns from function `{function_name}`");
+    let mut temporaries = TemporaryAllocator::new(&initialization_context)?;
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(progress.initialize());
+    let Some(mut constructor) = lower_payload_enum_constructor_to_location_with_progress(
+        expression,
+        expected_type,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        &subject,
+        resolved,
+        &initialization_context,
+        &mut temporaries,
+        Some(&progress),
+    )?
+    else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    instructions.append(&mut constructor);
+    instructions.push(Instruction::CopyAggregate {
+        destination,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
+    Ok(instructions)
 }
 
 pub(in crate::ir::lower::functions) fn lower_direct_payload_enum_constructor_return_through_slot(

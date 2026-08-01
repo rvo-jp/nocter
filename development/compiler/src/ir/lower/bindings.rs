@@ -1,5 +1,5 @@
 use super::aggregates::{
-    ArrayInitializationProgress, StructInitializationProgress,
+    ArrayInitializationProgress, PayloadInitializationProgress, StructInitializationProgress,
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
     aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
     array_literal_requires_runtime_progress, lower_aggregate_array_literal_to_location,
@@ -10,10 +10,12 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location_with_temporaries,
-    lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,
-    push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
-    supported_aggregate_copy_layout, type_expr_is_copy_aggregate_value_with_resolver,
-    type_expr_is_copy_struct, type_expr_is_copy_struct_with_resolver,
+    lower_payload_enum_constructor_to_location,
+    lower_payload_enum_constructor_to_location_with_progress,
+    payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
+    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+    type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct,
+    type_expr_is_copy_struct_with_resolver,
 };
 use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;

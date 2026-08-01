@@ -1,6 +1,64 @@
 use super::*;
 
 #[test]
+fn build_command_tracks_partial_payload_construction_across_value_boundaries() {
+    let project = TempProject::new("cli-build-partial-payload-construction-boundaries");
+    let source = project.write_source(
+        "partial_payload_construction_boundaries.nct",
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func consume(result: Result): i32 {
+    return 1
+}
+
+func construct_argument(): i32! {
+    return consume(Result.ok([File { code: 20 }, make_file()?]))
+}
+
+func construct_return(): Result! {
+    return Result.ok([File { code: 20 }, make_file()?])
+}
+
+func replace_local(): i32! {
+    var result: Result = Result.failed
+    result = Result.ok([File { code: 20 }, make_file()?])
+    return 1
+}
+
+func main(): i32 {
+    construct_argument()!
+    construct_return()!
+    replace_local()!
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_trailing_void_if_is_and_match_before_implicit_return() {
     let project = TempProject::new("cli-build-trailing-void-if-is-match-implicit-return");
     let source = project.write_source(

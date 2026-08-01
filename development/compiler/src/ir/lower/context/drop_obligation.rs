@@ -17,11 +17,26 @@ pub(in crate::ir::lower) struct StructFieldDropState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ir::lower) struct PayloadFieldDropState {
+    pub(in crate::ir::lower) payload_offset: u32,
+    pub(in crate::ir::lower) initialized: BoolLocation,
+    pub(in crate::ir::lower) partial: Box<DropObligation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::ir::lower) enum DropObligation {
     Inactive,
     Complete,
-    ArrayPrefix { initialized: UsizeLocation },
-    StructFields { fields: Vec<StructFieldDropState> },
+    ArrayPrefix {
+        initialized: UsizeLocation,
+    },
+    StructFields {
+        fields: Vec<StructFieldDropState>,
+    },
+    PayloadFields {
+        tag: u8,
+        fields: Vec<PayloadFieldDropState>,
+    },
 }
 
 impl DropObligation {
@@ -99,6 +114,25 @@ impl LoweringContext<'_> {
             layout,
             drop_kind,
             DropObligation::StructFields { fields },
+        )
+    }
+
+    pub(in crate::ir::lower) fn register_temporary_payload_fields_drop(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+        tag: u8,
+        fields: Vec<PayloadFieldDropState>,
+    ) -> bool {
+        if !matches!(drop_kind, AggregateDrop::PayloadEnum(_)) {
+            return false;
+        }
+        self.register_temporary_aggregate_drop(
+            slot_index,
+            layout,
+            drop_kind,
+            DropObligation::PayloadFields { tag, fields },
         )
     }
 

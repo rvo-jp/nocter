@@ -206,10 +206,13 @@ where
         aggregate_field_kind_from_abi_type(ty, source_ty, fallback_resolved, resolver)
     {
         let offset = u32::try_from(base_offset).ok()?;
-        let is_copy = !matches!(kind, AggregateFieldKind::Array { .. })
-            || source_ty.is_some_and(|ty| {
-                type_expr_is_copy_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
-            });
+        let is_copy = match &kind {
+            AggregateFieldKind::Array { .. } | AggregateFieldKind::Aggregate { .. } => source_ty
+                .is_some_and(|ty| {
+                    type_expr_is_copy_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+                }),
+            _ => true,
+        };
         let drop_kind = source_ty.and_then(|ty| {
             aggregate_drop_for_type_expr_with_resolver_ref(
                 ty,
@@ -346,6 +349,10 @@ where
                 element_type,
             }))
         }
+        AbiType::Enum(_) => Some(AggregateFieldKind::Aggregate {
+            layout: layout_of(ty).ok()?,
+            fields: Vec::new(),
+        }),
         _ => None,
     }
 }

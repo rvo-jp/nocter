@@ -41,6 +41,7 @@ mod field_layouts;
 mod field_values;
 mod initialization;
 mod literals;
+mod payload_initialization;
 mod struct_initialization;
 
 pub(super) use call_instructions::*;
@@ -48,6 +49,7 @@ pub(super) use copyability::*;
 pub(super) use field_layouts::*;
 pub(super) use initialization::*;
 pub(super) use literals::*;
+pub(super) use payload_initialization::*;
 pub(super) use struct_initialization::*;
 
 use field_values::lower_aggregate_field_to_location;

@@ -1,6 +1,7 @@
 use super::literals::{
     lower_aggregate_array_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
+    lower_payload_enum_constructor_to_location_at_offset_with_progress,
 };
 use super::*;
 
@@ -589,6 +590,8 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
             progress.and_then(|progress| progress.array_field_progress(field_offset));
         let struct_progress =
             progress.and_then(|progress| progress.struct_field_progress(field_offset));
+        let payload_progress =
+            progress.and_then(|progress| progress.payload_field_progress(field_offset));
         if let (Some(struct_progress), AbiType::Struct(_), Expr::StructLiteral(literal)) = (
             struct_progress,
             field_type,
@@ -632,6 +635,31 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 temporaries,
                 Some(array_progress),
             )?);
+        } else if let (Some(payload_progress), AbiType::Enum(_)) = (payload_progress, field_type) {
+            let field_value_layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            let Some(mut payload_instructions) =
+                lower_payload_enum_constructor_to_location_at_offset_with_progress(
+                    &field.value,
+                    field_type,
+                    field_value_layout,
+                    destination,
+                    nested_offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                    Some(&payload_progress),
+                )?
+            else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            instructions.append(&mut payload_instructions);
         } else {
             instructions.extend(lower_aggregate_field_to_location(
                 field_type,

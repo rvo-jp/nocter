@@ -1,5 +1,98 @@
 use super::*;
 
+pub(super) fn lower_tracked_payload_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    if payload_enum_constructor_member_and_arguments(argument).is_none() {
+        return Ok(None);
+    }
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) = evaluation
+        .context()
+        .aggregate_drop_for_type_expr(parameter_type_expr)
+    else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = evaluation.context().resolved_calls() else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let value = abi_value_from_type_expr_with_resolver(parameter_type_expr, resolved, |source| {
+        evaluation.context().resolved_source(source)
+    })
+    .map_err(|_error| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
+    let AbiType::Enum(enum_) = &value.ty else {
+        return Ok(None);
+    };
+    if value.layout != expected_layout {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let progress =
+        PayloadInitializationProgress::with_allocator(argument, enum_, &drop_kind, temporaries)?;
+    evaluation.sync_temporaries(temporaries)?;
+    if !evaluation.register_payload_fields(
+        slot_index,
+        expected_layout,
+        drop_kind.clone(),
+        progress.tag(),
+        progress.drop_states(),
+    ) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(progress.initialize());
+    let Some(mut constructor) = lower_payload_enum_constructor_to_location_with_progress(
+        argument,
+        &value.ty,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8006",
+        &format!("arguments for function `{callee_name}`"),
+        resolved,
+        evaluation.context(),
+        temporaries,
+        Some(&progress),
+    )?
+    else {
+        return Ok(None);
+    };
+    instructions.append(&mut constructor);
+    if !evaluation.complete_temporary(slot_index, expected_layout, drop_kind) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
 pub(super) fn lower_tracked_struct_argument_source(
     argument: &Expr,
     parameter_type: &Type,

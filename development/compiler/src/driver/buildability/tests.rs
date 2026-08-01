@@ -367,7 +367,7 @@ func main(): i32 {
 }
 
 #[test]
-fn reports_partial_move_only_fixed_array_payload_initialization_before_ir() {
+fn accepts_partial_move_only_fixed_array_payload_initialization() {
     let (sources, analysis) = analyze_text(
         r#"struct File {
     code: i32
@@ -397,14 +397,7 @@ func main(): i32! {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("fixed array payload literals whose element initialization can exit early"),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

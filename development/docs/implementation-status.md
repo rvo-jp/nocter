@@ -210,12 +210,14 @@ non-zero sentinel when it needs an empty view that will not be dereferenced.
 - payload-carrying enum move-only payload bindings with recursive drop trees
   beyond supported structs and their fixed arrays, and broader pattern target
   expressions
+- payload-enum values nested inside broader aggregate field/return ABI surfaces;
+  the lowering obligation model is recursive, but these source shapes remain a
+  buildability boundary
 - ordinary input-dependent `error` success-return helper ABI outside direct
   `(&str, &str) -> error` constructors or input-free static failure-payload
   wrappers
-- broader fixed-array behavior: payload-constructor partial initialization,
-  sparse element extraction, field extraction moves, and general non-copy
-  array indexing/mutation
+- broader fixed-array behavior: sparse element extraction, field extraction
+  moves, and general non-copy array indexing/mutation
 - broad pointer dereference and user memory mutation APIs
 - broad view iteration
 - bare string interpolation lowering without an explicit allocator source

@@ -181,31 +181,70 @@ pub(super) fn lower_payload_enum_constructor_binding(
         return Ok(None);
     }
 
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
         false,
-        context.aggregate_drop_for_type_expr(&ty),
+        drop_kind.clone(),
         Vec::new(),
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
     }];
-    let Some(mut constructor_instructions) = lower_payload_enum_constructor_to_location(
-        &statement.initializer,
-        &value.ty,
-        value.layout,
-        AggregateLocation::Slot(slot_index),
-        "E8008",
-        "local bindings",
-        resolved,
-        context,
-    )?
-    else {
+    let progress = match (&value.ty, drop_kind.as_ref()) {
+        (AbiType::Enum(enum_), Some(drop_kind @ AggregateDrop::PayloadEnum(_))) => {
+            Some(PayloadInitializationProgress::with_allocator(
+                &statement.initializer,
+                enum_,
+                drop_kind,
+                context,
+            )?)
+        }
+        _ => None,
+    };
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let constructor = if let Some(progress) = &progress {
+        if !context.mark_aggregate_local_payload_fields(
+            statement.name.as_str(),
+            progress.tag(),
+            progress.drop_states(),
+        ) {
+            return Err(unsupported_binding_diagnostic(
+                "IR v0 cannot establish payload field initialization state",
+            ));
+        }
+        instructions.extend(progress.initialize());
+        lower_payload_enum_constructor_to_location_with_progress(
+            &statement.initializer,
+            &value.ty,
+            value.layout,
+            AggregateLocation::Slot(slot_index),
+            "E8008",
+            "local bindings",
+            resolved,
+            context,
+            &mut temporaries,
+            Some(progress),
+        )?
+    } else {
+        lower_payload_enum_constructor_to_location(
+            &statement.initializer,
+            &value.ty,
+            value.layout,
+            AggregateLocation::Slot(slot_index),
+            "E8008",
+            "local bindings",
+            resolved,
+            context,
+        )?
+    };
+    let Some(mut constructor_instructions) = constructor else {
         return Ok(None);
     };
     instructions.append(&mut constructor_instructions);
+    context.mark_aggregate_local_initialized(statement.name.as_str());
     Ok(Some(instructions))
 }
 

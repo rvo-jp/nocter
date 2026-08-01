@@ -223,6 +223,9 @@ Initial check-only or not-yet-buildable surfaces:
   or `catch`, and direct optional calls handled by `otherwise`, with active
   payload cleanup additionally supported for aggregate and fixed-array payload
   fields with supported recursive drop glue
+- payload-enum values nested inside broader aggregate field/return ABI
+  surfaces, even though lowering's internal obligation model composes these
+  shapes recursively
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -237,8 +240,8 @@ Initial check-only or not-yet-buildable surfaces:
 - move-only fixed arrays outside the completed local, callable, and fully
   initialized struct-field storage/replacement lifecycle for supported
   recursively droppable struct elements; recursive field construction now
-  tracks exiting initializers, while field extraction moves remain deferred and
-  element initialization nested inside payload construction remains check-only
+  tracks exiting struct and payload initializers, while field extraction moves
+  remain deferred
 
 ## Aggregate Type Contract
 
@@ -278,7 +281,10 @@ Rules fixed for v0:
   branches over existing enum values and supported pattern targets; active
   payload cleanup may lower for supported recursive payload drop trees,
   including fixed-array elements in reverse index order and multi-field payload
-  cleanup in reverse aggregate field order; move-only payload binding with
+  cleanup in reverse aggregate field order; variant-specific construction
+  obligations track exiting payload initializers across locals, replacements,
+  returns, and owned call arguments for the supported payload field shapes;
+  move-only payload binding with
   unsupported recursive drop trees and broader
   pattern target expressions still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length

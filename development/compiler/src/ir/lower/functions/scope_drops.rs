@@ -58,6 +58,15 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
             fields,
             context,
         ),
+        DropObligation::PayloadFields { tag, fields } => lower_payload_fields_drop_instructions(
+            &drop_.name,
+            AggregateLocation::Slot(drop_.slot_index),
+            0,
+            &drop_.drop_kind,
+            *tag,
+            fields,
+            context,
+        ),
     }
 }
 

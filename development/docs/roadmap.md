@@ -81,8 +81,12 @@ for v0.2.0:
   cleanup, and success-only cleanup on fallible pattern targets. Recursive
   per-field obligations now cover exiting struct initializers, including nested
   struct and fixed-array literals, across locals, replacements, returns, and
-  owned arguments. Remaining array work is payload-constructor partial state,
-  sparse extraction, and field extraction moves; remaining member and
+  owned arguments. Variant-specific payload obligations cover exiting payload
+  initializers across the same storage boundaries, and the lowering model can
+  recurse through nested payload, struct, and fixed-array constructors.
+  Payload-enum values nested inside broader aggregate field/return ABI surfaces
+  still need matching buildability promotion. Remaining array work is sparse
+  extraction and field extraction moves; remaining member and
   value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.

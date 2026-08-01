@@ -155,9 +155,14 @@ Recommended order:
    evaluation retains completed owned temporaries until ownership transfers to
    the callee. Struct construction now tracks recursive per-field obligations
    across locals, nested struct and array fields, staged replacements, returns,
-   and owned call arguments. Remaining array paths require nested payload
-   construction state, sparse indexed live state, or field extraction
-   ownership; do not promote them as mere expression shapes.
+   and owned call arguments. Payload construction now tracks the selected
+   variant and recursive per-field obligations across locals, staged
+   replacements, returns, and owned call arguments; the lowering model also
+   composes nested payload, struct, and array child obligations. Promoting
+   payload-enum values nested inside broader aggregate ABI surfaces still
+   requires matching buildability classification. Remaining array paths require
+   sparse indexed live state or field extraction ownership; do not promote them
+   as mere expression shapes.
    Payload enums now carry these
    arrays through direct and indirect construction, generic substitution,
    scope/call cleanup, and

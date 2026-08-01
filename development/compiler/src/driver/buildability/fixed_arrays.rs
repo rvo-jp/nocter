@@ -24,45 +24,6 @@ pub(super) fn fixed_array_literal_argument_has_fixed_array_parameter_type(
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
-pub(super) fn fixed_array_literal_argument_requires_partial_initialization_tracking(
-    call: &CallExpr,
-    index: usize,
-    argument: &Expr,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(argument) else {
-        return false;
-    };
-    let Some(ty) = call_argument_parameter_type(
-        call,
-        index,
-        resolved,
-        typecheck_facts,
-        generic_substitutions,
-    ) else {
-        return false;
-    };
-    let Some((element, length, _layout)) =
-        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_literal_recursive_drop_element_type_is_buildable(
-            &ty,
-            &element,
-            resolved,
-            resolved_sources,
-        )
-        && literal
-            .elements
-            .iter()
-            .any(|element| !expression_completes_without_source_control_exit(element))
-}
-
 pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
     field: &StructLiteralField,
     resolved: &ResolveOutput,

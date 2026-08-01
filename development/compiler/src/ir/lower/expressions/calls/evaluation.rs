@@ -64,6 +64,18 @@ impl<'base, 'context> CallEvaluationContext<'base, 'context> {
             .register_temporary_struct_fields_drop(slot_index, layout, drop_kind, fields)
     }
 
+    pub(super) fn register_payload_fields(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+        tag: u8,
+        fields: Vec<PayloadFieldDropState>,
+    ) -> bool {
+        self.context
+            .register_temporary_payload_fields_drop(slot_index, layout, drop_kind, tag, fields)
+    }
+
     pub(super) fn complete_temporary(
         &mut self,
         slot_index: usize,

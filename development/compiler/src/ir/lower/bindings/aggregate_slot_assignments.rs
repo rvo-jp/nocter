@@ -22,6 +22,21 @@ pub(super) fn lower_aggregate_assignment(
         );
     }
 
+    if payload_enum_constructor_member_and_arguments(expression).is_some()
+        && let Some(target) = context.aggregate_local_by_slot(slot_index)
+        && let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) = target.drop_kind
+    {
+        return lower_tracked_payload_enum_replacement(
+            slot_index,
+            layout,
+            target_type,
+            expression,
+            drop_kind,
+            replacement_drop,
+            context,
+        );
+    }
+
     if let Expr::ArrayLiteral(literal) = unwrap_group(expression)
         && array_literal_requires_runtime_progress(literal)
         && let Some(target) = context.aggregate_local_by_slot(slot_index)
@@ -69,6 +84,76 @@ pub(super) fn lower_aggregate_assignment(
     instructions.extend(replacement_drop);
     instructions.push(Instruction::CopyAggregate {
         destination: AggregateLocation::Slot(slot_index),
+        source: AggregateLocation::Slot(replacement_slot),
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_tracked_payload_enum_replacement(
+    destination_slot: usize,
+    layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
+    expression: &Expr,
+    drop_kind: AggregateDrop,
+    replacement_drop: Vec<Instruction>,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(target_type) = target_type else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let value = abi_value_from_type_expr_with_resolver(target_type, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|_error| unsupported_assignment_diagnostic())?;
+    let AbiType::Enum(enum_) = &value.ty else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if value.layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let replacement_slot = context.reserve_aggregate_slot_index();
+    let progress =
+        PayloadInitializationProgress::with_allocator(expression, enum_, &drop_kind, context)?;
+    if !context.register_temporary_payload_fields_drop(
+        replacement_slot,
+        layout,
+        drop_kind,
+        progress.tag(),
+        progress.drop_states(),
+    ) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout,
+    }];
+    instructions.extend(progress.initialize());
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_payload_enum_constructor_to_location_with_progress(
+        expression,
+        &value.ty,
+        layout,
+        AggregateLocation::Slot(replacement_slot),
+        "E8008",
+        "assignments",
+        resolved,
+        context,
+        &mut temporaries,
+        Some(&progress),
+    );
+    context.release_temporary_aggregate_drop(replacement_slot);
+    let Some(mut constructor) = lowered? else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    instructions.append(&mut constructor);
+    instructions.extend(replacement_drop);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination_slot),
         source: AggregateLocation::Slot(replacement_slot),
         layout,
     });

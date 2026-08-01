@@ -34,6 +34,62 @@ pub(in crate::ir::lower) fn lower_payload_enum_constructor_to_location(
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_payload_enum_constructor_to_location_with_progress(
+        expression,
+        expected_type,
+        expected_layout,
+        destination,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        &mut temporaries,
+        None,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_payload_enum_constructor_to_location_with_progress(
+    expression: &Expr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    progress: Option<&PayloadInitializationProgress>,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    lower_payload_enum_constructor_to_location_at_offset_with_progress(
+        expression,
+        expected_type,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        temporaries,
+        progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::ir::lower) fn lower_payload_enum_constructor_to_location_at_offset_with_progress(
+    expression: &Expr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    progress: Option<&PayloadInitializationProgress>,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Some((member, arguments)) = payload_enum_constructor_member_and_arguments(expression)
     else {
         return Ok(None);
@@ -61,24 +117,31 @@ pub(in crate::ir::lower) fn lower_payload_enum_constructor_to_location(
             subject,
         ));
     };
+    if progress.is_some_and(|progress| progress.tag() != variant.tag) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
     validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
 
-    let mut temporaries = TemporaryAllocator::new(context)?;
     let mut instructions = vec![Instruction::StoreAggregateU8 {
         destination,
-        offset: 0,
+        offset: base_offset,
         value: U8Value::Const(variant.tag),
     }];
     instructions.extend(lower_payload_enum_payload_to_location(
         variant.payload.as_ref(),
         arguments,
         destination,
+        base_offset,
         enum_.payload_offset,
         diagnostic_code,
         subject,
         resolved,
         context,
-        &mut temporaries,
+        temporaries,
+        progress,
     )?);
     Ok(Some(instructions))
 }
@@ -103,12 +166,14 @@ fn lower_payload_enum_payload_to_location(
     payload_type: Option<&AbiType>,
     arguments: &[Expr],
     destination: AggregateLocation,
+    base_offset: u32,
     payload_offset: u64,
     diagnostic_code: &'static str,
     subject: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    progress: Option<&PayloadInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(payload_type) = payload_type else {
         if arguments.is_empty() {
@@ -120,20 +185,25 @@ fn lower_payload_enum_payload_to_location(
         ));
     };
 
-    let base_offset = u32::try_from(payload_offset).map_err(|_error| {
+    let payload_offset = u32::try_from(payload_offset).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
     })?;
     if arguments.len() == 1 {
-        return lower_aggregate_field_to_location(
+        let destination_offset = base_offset.checked_add(payload_offset).ok_or_else(|| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        return lower_payload_field_to_location(
             payload_type,
             &arguments[0],
             destination,
-            base_offset,
+            payload_offset,
+            destination_offset,
             diagnostic_code,
             subject,
             resolved,
             context,
             temporaries,
+            progress,
         );
     }
 
@@ -159,25 +229,136 @@ fn lower_payload_enum_payload_to_location(
         .zip(layout.fields.iter())
         .zip(arguments.iter())
     {
-        let field_offset = payload_offset
+        let progress_offset = u64::from(payload_offset)
             .checked_add(field_layout.offset)
             .and_then(|offset| u32::try_from(offset).ok())
             .ok_or_else(|| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
-        instructions.extend(lower_aggregate_field_to_location(
+        let destination_offset = base_offset.checked_add(progress_offset).ok_or_else(|| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        instructions.extend(lower_payload_field_to_location(
             &field.ty,
             argument,
             destination,
-            field_offset,
+            progress_offset,
+            destination_offset,
             diagnostic_code,
             subject,
             resolved,
             context,
             temporaries,
+            progress,
         )?);
     }
     Ok(instructions)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_payload_field_to_location(
+    field_type: &AbiType,
+    expression: &Expr,
+    destination: AggregateLocation,
+    progress_offset: u32,
+    destination_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    progress: Option<&PayloadInitializationProgress>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions =
+        if let (Some(array_progress), AbiType::Array { .. }, Expr::ArrayLiteral(literal)) = (
+            progress.and_then(|progress| progress.array_field_progress(progress_offset)),
+            field_type,
+            unwrap_aggregate_literal_group(expression),
+        ) {
+            let layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            lower_aggregate_array_literal_to_location_with_progress(
+                literal,
+                field_type,
+                layout,
+                destination,
+                destination_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+                Some(array_progress),
+            )?
+        } else if let (Some(struct_progress), AbiType::Struct(_), Expr::StructLiteral(literal)) = (
+            progress.and_then(|progress| progress.struct_field_progress(progress_offset)),
+            field_type,
+            unwrap_aggregate_literal_group(expression),
+        ) {
+            let layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+                literal,
+                layout,
+                destination,
+                destination_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+                Some(&struct_progress),
+            )?
+        } else if let (Some(payload_progress), AbiType::Enum(_)) = (
+            progress.and_then(|progress| progress.payload_field_progress(progress_offset)),
+            field_type,
+        ) {
+            let layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            lower_payload_enum_constructor_to_location_at_offset_with_progress(
+                expression,
+                field_type,
+                layout,
+                destination,
+                destination_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+                Some(&payload_progress),
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?
+        } else {
+            lower_aggregate_field_to_location(
+                field_type,
+                expression,
+                destination,
+                destination_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?
+        };
+    if let Some(completed) = progress.and_then(|progress| progress.complete_field(progress_offset))
+    {
+        instructions.push(completed);
+    }
+    Ok(instructions)
+}
+
+fn unwrap_aggregate_literal_group(mut expression: &Expr) -> &Expr {
+    while let Expr::Group(group) = expression {
+        expression = &group.expression;
+    }
+    expression
 }
 
 pub(in crate::ir::lower) fn lower_aggregate_array_literal_to_location(

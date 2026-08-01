@@ -434,28 +434,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 queue.push_back(target);
             }
             for (index, argument) in expression.arguments.iter().enumerate() {
-                if payload_enum_constructor_call_is_supported(
-                    expression,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                ) && fixed_array_literal_argument_requires_partial_initialization_tracking(
-                    expression,
-                    index,
-                    argument,
-                    resolved,
-                    resolved_sources,
-                    typecheck_facts,
-                    generic_substitutions,
-                ) {
-                    diagnostics.push(unsupported_v0_build_diagnostic(
-                        sources,
-                        argument.span(),
-                        "fixed array payload literals whose element initialization can exit early",
-                        "construct the array before the payload until nested payload initialization obligations are tracked",
-                    ));
-                } else if fixed_array_literal_argument_has_fixed_array_parameter_type(
+                if fixed_array_literal_argument_has_fixed_array_parameter_type(
                     expression,
                     index,
                     argument,

@@ -36,6 +36,11 @@ The lowering model currently uses:
   order, drops a complete field through its full type shape, and otherwise
   recurses into the child's partial array or struct state. Direct user drop
   glue runs only after the containing struct is complete.
+- `PayloadFields { tag, fields }`: the statically selected variant records a
+  completion flag and optional child obligation for each owned payload field.
+  Partial cleanup uses that selected variant instead of treating the stored
+  tag as proof that the payload is complete. Child array, struct, and payload
+  obligations recurse through the same cleanup tree.
 
 The initialized count advances only after one element has been written
 completely. A fallible initializer therefore observes the count from before
@@ -46,10 +51,10 @@ replacement and return slots participate in propagation cleanup while they are
 being constructed, then transfer their bytes to the published destination and
 release their temporary obligation.
 
-Struct obligations use the same lifetime for local bindings, staged
-replacements, direct or indirect returns, and owned call arguments. Nested
-struct literals and fixed-array fields form a tree rather than flattening ABI
-offsets into unrelated flags.
+Struct and payload obligations use the same lifetime for local bindings,
+staged replacements, direct or indirect returns, and owned call arguments.
+Nested struct literals, fixed-array fields, and payload constructors form a
+tree rather than flattening ABI offsets into unrelated flags.
 
 Call evaluation uses a dedicated cloned lowering context. Completed owned
 argument temporaries remain registered until the call begins. If a later
@@ -77,9 +82,6 @@ the caller-side evaluation scope.
 The existing states deliberately do not pretend to solve non-prefix ownership.
 Future promotions extend the same obligation model:
 
-- Payload enum construction needs variant-specific field obligations before
-  exiting payload initializers can be promoted. The active tag alone cannot
-  distinguish a complete payload from a partially initialized one.
 - Field extraction needs path masks over the drop shape and must reject partial
   moves through any ancestor whose direct destructor requires the whole value.
 - Indexed array extraction needs a sparse live set rather than an initialized

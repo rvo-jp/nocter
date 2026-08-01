@@ -480,6 +480,34 @@ impl<'a> LoweringContext<'a> {
         true
     }
 
+    pub(in crate::ir::lower) fn mark_aggregate_local_payload_fields(
+        &mut self,
+        name: &str,
+        tag: u8,
+        fields: Vec<PayloadFieldDropState>,
+    ) -> bool {
+        let Some(local) = self
+            .locals
+            .iter_mut()
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
+        else {
+            return false;
+        };
+        let LocalKind::Aggregate {
+            drop_kind,
+            drop_obligation,
+            ..
+        } = &mut local.kind
+        else {
+            return false;
+        };
+        if !matches!(drop_kind, Some(AggregateDrop::PayloadEnum(_))) {
+            return false;
+        }
+        *drop_obligation = DropObligation::PayloadFields { tag, fields };
+        true
+    }
+
     pub(in crate::ir::lower) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
         let mut pending = self.pending_temporary_aggregate_drops();
         pending.extend(

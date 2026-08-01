@@ -1,6 +1,604 @@
 use super::*;
 
 #[test]
+fn tracks_partial_fixed_array_payload_construction() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let result = Result.ok([File { code: 20 }, make_file()?])
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    assert!(main.instructions.contains(&Instruction::SetBool {
+        destination: BoolLocation::Local(0),
+        value: BoolValue::Const(false),
+    }));
+    assert!(main.instructions.contains(&Instruction::SetUsize {
+        destination: UsizeLocation::Local(1),
+        value: UsizeValue::Const(1),
+    }));
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        });
+
+    assert!(matches!(
+        cleanup.map(Vec::as_slice),
+        Some([Instruction::If {
+            condition: BoolValue::Location(BoolLocation::Local(0)),
+            else_instructions,
+            ..
+        }]) if matches!(
+            else_instructions.as_slice(),
+            [
+                Instruction::If {
+                    condition: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Greater,
+                        left: UsizeValue::Location(UsizeLocation::Local(1)),
+                        right: UsizeValue::Const(1),
+                    },
+                    ..
+                },
+                Instruction::If {
+                    condition: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Greater,
+                        left: UsizeValue::Location(UsizeLocation::Local(1)),
+                        right: UsizeValue::Const(0),
+                    },
+                    then_instructions,
+                    ..
+                },
+            ] if matches!(
+                then_instructions.as_slice(),
+                [Instruction::CallVoid { arguments, .. }]
+                    if matches!(
+                        arguments.as_slice(),
+                        [ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
+                        })]
+                    )
+            )
+        )
+    ));
+}
+
+#[test]
+fn tracks_partial_payload_construction_as_a_call_argument() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func consume(result: Result): i32 {
+    return 42
+}
+
+func main(): i32! {
+    return consume(Result.ok([File { code: 20 }, make_file()?]))
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected payload argument initialization cleanup");
+
+    assert!(payload_array_prefix_cleanup_targets_slot(cleanup, 0));
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallI32 { target, arguments, .. }
+            if target == &CallTarget::same_file("consume")
+                && matches!(
+                    arguments.as_slice(),
+                    [ScalarArgument::AggregateIndirect(AggregateArgument {
+                        source: AggregateArgumentSource::Slot(0),
+                    })]
+                        | [ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                            source: AggregateArgumentSource::Slot(0),
+                            ..
+                        })]
+                )
+    )));
+}
+
+#[test]
+fn tracks_partial_payload_construction_in_return_storage() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func make_result(): Result! {
+    return Result.ok([File { code: 20 }, make_file()?])
+}
+
+func main(): i32 {
+    make_result()!
+    return 0
+}
+"#,
+    );
+    let make_result = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("make_result"))
+        .expect("expected lowered make_result function");
+    let cleanup = make_result
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected payload return initialization cleanup");
+
+    assert!(payload_array_prefix_cleanup_targets_slot(cleanup, 0));
+    assert!(
+        make_result
+            .instructions
+            .contains(&Instruction::CopyAggregate {
+                destination: AggregateLocation::DirectReturn,
+                source: AggregateLocation::Slot(0),
+                layout: ValueLayout::new(12, 4),
+            }),
+        "{make_result:?}"
+    );
+}
+
+#[test]
+fn partial_payload_replacement_preserves_the_old_value() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    var result: Result = Result.failed
+    result = Result.ok([File { code: 20 }, make_file()?])
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected replacement initialization cleanup");
+
+    assert!(
+        payload_array_prefix_cleanup_targets_slot(cleanup, 1),
+        "{main:?}"
+    );
+    let partial_cleanup_index = cleanup
+        .iter()
+        .position(|instruction| {
+            payload_array_prefix_cleanup_targets_slot(std::slice::from_ref(instruction), 1)
+        })
+        .expect("expected partial replacement cleanup");
+    let old_value_cleanup_index = cleanup
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction,
+                Instruction::LoadAggregateU8 {
+                    source: AggregateLocation::Slot(0),
+                    ..
+                }
+            )
+        })
+        .expect("expected old value cleanup on propagated function exit");
+    assert!(partial_cleanup_index < old_value_cleanup_index, "{main:?}");
+    assert!(main.instructions.contains(&Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(0),
+        source: AggregateLocation::Slot(1),
+        layout: ValueLayout::new(12, 4),
+    }));
+}
+
+#[test]
+fn tracks_nested_payload_constructor_initialization_recursively() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Inner {
+    some(value: [File; 2])
+    empty
+}
+
+enum Outer {
+    ok(value: Inner)
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let result = Outer.ok(Inner.some([File { code: 20 }, make_file()?]))
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected nested payload initialization cleanup");
+
+    assert!(nested_payload_array_prefix_cleanup_targets_slot(cleanup, 0));
+    assert!(main.instructions.contains(&Instruction::StoreAggregateU8 {
+        destination: AggregateLocation::Slot(0),
+        offset: 0,
+        value: U8Value::Const(0),
+    }));
+    assert!(main.instructions.contains(&Instruction::StoreAggregateU8 {
+        destination: AggregateLocation::Slot(0),
+        offset: 4,
+        value: U8Value::Const(0),
+    }));
+}
+
+#[test]
+fn tracks_payload_constructor_nested_in_a_struct_field() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+struct Wrapper {
+    prefix: i32
+    result: Result
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let wrapper = Wrapper {
+        prefix: 1,
+        result: Result.ok([File { code: 20 }, make_file()?]),
+    }
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected nested struct payload initialization cleanup");
+
+    assert!(main.instructions.contains(&Instruction::StoreAggregateU8 {
+        destination: AggregateLocation::Slot(0),
+        offset: 4,
+        value: U8Value::Const(0),
+    }));
+    assert!(
+        nested_payload_array_prefix_cleanup_targets_slot(cleanup, 0),
+        "{main:?}"
+    );
+}
+
+#[test]
+fn partial_multi_field_payload_cleanup_drops_completed_fields_in_reverse_order() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(first: File, second: File)
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let result = Result.ok(File { code: 20 }, make_file()?)
+    return 42
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_file") => Some(instructions),
+            _ => None,
+        })
+        .expect("expected multi-field payload initialization cleanup");
+
+    assert!(
+        matches!(
+            cleanup.as_slice(),
+            [
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
+                    ..
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions,
+                    ..
+                }
+            ] if matches!(
+                then_instructions.as_slice(),
+                [Instruction::CallVoid { arguments, .. }]
+                    if matches!(
+                        arguments.as_slice(),
+                        [ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 },
+                        })]
+                    )
+            )
+        ),
+        "{main:?}"
+    );
+}
+
+fn payload_array_prefix_cleanup_targets_slot(
+    instructions: &[Instruction],
+    slot_index: usize,
+) -> bool {
+    instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::If { else_instructions, .. }
+                if else_instructions.iter().any(|instruction| matches!(
+                    instruction,
+                    Instruction::If { then_instructions, .. }
+                        if then_instructions.iter().any(|instruction| matches!(
+                            instruction,
+                            Instruction::CallVoid { arguments, .. }
+                                if matches!(
+                                    arguments.as_slice(),
+                                    [ScalarArgument::Borrow(BorrowArgument {
+                                        source: BorrowSource::AggregateSlotField {
+                                            slot_index: actual_slot,
+                                            offset: 4,
+                                        },
+                                    })] if *actual_slot == slot_index
+                                )
+                        ))
+                ))
+        )
+    })
+}
+
+fn nested_payload_array_prefix_cleanup_targets_slot(
+    instructions: &[Instruction],
+    slot_index: usize,
+) -> bool {
+    matches!(
+        instructions,
+        [Instruction::If { else_instructions, .. }]
+            if matches!(
+                else_instructions.as_slice(),
+                [Instruction::If { else_instructions, .. }]
+                    if else_instructions.iter().any(|instruction| matches!(
+                        instruction,
+                        Instruction::If { then_instructions, .. }
+                            if then_instructions.iter().any(|instruction| matches!(
+                                instruction,
+                                Instruction::CallVoid { arguments, .. }
+                                    if matches!(
+                                        arguments.as_slice(),
+                                        [ScalarArgument::Borrow(BorrowArgument {
+                                            source: BorrowSource::AggregateSlotField {
+                                                slot_index: actual_slot,
+                                                offset: 8,
+                                            },
+                                        })] if *actual_slot == slot_index
+                                    )
+                            ))
+                    ))
+            )
+    )
+}
+
+#[test]
 fn lowers_direct_payload_enum_value_argument() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(8, 4),
@@ -185,7 +783,7 @@ func main(): i32 {
             Instruction::If {
                 then_instructions, ..
             } if then_instructions.contains(&Instruction::SetBool {
-                destination: BoolLocation::Local(0),
+                destination: BoolLocation::Local(1),
                 value: BoolValue::Const(false),
             }) =>
             {
@@ -213,7 +811,7 @@ func main(): i32 {
             matches!(
                 instruction,
                 Instruction::If {
-                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
                     then_instructions,
                     else_instructions,
                 } if else_instructions.is_empty()
@@ -394,6 +992,10 @@ func main(): i32 {
                         slot_index: 0,
                         layout: ValueLayout::new(8, 4),
                     },
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(0),
+                        value: BoolValue::Const(false),
+                    },
                     Instruction::StoreAggregateU8 {
                         destination: AggregateLocation::Slot(0),
                         offset: 0,
@@ -404,12 +1006,16 @@ func main(): i32 {
                         offset: 4,
                         value: i32_const(42),
                     },
+                    Instruction::SetBool {
+                        destination: BoolLocation::Local(0),
+                        value: BoolValue::Const(true),
+                    },
                     Instruction::SetI32 {
-                        destination: I32Location::Local(0),
+                        destination: I32Location::Local(1),
                         value: i32_const(0),
                     },
                     Instruction::LoadAggregateU8 {
-                        destination: U8Location::Local(1),
+                        destination: U8Location::Local(2),
                         source: AggregateLocation::Slot(0),
                         offset: 0,
                     },
@@ -417,7 +1023,7 @@ func main(): i32 {
                         condition: BoolValue::I32Comparison {
                             operator: I32ComparisonOperator::Equal,
                             left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(
-                                U8Location::Local(1),
+                                U8Location::Local(2),
                             ))),
                             right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
                         },
@@ -434,7 +1040,7 @@ func main(): i32 {
                     },
                     Instruction::SetI32 {
                         destination: I32Location::Return,
-                        value: i32_local(0),
+                        value: i32_local(1),
                     },
                     Instruction::Return,
                 ],

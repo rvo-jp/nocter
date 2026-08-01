@@ -12,6 +12,10 @@ use crate::ir::lower::expressions::TemporaryAllocator;
 use crate::ir::{BoolLocation, UsizeLocation};
 
 use super::ArrayInitializationProgress;
+use super::{
+    PayloadInitializationProgress, initialize_struct_field_states,
+    payload_enum_constructor_member_and_arguments,
+};
 
 /// Runtime ownership state for a struct while its fields are initialized.
 ///
@@ -42,7 +46,7 @@ impl StructInitializationProgress {
         Self::with_allocator(abi_fields, literal, drop_kind, temporaries)
     }
 
-    fn with_allocator(
+    pub(in crate::ir::lower) fn with_allocator(
         abi_fields: &[AbiField],
         literal: &StructLiteralExpr,
         drop_kind: &AggregateDrop,
@@ -99,6 +103,18 @@ impl StructInitializationProgress {
                             fields: progress.drop_states(),
                         })
                     }
+                    (_, AggregateDrop::PayloadEnum(_), crate::abi::AbiType::Enum(enum_))
+                        if payload_enum_constructor_member_and_arguments(&field.value)
+                            .is_some() =>
+                    {
+                        let progress = PayloadInitializationProgress::with_allocator(
+                            &field.value,
+                            enum_,
+                            drop_kind,
+                            allocator,
+                        )?;
+                        Box::new(progress.drop_obligation())
+                    }
                     _ => Box::new(DropObligation::Inactive),
                 };
                 fields.push(StructFieldDropState {
@@ -118,8 +134,12 @@ impl StructInitializationProgress {
         self.fields.clone()
     }
 
+    pub(in crate::ir::lower) fn from_drop_states(fields: Vec<StructFieldDropState>) -> Self {
+        Self { fields }
+    }
+
     pub(in crate::ir::lower) fn initialize(&self) -> Vec<Instruction> {
-        initialize_struct_fields(&self.fields)
+        initialize_struct_field_states(&self.fields)
     }
 
     pub(in crate::ir::lower) fn complete_field(&self, offset: u32) -> Option<Instruction> {
@@ -152,9 +172,23 @@ impl StructInitializationProgress {
             fields: fields.clone(),
         })
     }
+
+    pub(in crate::ir::lower) fn payload_field_progress(
+        &self,
+        offset: u32,
+    ) -> Option<PayloadInitializationProgress> {
+        let field = self.fields.iter().find(|field| field.offset == offset)?;
+        let DropObligation::PayloadFields { tag, fields } = field.partial.as_ref() else {
+            return None;
+        };
+        Some(PayloadInitializationProgress::from_drop_states(
+            *tag,
+            fields.clone(),
+        ))
+    }
 }
 
-trait DropStateAllocator {
+pub(in crate::ir::lower) trait DropStateAllocator {
     fn next_drop_bool(&mut self) -> Result<BoolLocation, Vec<Diagnostic>>;
     fn next_drop_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>>;
 }
@@ -177,26 +211,6 @@ impl DropStateAllocator for TemporaryAllocator {
     fn next_drop_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
         self.next_usize()
     }
-}
-
-fn initialize_struct_fields(fields: &[StructFieldDropState]) -> Vec<Instruction> {
-    let mut instructions = Vec::new();
-    for field in fields {
-        instructions.push(Instruction::SetBool {
-            destination: field.initialized,
-            value: BoolValue::Const(false),
-        });
-        match field.partial.as_ref() {
-            DropObligation::ArrayPrefix { initialized } => {
-                instructions.push(ArrayInitializationProgress::new(*initialized).initialize())
-            }
-            DropObligation::StructFields { fields } => {
-                instructions.extend(initialize_struct_fields(fields));
-            }
-            DropObligation::Inactive | DropObligation::Complete => {}
-        }
-    }
-    instructions
 }
 
 fn unwrap_groups(mut expression: &Expr) -> &Expr {

@@ -1,17 +1,19 @@
 use super::super::aggregates::{
-    ArrayInitializationProgress, StructInitializationProgress, aggregate_call_instruction,
-    aggregate_type_layout, array_literal_requires_runtime_progress,
+    ArrayInitializationProgress, PayloadInitializationProgress, StructInitializationProgress,
+    aggregate_call_instruction, aggregate_type_layout, array_literal_requires_runtime_progress,
     lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_array_literal_to_location_with_temporaries,
     lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_temporaries,
-    lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,
-    push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
-    supported_aggregate_copy_layout, type_expr_is_copy_struct_with_resolver,
+    lower_payload_enum_constructor_to_location,
+    lower_payload_enum_constructor_to_location_with_progress,
+    payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
+    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+    type_expr_is_copy_struct_with_resolver,
 };
 use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::super::context::{
-    AggregateDrop, AggregateFieldKind, LoweringContext, StructFieldDropState,
+    AggregateDrop, AggregateFieldKind, LoweringContext, PayloadFieldDropState, StructFieldDropState,
 };
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
@@ -52,7 +54,7 @@ mod utility;
 
 use aggregate_arguments::{
     lower_aggregate_argument_source, lower_tracked_array_argument_source,
-    lower_tracked_struct_argument_source,
+    lower_tracked_payload_argument_source, lower_tracked_struct_argument_source,
 };
 pub(super) use arguments::{call_arguments_require_stack, lower_call_arguments};
 use borrow_arguments::{
