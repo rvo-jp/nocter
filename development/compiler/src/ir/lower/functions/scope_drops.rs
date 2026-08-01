@@ -33,7 +33,7 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
     drop_: &PendingAggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match drop_.obligation {
+    match &drop_.obligation {
         DropObligation::Inactive => Ok(Vec::new()),
         DropObligation::Complete => lower_aggregate_drop_instructions(
             &drop_.name,
@@ -47,7 +47,15 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
             AggregateLocation::Slot(drop_.slot_index),
             0,
             &drop_.drop_kind,
-            initialized,
+            *initialized,
+            context,
+        ),
+        DropObligation::StructFields { fields } => lower_struct_fields_drop_instructions(
+            &drop_.name,
+            AggregateLocation::Slot(drop_.slot_index),
+            0,
+            &drop_.drop_kind,
+            fields,
             context,
         ),
     }

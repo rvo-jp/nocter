@@ -1,6 +1,129 @@
 use super::*;
 
 #[test]
+fn does_not_drop_a_direct_owner_before_its_struct_initialization_completes() {
+    let ir = lower_text(
+        r#"struct Resource {
+    fd: i32
+    code: i32
+}
+
+impl Resource {
+    drop &+self {
+        return
+    }
+}
+
+func code(): i32! {
+    return 2
+}
+
+func main(): i32! {
+    let resource = Resource { fd: 1, code: code()? }
+    return resource.fd
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallFallibleI32 {
+            target,
+            failure_mode: FallibleFailureMode::Propagate,
+            ..
+        } if target == &CallTarget::same_file("code")
+    )));
+    assert_eq!(
+        main.instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("Resource.drop")
+            ))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn partial_struct_cleanup_drops_fields_without_running_the_outer_destructor() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    file: File
+    code: i32
+}
+
+impl Bundle {
+    drop &+self {
+        return
+    }
+}
+
+func code(): i32! {
+    return 2
+}
+
+func main(): i32! {
+    let bundle = Bundle { file: File { fd: 1 }, code: code()? }
+    return 0
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleI32 {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("code") => Some(instructions),
+            _ => None,
+        });
+
+    assert!(matches!(
+        cleanup.map(Vec::as_slice),
+        Some([Instruction::If {
+            condition: BoolValue::Location(BoolLocation::Local(0)),
+            then_instructions,
+            else_instructions,
+        }]) if else_instructions.is_empty()
+            && matches!(
+                then_instructions.as_slice(),
+                [Instruction::CallVoid { target, arguments }]
+                    if target == &CallTarget::same_file("File.drop")
+                        && matches!(
+                            arguments.as_slice(),
+                            [ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
+                            })]
+                        )
+            )
+    ));
+}
+
+#[test]
 fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
     let ir = lower_text(
         r#"struct File {

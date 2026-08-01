@@ -376,6 +376,32 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_with_temp
         resolved,
         context,
         temporaries,
+        None,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_with_progress(
+    literal: &StructLiteralExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    progress: &StructInitializationProgress,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+        literal,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        &mut temporaries,
+        Some(progress),
     )
 }
 
@@ -400,6 +426,7 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_at_offset
         resolved,
         context,
         &mut temporaries,
+        None,
     )
 }
 
@@ -413,6 +440,7 @@ fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
     resolved: &ResolveOutput,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    progress: Option<&StructInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -440,5 +468,6 @@ fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
         resolved,
         context,
         temporaries,
+        progress,
     )
 }

@@ -1,5 +1,5 @@
 use crate::abi::ValueLayout;
-use crate::ir::UsizeLocation;
+use crate::ir::{BoolLocation, UsizeLocation};
 
 use super::{AggregateDrop, LoweringContext, PendingAggregateDrop};
 
@@ -10,10 +10,17 @@ use super::{AggregateDrop, LoweringContext, PendingAggregateDrop};
 /// describes the type's drop shape, while this value describes the runtime
 /// initialization state of one particular storage location.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::ir::lower) struct StructFieldDropFlag {
+    pub(in crate::ir::lower) offset: u32,
+    pub(in crate::ir::lower) initialized: BoolLocation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::ir::lower) enum DropObligation {
     Inactive,
     Complete,
     ArrayPrefix { initialized: UsizeLocation },
+    StructFields { fields: Vec<StructFieldDropFlag> },
 }
 
 impl DropObligation {
@@ -25,7 +32,7 @@ impl DropObligation {
         }
     }
 
-    pub(super) fn is_active(self) -> bool {
+    pub(super) fn is_active(&self) -> bool {
         !matches!(self, Self::Inactive)
     }
 }
@@ -150,5 +157,10 @@ mod tests {
             }
             .is_active()
         );
+    }
+
+    #[test]
+    fn an_in_progress_struct_is_active_even_without_owned_fields() {
+        assert!(DropObligation::StructFields { fields: Vec::new() }.is_active());
     }
 }

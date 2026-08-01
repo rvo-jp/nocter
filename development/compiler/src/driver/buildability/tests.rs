@@ -2172,7 +2172,7 @@ func main(): i32 {
 }
 
 #[test]
-fn reports_move_only_fixed_array_struct_field_partial_initialization_before_ir_lowering() {
+fn accepts_atomic_fallible_move_only_fixed_array_struct_field_initialization() {
     let (sources, analysis) = analyze_text(
         r#"struct File {
     fd: i32
@@ -2202,11 +2202,44 @@ func main(): i32! {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_partial_move_only_fixed_array_literal_struct_field_initialization() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    files: [File; 2]
+}
+
+func make_file(): File! {
+    return File { fd: 2 }
+}
+
+func main(): i32! {
+    let bundle = Bundle { files: [File { fd: 1 }, make_file()?] }
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower move-only fixed array struct fields whose initialization can exit early yet"
+        "Nocter v0 build cannot lower move-only fixed array literal fields whose element initialization can exit early yet"
     );
 }
 

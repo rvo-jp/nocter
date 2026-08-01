@@ -28,22 +28,50 @@ pub(super) fn lower_aggregate_struct_literal_binding(
         statement.name.clone(),
         value.layout,
         is_copy,
-        drop_kind,
+        drop_kind.clone(),
         fields,
     );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
     }];
-    instructions.extend(lower_aggregate_struct_literal_to_location(
-        literal,
-        value.layout,
-        AggregateLocation::Slot(slot_index),
-        "E8008",
-        "local bindings",
-        resolved,
-        context,
-    )?);
+    let progress = match (&value.ty, drop_kind.as_ref()) {
+        (AbiType::Struct(fields), Some(drop_kind)) => Some(StructInitializationProgress::new(
+            fields, literal, drop_kind, context,
+        )?),
+        _ => None,
+    };
+    if let Some(progress) = &progress {
+        if !context
+            .mark_aggregate_local_struct_fields(statement.name.as_str(), progress.drop_flags())
+        {
+            return Err(unsupported_binding_diagnostic(
+                "IR v0 cannot establish struct field initialization state",
+            ));
+        }
+        instructions.extend(progress.initialize());
+        instructions.extend(lower_aggregate_struct_literal_to_location_with_progress(
+            literal,
+            value.layout,
+            AggregateLocation::Slot(slot_index),
+            "E8008",
+            "local bindings",
+            resolved,
+            context,
+            progress,
+        )?);
+        context.mark_aggregate_local_initialized(statement.name.as_str());
+    } else {
+        instructions.extend(lower_aggregate_struct_literal_to_location(
+            literal,
+            value.layout,
+            AggregateLocation::Slot(slot_index),
+            "E8008",
+            "local bindings",
+            resolved,
+            context,
+        )?);
+    }
     Ok(Some(instructions))
 }
 

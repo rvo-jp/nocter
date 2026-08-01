@@ -147,6 +147,46 @@ pub(in crate::ir::lower) fn lower_array_prefix_drop_instructions(
     Ok(instructions)
 }
 
+pub(in crate::ir::lower) fn lower_struct_fields_drop_instructions(
+    name: &str,
+    location: AggregateLocation,
+    base_offset: u32,
+    drop_kind: &AggregateDrop,
+    fields: &[StructFieldDropFlag],
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let struct_fields = match drop_kind {
+        AggregateDrop::Direct(_) if fields.is_empty() => return Ok(Vec::new()),
+        AggregateDrop::Struct(drop_) => &drop_.fields,
+        _ => return Err(unsupported_drop_statement_diagnostic(name)),
+    };
+    if fields.len() != struct_fields.len() {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    }
+
+    let mut instructions = Vec::with_capacity(fields.len());
+    for state in fields.iter().rev() {
+        let Some(field) = struct_fields
+            .iter()
+            .find(|field| field.offset == state.offset)
+        else {
+            return Err(unsupported_drop_statement_diagnostic(name));
+        };
+        instructions.push(Instruction::If {
+            condition: BoolValue::Location(state.initialized),
+            then_instructions: lower_struct_drop_field(
+                name,
+                location,
+                base_offset,
+                field,
+                context,
+            )?,
+            else_instructions: Vec::new(),
+        });
+    }
+    Ok(instructions)
+}
+
 fn lower_struct_drop_field(
     name: &str,
     location: AggregateLocation,

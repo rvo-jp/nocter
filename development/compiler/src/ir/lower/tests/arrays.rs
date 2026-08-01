@@ -157,6 +157,90 @@ func main(): i32! {
 }
 
 #[test]
+fn tracks_completed_fixed_array_struct_fields_independently() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+func make_files(): [File; 2]! {
+    return [File { fd: 1 }, File { fd: 2 }]
+}
+
+func main(): i32! {
+    let bundle = Bundle { code: 42, files: make_files()? }
+    return 0
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(main.instructions.contains(&Instruction::SetBool {
+        destination: BoolLocation::Local(0),
+        value: BoolValue::Const(false),
+    }));
+    assert!(main.instructions.contains(&Instruction::SetBool {
+        destination: BoolLocation::Local(0),
+        value: BoolValue::Const(true),
+    }));
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("make_files") => Some(instructions),
+            _ => None,
+        });
+
+    assert!(matches!(
+        cleanup.map(Vec::as_slice),
+        Some([Instruction::If {
+            condition: BoolValue::Location(BoolLocation::Local(0)),
+            then_instructions,
+            else_instructions,
+        }]) if else_instructions.is_empty()
+            && matches!(
+                then_instructions.as_slice(),
+                [Instruction::CallVoid { arguments: second, .. }, Instruction::CallVoid { arguments: first, .. }]
+                    if matches!(
+                        second.as_slice(),
+                        [ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 8 }
+                        })]
+                    ) && matches!(
+                        first.as_slice(),
+                        [ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
+                        })]
+                    )
+            )
+    ));
+}
+
+#[test]
 fn lowers_partial_fixed_array_replacement_cleanup_before_preserving_old_value() {
     let ir = lower_text(
         r#"struct File {

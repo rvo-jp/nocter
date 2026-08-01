@@ -332,6 +332,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         resolved,
                         context,
                         temporaries,
+                        None,
                     )
                 }
                 Expr::Identifier(identifier) => {
@@ -556,6 +557,7 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
     resolved: &ResolveOutput,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    progress: Option<&StructInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let struct_layout = layout_struct(fields).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -591,6 +593,13 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
             context,
             temporaries,
         )?);
+        if let Some(completed) = progress.and_then(|progress| {
+            u32::try_from(field_layout.offset)
+                .ok()
+                .and_then(|offset| progress.complete_field(offset))
+        }) {
+            instructions.push(completed);
+        }
     }
     Ok(instructions)
 }

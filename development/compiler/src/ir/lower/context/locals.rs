@@ -77,6 +77,18 @@ impl<'a> LoweringContext<'a> {
         Ok(UsizeLocation::Local(index))
     }
 
+    pub(in crate::ir::lower) fn reserve_drop_state_bool_local(
+        &mut self,
+    ) -> Result<BoolLocation, Vec<Diagnostic>> {
+        let index = self.next_local_index(1)?;
+        self.locals.push(LocalBinding {
+            name: format!("<drop-state-{index}>"),
+            kind: LocalKind::Bool,
+            index,
+        });
+        Ok(BoolLocation::Local(index))
+    }
+
     pub(in crate::ir::lower) fn define_bool_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Bool);
     }
@@ -438,6 +450,36 @@ impl<'a> LoweringContext<'a> {
         true
     }
 
+    pub(in crate::ir::lower) fn mark_aggregate_local_struct_fields(
+        &mut self,
+        name: &str,
+        fields: Vec<StructFieldDropFlag>,
+    ) -> bool {
+        let Some(local) = self
+            .locals
+            .iter_mut()
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
+        else {
+            return false;
+        };
+        let LocalKind::Aggregate {
+            drop_kind,
+            drop_obligation,
+            ..
+        } = &mut local.kind
+        else {
+            return false;
+        };
+        if !matches!(
+            drop_kind,
+            Some(AggregateDrop::Direct(_) | AggregateDrop::Struct(_))
+        ) {
+            return false;
+        }
+        *drop_obligation = DropObligation::StructFields { fields };
+        true
+    }
+
     pub(in crate::ir::lower) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
         let mut pending = self.pending_temporary_aggregate_drops();
         pending.extend(
@@ -448,7 +490,7 @@ impl<'a> LoweringContext<'a> {
                     let LocalKind::Aggregate {
                         layout,
                         slot_index,
-                        drop_obligation,
+                        ref drop_obligation,
                         ref drop_kind,
                         ..
                     } = local.kind
@@ -463,7 +505,7 @@ impl<'a> LoweringContext<'a> {
                         slot_index,
                         layout,
                         drop_kind: drop_kind.clone()?,
-                        obligation: drop_obligation,
+                        obligation: drop_obligation.clone(),
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -509,7 +551,7 @@ impl<'a> LoweringContext<'a> {
                     let LocalKind::Aggregate {
                         layout,
                         slot_index,
-                        drop_obligation,
+                        ref drop_obligation,
                         ref drop_kind,
                         ..
                     } = local.kind
@@ -524,7 +566,7 @@ impl<'a> LoweringContext<'a> {
                         slot_index,
                         layout,
                         drop_kind: drop_kind.clone()?,
-                        obligation: drop_obligation,
+                        obligation: drop_obligation.clone(),
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -540,7 +582,7 @@ impl<'a> LoweringContext<'a> {
             let LocalKind::Aggregate {
                 layout,
                 slot_index: local_slot_index,
-                drop_obligation,
+                ref drop_obligation,
                 ref drop_kind,
                 ..
             } = local.kind
@@ -555,7 +597,7 @@ impl<'a> LoweringContext<'a> {
                 slot_index,
                 layout,
                 drop_kind: drop_kind.clone()?,
-                obligation: drop_obligation,
+                obligation: drop_obligation.clone(),
             })
         })
     }
