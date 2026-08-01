@@ -985,3 +985,78 @@ func main(): i32 {
     assert_eq!(output.stdout, b"badc");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_recursively_drops_fixed_array_call_initialized_elements() {
+    let project = TempProject::new("cli-run-recursive-drop-fixed-array-call-elements");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "recursive_drop_fixed_array_call_elements.nct",
+        r#"use std/log.write
+
+struct Handle {
+    name: &str
+}
+
+impl Handle {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Wrapper {
+    name: &str
+    handle: Handle
+}
+
+impl Wrapper {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func make(name: &str, handle_name: &str): Wrapper {
+    return Wrapper { name: name, handle: Handle { name: handle_name } }
+}
+
+func make_fallible(name: &str, handle_name: &str): Wrapper! {
+    return Wrapper { name: name, handle: Handle { name: handle_name } }
+}
+
+func main(): i32 {
+    let wrappers: [Wrapper; 2] = [make("A", "a"), make_fallible("B", "b")!]
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"BbAa");
+    assert!(output.stderr.is_empty());
+}

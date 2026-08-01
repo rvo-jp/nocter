@@ -10,6 +10,8 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `f56df9b Replace local move-only array literals`
+  - `2cde566 Drop local move-only array elements`
   - `79b64cb Share payload pattern target shapes`
   - `ca00f7a Lower optional payload pattern targets`
   - `d9a9271 Lower fallible payload pattern targets`
