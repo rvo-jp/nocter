@@ -1,5 +1,7 @@
 use super::super::aggregates::{
-    aggregate_call_instruction, aggregate_type_layout,
+    ArrayInitializationProgress, aggregate_call_instruction, aggregate_type_layout,
+    array_literal_requires_runtime_progress,
+    lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_array_literal_to_location_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_temporaries,
     lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,
@@ -7,7 +9,7 @@ use super::super::aggregates::{
     supported_aggregate_copy_layout, type_expr_is_copy_struct_with_resolver,
 };
 use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
-use super::super::context::{AggregateFieldKind, LoweringContext};
+use super::super::context::{AggregateDrop, AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
 use super::super::types::{
@@ -38,17 +40,19 @@ use crate::typecheck::TypecheckSliceElementKind;
 mod aggregate_arguments;
 mod arguments;
 mod borrow_arguments;
+mod evaluation;
 mod normal_calls;
 mod primitives;
 mod return_validation;
 mod tail_calls;
 mod utility;
 
-use aggregate_arguments::lower_aggregate_argument_source;
+use aggregate_arguments::{lower_aggregate_argument_source, lower_tracked_array_argument_source};
 pub(super) use arguments::{call_arguments_require_stack, lower_call_arguments};
 use borrow_arguments::{
     lower_borrow_argument, lower_implicit_receiver_borrow_argument, materialize_slice_borrow_index,
 };
+use evaluation::CallEvaluationContext;
 pub(super) use normal_calls::{
     lower_bool_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
     lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,

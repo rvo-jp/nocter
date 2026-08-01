@@ -23,6 +23,7 @@ static TEMP_PROJECT_COUNTER: AtomicU64 = AtomicU64::new(0);
 mod aggregates;
 mod arrays;
 mod basic;
+mod call_evaluation;
 mod calls;
 mod control_flow;
 mod diagnostics;

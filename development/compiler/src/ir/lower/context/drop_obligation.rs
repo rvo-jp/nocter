@@ -31,18 +31,17 @@ impl DropObligation {
 }
 
 impl LoweringContext<'_> {
-    pub(in crate::ir::lower) fn register_temporary_array_prefix_drop(
+    fn register_temporary_aggregate_drop(
         &mut self,
         slot_index: usize,
         layout: ValueLayout,
         drop_kind: AggregateDrop,
-        initialized: UsizeLocation,
+        obligation: DropObligation,
     ) -> bool {
-        if !matches!(drop_kind, AggregateDrop::Array(_))
-            || self
-                .temporary_aggregate_drops
-                .iter()
-                .any(|drop_| drop_.slot_index == slot_index)
+        if self
+            .temporary_aggregate_drops
+            .iter()
+            .any(|drop_| drop_.slot_index == slot_index)
         {
             return false;
         }
@@ -51,9 +50,52 @@ impl LoweringContext<'_> {
             slot_index,
             layout,
             drop_kind,
-            obligation: DropObligation::ArrayPrefix { initialized },
+            obligation,
         });
         true
+    }
+
+    pub(in crate::ir::lower) fn register_temporary_array_prefix_drop(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+        initialized: UsizeLocation,
+    ) -> bool {
+        if !matches!(drop_kind, AggregateDrop::Array(_)) {
+            return false;
+        }
+        self.register_temporary_aggregate_drop(
+            slot_index,
+            layout,
+            drop_kind,
+            DropObligation::ArrayPrefix { initialized },
+        )
+    }
+
+    pub(in crate::ir::lower) fn register_or_complete_temporary_aggregate_drop(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+    ) -> bool {
+        if let Some(drop_) = self
+            .temporary_aggregate_drops
+            .iter_mut()
+            .find(|drop_| drop_.slot_index == slot_index)
+        {
+            if drop_.layout != layout || drop_.drop_kind != drop_kind {
+                return false;
+            }
+            drop_.obligation = DropObligation::Complete;
+            return true;
+        }
+        self.register_temporary_aggregate_drop(
+            slot_index,
+            layout,
+            drop_kind,
+            DropObligation::Complete,
+        )
     }
 
     pub(in crate::ir::lower) fn release_temporary_aggregate_drop(

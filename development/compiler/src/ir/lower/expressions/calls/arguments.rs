@@ -10,6 +10,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
     let Some(parameter_types) = context.call_parameter_types(target) else {
         return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
+    let mut evaluation = CallEvaluationContext::new(context, temporaries)?;
 
     let method_receiver = context.method_call_receiver(call);
     let argument_count = call.arguments.len() + usize::from(method_receiver.is_some());
@@ -39,6 +40,8 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
     for ((argument, is_method_receiver, parameter_type_expr), parameter_type) in
         call_arguments.zip(parameter_types)
     {
+        evaluation.sync_temporaries(temporaries)?;
+        let context = evaluation.context();
         match parameter_type {
             Type::I32 => {
                 let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
@@ -104,13 +107,32 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                 arguments.push(ScalarArgument::Borrow(argument));
             }
             Type::Aggregate { .. } => {
-                let (argument_instructions, source) = lower_aggregate_argument_source(
-                    argument,
-                    parameter_type,
+                let (argument_instructions, source) = if let Some(lowered) =
+                    lower_tracked_array_argument_source(
+                        argument,
+                        parameter_type,
+                        parameter_type_expr.as_ref(),
+                        callee_name,
+                        &mut evaluation,
+                        temporaries,
+                    )? {
+                    lowered
+                } else {
+                    lower_aggregate_argument_source(
+                        argument,
+                        parameter_type,
+                        parameter_type_expr.as_ref(),
+                        callee_name,
+                        evaluation.context(),
+                        temporaries,
+                    )?
+                };
+                retain_owned_aggregate_argument(
+                    &mut evaluation,
                     parameter_type_expr.as_ref(),
+                    source,
+                    parameter_type,
                     callee_name,
-                    context,
-                    temporaries,
                 )?;
                 instructions.extend(argument_instructions);
                 arguments.push(ScalarArgument::AggregateIndirect(AggregateArgument {
@@ -118,13 +140,32 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                 }));
             }
             Type::DirectAggregate { layout, words } => {
-                let (argument_instructions, source) = lower_aggregate_argument_source(
-                    argument,
-                    parameter_type,
+                let (argument_instructions, source) = if let Some(lowered) =
+                    lower_tracked_array_argument_source(
+                        argument,
+                        parameter_type,
+                        parameter_type_expr.as_ref(),
+                        callee_name,
+                        &mut evaluation,
+                        temporaries,
+                    )? {
+                    lowered
+                } else {
+                    lower_aggregate_argument_source(
+                        argument,
+                        parameter_type,
+                        parameter_type_expr.as_ref(),
+                        callee_name,
+                        evaluation.context(),
+                        temporaries,
+                    )?
+                };
+                retain_owned_aggregate_argument(
+                    &mut evaluation,
                     parameter_type_expr.as_ref(),
+                    source,
+                    parameter_type,
                     callee_name,
-                    context,
-                    temporaries,
                 )?;
                 instructions.extend(argument_instructions);
                 arguments.push(ScalarArgument::AggregateDirect(DirectAggregateArgument {
@@ -156,6 +197,43 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
         ));
     }
     Ok((instructions, arguments))
+}
+
+fn retain_owned_aggregate_argument(
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    parameter_type_expr: Option<&TypeExpr>,
+    source: AggregateArgumentSource,
+    parameter_type: &Type,
+    callee_name: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    let AggregateArgumentSource::Slot(slot_index) = source;
+    if evaluation
+        .context()
+        .aggregate_local_by_slot(slot_index)
+        .is_some()
+    {
+        return Ok(());
+    }
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Ok(());
+    };
+    let Some(drop_kind) = evaluation
+        .context()
+        .aggregate_drop_for_type_expr(parameter_type_expr)
+    else {
+        return Ok(());
+    };
+    let layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(()),
+    };
+    if !evaluation.complete_temporary(slot_index, layout, drop_kind) {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!("cannot retain owned aggregate argument for function `{callee_name}`"),
+        )]);
+    }
+    Ok(())
 }
 
 fn lower_error_argument(

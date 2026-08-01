@@ -776,6 +776,74 @@ func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
 }
 
 #[test]
+fn keeps_completed_owned_array_argument_live_until_call_starts() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func open(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func code(): i32! {
+    return 4
+}
+
+func consume(files: [File; 2], value: i32): void {
+    return
+}
+
+func main(): void! {
+    consume([File { fd: 1 }, open(2)?], code()?)
+    return
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let code_cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleI32 {
+                target,
+                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("code") => Some(instructions),
+            _ => None,
+        });
+    let code_cleanup = code_cleanup.expect("expected later argument cleanup");
+
+    assert!(matches!(
+        code_cleanup.as_slice(),
+        [
+            Instruction::CallVoid { arguments: second, .. },
+            Instruction::CallVoid { arguments: first, .. },
+        ] if matches!(
+            second.as_slice(),
+            [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
+            })]
+        ) && matches!(
+            first.as_slice(),
+            [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
+            })]
+        )
+    ));
+}
+
+#[test]
 fn lowers_partial_fixed_array_return_through_tracked_temporary() {
     let ir = lower_text(
         r#"struct File {

@@ -45,12 +45,22 @@ pub(super) fn fixed_array_literal_argument_requires_partial_initialization_track
     ) else {
         return false;
     };
-    fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
-        literal,
-        &ty,
-        resolved,
-        resolved_sources,
-    )
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_literal_recursive_drop_element_type_is_buildable(
+            &ty,
+            &element,
+            resolved,
+            resolved_sources,
+        )
+        && literal
+            .elements
+            .iter()
+            .any(|element| !expression_completes_without_source_control_exit(element))
 }
 
 pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
@@ -167,30 +177,6 @@ fn fixed_array_literal_recursive_drop_elements_are_buildable(
         .elements
         .iter()
         .all(fixed_array_owned_element_initializer_is_buildable_with_tracking)
-}
-
-fn fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
-    literal: &crate::ast::ArrayLiteralExpr,
-    ty: &TypeExpr,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let Some((element, length, _layout)) =
-        fixed_array_type_abi_for_sources(ty, fallback_resolved, resolved_sources)
-    else {
-        return false;
-    };
-    u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_literal_recursive_drop_element_type_is_buildable(
-            ty,
-            &element,
-            fallback_resolved,
-            resolved_sources,
-        )
-        && literal
-            .elements
-            .iter()
-            .any(|element| !expression_completes_without_source_control_exit(element))
 }
 
 pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(
