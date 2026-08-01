@@ -3,21 +3,21 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-## v0 Scope
+## v0.2.0 Scope
 
-Nocter v0 includes generic type parameters, associated functions, inherent
+Nocter v0.2.0 includes generic type parameters, associated functions, inherent
 `impl` blocks, receiver methods, contract-only `interface` declarations,
 explicit interface conformance declarations, and `Self` type syntax inside
 inherent member and interface method contexts.
 
-Nocter v0 does not include traits.
+Nocter v0.2.0 does not include traits.
 Embedding is an adopted future composition feature, but it is not part of the
-v0 implementation contract. Generalized `...` spread, rest capture, variadic
+v0.2.0 implementation contract. Generalized `...` spread, rest capture, variadic
 capture, and typed literal construction are specified as a separate future
 direction in
 [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md).
 
-Not part of v0:
+Not part of v0.2.0:
 
 - `trait` declarations
 - embedding declarations such as `...Type` and `pub ...Type`
@@ -30,7 +30,7 @@ Not part of v0:
   specialization, and `where` clauses
 - code reuse through interfaces
 
-`trait` is not a reserved keyword in v0. It is lexed as an identifier. A source
+`trait` is not a reserved keyword in v0.2.0. It is lexed as an identifier. A source
 form that starts a top-level item with `trait` is diagnosed as removed syntax,
 but the spelling remains available as an ordinary identifier in
 positions such as a function name.
@@ -168,16 +168,16 @@ Call rules:
 - Associated function and method arguments follow the positional argument rules
   in [Control Flow](03-control-flow.md#function-calls-and-arguments).
 - `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in
-  v0.
+  v0.2.0.
 - `value.function(args)` is invalid when `function` is only an associated
   `func`.
 - `func Type.name` and `method` share the same member namespace for a type.
-  Defining both with the same member name for the same type is an error in v0.
+  Defining both with the same member name for the same type is an error in v0.2.0.
 - Enum variants also occupy the type member namespace. An associated `func` or
-  `method` cannot reuse an enum variant member name in v0.
+  `method` cannot reuse an enum variant member name in v0.2.0.
 - If method lookup finds multiple valid inherent candidates, the call is
   ambiguous and is a compile error.
-- v0 has no qualified method-call escape hatch for ambiguity resolution.
+- v0.2.0 has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
 file.write_text("hello")?          // OK: method call
@@ -186,7 +186,7 @@ File.write_text(&+file, "hello")?  // error: methods are not UFCS functions
 
 ## Method Lookup
 
-Adopted: method lookup is deliberately small and deterministic in v0.
+Adopted: method lookup is deliberately small and deterministic in v0.2.0.
 
 For `value.method(args)`, the compiler first determines the static type of
 `value`.
@@ -194,7 +194,7 @@ For `value.method(args)`, the compiler first determines the static type of
 If the receiver has a concrete nominal type, the compiler looks only for
 inherent methods declared in `impl Type` blocks for that nominal type.
 
-If the receiver is a generic type parameter, v0 has no interface-bound method lookup.
+If the receiver is a generic type parameter, v0.2.0 has no interface-bound method lookup.
 A method call through an unconstrained generic receiver is invalid unless a
 future feature supplies a bound and lookup rule.
 
@@ -204,7 +204,7 @@ Lookup order:
 2. no candidate, producing a compile error
 
 The compiler does not search visible interface conformance declarations to resolve
-`value.method(args)` in v0. This avoids import-dependent method lookup and keeps
+`value.method(args)` in v0.2.0. This avoids import-dependent method lookup and keeps
 calls readable from the receiver type.
 
 Initial implementation order:
@@ -269,7 +269,7 @@ impl Reader for File
 ```
 
 This model prevents accidental conformance while keeping the contract check
-structural. It also keeps code reuse out of v0: interface declarations describe
+structural. It also keeps code reuse out of v0.2.0: interface declarations describe
 requirements only.
 
 ## Interface And Embedding Separation
@@ -307,14 +307,14 @@ func first<T>(items: &[T]): T? {
 }
 ```
 
-Generic parameter grammar in v0:
+Generic parameter grammar in v0.2.0:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
 GenericParameter  = Name
 ```
 
-Generic bounds are deferred after v0. The parser must diagnose a generic
+Generic bounds are deferred after v0.2.0. The parser must diagnose a generic
 parameter colon such as `T: Printable` as a deferred feature.
 
 Generic implementation uses monomorphization. Each concrete instantiation is

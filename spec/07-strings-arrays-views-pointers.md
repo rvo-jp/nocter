@@ -34,11 +34,11 @@ Rules:
 - `*T` is non-null.
 - If null is needed, use `*T?`.
 - `*void` is allowed as an opaque raw pointer type.
-- Raw pointer dereference has no user-facing escape hatch in v0. There is no `unsafe` block that enables it.
+- Raw pointer dereference has no user-facing escape hatch in v0.2.0. There is no `unsafe` block that enables it.
 
 Raw pointer dereference is not part of the initial user-facing language.
 
-Not adopted in v0:
+Not adopted in v0.2.0:
 
 ```nct
 *pointer
@@ -47,7 +47,7 @@ pointer.load()
 pointer.store(value)
 ```
 
-These operations may be reconsidered only if Nocter later adopts an explicit unsafe or trusted-code model. They are not enabled by v0's Nocter-home trusted boundary.
+These operations may be reconsidered only if Nocter later adopts an explicit unsafe or trusted-code model. They are not enabled by v0.2.0's Nocter-home trusted boundary.
 
 ### `std/ptr`
 
@@ -79,7 +79,7 @@ Rules:
 - `from_addr<T>(...)` is invalid when the address is statically known to be
   zero; use `none` for a `*T?` null-like absence.
 - A raw pointer created from a borrow may outlive the borrow as a value, but using it as if it were valid is not guaranteed by the compiler.
-- Because dereference is not available in v0, general user code can carry and pass raw pointers but cannot read or write through them.
+- Because dereference is not available in v0.2.0, general user code can carry and pass raw pointers but cannot read or write through them.
 
 Example:
 
@@ -179,7 +179,7 @@ Owned growable memory is represented by standard-library types such as `Buffer<T
 Future typed collection literals such as `Vec [1, 2, 3]` are specified
 separately in
 [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
-and are not part of v0. Bare `[1, 2, 3]` remains a fixed-size array literal.
+and are not part of v0.2.0. Bare `[1, 2, 3]` remains a fixed-size array literal.
 
 ```nct
 var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
@@ -260,7 +260,7 @@ Rules:
 - `owned_param` provenance must not escape the function because the owned parameter is dropped at function scope end unless moved.
 - `region` provenance must not escape the region.
 - `param_borrow` provenance may be returned from the function, but the caller may not use the returned borrow-like value longer than the original input borrow remains valid.
-- `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0 code.
+- `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0.2.0 code.
 - `&+[T]` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
 - `&[T]` and `&str` carry readonly permission.
 - A readonly borrow-like value may be derived from readonly or readwrite provenance.
@@ -324,7 +324,7 @@ The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, 
 
 ### Iteration
 
-Adopted: v0 collection iteration is explicit readonly borrow iteration through standard-library iterator types.
+Adopted: v0.2.0 collection iteration is explicit readonly borrow iteration through standard-library iterator types.
 
 The compiler does not lower `for item in collection` into calls to `iter` or `next`. The names `iter`, `next`, `ViewIter`, and `into_iter` are not special to the compiler.
 
@@ -359,9 +359,9 @@ Rules:
 - `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
 - The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `&+[T]` mutable element iteration is not part of v0.
-- Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.
-- Range `for` remains the only `for` syntax in v0.
+- `&+[T]` mutable element iteration is not part of v0.2.0.
+- Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.2.0.
+- Range `for` remains the only `for` syntax in v0.2.0.
 
 ## Strings
 
@@ -418,7 +418,15 @@ func open(path: &str): File! {
 }
 ```
 
-Adopted method surface direction:
+The example above records the released v0.2.0 explicit fallible API. The
+v0.3.0 target uses the current aborting allocation context for ordinary copies:
+
+```nct
+let view: &str = "README.md"
+var owned = String.copy(view)
+```
+
+Released v0.2.0 method surface:
 
 ```nct
 pub func String.copy(allocator: &+Allocator, text: &str): String!
@@ -440,6 +448,11 @@ impl &str {
     pub method self.bytes(): &[u8]
 }
 ```
+
+v0.3.0 pairs normal `copy`, `reserve`, and `push_str` with explicit
+`try_copy`, `try_reserve`, and `try_push_str` operations. Both surfaces use the
+same buffer implementation and preserve the same UTF-8 and publication
+invariants.
 
 `&[u8]` represents arbitrary borrowed bytes and is not necessarily valid UTF-8. Converting `&str` to `&[u8]` is allowed. Converting `&[u8]` to `&str` requires UTF-8 validation.
 
@@ -482,25 +495,27 @@ The value is equivalent to:
 Adopted direction: `${expr}` inside a string source form creates an interpolated string expression.
 
 ```nct
-let message = "hello ${name}"?
+let message = "hello ${name}"
 let report = """
     user: ${name}
     count: ${count}
-    """?
+    """
 ```
 
 An interpolated string expression is not a string literal, even when every literal text segment is static. It constructs an owned `String` at runtime.
 
 Rules:
 
-- The result type of an interpolated string expression is `String!`.
-- The expression is fallible because formatting or allocation can fail.
+- The v0.3.0 target result type of an interpolated string expression is `String`.
+- Ordinary interpolation uses the current aborting allocation context. Allocation
+  failure terminates according to the standard allocator policy.
 - Literal text segments are decoded with the same escape rules as string literals.
 - Interpolation expressions are evaluated left to right with the surrounding literal text segments.
 - Each `${expr}` expression is evaluated exactly once.
 - Side effects in interpolation expressions occur at the interpolation position in left-to-right order.
 - If any interpolation expression fails through `?`, `!`, or an explicitly fallible call, normal fallible propagation rules apply.
-- If string construction fails, the expression fails with the error returned by the standard-library formatting operation.
+- Unsupported interpolation values are rejected statically. Recoverable allocation
+  uses explicit `try_*` formatting APIs rather than changing interpolation to `String!`.
 - `String` remains an ordinary standard-library type. The compiler must not make the identifier `String` a built-in type name.
 - The compiler must not treat user-defined names such as `to_string`, `format`, `append`, or `allocator` as magic.
 - A bare string literal without `${...}` remains `&str` and does not allocate.
@@ -517,14 +532,17 @@ Allocator and lowering rules:
 
 - Interpolation requires runtime storage for the resulting owned `String`.
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
-- The exact standard-library lowering API for interpolated strings is part of the string formatting design and must remain explicit about allocation.
-- A conforming implementation must not silently choose a process-global allocator for interpolation.
+- The lowering uses the compiler-propagated current allocation context. It must
+  not read a mutable process-global allocator.
 - Until the standard-library formatting API is finalized, an implementation may
   parse and type-check interpolation syntax for `check`, but `build` and `run`
   must reject it during buildability validation with a diagnostic that the
   interpolation lowering API is not implemented.
 
-The intended lowering is equivalent to constructing a `String` through ordinary standard-library operations, appending decoded text segments and formatted expression values in source order, then returning that owned value or a failure.
+The intended lowering is equivalent to constructing a `String` through ordinary
+standard-library operations in the current context, appending decoded text
+segments and formatted expression values in source order, then returning that
+owned value.
 
 ## Byte Literals and Escapes
 

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Example Corpus - Nocter</title>
-    <meta name="description" content="This directory contains small Nocter examples for humans, tests, editor tooling, and AI-assisted code generation.">
+    <title>Region, Provenance, and Allocation Context - Nocter</title>
+    <meta name="description" content="This document owns the implementation design for v0.3.0 region and allocation-context work. Public semantics belong to Memory, Regions, and Allocators, and">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/spec/examples/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/region-provenance/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Example Corpus - Nocter">
-    <meta property="og:description" content="This directory contains small Nocter examples for humans, tests, editor tooling, and AI-assisted code generation.">
-    <meta property="og:url" content="https://nocter.dev/spec/examples/">
+    <meta property="og:title" content="Region, Provenance, and Allocation Context - Nocter">
+    <meta property="og:description" content="This document owns the implementation design for v0.3.0 region and allocation-context work. Public semantics belong to Memory, Regions, and Allocators, and">
+    <meta property="og:url" content="https://nocter.dev/development/docs/region-provenance/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Example Corpus - Nocter">
-    <meta name="twitter:description" content="This directory contains small Nocter examples for humans, tests, editor tooling, and AI-assisted code generation.">
+    <meta name="twitter:title" content="Region, Provenance, and Allocation Context - Nocter">
+    <meta name="twitter:description" content="This document owns the implementation design for v0.3.0 region and allocation-context work. Public semantics belong to Memory, Regions, and Allocators, and">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Example Corpus - Nocter","description":"This directory contains small Nocter examples for humans, tests, editor tooling, and AI-assisted code generation.","url":"https://nocter.dev/spec/examples/","mainEntityOfPage":"https://nocter.dev/spec/examples/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"Examples","item":"https://nocter.dev/spec/examples/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Region, Provenance, and Allocation Context - Nocter","description":"This document owns the implementation design for v0.3.0 region and allocation-context work. Public semantics belong to Memory, Regions, and Allocators, and","url":"https://nocter.dev/development/docs/region-provenance/","mainEntityOfPage":"https://nocter.dev/development/docs/region-provenance/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Region Provenance","item":"https://nocter.dev/development/docs/region-provenance/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
-<body>
+<body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -123,24 +123,65 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="./index.html#content" aria-current="page">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/spec/examples/README.md</span>
+                <span class="markdown-path-text">/development/docs/region-provenance.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-example-corpus">Nocter Example Corpus</h1><p>This directory contains small Nocter examples for humans, tests, editor tooling, and AI-assisted code generation.</p><p>The examples are not a replacement for the specification. They show canonical style and common mistakes in compact form.</p><p>Layout:</p><pre><code class="language-text">spec/examples/
-    valid/
-        *.nct
-        imports/
-            app.nct
-            config.nct
-    invalid/
-        *.nct
-</code></pre><p>Rules:</p><ul><li><code>valid/</code> examples should be formatter-ready Nocter code.</li><li><code>invalid/</code> examples should focus on one intended mistake per file.</li><li>Invalid examples should explain the intended mistake in comments.</li><li>Examples represent user project modules and must not write source-level <code>use std/prelude</code>; the standard prelude is compiler-managed.</li><li>Compiler integration tests check that <code>valid/</code> examples pass <code>nocter check</code> and <code>invalid/</code> examples fail it.</li><li>The same examples are checked through <code>nocter check --format json</code> to keep the diagnostics envelope stable for future editor and LSP tooling.</li><li><code>valid/</code> means source-valid for <code>check</code>. A valid example may still exercise a
-  check-only API shape that <code>build</code> and <code>run</code> reject until the corresponding
-  runtime lowering is promoted.</li><li>Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.</li><li>Do not use examples to introduce syntax that is not specified in <code>spec/README.md</code>.</li></ul><h2 id="v0-2-0-front-end-coverage">v0.2.0 Front-End Coverage</h2><p>The corpus is the external stability suite for Nocter v0.2.0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, the fixed root <code>main</code> entry rule, human diagnostics, and JSON diagnostics through the real <code>nocter</code> command.</p><p>Current valid coverage:</p><ul><li>default <code>main</code> entry</li><li>doc comments for future editor tooling</li><li>non-relative standard-library import</li><li>relative source import</li><li>fallible <code>T!</code>, postfix <code>?</code>, postfix <code>!</code>, and <code>catch</code></li><li>optional <code>T?</code>, <code>otherwise</code>, and enum <code>if is</code></li><li>fallible optional success <code>T?!</code> through the check-only <code>std/process.env</code>
-  surface</li><li>enum construction and <code>match</code></li><li>range-only <code>for</code></li></ul><p>Current invalid coverage:</p><ul><li>missing default entry</li><li>invalid entry signature</li><li>removed <code>module</code> declaration syntax</li><li>return type mismatch</li><li>fallible propagation outside a fallible return layer</li><li>optional propagation outside an optional return layer</li><li><code>catch</code> on <code>T?</code></li><li>postfix <code>!</code> on a plain value</li><li>mismatched <code>otherwise</code> fallback type</li><li>non-integer range bounds</li><li><code>match</code> on a non-enum value</li></ul>
+                <h1 id="region-provenance-and-allocation-context">Region, Provenance, and Allocation Context</h1><p>This document owns the implementation design for v0.3.0 region and allocation-context work. Public semantics belong to <a href="../../../spec/06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a>, and the active completion gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a>.</p><h2 id="separate-concepts">Separate Concepts</h2><p>Do not collapse these concepts into a single lifetime label:</p><table><thead><tr><th>Concept</th><th>Meaning</th></tr></thead><tbody><tr><td>storage origin</td><td>the storage whose lifetime constrains a value</td></tr><tr><td>loan</td><td>a readonly or readwrite access restriction over a source place</td></tr><tr><td>value provenance</td><td>storage origins carried through a value and its projections</td></tr><tr><td>allocator backend</td><td>runtime mechanism that allocates and releases bytes</td></tr><tr><td>allocation context</td><td>statically propagated capability selecting an allocator and region</td></tr><tr><td>lexical region</td><td>child lifetime boundary that owns an allocation context</td></tr><tr><td>drop obligation</td><td>runtime record of initialized owned values that require cleanup</td></tr></tbody></table><p>Allocator backend identity remains runtime data where deallocation needs it. Storage origins and outlives constraints are compile-time facts. Drop obligations remain IR/runtime control-flow state.</p><h2 id="provenance-data-flow">Provenance Data Flow</h2><pre><code class="language-text">AST places and calls
+  -&gt; resolver declaration/place identity
+  -&gt; typecheck storage origins and callable summaries
+  -&gt; ownership loan ranges + escape diagnostics
+  -&gt; analysis facts                    -&gt; LSP
+  -&gt; IR allocation/region/drop facts
+  -&gt; backend execution
+</code></pre><p>The resolver owns identity but not lifetime policy. Typecheck owns origin construction, joins, outlives constraints, and diagnostics. Ownership consumes those facts to calculate NLL loans; it does not reconstruct call behavior. IR receives only validated region and cleanup operations.</p><h2 id="internal-model">Internal Model</h2><p>The exact Rust representation may evolve, but the semantic model must distinguish:</p><pre><code class="language-text">StorageOrigin
+  Static
+  Scope(ScopeId)
+  Input(CallableId, InputId)
+  Region(RegionId)
+  Unknown
+
+ValueProvenance
+  Independent
+  Origins(set&lt;StorageOrigin&gt;)
+  Aggregate { fallback, fields, elements }
+  Optional { present }
+  Fallible { success, error }
+</code></pre><p><code>InputId</code> is declaration identity, not a parameter name string. A method receiver has its own input identity. Renaming a parameter must not change callable-summary behavior.</p><p>Origin joins are conservative unions. Escape succeeds only when every possible origin outlives the destination. A known static alternative does not erase a shorter alternative.</p><h2 id="callable-summaries">Callable Summaries</h2><p>The existing return-only summary becomes a shared <code>CallableProvenanceSummary</code> keyed by declaration identity. It contains result provenance plus allocation effect.</p><p>Summary construction must:</p><ul><li>preserve field, element, optional, success, and error distinctions</li><li>converge across recursive and mutually recursive source call graphs</li><li>map callee input identities to caller expressions at each call site</li><li>fall back to <code>Unknown</code>, never to a guessed parameter, when analysis is incomplete</li><li>expose a stable owned query API to analysis and LSP</li></ul><p>Return checking rejects local, owned-parameter, temporary, region, and unknown escapes. NLL maps returned origins back to source places and keeps those loans active through the result's last use.</p><h2 id="allocation-effects">Allocation Effects</h2><p>An allocating source callable receives the current allocation context as a hidden capability. The effect is inferred through calls to a fixed point and is part of compiler semantic facts. It is not implemented as a mutable global or thread-local lookup.</p><p>The root driver supplies a program-lifetime aborting system context. Entering a lexical region derives a child context from its parent and installs it for the region body's allocating calls.</p><p>Trusted allocation declarations carry metadata such as:</p><pre><code class="language-text">allocation operation
+result storage comes from allocator input N
+failure policy: aborting | recoverable
+</code></pre><p>The metadata belongs to trusted declaration identity. No analysis searches for names such as <code>alloc</code>, <code>String</code>, <code>Vec</code>, or <code>reserve</code>.</p><h2 id="failure-policies">Failure Policies</h2><p><code>TryAllocator</code> is the fundamental fallible capability. Its failure-atomic operations return <code>error</code>. <code>Allocator</code> is an aborting adapter over the same backend.</p><p>Normal and <code>try_*</code> collection operations share one implementation path:</p><pre><code class="language-text">try operation
+  -&gt; checked layout/growth
+  -&gt; backend attempt
+  -&gt; publish only on success
+
+normal operation
+  -&gt; try operation
+  -&gt; allocation error becomes non-allocating process termination
+</code></pre><p>Failure policy is not stored as value provenance. <code>RawBuffer</code> stores the backend and region identity needed for release. An operation chooses whether failure is returned or terminates.</p><h2 id="region-lowering">Region Lowering</h2><p>Conceptually:</p><pre><code class="language-text">evaluate parent context
+enter child RegionId and runtime region
+install child allocation context
+execute body
+for every exiting edge:
+  drop live body values in reverse ownership order
+  release child region
+  transfer control
+</code></pre><p>The exiting-edge transformation covers fallthrough, <code>return</code>, <code>break</code>, <code>continue</code>, and propagation. Calling a <code>never</code> function does not synthesize cleanup because the process may terminate without unwinding.</p><p>Dropping a region-backed buffer and releasing the region must not free the same storage twice. The child backend owns whether individual deallocation reclaims a block immediately or records it as no longer live before bulk release; collection code uses only the ordinary buffer release contract.</p><p>Nested regions form lexical outlives edges. A child origin can flow into a shorter nested child but cannot flow into its parent or another region whose lifetime is not proven shorter.</p><h2 id="diagnostics-and-tooling">Diagnostics and Tooling</h2><p>Diagnostics identify both the value being escaped and the origin that is too short. They should name source bindings or lexical regions where possible and avoid Rust lifetime terminology.</p><p>Compiler analysis exposes:</p><ul><li>region declaration and binding spans</li><li>parent/current allocation context identity</li><li>allocating-call effect</li><li>value origin summary suitable for hover</li><li>the source range responsible for an escape</li></ul><p>LSP converts these facts to hover, semantic tokens, completion, and diagnostics without maintaining a second provenance graph.</p><h2 id="migration-constraint">Migration Constraint</h2><p>The v0.2.0 explicit fallible APIs remain the implementation baseline while Phase 0 is built. Migrate them only after the shared fallible core and abort adapter exist. Do not temporarily implement default allocation by calling <code>page_allocator()</code> at each use site or by adding a mutable global.</p>
             </div>
         </main>
     </div>
@@ -156,6 +197,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

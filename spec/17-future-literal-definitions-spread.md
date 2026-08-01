@@ -3,12 +3,11 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-This chapter is a future design note. It is not part of Nocter v0. The v0
-contract is fixed in [Nocter v0 Contract](00-v0-contract.md).
-
-The direction in this chapter is adopted as a post-v0 design target, but the
-exact parser, typechecker, ownership, and lowering rules must be finalized
-before implementation.
+This chapter is the adopted v0.3.0 direction for typed literal and contextual
+many-value syntax. It is not implemented by the v0.2.0 release. v0.3.0 Phase 0
+first completes the region, provenance, and allocation-context foundation in
+[Memory, Regions, and Allocators](06-memory-region-allocator.md). Literal and
+spread implementation cannot begin before that gate passes.
 
 ## Purpose
 
@@ -38,9 +37,9 @@ let ages = Map {
 The type name is mandatory. Bare `[1, 2, 3]` remains the built-in fixed-size
 array literal unless another future chapter changes that rule explicitly.
 
-## Non-v0 Boundary
+## Implementation Boundary
 
-The following source forms are not part of v0:
+The following source forms are not implemented by v0.2.0 or v0.3.0 Phase 0:
 
 ```nct
 literal Vec<T> [...items: [T]]: Self {
@@ -58,9 +57,9 @@ func print_all(...values: [String]): void {
 }
 ```
 
-No v0 compiler or editor integration should implement special behavior for
-these forms. Until this feature is promoted, ordinary named constructors and
-methods remain the stable construction API.
+Until the typed-literal phase is promoted, compiler and editor integration must
+reject or recover these forms without pretending they are supported. Ordinary
+named constructors and methods remain the implemented construction API.
 
 ## Literal Definitions
 
@@ -89,6 +88,10 @@ Rules:
 - A literal definition is private by default. `pub literal` exposes it anywhere
   the target type is visible.
 - Literal construction never bypasses the literal definition body.
+- A literal definition uses the current aborting allocation context when its
+  body performs allocation.
+- Allocation failure in the ordinary literal path terminates according to the
+  standard allocator policy; it does not change the literal result to `Self!`.
 - A literal definition must not expose or require access to the target type's
   private fields outside the defining module.
 
@@ -136,6 +139,46 @@ Not adopted:
 
 The language should not let each type invent a new mini-language. The literal
 definition chooses behavior for an existing source shape only.
+
+## Allocation Context Selection
+
+An allocating typed literal uses the current aborting allocation context by
+default:
+
+```nct
+let values = Vec [1, 2, 3]
+let text = String "hello"
+```
+
+One literal may select a different established aborting allocator or allocation
+context:
+
+```nct
+let values = Vec [1, 2, 3] using arena
+```
+
+The `using` target must be a stable allocator/context place. It is not an
+arbitrary effectful expression. Selection occurs before element evaluation.
+All elements still evaluate once from left to right.
+
+A lexical region changes the current context for its whole body, including
+allocating callees:
+
+```nct
+region temp using arena {
+    let values = Vec [1, 2, 3]
+    let text = String "hello"
+}
+```
+
+Values allocated in `temp` carry its storage origin and cannot escape the
+region. Bare `"hello"` remains a static `&str`; only the typed `String "hello"`
+form allocates owned storage.
+
+Recoverable allocation deliberately does not make the literal's type depend on
+the chosen allocator. Code that must handle allocation failure uses
+`TryAllocator` and named `try_*` constructors or builders. Nocter does not
+define a fallible-literal overload for the same target and shape.
 
 ## Sequence Literals
 
@@ -238,7 +281,7 @@ Rules:
 - A byte typed literal receives a normal `u8` byte literal.
 - These forms do not create implicit conversions from `&str`, integer, or `u8`
   values.
-- The bare literal keeps its normal v0 meaning.
+- The bare literal keeps its normal v0.2.0 meaning.
 
 ## The `...` Operator Family
 
@@ -315,6 +358,10 @@ allocation:
   ordinary allocation API performs the allocation.
 - If the sequence does not escape, the compiler should not materialize heap
   storage only to satisfy the surface syntax.
+- Any owned destination storage is obtained from the selected aborting
+  allocation context and carries that context's storage origin.
+- Allocation-context selection and sequence-pack lowering are separate facts;
+  neither is inferred from the name of the target type.
 
 The surface may look like values are collected and then expanded again. The
 implementation should instead treat the sequence as compiler-owned temporary
@@ -364,6 +411,8 @@ Literal definitions and `...` spread are not:
 - trait-style extension of foreign types
 - a way to expose private fields
 - a promise of hidden heap allocation
+- context-dependent switching between `Self` and `Self!`
+- an implicit mutable process-global allocator
 
 Named constructors remain the right API when a construction mode needs a name,
 multiple options, validation policy, allocation source, or domain-specific

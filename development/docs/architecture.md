@@ -2,7 +2,7 @@
 
 This document defines stable responsibility boundaries in the Rust bootstrap compiler. See the
 [specification](../../spec/README.md) for public language rules and the
-[v0.2.0 contract](v0.2.0.md) for the completed release criteria.
+[v0.3.0 contract](v0.3.0.md) for the active Phase 0 criteria.
 
 ## Pipeline
 
@@ -20,7 +20,7 @@ This document defines stable responsibility boundaries in the Rust bootstrap com
 ```
 
 Normal user builds do not require LLVM, `clang`, `as`, `ld`, the Xcode Command Line Tools, or an
-external runtime library. The v0.2.0 native target is `arm64-darwin`.
+external runtime library. The released and active-development native target is `arm64-darwin`.
 
 ## Phase Ownership
 
@@ -32,7 +32,7 @@ external runtime library. The v0.2.0 native target is `arm64-darwin`.
 | `ast` | syntax data, AST JSON, documentation extraction |
 | `frontend` | compile-unit loading, prelude, frontend orchestration |
 | `resolve` | imports, visibility, scopes, symbols, declaration identity |
-| `typecheck` | types, generic specialization, places, ownership, borrows, drop semantics |
+| `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, allocation effects, drop semantics |
 | `analysis` | owned editor/query results derived from compiler facts |
 | `driver/buildability` | preflight rejection of checked forms not supported by the runtime |
 | `ir` | conversion from typed facts to explicit lower-level operations |
@@ -93,6 +93,12 @@ provenance separate. See [Allocator and Ownership](allocator-ownership.md).
 
 The compiler does not special-case public names such as `Allocator`, `String`, or `Vec`. Required
 primitives are confined to the `pub(nocter)` trust boundary and explicit IR operations.
+
+Phase 0 adds a compiler-owned provenance boundary between typecheck and ownership. Callable
+provenance summaries, lexical outlives constraints, and allocation-effect facts are constructed
+once in typecheck. Return checking, NLL, region escape validation, analysis, and IR consume those
+facts instead of maintaining separate origin models. See
+[Region, Provenance, and Allocation Context](region-provenance.md).
 
 ## LSP Boundary
 

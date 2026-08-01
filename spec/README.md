@@ -16,7 +16,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 - [Design Principles](00-design-principles.md)
 - [Overview](00-overview.md)
-- [Nocter v0 Contract](00-v0-contract.md)
+- [Nocter v0.2.0 Language Contract](00-v0.2.0-contract.md)
 - [Modules and Use Declarations](01-modules-use.md)
 - [Values and Types](02-values-types.md)
 - [Control Flow](03-control-flow.md)
@@ -39,6 +39,14 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 - [AI Guide](guides/ai.md)
 - [Example Corpus](examples/)
+
+## Version Status
+
+The implemented and released language baseline is v0.2.0. Adopted v0.3.0
+directions are marked by version and implementation phase in their owning
+chapters. The active implementation gate is
+[v0.3.0 Phase 0](../development/docs/v0.3.0.md); a design marked as adopted is
+not buildable until its stated gate passes.
 
 ## Editing Policy
 

@@ -109,7 +109,7 @@ Rules:
 - `tokens` exposes the compiler lexer output for one source file.
 - `ast` exposes the compiler parser output for one source file.
 - Both commands are tooling and debugging commands, not user program execution commands.
-- Both commands are JSON-only in v0.
+- Both commands are JSON-only in v0.2.0.
 - Both commands use compiler-owned source spans and token / AST node names.
 - Both commands must not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
 - The JSON shapes are versioned and may evolve while the parser and AST are still unstable.
@@ -136,7 +136,7 @@ Rules:
 - The extension may keep TextMate grammar for baseline highlighting while semantic tokens mature.
 - The LSP server is responsible for converting compiler byte spans to the client position encoding.
 
-LSP v0 feature set:
+LSP v0.2.0 feature set:
 
 1. publish diagnostics
 2. document symbols

@@ -32,7 +32,7 @@ identity and visibility. Call-argument candidates use typechecker assignability 
 Incomplete calls, member expressions, and imports use a temporary compile-unit recovery overlay
 separate from the authoritative document.
 
-## v0.2.0 Capabilities
+## Released v0.2.0 Capabilities
 
 ### Hover
 
@@ -89,9 +89,24 @@ typechecker cannot establish a target may recovery analysis return an explicitly
 - Hover, completion, and signature help do not report contradictory types at one cursor.
 - Protocol response tests are backed by unit tests for compiler analysis results.
 
+## v0.3.0 Phase 0 Integration
+
+Region and allocation tooling consumes compiler analysis facts rather than inspecting keywords or
+standard-library names. Phase 0 adds:
+
+- semantic identity and definition for a lexical region binding
+- hover detail for the region's parent and current allocation context
+- allocating-call effect in callable hover detail
+- source-backed escape diagnostics that identify the value and shorter origin
+- completion for the required `using` position from typechecked allocator/context candidates
+- recovery for incomplete region headers and bodies without stale diagnostics
+
+LSP does not build a second region graph or infer provenance from `String`, `Vec`, or allocator
+method names.
+
 ## Acceptance Tests
 
-v0.2.0 integration tests cover:
+The released v0.2.0 integration tests cover:
 
 1. hover and specialized signature help for an imported generic function
 2. `Vec<String>` method completion and receiver borrow capability
@@ -103,5 +118,5 @@ v0.2.0 integration tests cover:
 ## Deferred Features
 
 Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints are not
-v0.2.0 completion criteria. Add them after the semantic facts and recovery APIs used by hover,
+v0.3.0 Phase 0 completion criteria. Add them after the semantic facts and recovery APIs used by hover,
 completion, and signature help remain stable.

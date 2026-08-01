@@ -31,9 +31,9 @@ Rules:
 - Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.
 - Do not use examples to introduce syntax that is not specified in `spec/README.md`.
 
-## v0 Front-End Coverage
+## v0.2.0 Front-End Coverage
 
-The corpus is the external stability suite for Nocter v0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, the fixed root `main` entry rule, human diagnostics, and JSON diagnostics through the real `nocter` command.
+The corpus is the external stability suite for Nocter v0.2.0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, the fixed root `main` entry rule, human diagnostics, and JSON diagnostics through the real `nocter` command.
 
 Current valid coverage:
 

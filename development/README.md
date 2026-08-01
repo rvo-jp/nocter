@@ -4,8 +4,10 @@ This directory contains the Rust bootstrap compiler, the distributed standard li
 packaging inputs, and implementation documentation. See the [repository README](../README.md) for
 the public overview and the [specification](../spec/README.md) for language rules.
 
-The completed development milestone is **Nocter v0.2.0**. Its completion criteria are recorded in
-the [v0.2.0 Development Contract](docs/v0.2.0.md).
+The released baseline is **Nocter v0.2.0**. Active development targets **v0.3.0 Phase 0: Region and
+Allocation Context**. Its completion criteria and dependency order are defined in the
+[v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in
+the [v0.2.0 release record](docs/v0.2.0.md).
 
 ## Quick Start
 
@@ -35,8 +37,10 @@ external runtime library, or the Xcode Command Line Tools.
 ## Documents
 
 - [Documentation Index](docs/README.md)
-- [v0.2.0 Development Contract](docs/v0.2.0.md)
+- [v0.3.0 Development Contract](docs/v0.3.0.md)
+- [v0.2.0 Release Record](docs/v0.2.0.md)
 - [Compiler Architecture](docs/architecture.md)
+- [Region, Provenance, and Allocation Context](docs/region-provenance.md)
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)

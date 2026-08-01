@@ -12,3 +12,10 @@ communication.
 
 Edit the source Markdown rather than generated HTML. After changing public Markdown, run
 `node docs/build-docs.js` and commit the corresponding generated website changes.
+
+## Version Terminology
+
+Use an exact release or milestone such as `v0.2.0` or `v0.3.0 Phase 0` in public documentation.
+Do not use bare `v0` as a release name or compatibility boundary. Released contracts remain
+versioned records; active design documents must distinguish adopted direction from implemented
+behavior.

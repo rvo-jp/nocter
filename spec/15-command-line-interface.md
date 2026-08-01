@@ -46,7 +46,7 @@ Rules:
 - Release compiler binaries embed the release version, host, and default target.
 - The printed release version must match the `VERSION` and `MANIFEST.json` shipped in the same release archive.
 - Initial human output should include at least the compiler release, host, and default target.
-- `--version` does not emit JSON in v0.
+- `--version` does not emit JSON in v0.2.0.
 
 Example output:
 
@@ -91,7 +91,7 @@ Rules:
 - The source root is the canonical parent directory of the entry file.
 - The compiler follows imports from the root file to form the compile unit.
 - The compile unit rules are specified in [Modules and Use Declarations](01-modules-use.md#compile-unit).
-- Package manifests, project-root discovery, workspaces, lockfiles, package registries, separate compilation, and incremental artifacts are not part of v0.
+- Package manifests, project-root discovery, workspaces, lockfiles, package registries, separate compilation, and incremental artifacts are not part of v0.2.0.
 
 `fmt` takes one `.nct` source file but does not treat it as a compile-unit root. It formats only the file named on the command line.
 
@@ -110,12 +110,12 @@ This selects root-file `func main()`.
 
 Rules:
 
-- The v0 entry function name is fixed to `main`.
-- `--entry` is not part of v0.
+- The v0.2.0 entry function name is fixed to `main`.
+- `--entry` is not part of v0.2.0.
 - Entry lookup considers only top-level functions in the root file.
 - Imported functions with the same name are ordinary functions and are not selected as the executable entry.
 - The selected function must have no type parameters, no value parameters, and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
-- `main` is an ordinary function name except that root-file `main` is the v0 executable entry.
+- `main` is an ordinary function name except that root-file `main` is the v0.2.0 executable entry.
 - `fmt`, `tokens`, and `ast` do not perform executable entry validation.
 
 ## Build
@@ -129,7 +129,7 @@ nocter build app.nct
 
 Rules:
 
-- `build` runs lexing, parsing, name resolution, type checking, ownership checking, v0 buildability validation, target lowering, ARM64 code generation, and Mach-O executable generation.
+- `build` runs lexing, parsing, name resolution, type checking, ownership checking, v0.2.0 buildability validation, target lowering, ARM64 code generation, and Mach-O executable generation.
 - `-o path` sets the executable output path.
 - If `-o` is omitted, the initial driver may derive an output path from the root file stem.
 - `build` must not invoke `clang`, `as`, `ld`, Xcode Command Line Tools, or an external linker.
@@ -160,14 +160,14 @@ source.nct
 
 Rules:
 
-- `run` uses the same front end, semantic checks, v0 buildability validation, target lowering, ARM64 code generation, and Mach-O writer as `build`.
+- `run` uses the same front end, semantic checks, v0.2.0 buildability validation, target lowering, ARM64 code generation, and Mach-O writer as `build`.
 - `run` does not create a persistent project output file.
 - `run` creates a temporary executable in a private temporary location.
 - The temporary executable is a real Mach-O executable for the active target.
 - The temporary executable is removed after the executed program exits.
 - If compilation fails, no program is executed.
 - If temporary executable creation fails, the command reports a command-line or filesystem error.
-- RAM-only execution, JIT execution, and calling the selected entry function inside the compiler process are not part of v0.
+- RAM-only execution, JIT execution, and calling the selected entry function inside the compiler process are not part of v0.2.0.
 - `run` must not require external tools.
 - `run` forwards the executed program's standard input, standard output, and standard error by default.
 
@@ -219,7 +219,7 @@ Rules:
   parsing, import resolution, name resolution, type checking, ownership, target
   selection, and target-gated declarations.
 - `check` does not require every accepted construct to be supported by build/run
-  lowering. Constructs explicitly marked check-only in the v0 contract are valid
+  lowering. Constructs explicitly marked check-only in the v0.2.0 contract are valid
   for `check` and are rejected by `build` and `run` during buildability
   validation.
 - `check` does not emit an executable.
@@ -238,7 +238,7 @@ Implementation staging:
 
 - Development snapshots may temporarily ship partial `check --format json`
   coverage while the compiler pipeline is being built.
-- A v0 release `check` implementation must satisfy the rules above for parsing,
+- A v0.2.0 release `check` implementation must satisfy the rules above for parsing,
   import resolution, name resolution, type checking, ownership checking, target
   selection, target-gated declaration validation, JSON shape, and check-only
   construct handling.
@@ -254,7 +254,7 @@ nocter fmt --check app.nct
 
 Rules:
 
-- `fmt` takes exactly one `.nct` source file in v0.
+- `fmt` takes exactly one `.nct` source file in v0.2.0.
 - `fmt` formats only the named source file.
 - `fmt` does not follow imports.
 - `fmt` does not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
@@ -276,8 +276,8 @@ nocter tokens app.nct --format json
 
 Rules:
 
-- `tokens` takes exactly one `.nct` source file in v0.
-- `tokens` is JSON-only in v0; `--format json` is required.
+- `tokens` takes exactly one `.nct` source file in v0.2.0.
+- `tokens` is JSON-only in v0.2.0; `--format json` is required.
 - `tokens` does not follow imports.
 - `tokens` does not parse, resolve names, type-check, ownership-check, target-lower, codegen, emit an executable, or execute user code.
 - `tokens` uses the same lexer as `build`, `run`, and `check`.
@@ -339,8 +339,8 @@ nocter ast app.nct --format json
 
 Rules:
 
-- `ast` takes exactly one `.nct` source file in v0.
-- `ast` is JSON-only in v0; `--format json` is required.
+- `ast` takes exactly one `.nct` source file in v0.2.0.
+- `ast` is JSON-only in v0.2.0; `--format json` is required.
 - `ast` parses one source file and does not follow imports.
 - `ast` does not resolve names, type-check, ownership-check, target-lower, codegen, emit an executable, or execute user code.
 - `ast` uses the same lexer and parser as `build`, `run`, and `check`.
@@ -414,21 +414,21 @@ Rules:
 - LSP protocol messages are the only data written to stdout while the server is running.
 - Human-readable server logs, if any, must go to stderr or a configured log file.
 - `lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
-- LSP v0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, `textDocument/publishDiagnostics`, `textDocument/documentSymbol`, `textDocument/definition`, `textDocument/references`, `textDocument/hover`, `textDocument/completion`, and `textDocument/semanticTokens/full`.
-- During `initialize`, LSP v0 records `workspaceFolders` when present and falls back to `rootUri` when no workspace folders are provided.
-- LSP v0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics, hover ranges, definition locations, document symbol ranges, and semantic tokens.
-- LSP v0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
-- LSP v0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics, hover, definition, references, completion, and semantic tokens can reflect unsaved imported files that are part of the opened compile unit.
-- LSP v0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
-- LSP v0 records workspace roots for later project-level behavior, but compile-unit analysis is still driven by the opened root document being diagnosed.
-- LSP v0 returns Markdown hover contents from compiler-owned semantic data and documentation comments.
-- LSP v0 returns go-to-definition locations for local references, top-level declarations, loaded imported declarations, loaded import module paths, fields, enum variants, associated functions, and method calls covered by compiler analysis.
-- LSP v0 returns references for local symbols, top-level declarations, loaded imported declarations, type references, fields, enum variants, associated functions, and method calls covered by compiler analysis.
-- LSP v0 returns document symbols for top-level declarations and nested struct fields or enum variants represented by the parser.
-- LSP v0 returns basic completion items for keywords and visible resolved symbols. Import-path segment completion and context-sensitive member completion are deferred.
-- LSP v0 returns full semantic tokens for compiler-classified functions, methods, variables, parameters, types, and properties.
-- After `shutdown`, LSP v0 ignores notifications other than `exit` and returns a JSON-RPC invalid-request error for ordinary requests. `exit` after `shutdown` exits successfully; `exit` before `shutdown` exits with status `1`.
-- LSP v0 does not provide rename, formatting requests, workspace-wide indexing, context-sensitive member completion, or incremental parsing.
+- LSP v0.2.0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, `textDocument/publishDiagnostics`, `textDocument/documentSymbol`, `textDocument/definition`, `textDocument/references`, `textDocument/hover`, `textDocument/completion`, and `textDocument/semanticTokens/full`.
+- During `initialize`, LSP v0.2.0 records `workspaceFolders` when present and falls back to `rootUri` when no workspace folders are provided.
+- LSP v0.2.0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics, hover ranges, definition locations, document symbol ranges, and semantic tokens.
+- LSP v0.2.0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
+- LSP v0.2.0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics, hover, definition, references, completion, and semantic tokens can reflect unsaved imported files that are part of the opened compile unit.
+- LSP v0.2.0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
+- LSP v0.2.0 records workspace roots for later project-level behavior, but compile-unit analysis is still driven by the opened root document being diagnosed.
+- LSP v0.2.0 returns Markdown hover contents from compiler-owned semantic data and documentation comments.
+- LSP v0.2.0 returns go-to-definition locations for local references, top-level declarations, loaded imported declarations, loaded import module paths, fields, enum variants, associated functions, and method calls covered by compiler analysis.
+- LSP v0.2.0 returns references for local symbols, top-level declarations, loaded imported declarations, type references, fields, enum variants, associated functions, and method calls covered by compiler analysis.
+- LSP v0.2.0 returns document symbols for top-level declarations and nested struct fields or enum variants represented by the parser.
+- LSP v0.2.0 returns basic completion items for keywords and visible resolved symbols. Import-path segment completion and context-sensitive member completion are deferred.
+- LSP v0.2.0 returns full semantic tokens for compiler-classified functions, methods, variables, parameters, types, and properties.
+- After `shutdown`, LSP v0.2.0 ignores notifications other than `exit` and returns a JSON-RPC invalid-request error for ordinary requests. `exit` after `shutdown` exits successfully; `exit` before `shutdown` exits with status `1`.
+- LSP v0.2.0 does not provide rename, formatting requests, workspace-wide indexing, context-sensitive member completion, or incremental parsing.
 
 The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).
 
@@ -449,7 +449,7 @@ Rules:
 - Reserved future target names may be recognized before implementation.
 - Requesting a recognized but unimplemented target is a target-selection error.
 - `run` can execute only targets that are runnable on the current host.
-- In v0, practical `run` support is limited to `arm64-darwin` on an ARM64 macOS host.
+- In v0.2.0, practical `run` support is limited to `arm64-darwin` on an ARM64 macOS host.
 - `fmt` does not accept `--target` because source style is target-independent.
 - `tokens` and `ast` do not accept `--target` because lexing and parsing are target-independent.
 
@@ -492,9 +492,9 @@ Rules:
 - If `run` fails before starting the program, it uses compiler-owned exit statuses.
 - If the executed program terminates by signal, `run` follows the host platform's conventional process-status reporting.
 
-## Not Adopted in v0
+## Not Adopted in v0.2.0
 
-The following are not part of v0:
+The following are not part of v0.2.0:
 
 - RAM-only execution
 - JIT execution

@@ -194,7 +194,7 @@ Rules:
 - Each item in a `pub use` list may independently use `as Alias`.
 - Re-exported names participate in the same name collision checks as other imports and top-level declarations.
 - `pub use path.*` is invalid.
-- `pub use path as alias` is invalid in v0.
+- `pub use path as alias` is invalid in v0.2.0.
 - `pub use path.Name` and `pub use path.{...}` do not make private names public.
 - `pub use path.Name` and `pub use path.{...}` do not create a namespace alias.
 - Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors in the initial design.
@@ -217,7 +217,7 @@ Initial rules:
 - The synthetic prelude is not applied to `std/prelude.nct` itself.
 - The synthetic prelude path is resolved directly under the active Nocter home;
   a user project file such as `std/prelude.nct` does not shadow it.
-- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid in v0.
+- A source-level `use std/prelude`, `use std/prelude.Name`, `use std/prelude.{...}`, or `use std/prelude as name` is invalid in v0.2.0.
 - The prelude imports all public exported names from `std/prelude.nct` into the current file.
 - Source-level `use path` does not import every public exported name from `path`; it imports only the module namespace.
 - `include std/prelude` is invalid.
@@ -233,11 +233,11 @@ pub use std/error.{Error, ErrorCode}
 pub use std/string.String
 ```
 
-The prelude must remain small. `Int` is not part of v0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0 because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude must remain small. `Int` is not part of v0.2.0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0.2.0 because collections remain an explicit domain module surface. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Package Layout
 
-Adopted: v0 has no package manifest and no project-root discovery.
+Adopted: v0.2.0 has no package manifest and no project-root discovery.
 
 The source file passed to `build`, `run`, or `check` is the root file for that command.
 
@@ -260,7 +260,7 @@ nocter check
 
 Rules:
 
-- A package manifest such as `nocter.toml` is not part of v0.
+- A package manifest such as `nocter.toml` is not part of v0.2.0.
 - The compiler does not search upward for a project root.
 - The compiler does not infer a package name from a directory name.
 - If a file is named on the command line, that file is the entry file.
@@ -272,7 +272,7 @@ Rules:
   root first, then the active Nocter home, as specified in
   [Import Path Resolution](#import-path-resolution). Files inside the active
   Nocter home resolve non-relative imports from that home.
-- Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.
+- Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.2.0.
 
 Example:
 
@@ -324,7 +324,7 @@ Rules:
 - The same canonical file path is loaded at most once, even if reached through different relative paths.
 - Import cycles are errors in the initial design.
 - The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.
-- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not part of v0.
+- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not part of v0.2.0.
 
 ## Source File Identity
 
@@ -436,7 +436,7 @@ Rules:
 - `/absolute/path` imports are resolved from the filesystem root.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
-- Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.
+- Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.2.0.
 - The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory. This supports normal installs where a `PATH` directory contains a symlink to `~/.nocter/nocter`.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
 - The repository local release image `dist/.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
@@ -529,7 +529,7 @@ Rules:
 - Interface members must be explicitly marked `pub`.
 - There is no `private` keyword in the initial design.
 - There is no standalone `export` declaration in the initial design.
-- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.
+- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.2.0.
 
 Example:
 

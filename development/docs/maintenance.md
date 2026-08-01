@@ -22,20 +22,25 @@ responsibility naturally explains it.
 | Information | Owner |
 |---|---|
 | Language and public standard-library semantics | `spec/` |
-| Current release completion and priorities | `docs/v0.2.0.md` |
+| Active milestone completion and priorities | `docs/v0.3.0.md` |
+| Released v0.2.0 completion record | `docs/v0.2.0.md` |
 | Compiler phase boundaries | `docs/architecture.md` |
+| Region, provenance, and allocation-context design | `docs/region-provenance.md` |
 | Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
 | Distributed standard-library implementation | `docs/standard-library.md` |
 | LSP capabilities and analysis design | `docs/lsp.md` |
 | Next task and handoff facts | `TODO.md` |
 | Historical sequence | Git history |
 
-Do not keep the same status table in multiple documents. Keep the v0.2.0 checklist only in
-`v0.2.0.md`; focused documents own design and concrete acceptance behavior.
+Do not keep the same status table in multiple documents. Keep the active checklist only in
+`v0.3.0.md`; focused documents own design and concrete acceptance behavior. `v0.2.0.md` is a
+released record and does not receive new work items.
 
 ## Update Triggers
 
-- Release gate, non-goal, or work order changed: update `v0.2.0.md`.
+- Active gate, non-goal, or work order changed: update `v0.3.0.md`.
+- Region, provenance, allocation-effect, or callable-summary design changed: update
+  `region-provenance.md`.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.
 - Allocation, drop, or collection invariant changed: update `allocator-ownership.md`.
 - Runtime behavior in tracked `development/std` changed: update `standard-library.md`.

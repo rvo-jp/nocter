@@ -13,9 +13,9 @@ func scan_words(text: &str): WordStats {
 }
 ```
 
-Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A root-file function named `main` is selected as the executable entry point because v0 fixes that entry name. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
+Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A root-file function named `main` is selected as the executable entry point because v0.2.0 fixes that entry name. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
 
-Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
+Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0.2.0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 
 Return checking:
 
@@ -36,7 +36,7 @@ Return value ownership, move, borrow, and view rules are specified in [Ownership
 
 ## Function Calls and Arguments
 
-Adopted: v0 uses positional arguments only.
+Adopted: v0.2.0 uses positional arguments only.
 
 ```nct
 func copy(allocator: &+Allocator, source: &str): String! {
@@ -56,13 +56,13 @@ Rules:
 - Method receiver expressions are evaluated before method arguments.
 - Method arguments are then evaluated left to right in the order written.
 - Parameter names are not part of call syntax.
-- Named arguments are not part of v0.
-- Default parameters are not part of v0.
-- Variadic functions are not part of v0.
-- Function, associated function, and method overload by type, arity, or return type is not part of v0.
+- Named arguments are not part of v0.2.0.
+- Default parameters are not part of v0.2.0.
+- Variadic functions are not part of v0.2.0.
+- Function, associated function, and method overload by type, arity, or return type is not part of v0.2.0.
 - A duplicate callable name in the same namespace is a compile error.
 - A trailing comma is allowed in multi-line parameter lists and multi-line argument lists.
-- A trailing comma is not allowed in single-line parameter lists or single-line argument lists in v0.
+- A trailing comma is not allowed in single-line parameter lists or single-line argument lists in v0.2.0.
 
 Examples:
 
@@ -82,7 +82,7 @@ let text = String.copy(
 )?
 ```
 
-Invalid in v0:
+Invalid in v0.2.0:
 
 ```nct
 String.copy(allocator: &+allocator, source: "hello") // named arguments
@@ -101,7 +101,7 @@ func open(path: &str, mode: OpenMode): File! {
 ```
 
 Use a configuration struct when an API has many boolean or optional choices.
-Variadic capture is a future `...values` design, not v0 syntax.
+Variadic capture is a future `...values` design, not v0.2.0 syntax.
 
 ```nct
 pub struct OpenOptions {
@@ -318,7 +318,7 @@ Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Optional values do not have dedicated loop syntax in v0; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
+- Optional values do not have dedicated loop syntax in v0.2.0; use `otherwise { break }` or `otherwise { continue }` inside an ordinary loop when absence controls iteration.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
@@ -372,7 +372,7 @@ Typical uses:
 
 `abort` and `exit` are standard-library process APIs. They are not compiler primitives.
 
-`panic` is not a language feature in v0. No stack unwinding mechanism is part of v0.
+`panic` is not a language feature in v0.2.0. No stack unwinding mechanism is part of v0.2.0.
 
 Example:
 
@@ -396,8 +396,8 @@ Rules:
 - Code after `return`, `break`, `continue`, or a `never` call in the same block is unreachable.
 - Unreachable statements have no runtime semantics. They do not contribute to
   body result typing, definite-initialization joins, move/drop liveness on later
-  reachable paths, or v0 buildability requirements.
-- v0 accepts unreachable statements after a proven terminal statement. A future
+  reachable paths, or v0.2.0 buildability requirements.
+- v0.2.0 accepts unreachable statements after a proven terminal statement. A future
   lint may report them, but unreachable code is not a required compile-time
   error.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
@@ -407,7 +407,7 @@ Rules:
 - Fallible failure is recoverable failure and is valid only through fallible type `T!`.
 - `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
 - `abort` is immediate process termination and does not run Nocter cleanup.
-- `panic` and stack unwinding are not part of v0.
+- `panic` and stack unwinding are not part of v0.2.0.
 - `panic` is not reserved. A user-defined function named `panic` is ordinary and has no language-defined behavior.
 
 Example:
@@ -467,6 +467,6 @@ Rules:
 - The optimizer may remove a safety check only when it proves that the trap condition cannot occur on that path.
 - Removing a check is valid only when the source-level observable behavior is unchanged.
 - If a check is statically known to fail, the compiler may emit an unconditional trap for that path.
-- General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation in v0.
+- General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation in v0.2.0.
 - Wrapping arithmetic is not unchecked arithmetic. It must be exposed through explicit numeric APIs.
 - Target overlays and compiler primitive lowering may use target-specific machine instructions internally, but that must not expose undefined behavior to ordinary Nocter code.

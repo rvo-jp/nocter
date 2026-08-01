@@ -110,7 +110,7 @@ The installed layout is:
 
 The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
 
-The installed Nocter home contains standard-library source files under `std/`. Target-dependent type, helper, and primitive declarations in those files use `#target("...")`; ordinary public wrapper functions remain normal functions. The v0 public standard-library surface is specified in [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md).
+The installed Nocter home contains standard-library source files under `std/`. Target-dependent type, helper, and primitive declarations in those files use `#target("...")`; ordinary public wrapper functions remain normal functions. The v0.2.0 public standard-library surface is specified in [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md).
 
 Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os.nct` contains the `#target("arm64-darwin")` primitive boundary for that target.
 
@@ -239,7 +239,7 @@ nocter build app.nct --target x64-linux
 
 The command-line contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-`build`, `run`, and `check` each take one root `.nct` file. The compiler follows imports from that root file to form the compile unit; it does not read a package manifest in v0.
+`build`, `run`, and `check` each take one root `.nct` file. The compiler follows imports from that root file to form the compile unit; it does not read a package manifest in v0.2.0.
 
 `-o path` sets the executable output path. If `-o` is omitted, the initial driver may derive an output path from the root file stem.
 

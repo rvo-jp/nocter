@@ -24,7 +24,7 @@ Nocter is a statically typed, value-centered, module-oriented, low-dependency sy
 Its durable design pillars are simplicity, encapsulation, and foolproof design;
 the full rationale is defined in [Design Principles](00-design-principles.md).
 
-The language avoids giving intrinsic language semantics to most ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is the root-file top-level function named `main`; v0 fixes this name to remove command-line ambiguity.
+The language avoids giving intrinsic language semantics to most ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is the root-file top-level function named `main`; v0.2.0 fixes this name to remove command-line ambiguity.
 
 Nocter prioritizes:
 
@@ -36,7 +36,7 @@ Nocter prioritizes:
 - value-centered program structure using `struct`, `enum`, `func`, `impl`, and modules
 - memory management without GC
 - standard-library implementation in Nocter, with limited typed `primitive` declarations for low-level boundaries
-- no user-facing `unsafe` mode in v0; low-level trusted code is restricted to the active Nocter home
+- no user-facing `unsafe` mode in v0.2.0; low-level trusted code is restricted to the active Nocter home
 
 AI support must not fragment the language surface. Nocter should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, `nocter ast --format json`, and curated examples over alternate syntax forms for the same concept.
 
@@ -44,7 +44,7 @@ AI support must not fragment the language surface. Nocter should prefer `nocter 
 
 Adopted: Nocter uses a normal top-level function as the executable entry point.
 
-In v0, the executable entry name is fixed to `main`. The CLI does not provide `--entry`.
+In v0.2.0, the executable entry name is fixed to `main`. The CLI does not provide `--entry`.
 
 ```nct
 func main(): i32! {
@@ -53,7 +53,7 @@ func main(): i32! {
 }
 ```
 
-`main` is not a keyword, reserved word, built-in function, or implicitly imported symbol. It can be called like any other function. Its entry behavior is fixed by the v0 executable entry rule.
+`main` is not a keyword, reserved word, built-in function, or implicitly imported symbol. It can be called like any other function. Its entry behavior is fixed by the v0.2.0 executable entry rule.
 
 The compiler generates the real Mach-O entry code and connects it to the selected entry function. The generated low-level entry code is an implementation detail.
 
@@ -89,7 +89,7 @@ func main(): i32 {
 Rules:
 
 - An executable root file must define exactly one top-level function named `main`.
-- `--entry` is not part of v0.
+- `--entry` is not part of v0.2.0.
 - Entry lookup considers only the root file's top-level functions.
 - Imported modules may define ordinary functions named `main`; they are not selected as the executable entry point.
 - Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.
@@ -102,12 +102,12 @@ Rules:
 - The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
 - `func main(): void` exits with status code `0`.
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
-- `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms in v0, but `func main(): i32!` is the preferred form for applications that need a numeric success code.
-- Entry function type parameters and value parameters are not part of v0.
-- Entry functions with type parameters, such as `func main<T>(): i32!`, are not part of v0.
-- Entry functions with value parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
+- `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms in v0.2.0, but `func main(): i32!` is the preferred form for applications that need a numeric success code.
+- Entry function type parameters and value parameters are not part of v0.2.0.
+- Entry functions with type parameters, such as `func main<T>(): i32!`, are not part of v0.2.0.
+- Entry functions with value parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.2.0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
-- Future manifest configuration may add project-level executable metadata, but v0 does not.
+- Future manifest configuration may add project-level executable metadata, but v0.2.0 does not.
 
 Process entry context:
 
@@ -127,11 +127,11 @@ Rationale:
 
 ## Attributes
 
-Adopted: v0 has no attribute syntax.
+Adopted: v0.2.0 has no attribute syntax.
 
-Nocter does not use attributes for entry points, layout control, target selection, optimization hints, testing, deprecation, primitive declarations, or trusted-code boundaries in v0.
+Nocter does not use attributes for entry points, layout control, target selection, optimization hints, testing, deprecation, primitive declarations, or trusted-code boundaries in v0.2.0.
 
-Not adopted in v0:
+Not adopted in v0.2.0:
 
 ```nct
 @inline
@@ -143,9 +143,9 @@ Not adopted in v0:
 
 Rules:
 
-- The `@` character is reserved for possible future attribute-like syntax and is invalid in v0 source outside string literals, byte literals, and comments.
-- Layout is governed by Nocter ABI v0, not by a `repr` attribute.
+- The `@` character is reserved for possible future attribute-like syntax and is invalid in v0.2.0 source outside string literals, byte literals, and comments.
+- Layout is governed by Nocter ABI v0.2.0, not by a `repr` attribute.
 - Target-specific std declarations are selected by `#target("...")` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
 - Low-level compiler boundaries are expressed by typed `primitive` declarations inside the active Nocter home, not by attributes.
 - Visibility is expressed by `pub` and `pub(nocter)`, not by attributes.
-- Test, inline, deprecation, documentation, export-name, and link-name attributes are not part of v0.
+- Test, inline, deprecation, documentation, export-name, and link-name attributes are not part of v0.2.0.

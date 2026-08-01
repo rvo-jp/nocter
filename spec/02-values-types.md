@@ -56,10 +56,10 @@ Rules:
 - A maybe initialized binding cannot be read, borrowed, moved, explicitly dropped, assigned through a field, or used for field access.
 - At scope end, maybe initialized bindings use conditional drop.
 - To use a binding after a branch, every reachable path to that use must leave the binding initialized.
-- Reinitializing only a field of an uninitialized binding is not part of v0.
+- Reinitializing only a field of an uninitialized binding is not part of v0.2.0.
 - Assignment is a statement, not an expression.
 - Assignment target must be a writable place.
-- Writable places in v0 are `var` bindings, fields reachable through writable
+- Writable places in v0.2.0 are `var` bindings, fields reachable through writable
   places, fields reachable through `&+T` borrow bindings or parameters,
   elements of fixed-size arrays reached through writable places, and elements
   of `&+[T]` readwrite slices.
@@ -68,7 +68,7 @@ Rules:
 - Elements reached through `&[T]` are not writable places.
 - Built-in index assignment applies to fixed-size arrays and `&+[T]` slices.
   Owned collection indexing is ordinary library API behavior and is not a
-  compiler-provided writable place in v0.
+  compiler-provided writable place in v0.2.0.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
@@ -79,8 +79,8 @@ Rules:
 - Assigning a copy value copies it.
 - Field assignment follows the same ownership and borrow rules as local reassignment.
 - Assignment itself produces no value.
-- Chained assignment such as `a = b = c` is not part of v0.
-- Compound assignment such as `+=` is allowed only for numeric writable places in v0.
+- Chained assignment such as `a = b = c` is not part of v0.2.0.
+- Compound assignment such as `+=` is allowed only for numeric writable places in v0.2.0.
 - Compound assignment follows the same writable-place and borrow rules as assignment.
 
 Examples:
@@ -125,7 +125,7 @@ If step 1 fails because the right-hand side contains postfix `?`, `user.name` is
 
 ### Reinitialization After Move Or Drop
 
-Adopted: v0 allows reinitialization only for whole `var` bindings after `move` or explicit `drop`.
+Adopted: v0.2.0 allows reinitialization only for whole `var` bindings after `move` or explicit `drop`.
 
 ```nct
 var text = String.new()
@@ -142,8 +142,8 @@ Rules:
 - If reinitialization succeeds, the binding becomes initialized again.
 - If reinitialization fails through postfix `?`, the binding remains uninitialized.
 - `let` bindings cannot be reinitialized after move or explicit drop.
-- Field reinitialization after moving a whole binding is not part of v0.
-- Partial initialization states for structs are not part of v0.
+- Field reinitialization after moving a whole binding is not part of v0.2.0.
+- Partial initialization states for structs are not part of v0.2.0.
 - At scope end, only initialized bindings are dropped.
 - Definite initialization is checked across control flow.
 
@@ -329,9 +329,9 @@ none
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
 User-defined typed literal construction, such as `Vec [1, 2, 3]` or
-`Path "README.md"`, is a post-v0 future design. It is specified separately in
+`Path "README.md"`, is a post-v0.2.0 future design. It is specified separately in
 [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
-and does not change the meaning of built-in literals in v0.
+and does not change the meaning of built-in literals in v0.2.0.
 
 Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.
 
@@ -339,7 +339,7 @@ Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`,
 
 Names such as `String`, `Error`, `ErrorCode`, `Vec`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
-`Int` is not part of v0. The compiler must not treat the identifier `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
+`Int` is not part of v0.2.0. The compiler must not treat the identifier `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
 
 ### Type Aliases
 
@@ -362,7 +362,7 @@ Rules:
 - A type alias does not change ownership, copyability, drop behavior, layout, or ABI.
 - Implementations cannot target a type alias.
 - A type alias cannot be used to create a type-safe wrapper around an existing type.
-- No dedicated `newtype` syntax is part of v0.
+- No dedicated `newtype` syntax is part of v0.2.0.
 - Use a `struct` when a distinct type is required.
 
 Examples:
@@ -403,7 +403,7 @@ Integer literal rules:
 - If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
-- Float literals are not part of v0.
+- Float literals are not part of v0.2.0.
 
 Examples:
 
@@ -483,7 +483,7 @@ Comparison rules:
 
 - `==` and `!=` require operands of the same type.
 - Built-in equality is available for `bool`, integer types, `&str`, and payloadless enum types.
-- `String == String`, `String == &str`, and `&str == String` require operator definitions and are deferred in v0.
+- `String == String`, `String == &str`, and `&str == String` require operator definitions and are deferred in v0.2.0.
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not part of the initial design. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.
@@ -592,11 +592,11 @@ Rules:
 - If a later field initializer fails through postfix `?`, already initialized owned field values are dropped in reverse initialization order before the failure propagates.
 - Private fields may be initialized only inside the module that defines the struct.
 - Public fields may be initialized from other modules.
-- There is no constructor overloading in v0.
-- Field default values are not part of v0.
-- Struct update syntax is not part of v0.
-- Positional structs and tuple structs are not part of v0.
-- Dedicated constructor syntax is not part of v0.
+- There is no constructor overloading in v0.2.0.
+- Field default values are not part of v0.2.0.
+- Struct update syntax is not part of v0.2.0.
+- Positional structs and tuple structs are not part of v0.2.0.
+- Dedicated constructor syntax is not part of v0.2.0.
 - Names such as `new`, `init`, and `create` are ordinary associated function names. The compiler does not special-case them.
 
 When initialization logic or validation is needed, use an ordinary associated function.
@@ -633,13 +633,13 @@ Rules:
 - Variants may carry zero or more payload values.
 - Payloadless variants are constructed as `EnumName.variant_name`.
 - Payload variants are constructed as `EnumName.variant_name(args...)`.
-- In the v0 backend, payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
+- In the v0.2.0 backend, payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
 - Variant construction requires the payload arity and types to match the variant declaration.
 - Variant payload arguments are evaluated left to right.
 - Variant constructors are qualified with the enum name, such as `AppError.open_failed(path)`.
-- Unqualified variant constructors are not part of v0.
+- Unqualified variant constructors are not part of v0.2.0.
 - Variant constructors are not ordinary functions and are not magic identifier names; they are generated by the enum declaration.
-- Enum variants and associated functions share the type member namespace in v0. Defining an associated function with the same member name as a variant is a compile error.
+- Enum variants and associated functions share the type member namespace in v0.2.0. Defining an associated function with the same member name as a variant is a compile error.
 - If an enum is public, its variants are public in the initial design.
 - Per-variant visibility is not part of the initial design.
 
@@ -678,7 +678,7 @@ Rules:
 - Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
 - `match` without `_` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
 - `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
-- In the v0 backend, payloadless enum `match` statements and supported
+- In the v0.2.0 backend, payloadless enum `match` statements and supported
   payloadless enum `match` expressions lower through the enum tag ABI.
 - Payload-carrying enum construction, local storage, returns, and value
   arguments lower in the current runtime-supported payload subset: copy/no-drop

@@ -10,7 +10,7 @@ Adopted: Nocter syntax should be tolerant where whitespace is not semantically m
 Rules:
 
 - Formatting must not change program semantics.
-- Style violations are not compile errors in v0.
+- Style violations are not compile errors in v0.2.0.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
 - Specification examples, `README.md` examples, `spec/guides/ai.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
@@ -29,7 +29,7 @@ nocter fmt --check app.nct
 
 Rules:
 
-- `fmt` takes one `.nct` source file in v0.
+- `fmt` takes one `.nct` source file in v0.2.0.
 - `fmt` formats only the file named on the command line.
 - `fmt` does not follow imports.
 - `fmt` does not treat the input as a compile-unit root.
@@ -192,17 +192,17 @@ for i in 0..<bytes.len() {
 Rules:
 
 - Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.
-- Current formatter v0 rejects files that contain comments with a diagnostic instead of rewriting them.
+- Current formatter v0.2.0 rejects files that contain comments with a diagnostic instead of rewriting them.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
-- Block comments keep their internal text unchanged in v0.
+- Block comments keep their internal text unchanged in v0.2.0.
 - Doc comments keep their doc marker spelling: `///`, `/**`, `//!`, or `/*!`.
 
-Comment paragraph reflow is not part of v0.
+Comment paragraph reflow is not part of v0.2.0.
 
-## Non-Goals in v0
+## Non-Goals in v0.2.0
 
-The following are not part of formatter v0:
+The following are not part of formatter v0.2.0:
 
 - project-wide formatting
 - import sorting

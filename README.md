@@ -12,6 +12,11 @@ Nocter v0.2.0 provides a complete Allocator and ownership foundation for
 practical `String` and `Vec<T>` programs, together with richer compiler-backed
 LSP support. The implementation target is `arm64-darwin`.
 
+Active v0.3.0 development begins with a region and allocation-context foundation: convenient
+aborting allocation for ordinary code, explicit recoverable allocation, lexical regions, and
+compiler-wide storage provenance. See the
+[v0.3.0 development contract](development/docs/v0.3.0.md).
+
 ## Why Nocter Exists
 
 Nocter exists because trying a programming language should not require accepting
@@ -181,8 +186,9 @@ The v0.2.0 compiler parses, checks, builds, and runs the supported language on
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The exact v0.2.0 completion boundary is defined in
-[development/docs/v0.2.0.md](development/docs/v0.2.0.md).
+machine code is emitted. The released boundary is defined in the
+[v0.2.0 release record](development/docs/v0.2.0.md); active work is defined in
+the [v0.3.0 development contract](development/docs/v0.3.0.md).
 
 ## Learn More
 
@@ -192,8 +198,8 @@ machine code is emitted. The exact v0.2.0 completion boundary is defined in
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [Language Contract](spec/00-v0-contract.md): the current normative language
-  boundary inherited by v0.2.0 development.
+- [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the implemented
+  language boundary of the released compiler.
 - [Development](development/README.md): Rust bootstrap compiler, tracked
   standard library, release packaging inputs, implementation status, tests, and
   maintenance notes.

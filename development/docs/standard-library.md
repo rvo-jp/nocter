@@ -4,7 +4,7 @@ This document records the implementation tracked in the repository and packaged 
 `.nocter/std`. [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md) is the
 authority for public API semantics; this document adds no specification rules.
 
-## Current Modules
+## Released Runtime Baseline
 
 | Module | Current role | v0.2.0 result |
 |---|---|---|
@@ -19,7 +19,7 @@ authority for public API semantics; this document adds no specification rules.
 | `string` | owned UTF-8 bytes | common allocator and failure-atomic growth |
 | `vec` | owned generic sequence | non-copy initialized-prefix drop and pop |
 
-## Runtime Baseline
+### Shared buffers
 
 `std/mem` provides checked `Layout`, a canonical empty buffer, private allocator provenance,
 failure-atomic growth, and deterministic `RawBuffer` drop. Distributed-home runtime tests fix the
@@ -40,7 +40,7 @@ An externally observable test proves that a descriptor number reallocated after
 `Vec<File>.clear()` remains readable after vector drop, fixing close-once behavior. A nested-vector
 test proves that an inner `String` remains recoverable and usable after failed growth.
 
-## v0.2.0 Required Behavior
+### v0.2.0 fixed behavior
 
 ### `std/mem`
 
@@ -74,7 +74,27 @@ The meaning of duplicating non-copy elements from a borrowed slice is not define
 is limited to copyable `T`. Until the type system can express that constraint, the compiler keeps
 the public boundary narrow and rejects misuse with a source-backed diagnostic.
 
-## Acceptance Matrix
+## Phase 0 Migration Target
+
+Phase 0 retains the v0.2.0 buffer, initialized-prefix, recursive-drop, and failure-atomic
+publication invariants while changing how allocation failure is exposed.
+
+`std/mem` gains one recoverable core and one aborting adapter:
+
+- `TryAllocator` and `try_*` operations return stable `std.mem.*` errors
+- `Allocator` and normal operations terminate without unwinding on allocation failure
+- the root allocation context uses the aborting system allocator
+- `RawBuffer` keeps backend identity and storage origin independently of failure policy
+- region child allocators derive from an established aborting parent context
+
+`String` and `Vec<T>` gain paired policy surfaces. Normal constructors and growth use the current
+allocation context and do not return allocation-only `T!`. Explicit `try_*` operations retain
+recoverable failure and the old failure-atomic state guarantees.
+
+Do not duplicate collection algorithms between the two surfaces. The aborting path adapts the
+fallible core after it has performed checked arithmetic and preserved the old value.
+
+## Stable Acceptance Baseline
 
 | Scenario | Required observation |
 |---|---|
@@ -90,8 +110,9 @@ the public boundary narrow and rejects misuse with a source-backed diagnostic.
 Tests observe semantic effects such as handle closure, output, error identity, and post-operation
 state. Backend instruction snapshots alone do not prove the standard-library contract.
 
-## Deferred Surface
+## Phase 0 Boundary
 
-Environment value retrieval, rich path APIs, insert/remove, iterator protocols, multiple allocator
-families, implicit allocator selection, interpolation allocation, and collection literal/spread are
-not v0.2.0 release gates. Add them only after specifying ownership and failure behavior.
+Phase 0 includes the root allocation context, aborting/recoverable policy split, lexical region
+runtime, and storage-origin propagation through existing owning types. Typed literals, per-literal
+`using`, interpolation lowering, environment retrieval, rich path APIs, insert/remove, iterator
+protocols, and general allocator plugins remain later work.

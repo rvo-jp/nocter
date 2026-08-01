@@ -135,8 +135,8 @@ Rules:
 - `trap` does not unwind the stack.
 - `abort` has type `never`.
 - `abort` terminates the process immediately and does not run Nocter cleanup.
-- `panic` is not a language feature in v0.
-- Stack unwinding is not part of v0.
+- `panic` is not a language feature in v0.2.0.
+- Stack unwinding is not part of v0.2.0.
 - Build modes must not disable these trap checks; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 
 Adopted: `catch` handles the failure side of a fallible expression.
@@ -259,7 +259,7 @@ Rules:
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
 - `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
-- Other mixed forms must use parentheses in v0.
+- Other mixed forms must use parentheses in v0.2.0.
 - `(T!)?` means an optional fallible value.
 
 Example:
@@ -364,4 +364,4 @@ Rules:
 
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
 - Optional values are not automatically iterable.
-- Collection iteration helpers may return `T?`, but v0 does not introduce a dedicated optional loop syntax.
+- Collection iteration helpers may return `T?`, but v0.2.0 does not introduce a dedicated optional loop syntax.

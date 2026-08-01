@@ -3,11 +3,11 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-## Nocter ABI v0
+## Nocter ABI v0.2.0
 
 Adopted: Nocter uses its own internal ABI for Nocter functions and primitives.
 
-Nocter ABI v0 is defined only for the initial `arm64-darwin` target. It is not a C ABI, and it does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, should use an explicit separate ABI form such as an `extern "c"`-style declaration.
+Nocter ABI v0.2.0 is defined only for the initial `arm64-darwin` target. It is not a C ABI, and it does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, should use an explicit separate ABI form such as an `extern "c"`-style declaration.
 
 Scope:
 
@@ -30,7 +30,7 @@ Rules:
 
 ### Registers
 
-Nocter ABI v0 uses the following ARM64 register roles:
+Nocter ABI v0.2.0 uses the following ARM64 register roles:
 
 ```text
 x0-x7    argument registers and direct return registers
@@ -187,7 +187,7 @@ Rules:
   fields according to ordinary aggregate drop order. Recursive payload drop
   glue includes fixed arrays, whose initialized elements drop in reverse index
   order.
-- No niche optimization is part of ABI v0.
+- No niche optimization is part of ABI v0.2.0.
 
 ### Built-In Error Layout
 
@@ -213,7 +213,7 @@ Rules:
 - `error.code` and `error.message` are the user-facing fields of `error`.
 - Both fields have type `&str`.
 - The field order is `code`, then `message`.
-- The built-in `error` type has size 32 bytes and alignment 8 on ABI v0.
+- The built-in `error` type has size 32 bytes and alignment 8 on ABI v0.2.0.
 - `error` does not own its string storage and has no drop member.
 - `error` is copyable because both fields are copyable borrowed views.
 - An `error` value carries borrow-like provenance from both `&str` fields.
@@ -241,7 +241,7 @@ Rules:
 - `none` has no live payload.
 - Drop code drops the payload only when the tag is `1`.
 
-No niche optimization is part of ABI v0. Even if a type has unused bit patterns, `T?` still uses the explicit tag representation.
+No niche optimization is part of ABI v0.2.0. Even if a type has unused bit patterns, `T?` still uses the explicit tag representation.
 
 ### Fallible Layout
 
@@ -262,7 +262,7 @@ Rules:
 - The payload is live only for the active tag.
 - Drop code drops only the active payload.
 
-Nocter source uses `return value` for success and `return error_value` for failure. ABI v0 does not reserve the identifier `success`; it defines only the binary tag meaning.
+Nocter source uses `return value` for success and `return error_value` for failure. ABI v0.2.0 does not reserve the identifier `success`; it defines only the binary tag meaning.
 
 Composed optional and fallible values use the same layout rules recursively. For example, `T?!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
 
@@ -311,7 +311,7 @@ Rules:
 
 ### ABI Stability
 
-ABI v0 is an internal compiler ABI. It is stable enough for the initial compiler, standard library, and primitive boundary, but it is not a public binary compatibility promise across compiler versions.
+ABI v0.2.0 is an internal compiler ABI. It is stable enough for the initial compiler, standard library, and primitive boundary, but it is not a public binary compatibility promise across compiler versions.
 
 The ABI should not be changed casually. Changes require updating:
 

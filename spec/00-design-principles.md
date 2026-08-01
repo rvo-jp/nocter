@@ -41,7 +41,7 @@ archives should keep the user-facing shape small.
 
 The source language should also keep one canonical way to express a concept.
 Nocter should reject duplicate syntax when existing forms already cover the
-same meaning. This is why v0 favors `if` and `match` as value-producing
+same meaning. This is why v0.2.0 favors `if` and `match` as value-producing
 expressions over separate conditional operators, `use` as the single import
 form, and `otherwise` as the single optional fallback form.
 
@@ -59,7 +59,7 @@ contract. They should not need to inspect hidden fields, private helper
 functions, allocation strategy, or unrelated implementation files to perform an
 ordinary task.
 
-Nocter deliberately avoids class inheritance in v0. Designs that require users
+Nocter deliberately avoids class inheritance in v0.2.0. Designs that require users
 to reason about parent-class behavior, subclass overrides, protected internals,
 or fragile implementation coupling work against Nocter's encapsulation goal.
 Nocter should prefer modules, value types, inherent methods, and explicit
