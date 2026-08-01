@@ -233,11 +233,10 @@ Initial check-only or not-yet-buildable surfaces:
   promoted
 - `Vec<T>` storage paths outside the runtime-supported scalar, `&str`, and
   explicitly promoted copy-aggregate element subset
-- move-only fixed arrays outside the local ownership lifecycle of fully
-  initialized literals, whole-local literal replacement, explicit local moves,
-  explicit drop, and reinitialization when elements are supported recursively
-  droppable structs; element initialization that can exit early remains
-  check-only until per-element initialization state is tracked
+- move-only fixed arrays outside the completed local and callable ownership
+  lifecycle for supported recursively droppable struct elements; field storage
+  and field moves remain deferred, and element initialization that can exit
+  early remains check-only until per-element initialization state is tracked
 
 ## Aggregate Type Contract
 
@@ -286,6 +285,11 @@ Rules fixed for v0:
 - explicit moves transfer a supported move-only fixed array's cleanup
   obligation between local bindings; moved or explicitly dropped `var` locals
   regain that obligation when reinitialized
+- supported move-only fixed arrays may cross function boundaries as direct or
+  indirect returns, call-result bindings and replacements, value arguments, and
+  owned parameters; plain, optional, and fallible calls transfer one cleanup
+  obligation only after a successful result, while failure paths leave existing
+  assignment targets live and never drop an uninitialized result slot
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification
 - values larger than 16 bytes use indirect ABI classification

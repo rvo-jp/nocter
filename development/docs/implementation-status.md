@@ -53,8 +53,11 @@ constant and variable index reads and simple writes over local or
 aggregate-field fixed arrays are buildable for the current scalar/view element
 subset, including fixed array fields inside concrete generic structs, with
 constant and variable numeric index compound assignment for `i32`, `u8`, and
-`usize`. Fully initialized local fixed-array literals and whole-local literal
-replacement also build for supported recursively droppable struct elements.
+`usize`. Fully initialized fixed-array literals, local replacement, and direct
+or indirect callable boundaries also build for supported recursively droppable
+struct elements. Callable boundaries cover returns, call-result bindings and
+replacement, discarded results, value arguments, and owned parameters for
+plain, optional, and fallible calls.
 Their elements may be struct literals, infallible direct call results, forced
 direct call results, or explicit moves from locals; replacement, scope-end, and
 explicit cleanup drop live elements in reverse index order. Element expressions
@@ -62,7 +65,10 @@ that can exit through `?`, `catch`, `otherwise`, or value control flow reject
 before IR lowering until per-element initialization state is tracked.
 Explicit moves between local move-only fixed arrays transfer the cleanup
 obligation, and moved or explicitly dropped `var` locals can be reinitialized
-without retaining stale cleanup state.
+without retaining stale cleanup state. Moves into and between owned parameters
+transfer the same obligation. Failed optional/fallible calls do not activate
+cleanup for an uninitialized success slot and do not destroy an existing
+assignment target.
 Unreachable body tails after proven terminal statements, including exhaustive
 payloadless `match` statements without wildcard fallback arms, are ignored by
 return/reachability checking, buildability, and IR lowering. Buildability and
@@ -152,7 +158,7 @@ would leave the current function.
 | Methods and `self` | Inherent associated functions, `method &self`, `method &+self`, consuming receiver syntax, `drop &+self`, and method lookup are implemented for the current call subset. Method receiver kind is recorded in compiler facts for downstream buildability and tooling behavior. |
 | Interfaces | Contract-only `interface` declarations and explicit structural `impl Interface for Type` checks are frontend-shipped. Interface values, dispatch, generic bounds, and code reuse are not part of v0. |
 | Generics | Generic structs, functions, impl methods, associated functions, enum checks, aliases, and concrete specializations are implemented for the current scalar/view/aggregate subset. Unspecialized reachable generic calls are rejected before backend emission. |
-| Slices, fixed arrays, and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. Fixed array literal local bindings, including zero-length literal bindings, aggregate-field fixed array literals and value copies, local copy bindings including zero-length copies, matching call-result bindings including zero-length results, fallible-call `catch` bindings/assignments including aggregate-field assignments, optional-call `otherwise` fixed array bindings, value arguments, aggregate-field initializers, whole-local and aggregate-field assignments, and returns, value parameters including zero-length values, direct fixed array literal value arguments including zero-length literal arguments, direct literal/local/call-result/field returns including zero-length returns, whole-local assignment including zero-length literal/copy/call-result/optional-call-otherwise assignment, aggregate-field assignment from fixed array literals, locals, call results, fallible call results, optional-call `otherwise` results, and aggregate fields, constant and variable index reads and simple writes over local or aggregate-field fixed arrays for `i32`, `u8`, `usize`, `bool`, and `&str`, including fixed array fields inside concrete generic structs, and constant and variable numeric index compound assignment for `i32`, `u8`, and `usize` build and run. The local ownership lifecycle for supported recursively droppable struct elements covers fully initialized literals, whole-local literal replacement, explicit local moves, explicit drop, reinitialization, and reverse-index cleanup. Move-only ABI/field positions outside this lifecycle and partially initialized arrays remain deferred. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths, with concrete generic `copy struct` element instantiations accepted only when substituted fields are copyable. |
+| Slices, fixed arrays, and vectors | Scalar, `&str`, and current copy-aggregate slice indexing and assignment paths are supported, including numeric scalar slice element compound assignment. Fixed array literal local bindings, including zero-length literal bindings, aggregate-field fixed array literals and value copies, local copy bindings including zero-length copies, matching call-result bindings including zero-length results, fallible-call `catch` bindings/assignments including aggregate-field assignments, optional-call `otherwise` fixed array bindings, value arguments, aggregate-field initializers, whole-local and aggregate-field assignments, and returns, value parameters including zero-length values, direct fixed array literal value arguments including zero-length literal arguments, direct literal/local/call-result/field returns including zero-length returns, whole-local assignment including zero-length literal/copy/call-result/optional-call-otherwise assignment, aggregate-field assignment from fixed array literals, locals, call results, fallible call results, optional-call `otherwise` results, and aggregate fields, constant and variable index reads and simple writes over local or aggregate-field fixed arrays for `i32`, `u8`, `usize`, `bool`, and `&str`, including fixed array fields inside concrete generic structs, and constant and variable numeric index compound assignment for `i32`, `u8`, and `usize` build and run. Supported recursively droppable struct elements have a complete local and callable ownership lifecycle: fully initialized literals, whole-local replacement, explicit local moves/drop/reinitialization, reverse-index cleanup, direct/indirect returns, call-result binding/replacement/discard, value arguments, and owned parameters across plain, optional, and fallible calls. Failure paths activate no uninitialized success cleanup and preserve live assignment targets. Move-only field positions and partially initialized arrays remain deferred. `Vec<T>` supports scalar, `&str`, and promoted copy-aggregate element storage paths, with concrete generic `copy struct` element instantiations accepted only when substituted fields are copyable. |
 | Standard library | Tracked `development/std/` contains `error`, `string`, `fmt`, `mem`, `io`, `process`, `vec`, `ptr`, `os`, and `prelude`; local release packaging places it under `dist/.nocter/std`. See [Std Runtime Status](std-runtime-status.md). |
 | CLI diagnostics | Text and JSON diagnostics are source-backed where possible. Command-line, filesystem, target, Nocter-home, and formatting diagnostics have stable user-facing messages. |
 | LSP | Basic LSP supports initialize, shutdown, full document sync, diagnostics, semantic tokens, hover, definition, references, document symbols, and position-aware completion using compiler facts. Block-scope `use` visibility is reflected in completion, references, and semantic tokens. Enum pattern variants are backed by typecheck facts for semantic tokens, hover, definition, and references. Completion covers global symbols, scoped imports, enum pattern variants after `Enum.`, enum variants and associated functions after `Type.`, fields and methods after typed `value.`, and struct fields inside struct literal field lists. Open-document completion recovers trailing-dot `Type.`, `value.`, and pattern `Enum.` forms, plus empty or unclosed struct literal field lists, with a completion-only placeholder before single-file analysis. |
@@ -189,9 +195,8 @@ non-zero sentinel when it needs an empty view that will not be dereferenced.
 - ordinary input-dependent `error` success-return helper ABI outside direct
   `(&str, &str) -> error` constructors or input-free static failure-payload
   wrappers
-- broader fixed-array behavior: move-only element arrays outside fully
-  initialized local literals, per-element initialization state, and general
-  array runtime behavior in assignment, argument, return, and field positions
+- broader fixed-array behavior: per-element initialization state, move-only
+  field storage and field moves, and general non-copy array indexing/mutation
 - broad pointer dereference and user memory mutation APIs
 - broad view iteration
 - bare string interpolation lowering without an explicit allocator source

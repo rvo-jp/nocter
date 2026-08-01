@@ -158,6 +158,12 @@ includes:
   literals and whole-local literal replacement of supported droppable struct
   elements, including explicit local moves, explicit drop, reinitialization,
   and moved element ownership transfer
+- direct and indirect function ABI boundaries for fixed arrays of supported
+  droppable struct elements, including literal returns, call-result bindings,
+  replacement assignments, discarded results, value arguments, owned
+  parameters, parameter re-moves, and optional/fallible success values; failure
+  paths preserve live assignment targets and do not clean uninitialized result
+  storage
 - optional and fallible aggregate call results in supported positions
 - copy aggregate storage and slice indexing through current `Vec<T>` and
   slice-view paths
@@ -166,9 +172,8 @@ Remaining aggregate backend work is concentrated around payload-carrying enum
 move-only aggregate payload bindings with unsupported recursive drop trees,
 broader payload enum pattern target expressions, broader field-level live-state
 tracking, per-element initialization state, non-copy aggregate collection
-elements, move-only array ABI/field positions outside the completed local
-ownership lifecycle, broad control-flow joins, and unsupported expression
-shapes.
+elements, move-only array field positions, broad control-flow joins, and
+unsupported expression shapes.
 
 ## Safety Checks
 

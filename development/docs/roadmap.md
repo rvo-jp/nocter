@@ -70,9 +70,12 @@ for v0.2.0:
   recursively drops owned struct fields in reverse order. Fully initialized
   move-only fixed arrays of supported droppable struct elements now complete
   their local ownership lifecycle: literals, whole-local replacement, explicit
-  local moves, explicit drop, reinitialization, and reverse-index cleanup.
-  Remaining array work requires per-element initialization state and move-aware
-  ABI/field boundaries; remaining member and value-control pattern targets
+  local moves, explicit drop, reinitialization, and reverse-index cleanup. They
+  also cross direct/indirect return, call-result, value-argument, and owned
+  parameter boundaries for plain, optional, and fallible calls, including
+  success-only cleanup activation. Remaining array work requires per-element
+  initialization state and move-aware field boundaries; remaining member and
+  value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,

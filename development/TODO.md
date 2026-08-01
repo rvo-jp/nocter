@@ -10,6 +10,10 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `869df49 Complete move-only array call boundaries`
+  - `fd5f3b8 Cover move-only fixed array parameters`
+  - `d7ccd04 Support move-only fixed array returns`
+  - `07dbf57 Cover move-only array branch cleanup`
   - `b0e4a65 Complete move-only array local lifecycle`
   - `86015f8 Cover recursive array element cleanup`
   - `f56df9b Replace local move-only array literals`
@@ -127,13 +131,14 @@ Recommended order:
    include plain calls, direct fallible calls handled by `?`, `!`, or `catch`,
    and direct optional calls handled by `otherwise`.
    Struct drop glue now recursively cleans owned struct fields after the outer
-   destructor. Fixed arrays of supported droppable struct elements now complete
-   their local ownership lifecycle through literals, whole-local replacement,
-   explicit local moves, explicit drop, reinitialization, and reverse-index
-   cleanup. Remaining array paths require per-element initialization state or
-   move-aware ABI/field ownership; do not promote them as mere expression
-   shapes. Member and value-control pattern targets likewise require field moves
-   or ownership-aware control joins.
+   destructor. Fixed arrays of supported droppable struct elements complete
+   local ownership and direct/indirect callable transfer through literals,
+   replacement, explicit moves/drop/reinitialization, reverse-index cleanup,
+   returns, call results, value arguments, and owned parameters across plain,
+   optional, and fallible calls. Remaining array paths require per-element
+   initialization state or move-aware field ownership; do not promote them as
+   mere expression shapes. Member and value-control pattern targets likewise
+   require field moves or ownership-aware control joins.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -313,12 +318,14 @@ Recommended order:
   including fixed array fields inside concrete generic structs, plus constant
   and variable numeric index compound assignment for `i32`, `u8`, and `usize`.
   Fixed arrays of supported recursively droppable struct elements now complete
-  their local ownership lifecycle: fully initialized literals, whole-local
-  literal replacement, explicit local moves, explicit drop, reinitialization,
-  moved-element ownership transfer, and reverse-index cleanup. Element
+  their local and callable ownership lifecycle: fully initialized literals,
+  whole-local literal replacement, explicit local moves/drop/reinitialization,
+  moved-element ownership transfer, reverse-index cleanup, direct/indirect
+  returns, call-result binding/replacement/discard, value arguments, and owned
+  parameters across plain, optional, and fallible calls. Element
   initialization that can exit early receives a source-backed buildability
   diagnostic because per-element initialization state is not tracked yet.
-  Move-only ABI and field positions remain rejected or deferred.
+  Move-only field positions remain rejected or deferred.
 - Release packaging layout now separates tracked inputs from generated output:
   `development/std` is the canonical standard-library source,
   `development/packaging` contains release metadata inputs, and
