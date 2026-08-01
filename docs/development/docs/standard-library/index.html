@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interpolation Lowering Direction - Nocter</title>
-    <meta name="description" content="This document records the implementation direction for bare string interpolation. The source-language rules live in Strings, Arrays, Views, and Pointers.">
+    <title>Standard Library Runtime - Nocter</title>
+    <meta name="description" content="この文書は repository に追跡され、配布時に .nocter/std へ入る実装の状態を記録する。 公開 API の規範は Standard Library, Primitives, and OS であり、この文書は仕様を追加しない。">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/interpolation-lowering/">
+    <link rel="canonical" href="https://nocter.dev/development/docs/standard-library/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Interpolation Lowering Direction - Nocter">
-    <meta property="og:description" content="This document records the implementation direction for bare string interpolation. The source-language rules live in Strings, Arrays, Views, and Pointers.">
-    <meta property="og:url" content="https://nocter.dev/development/docs/interpolation-lowering/">
+    <meta property="og:title" content="Standard Library Runtime - Nocter">
+    <meta property="og:description" content="この文書は repository に追跡され、配布時に .nocter/std へ入る実装の状態を記録する。 公開 API の規範は Standard Library, Primitives, and OS であり、この文書は仕様を追加しない。">
+    <meta property="og:url" content="https://nocter.dev/development/docs/standard-library/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-07-30">
+    <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Interpolation Lowering Direction - Nocter">
-    <meta name="twitter:description" content="This document records the implementation direction for bare string interpolation. The source-language rules live in Strings, Arrays, Views, and Pointers.">
+    <meta name="twitter:title" content="Standard Library Runtime - Nocter">
+    <meta name="twitter:description" content="この文書は repository に追跡され、配布時に .nocter/std へ入る実装の状態を記録する。 公開 API の規範は Standard Library, Primitives, and OS であり、この文書は仕様を追加しない。">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Interpolation Lowering Direction - Nocter","description":"This document records the implementation direction for bare string interpolation. The source-language rules live in Strings, Arrays, Views, and Pointers.","url":"https://nocter.dev/development/docs/interpolation-lowering/","mainEntityOfPage":"https://nocter.dev/development/docs/interpolation-lowering/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Interpolation Lowering","item":"https://nocter.dev/development/docs/interpolation-lowering/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Standard Library Runtime - Nocter","description":"この文書は repository に追跡され、配布時に .nocter/std へ入る実装の状態を記録する。 公開 API の規範は Standard Library, Primitives, and OS であり、この文書は仕様を追加しない。","url":"https://nocter.dev/development/docs/standard-library/","mainEntityOfPage":"https://nocter.dev/development/docs/standard-library/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Standard Library","item":"https://nocter.dev/development/docs/standard-library/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -126,37 +126,21 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">../../spec</a></li>
+                <li><a href="../../../spec/index.html#content">spec</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../implementation-status/index.html#content">Implementation Status</a></li>
-                <li><a href="../v0-closure/index.html#content">v0 Closure Definition</a></li>
-                <li><a href="../backend-v0/index.html#content">Backend V0</a></li>
-                <li><a href="../std-runtime-status/index.html#content">Std Runtime Status</a></li>
-                <li><a href="./index.html#content" aria-current="page">Interpolation Lowering</a></li>
-                <li><a href="../roadmap/index.html#content">Roadmap</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
-                <li><a href="../../../spec/00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="./index.html#content" aria-current="page">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/interpolation-lowering.md</span>
+                <span class="markdown-path-text">/development/docs/standard-library.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="interpolation-lowering-direction">Interpolation Lowering Direction</h1><p>This document records the implementation direction for bare string interpolation. The source-language rules live in <a href="../../../spec/07-strings-arrays-views-pointers/index.html#string-interpolation">Strings, Arrays, Views, and Pointers</a>.</p><h2 id="current-boundary">Current Boundary</h2><p>Interpolated strings are parsed and typechecked as <code>String!</code>, but bare interpolation is not runtime-shipped. Buildability must reject source such as:</p><pre><code class="language-nct"><span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"count: ${count}"</span>
-</code></pre><p>The reason is allocator ownership. A bare interpolation expression has no explicit allocator source, and v0 should not silently choose a global allocator.</p><h2 id="supported-manual-shape">Supported Manual Shape</h2><p>Code that wants an owned formatted string should currently allocate explicitly:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span>append_i32
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span>append_str
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>mem<span class="token-operator">.</span>page_allocator
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-
-<span class="token-keyword">func</span> <span class="token-function">message</span><span class="token-operator">(</span>count<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> out <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-number">32</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-function">append_str</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>out<span class="token-operator">,</span> <span class="token-string">"count: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-function">append_i32</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>out<span class="token-operator">,</span> count<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span> <span class="token-keyword">move</span> out
-<span class="token-operator">}</span>
-</code></pre><p>This keeps allocation, failure, and ownership visible in source.</p><h2 id="promotion-requirement">Promotion Requirement</h2><p>Bare interpolation can be promoted only after the language chooses one of:</p><ul><li>an explicit allocator operand in the interpolation syntax</li><li>a scoped allocator context with clear lifetime and failure behavior</li><li>a standard-library formatting builder that user source invokes explicitly</li></ul><p>Promotion must update:</p><ul><li><code>../../spec/07-strings-arrays-views-pointers.md</code></li><li><code>../../spec/11-stdlib-primitives-os.md</code></li><li><code>implementation-status.md</code></li><li><code>v0-closure.md</code></li><li>parser/typecheck/buildability/lowering/runtime tests</li></ul><p>Until then, buildability rejection is the correct behavior.</p>
+                <h1 id="standard-library-runtime">Standard Library Runtime</h1><p>この文書は repository に追跡され、配布時に <code>.nocter/std</code> へ入る実装の状態を記録する。 公開 API の規範は <a href="../../../spec/11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a> であり、この文書は仕様を追加しない。</p><h2 id="current-modules">Current Modules</h2><table><thead><tr><th>Module</th><th>Current role</th><th>v0.2.0 work</th></tr></thead><tbody><tr><td><code>error</code></td><td>structured recoverable error</td><td>allocator / collection error IDs を安定化</td></tr><tr><td><code>fmt</code></td><td>scalar and text formatting helpers</td><td>owning text の動作確認</td></tr><tr><td><code>io</code></td><td>file open/read/write/close and stdout/stderr</td><td>deterministic handle ownership 完了</td></tr><tr><td><code>mem</code></td><td><code>Layout</code>, <code>RawBuffer</code>, <code>Allocator</code>, page boundary</td><td>layout/grow/free 契約完了</td></tr><tr><td><code>os</code></td><td>target-gated syscall boundary</td><td>allocator の内側へ限定</td></tr><tr><td><code>prelude</code></td><td>implicit common declarations</td><td>v0.2.0 で拡張しない</td></tr><tr><td><code>process</code></td><td>exit/abort/cwd/args; env is check-only</td><td>allocator 完成に必要な範囲だけ維持</td></tr><tr><td><code>ptr</code></td><td>restricted pointer primitives</td><td><code>pub(nocter)</code> trust boundary を維持</td></tr><tr><td><code>string</code></td><td>owning UTF-8 bytes</td><td>common allocator、failure-atomic growth</td></tr><tr><td><code>vec</code></td><td>owning generic sequence</td><td>non-copy initialized-prefix drop と pop</td></tr></tbody></table><h2 id="runtime-baseline">Runtime Baseline</h2><p><code>std/mem</code> は checked <code>Layout</code>、canonical empty buffer、private allocator provenance、 failure-atomic grow、deterministic <code>RawBuffer</code> drop を持つ。alignment、zero-size、OOM、grow失敗 後の内容保持は distributed-home runtime tests で固定されている。</p><p>現在の <code>String</code> は private <code>RawBuffer</code> に allocator provenance と capacity を保持し、 empty、with_capacity、from/copy、view、len/capacity、reserve、clear、push_str、deterministic storage release を共通 Allocator 上で実行する。grow failure 後の内容・len・capacity 保持も runtime test で固定されている。現在の <code>Vec&lt;T&gt;</code> も byte capacity と allocator provenance を private <code>RawBuffer</code> に集約し、typed pointer は非所有 alias として扱う。empty、 with_capacity、from_slice、len/capacity、reserve、push、clear、views、storage release は共通 Allocator 上へ移行済みである。non-copy push は所有権を storage へ移し、clear と drop は initialized prefix を逆順に再帰 drop する。pop も末尾 obligation を返り値へ移す。 <code>Vec&lt;File&gt;.clear()</code> 後に同じ descriptor 番号へ再割当された handle が vector drop 後も 読めることを確認し、handle の close-once を外部効果として固定している。nested Vec も growth failure 後に内側の <code>String</code> を回収して利用できることを確認済みである。</p><h2 id="v0-2-0-required-behavior">v0.2.0 Required Behavior</h2><h3 id="std-mem"><code>std/mem</code></h3><ul><li>checked <code>Layout</code> construction</li><li>canonical empty allocation state</li><li>allocation、growth、free の allocator identity 保持</li><li>overflow、invalid alignment、out of memory の recoverable error</li><li>old allocation を保つ failure-atomic growth</li><li>representation fields を <code>pub(nocter)</code> より外へ公開しない</li></ul><h3 id="std-string"><code>std/string</code></h3><ul><li>empty / with_capacity / from_str / copy</li><li>len / capacity / is_empty / view / bytes</li><li>reserve / push_str / clear / drop</li><li>repeated growth 後も UTF-8 view と所有 storage が一致する</li><li>allocation failure 後も元の内容、len、capacity が変わらない</li></ul><p>Unicode scalar/character indexing と normalization は v0.2.0 の条件に含めない。境界を 曖昧にした byte indexing API は追加しない。</p><h3 id="std-vec"><code>std/vec</code></h3><ul><li>copy と non-copy の両方で empty / with_capacity / reserve / push / clear / drop</li><li>copy element に対する from_slice と immutable/mutable view</li><li>末尾 ownership extraction としての pop</li><li>nested owning element の再帰 drop</li><li>capacity overflow と allocation failure の原子性</li></ul><p>non-copy element を借用 slice から複製する意味はまだ定義しないため、<code>from_slice</code> は copyable <code>T</code> に限る。制約を型システムで表せない間は、公開範囲を不正に広げず source-backed diagnostic で拒否する。</p><h2 id="acceptance-matrix">Acceptance Matrix</h2><table><thead><tr><th>Scenario</th><th>Required observation</th></tr></thead><tbody><tr><td><code>String</code> repeated growth</td><td>bytes preserved; one final storage free</td></tr><tr><td>failed <code>String.reserve</code></td><td>pointer/content/len/capacity unchanged</td></tr><tr><td><code>Vec&lt;String&gt;</code> growth</td><td>each string remains usable; each drops once</td></tr><tr><td><code>Vec&lt;String&gt;.pop()</code></td><td>returned string remains owned after vector drop</td></tr><tr><td><code>Vec&lt;File&gt;.clear()</code></td><td>initialized handles close once; later vector drop is empty</td></tr><tr><td><code>Vec&lt;Vec&lt;String&gt;&gt;</code> early <code>?</code></td><td>completed prefixes unwind in reverse order</td></tr><tr><td>zero-capacity values</td><td>no allocation and no invalid free</td></tr><tr><td>packaged-home execution</td><td>same behavior as repository-local source</td></tr></tbody></table><p>Tests should observe semantic effects such as handle closure, output, error identity, and post-operation state. Backend instruction snapshots alone do not prove the standard-library contract.</p><h2 id="deferred-surface">Deferred Surface</h2><p>Environment value retrieval, rich path APIs, insert/remove, iterator protocols, multiple allocator families, implicit allocator selection, interpolation allocation, and collection literal/spread are not v0.2.0 release gates. Add them only after their ownership and failure behavior is specified.</p>
             </div>
         </main>
     </div>

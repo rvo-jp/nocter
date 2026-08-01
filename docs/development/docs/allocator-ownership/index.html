@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compiler Roadmap - Nocter</title>
-    <meta name="description" content="This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in ../../spec, and ">
+    <title>Allocator and Ownership - Nocter</title>
+    <meta name="description" content="この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。 公開構文と型規則は spec に従う。">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/roadmap/">
+    <link rel="canonical" href="https://nocter.dev/development/docs/allocator-ownership/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Compiler Roadmap - Nocter">
-    <meta property="og:description" content="This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in ../../spec, and ">
-    <meta property="og:url" content="https://nocter.dev/development/docs/roadmap/">
+    <meta property="og:title" content="Allocator and Ownership - Nocter">
+    <meta property="og:description" content="この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。 公開構文と型規則は spec に従う。">
+    <meta property="og:url" content="https://nocter.dev/development/docs/allocator-ownership/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Compiler Roadmap - Nocter">
-    <meta name="twitter:description" content="This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in ../../spec, and ">
+    <meta name="twitter:title" content="Allocator and Ownership - Nocter">
+    <meta name="twitter:description" content="この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。 公開構文と型規則は spec に従う。">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Compiler Roadmap - Nocter","description":"This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in ../../spec, and ","url":"https://nocter.dev/development/docs/roadmap/","mainEntityOfPage":"https://nocter.dev/development/docs/roadmap/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Roadmap","item":"https://nocter.dev/development/docs/roadmap/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Allocator and Ownership - Nocter","description":"この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。 公開構文と型規則は spec に従う。","url":"https://nocter.dev/development/docs/allocator-ownership/","mainEntityOfPage":"https://nocter.dev/development/docs/allocator-ownership/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Allocator Ownership","item":"https://nocter.dev/development/docs/allocator-ownership/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -126,73 +126,31 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">../../spec</a></li>
+                <li><a href="../../../spec/index.html#content">spec</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../implementation-status/index.html#content">Implementation Status</a></li>
-                <li><a href="../v0-closure/index.html#content">v0 Closure Definition</a></li>
-                <li><a href="../backend-v0/index.html#content">Backend V0</a></li>
-                <li><a href="../std-runtime-status/index.html#content">Std Runtime Status</a></li>
-                <li><a href="../interpolation-lowering/index.html#content">Interpolation Lowering</a></li>
-                <li><a href="./index.html#content" aria-current="page">Roadmap</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
-                <li><a href="../../../spec/00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="./index.html#content" aria-current="page">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/roadmap.md</span>
+                <span class="markdown-path-text">/development/docs/allocator-ownership.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="compiler-roadmap">Compiler Roadmap</h1><p>This roadmap records implementation order. It does not define language semantics or move the v0 finish line. Source-language rules live in <a href="../../../spec/index.html#content">../../spec</a>, and the fixed v0 completion gates live in <a href="../v0-closure/index.html#content">v0-closure.md</a>.</p><h2 id="current-priority">Current Priority</h2><p>The current priority is <code>v0.2.0-dev</code> work after the narrow v0.1.0 release. Keep the v0.1.0 subset stable while choosing one or two promoted runtime themes for v0.2.0:</p><ol><li>1. keep docs, spec, implementation status, and tests consistent</li><li>close accepted-but-not-buildable frontend/backend gaps with source-backed
-   rejection diagnostics</li><li>promote payload-carrying enum runtime or collection behavior only with
-   matching ABI, ownership, buildability, and CLI/distributed-home tests</li><li>continue aggregate ABI, ownership, and drop cleanup work</li><li>keep LSP behavior tied to compiler facts</li></ol><h2 id="recommended-work-order">Recommended Work Order</h2><ol><li>1. <strong>Frontend closure audit</strong>: enumerate parser-accepted forms and ensure each
-   has resolver/typechecker facts or a stable rejection diagnostic.</li><li><strong>Buildability boundary</strong>: stop unsupported runtime forms before IR/backend
-   emission with diagnostics written in source-language terms.</li><li><strong>Aggregate ABI and ownership</strong>: continue direct/indirect aggregate edges,
-   field-level state, enum payload facts, aggregate cleanup, and drop glue.</li><li><strong>Std runtime</strong>: keep <code>development/std/</code> aligned with <code>spec/11</code>; promote
-   <code>env</code>, richer <code>Vec</code>, file, path, or allocator APIs only when their runtime
-   contract is stable.</li><li><strong>Control-flow and collection promotion</strong>: broaden loops, match payloads,
-   arrays, view iteration, and generic methods only with closure-matrix and test
-   updates.</li><li><strong>Release hardening</strong>: run the full closure suite, remove stale docs, and
-   make diagnostics and LSP presentation coherent.</li></ol><h2 id="constraints-to-preserve">Constraints To Preserve</h2><ul><li>Keep the compiler self-contained. Do not switch the current compiler line to
-  LLVM or an external linker.</li><li>Keep safety checks always enabled. Optimizers may remove checks only when they
-  prove the trap condition impossible.</li><li>Keep Nocter home deterministic: use <code>NOCTER_HOME</code> or the resolved compiler
-  executable's parent, including normal <code>PATH</code> symlinks to <code>.nocter/nocter</code>;
-  do not silently search unrelated directories.</li><li>Keep target-dependent std declarations inside stable std files behind
-  <code>#target(...)</code>.</li><li>Keep <code>interface</code> contract-only in v0. Do not introduce interface dispatch,
-  bounds, or code reuse as a convenience for implementation.</li><li>Keep literal definitions and generalized <code>...</code> spread/capture out of v0.
-  Treat them as post-v0 language design, not as std or LSP shortcuts.</li><li>Keep bare string interpolation rejected by buildability until an explicit
-  allocator source is designed.</li><li>Keep LSP semantic tokens, hovers, definitions, references, symbols, and
-  completions backed by resolver/typechecker facts.</li></ul><h2 id="near-term-open-work">Near-Term Open Work</h2><ul><li>Continue the v0.2.0 payload enum promotion. Construction/local/return/value
-  arguments, tag-only control flow, scalar, string/slice view, and copy
-  aggregate payload binding over existing values and supported
-  owned call-expression, constructor, and move-local pattern targets, and
-  direct-drop aggregate active cleanup and owned recursively droppable
-  aggregate payload move binding, including conditional source cleanup, are
-  runtime-shipped in the current subset. Owned call expressions include direct
-  fallible calls handled by <code>?</code>, <code>!</code>, or <code>catch</code> and direct optional calls
-  handled by <code>otherwise</code>. Struct cleanup now invokes an outer destructor and
-  recursively drops owned struct fields in reverse order. Fully initialized
-  move-only fixed arrays of supported droppable struct elements now complete
-  their local ownership lifecycle: literals, whole-local replacement, explicit
-  local moves, explicit drop, reinitialization, and reverse-index cleanup. They
-  also cross direct/indirect return, call-result, value-argument, and owned
-  parameter boundaries for plain, optional, and fallible calls, including
-  success-only cleanup activation. Fully initialized struct fields also support
-  storage, staged replacement, local-to-field moves, and recursive cleanup for
-  these arrays. Payload enum variants may now own the same arrays, including
-  direct and indirect enum layouts, concrete generic payload substitution,
-  construction, call-boundary transfer, move-pattern binding, reverse-index
-  cleanup, and success-only cleanup on fallible pattern targets. Remaining array
-  work requires per-element initialization state, per-field initialization
-  state for exiting initializers, and field extraction moves; remaining member
-  and value-control pattern targets
-  likewise depend on field moves or ownership-aware control joins.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
-  ownership, and std tests agree.</li><li>Promote non-copy <code>Vec&lt;T&gt;</code> storage only after per-element drop behavior is
-  designed and tested.</li><li>Promote move-only payload bindings with recursive drop trees beyond supported
-  droppable structs and their fixed arrays, and broader pattern target
-  expressions, only after collection element drop glue and field-level
-  ownership state are stable.</li><li>Promote <code>std/process.env</code> only after nested fallible/optional return lowering
-  and process-context storage are ready.</li></ul>
+                <h1 id="allocator-and-ownership">Allocator and Ownership</h1><p>この文書は v0.2.0 の owning runtime values を成立させる共通設計を定義する。 公開構文と型規則は <a href="../../../spec/index.html#content">spec</a> に従う。</p><h2 id="separation-of-responsibilities">Separation of Responsibilities</h2><table><thead><tr><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>type checker</td><td>source place の initialized / moved / borrowed state</td></tr><tr><td>aggregate drop shape</td><td>型ごとの再帰的 drop 構造。実行経路に依存しない</td></tr><tr><td>runtime drop obligation</td><td>その経路で実際に所有済みの subtree / prefix</td></tr><tr><td>IR</td><td>obligation の activate、publish、transfer、drop を明示する</td></tr><tr><td>backend</td><td>IR の状態遷移を ABI layout に従って実行する</td></tr><tr><td><code>std/mem</code></td><td>allocation layout、growth、deallocation、allocator provenance</td></tr><tr><td><code>std/string</code>, <code>std/vec</code></td><td>buffer と initialized length の型固有 invariant</td></tr></tbody></table><p>source place state と runtime cleanup state を同じ bitset や ad-hoc flag に畳まない。 前者は不正な source operation を拒否し、後者は失敗経路で取得済み資源だけを破棄する。</p><h2 id="allocator-contract">Allocator Contract</h2><p><code>Layout</code> は <code>size</code> と <code>align</code> の組ではなく、検証済み allocation request として扱う。</p><ul><li>alignment は 0 ではなく power of two で、target 上限を満たす。</li><li><code>count * element_size</code> と growth 計算は allocation 前に checked arithmetic を通す。</li><li>zero-sized value と zero-capacity collection は allocation を持たない canonical empty
+  state を使う。free は allocation の有無を識別する。</li><li><code>RawBuffer</code> は pointer、allocated byte length、alignment、allocator provenance を保持する。</li><li>free は確保時と同じ allocator と実 layout を使う。logical length を allocation size の
+  代用にしない。</li><li>grow は allocate → initialized bytes/elements の transfer → new state publish → old free
+  の順で行う。publish 前の失敗は old state を変更しない。</li><li>public callers は <code>RawBuffer</code> の representation を構築・改変できない。</li></ul><p>OS syscall は allocator implementation の内側に置く。<code>String</code> と <code>Vec&lt;T&gt;</code> は private <code>RawBuffer</code> へ移行済みであり、page primitive を直接呼ばない。</p><h2 id="recursive-drop-model">Recursive Drop Model</h2><p>runtime obligation は最低限、次の状態を再帰的に表現する。</p><pre><code class="language-text">Inactive
+Complete(shape)
+ArrayPrefix { completed, element_shape }
+StructFields { initialized fields }
+PayloadFields { active variant, initialized fields }
+</code></pre><p>fixed array の要素を構築するときは、配列 prefix へ即座に追加しない。</p><ol><li>1. 現在要素用の独立した recursive obligation を作る。</li><li>field / payload を一つずつ初期化し、その obligation に publish する。</li><li>要素全体の完了後に current obligation を配列へ移し、completed prefix を増やす。</li><li>途中失敗では current element を再帰的に破棄し、その後 completed prefix を逆順に
+   破棄する。</li></ol><p>これにより「完了した要素数」だけでは表せない nested partial initialization を扱う。</p><h2 id="collection-ownership">Collection Ownership</h2><p><code>Vec&lt;T&gt;</code> の invariant は次の通り。</p><ul><li><code>0 &lt;= len &lt;= capacity</code></li><li>allocation は capacity 分の storage を持つが、所有値は <code>[0, len)</code> のみ</li><li><code>[0, len)</code> は全要素が complete で、<code>[len, capacity)</code> は uninitialized</li><li>drop と clear は <code>[0, len)</code> を逆順に一度だけ破棄する</li><li>reserve は要素の ownership を新 storage へ transfer し、要素を複製しない</li><li>push は destination element の complete obligation を publish した後だけ <code>len</code> を増やす</li><li>pop は末尾要素を tracked return storage へ transfer し、vector の <code>len</code> を減らす</li></ul><p>non-copy <code>T</code> に raw byte copy を使う場合でも、意味は copy ではなく storage relocation である。旧 storage の obligation を無効化してから解放し、drop glue を二度走らせない。</p><p><code>String</code> は UTF-8 byte prefix を所有する特殊化された buffer である。byte 自体に drop は ないが、<code>0 &lt;= len &lt;= capacity</code>、failure atomic growth、allocator provenance は <code>Vec&lt;T&gt;</code> と共有する。</p><h2 id="error-path-invariants">Error-path Invariants</h2><ul><li>initializer が取得した値は、次の fallible operation より前に obligation へ登録する。</li><li>complete として publish するのは全 subvalue の初期化後だけにする。</li><li>replacement は新値を別 obligation で完成させてから旧値を破棄・置換する。</li><li>cleanup は取得順の逆順で行い、元の error を cleanup の都合で置換しない。</li><li>ownership transfer は source obligation の無効化と destination obligation の有効化を
+  一つの IR-level operation として表現する。</li></ul><h2 id="rejected-shortcuts">Rejected Shortcuts</h2><ul><li><code>Vec&lt;T&gt;.clear</code> で <code>len = 0</code> だけを行う</li><li>non-copy element の storage bytes を複製して両側を live にする</li><li>allocation size の代わりに logical length で free する</li><li>failure 後に old pointer と new capacity を組み合わせた半更新状態を残す</li><li>backend が AST を見て drop 対象を推測する</li><li>任意位置 remove を prefix model の例外処理で実装する</li></ul><p>任意位置 remove が必要になった時点で sparse ownership state を独立設計する。</p>
             </div>
         </main>
     </div>

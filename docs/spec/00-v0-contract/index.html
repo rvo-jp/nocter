@@ -180,7 +180,10 @@
   expressions include plain calls, direct fallible calls handled by <code>?</code>, <code>!</code>,
   or <code>catch</code>, and direct optional calls handled by <code>otherwise</code>, with active
   payload cleanup additionally supported for aggregate and fixed-array payload
-  fields with supported recursive drop glue</li><li>string interpolation lowering until the explicit standard-library formatting
+  fields with supported recursive drop glue</li><li>fixed-array elements whose type tree contains a payload enum, until the array
+  obligation model can represent the current element's nested partial state;
+  payload enums nested in ordinary struct fields and other payload enums are
+  buildable across the documented aggregate value boundaries</li><li>string interpolation lowering until the explicit standard-library formatting
   construction path is complete</li><li>ordinary input-dependent <code>error</code> success-return helper calls outside direct
   <code>Error.new(...)</code>-style <code>(&amp;str, &amp;str) -&gt; error</code> failure payload construction
   and input-free static payload wrappers; this includes helper parameters and
@@ -189,11 +192,9 @@
   promoted</li><li><code>Vec&lt;T&gt;</code> storage paths outside the runtime-supported scalar, <code>&amp;str</code>, and
   explicitly promoted copy-aggregate element subset</li><li>move-only fixed arrays outside the completed local, callable, and fully
   initialized struct-field storage/replacement lifecycle for supported
-  recursively droppable struct elements; field extraction moves remain
-  deferred, field initialization that can exit early remains check-only until
-  per-field initialization state is tracked, and element initialization that
-  can exit early remains check-only until per-element initialization state is
-  tracked</li></ul><h2 id="aggregate-type-contract">Aggregate Type Contract</h2><p>The aggregate contract covers structs, enums, optionals, fallible values, fixed arrays, and standard-library owned aggregate types such as <code>String</code>.</p><p>Frontend facts required by backend and ABI lowering:</p><ul><li>resolved nominal type identity</li><li>field order and field types</li><li>enum variant order and payload types</li><li>fixed-array element type and compile-time length</li><li><code>copy struct</code> marker</li><li>whether a type has an inherent <code>drop</code> member</li><li>expression ownership category: copy, move-only owned value, borrow, view,
+  recursively droppable struct elements; recursive field construction now
+  tracks exiting struct and payload initializers, while field extraction moves
+  remain deferred</li></ul><h2 id="aggregate-type-contract">Aggregate Type Contract</h2><p>The aggregate contract covers structs, enums, optionals, fallible values, fixed arrays, and standard-library owned aggregate types such as <code>String</code>.</p><p>Frontend facts required by backend and ABI lowering:</p><ul><li>resolved nominal type identity</li><li>field order and field types</li><li>enum variant order and payload types</li><li>fixed-array element type and compile-time length</li><li><code>copy struct</code> marker</li><li>whether a type has an inherent <code>drop</code> member</li><li>expression ownership category: copy, move-only owned value, borrow, view,
   pointer, or unsized data behind indirection</li><li>active move/drop state for each owned local place</li></ul><p>Backend and ABI lowering may rely on these facts and must not repeat semantic lookup. Lowering may compute target layout and calling convention details from the typed facts.</p><p>Rules fixed for v0:</p><ul><li>struct fields are laid out in declaration order</li><li>struct layout does not change when a <code>drop</code> member exists</li><li>payloadless enum values use the explicit <code>u8</code> tag layout specified by ABI v0</li><li>payload-carrying enum values use the tag-plus-payload-union layout specified
   by ABI v0</li><li>payload-carrying enum construction, locals, returns, value arguments,
   tag-only <code>if is Enum.variant(_)</code> statements, and tag-only <code>match</code> statements
@@ -205,12 +206,21 @@
   branches over existing enum values and supported pattern targets; active
   payload cleanup may lower for supported recursive payload drop trees,
   including fixed-array elements in reverse index order and multi-field payload
-  cleanup in reverse aggregate field order; move-only payload binding with
+  cleanup in reverse aggregate field order; variant-specific construction
+  obligations track exiting payload initializers across locals, replacements,
+  returns, and owned call arguments for the supported payload field shapes;
+  move-only payload binding with
   unsupported recursive drop trees and broader
   pattern target expressions still reject before build/run</li><li>fixed arrays use contiguous element layout with a compile-time length</li><li>fully initialized local fixed-array literals and whole-local literal
   replacements of supported recursively droppable struct elements may lower;
   their live elements are dropped in reverse index order at replacement,
-  explicit drop, or scope exit</li><li>explicit moves transfer a supported move-only fixed array's cleanup
+  explicit drop, or scope exit</li><li>local fixed-array literals, whole-local replacements, direct literal returns,
+  and direct value arguments may contain atomic fallible aggregate-call
+  elements handled by postfix <code>?</code>; lowering tracks the completed element
+  prefix, drops only that prefix on propagation, and publishes the complete
+  array only after every element succeeds</li><li>call argument evaluation retains completed owned temporaries until the call
+  begins, dropping earlier temporaries in reverse evaluation order if a later
+  argument exits</li><li>explicit moves transfer a supported move-only fixed array's cleanup
   obligation between local bindings; moved or explicitly dropped <code>var</code> locals
   regain that obligation when reinitialized</li><li>supported move-only fixed arrays may cross function boundaries as direct or
   indirect returns, call-result bindings and replacements, value arguments, and

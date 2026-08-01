@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Development Maintenance - Nocter</title>
-    <meta name="description" content="この文書は長期運用規約を持つ。短期引き継ぎは TODO、公開言語規則は spec に置く。">
+    <title>Nocter v0.2.0 Development Contract - Nocter</title>
+    <meta name="description" content="v0.2.0 は Nocter で所有する可変長データを安全に扱い、同じ意味情報をエディタから 利用できる状態を作るリリースである。終了時には String と Vec がデモ用の 限定実装ではなく、Allocator と所有権の共通基盤上で通常のプログラムに使える。">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/maintenance/">
+    <link rel="canonical" href="https://nocter.dev/development/docs/v0.2.0/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Development Maintenance - Nocter">
-    <meta property="og:description" content="この文書は長期運用規約を持つ。短期引き継ぎは TODO、公開言語規則は spec に置く。">
-    <meta property="og:url" content="https://nocter.dev/development/docs/maintenance/">
+    <meta property="og:title" content="Nocter v0.2.0 Development Contract - Nocter">
+    <meta property="og:description" content="v0.2.0 は Nocter で所有する可変長データを安全に扱い、同じ意味情報をエディタから 利用できる状態を作るリリースである。終了時には String と Vec がデモ用の 限定実装ではなく、Allocator と所有権の共通基盤上で通常のプログラムに使える。">
+    <meta property="og:url" content="https://nocter.dev/development/docs/v0.2.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Development Maintenance - Nocter">
-    <meta name="twitter:description" content="この文書は長期運用規約を持つ。短期引き継ぎは TODO、公開言語規則は spec に置く。">
+    <meta name="twitter:title" content="Nocter v0.2.0 Development Contract - Nocter">
+    <meta name="twitter:description" content="v0.2.0 は Nocter で所有する可変長データを安全に扱い、同じ意味情報をエディタから 利用できる状態を作るリリースである。終了時には String と Vec がデモ用の 限定実装ではなく、Allocator と所有権の共通基盤上で通常のプログラムに使える。">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Development Maintenance - Nocter","description":"この文書は長期運用規約を持つ。短期引き継ぎは TODO、公開言語規則は spec に置く。","url":"https://nocter.dev/development/docs/maintenance/","mainEntityOfPage":"https://nocter.dev/development/docs/maintenance/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Maintenance","item":"https://nocter.dev/development/docs/maintenance/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.2.0 Development Contract - Nocter","description":"v0.2.0 は Nocter で所有する可変長データを安全に扱い、同じ意味情報をエディタから 利用できる状態を作るリリースである。終了時には String と Vec がデモ用の 限定実装ではなく、Allocator と所有権の共通基盤上で通常のプログラムに使える。","url":"https://nocter.dev/development/docs/v0.2.0/","mainEntityOfPage":"https://nocter.dev/development/docs/v0.2.0/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"V0.2.0","item":"https://nocter.dev/development/docs/v0.2.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -127,24 +127,43 @@
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">spec</a></li>
-                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.2.0 Development Contract</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
                 <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
                 <li><a href="../standard-library/index.html#content">Standard Library</a></li>
                 <li><a href="../lsp/index.html#content">LSP</a></li>
-                <li><a href="./index.html#content" aria-current="page">Maintenance</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/maintenance.md</span>
+                <span class="markdown-path-text">/development/docs/v0.2.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="development-maintenance">Development Maintenance</h1><p>この文書は長期運用規約を持つ。短期引き継ぎは <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">TODO</a>、公開言語規則は <a href="../../../spec/index.html#content">spec</a> に置く。</p><h2 id="design-rules">Design Rules</h2><ul><li>diff の小ささより、責務の一貫性と次の変更の容易さを優先する。</li><li>line count ではなく responsibility と abstraction layer で分割する。</li><li>caller が内部 map や mutable state を探索する API より、目的を表す owned result を返す。</li><li>compiler phase、protocol transport、presentation を一つの file に混ぜない。</li><li>AST traversal、lookup、type formatting、drop logic の複製が必要になった時点で共通責務を
-  抽出する。</li><li>removed repository location や未公開 behavior の compatibility shim を追加しない。</li></ul><p>新しい責務は新しい module/file に作る。既存 file への追加で責務が自然に説明できる場合だけ 同居させる。</p><h2 id="sources-of-truth">Sources of Truth</h2><table><thead><tr><th>Information</th><th>Owner</th></tr></thead><tbody><tr><td>language and public std semantics</td><td><code>spec/</code></td></tr><tr><td>current release completion and priorities</td><td><code>docs/v0.2.0.md</code></td></tr><tr><td>compiler phase boundaries</td><td><code>docs/architecture.md</code></td></tr><tr><td>allocator, ownership, drop invariants</td><td><code>docs/allocator-ownership.md</code></td></tr><tr><td>distributed standard-library implementation</td><td><code>docs/standard-library.md</code></td></tr><tr><td>LSP capability and analysis design</td><td><code>docs/lsp.md</code></td></tr><tr><td>next task and handoff facts</td><td><code>TODO.md</code></td></tr><tr><td>historical sequence</td><td>Git history</td></tr></tbody></table><p>同じ status table を複数文書に置かない。v0.2.0 の checklist は <code>v0.2.0.md</code> だけに置き、 個別文書は設計と具体的な acceptance behavior を持つ。</p><h2 id="update-triggers">Update Triggers</h2><ul><li>release gate、non-goal、work order を変えた: <code>v0.2.0.md</code></li><li>compiler module ownership や phase data flow を変えた: <code>architecture.md</code></li><li>allocation/drop/collection invariant を変えた: <code>allocator-ownership.md</code></li><li>tracked <code>development/std</code> の runtime behavior を変えた: <code>standard-library.md</code></li><li>editor-facing capabilityまたは analysis API を変えた: <code>lsp.md</code></li><li>次の具体的 task、blocker、uncommitted state が変わった: <code>TODO.md</code></li></ul><p>文書へ command log、commit list、完了項目の年代記を追記しない。現在の判断に必要な fact だけを 置き換える。</p><h2 id="verification">Verification</h2><p>共有 compiler behavior を変更した commit の標準検証は repository root から行う。</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
-<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--check</span>
-<span class="token-function">git</span> diff <span class="token-option">--check</span>
-</code></pre><p>変更に応じて narrow test を先に実行し、最後に full verification を行う。標準ライブラリの runtime promotion には distributed-home または CLI run test、LSP behavior には analysis unit test と JSON-RPC integration test を含める。</p><p>docs-only change では link/path search、Markdown structure、<code>git diff --check</code> を最低条件とする。</p><h2 id="commit-checkpoints">Commit Checkpoints</h2><ul><li>behavior change と test/doc update を一つの coherent commit にする。</li><li>pure refactor は behavior promotion と分離する。</li><li>unrelated user changes を stage、revert、format しない。</li><li>coherent chunk が検証済みになったら、長い session の終了を待たず commit する。</li><li>verification を実行できない場合は理由を final response と必要なら <code>TODO.md</code> に残す。</li></ul><p>commit message は変更の結果を述べる。時系列メモや「続き」は使わない。</p>
+                <h1 id="nocter-v0-2-0-development-contract">Nocter v0.2.0 Development Contract</h1><h2 id="purpose">Purpose</h2><p>v0.2.0 は Nocter で所有する可変長データを安全に扱い、同じ意味情報をエディタから 利用できる状態を作るリリースである。終了時には <code>String</code> と <code>Vec&lt;T&gt;</code> がデモ用の 限定実装ではなく、Allocator と所有権の共通基盤上で通常のプログラムに使える。</p><p>この文書が唯一の現行マイルストーンを定義する。<code>v0</code> は曖昧なのでリリース名の 略称に使わない。過去リリースの記録は Git と release metadata に残し、現行の 設計文書へ混在させない。</p><p>対象は <code>arm64-darwin</code>、リリース版は <code>0.2.0</code> である。公開言語規則は <a href="../../../spec/index.html#content">spec</a> に従う。</p><h2 id="completion-definition">Completion Definition</h2><p>次の四領域をすべて満たしたときだけ v0.2.0 を完了とする。</p><h3 id="1-allocator">1. Allocator</h3><ul><li><code>Layout</code> が size、alignment、overflow、zero-sized allocation の規則を一元化する。</li><li>allocation、growth、deallocation が同じ <code>Allocator</code> 契約を通り、<code>String</code> と
+  <code>Vec&lt;T&gt;</code> が OS page primitive を直接呼ばない。</li><li>growth は新領域の確保と内容移送に成功してから旧領域を解放する。失敗時に元の値を
+  保持する。</li><li><code>RawBuffer</code> は allocator provenance と実際の allocation layout を失わず、公開 API
+  から不正な値を構築できない。</li><li>capacity の加算・乗算 overflow、過大 alignment、確保失敗、empty 値の解放を
+  実行時テストで固定する。</li><li>allocator は明示的に渡す。v0.2.0 のために暗黙の global allocator を導入しない。</li></ul><p>詳細は <a href="../allocator-ownership/index.html#content">Allocator and Ownership</a> に記す。</p><h3 id="2-ownership-and-destruction">2. Ownership and Destruction</h3><ul><li>struct、fixed array、payload enum の再帰的な部分初期化状態を表現できる。</li><li>fixed array の「完了済み prefix」と「構築中の現在要素」を別々に追跡し、現在要素の
+  ネストした field 初期化に失敗しても取得済み資源を一度だけ逆順に破棄する。</li><li><code>Vec&lt;T&gt;</code> は <code>[0, len)</code> を所有済み要素として扱い、非 <code>copy</code> 要素を逆順に drop する。</li><li><code>push</code> は要素の構築完了後だけ <code>len</code> を公開し、<code>clear</code> と <code>drop</code> は各要素を一度だけ
+  破棄する。</li><li><code>pop</code> は末尾要素の所有権を返り値へ移し、vector 側の所有範囲を一要素縮める。</li><li>正常 return、早期 <code>?</code>、分岐、loop exit、replacement、部分初期化失敗で同じ drop
+  規則が働く。</li><li>未対応の所有権形状は IR や backend へ到達する前に source-backed diagnostic で
+  拒否する。</li></ul><h3 id="3-standard-library-runtime">3. Standard Library Runtime</h3><ul><li><code>String</code> の empty、from/copy、reserve、push、clear、view、drop が共通 Allocator 上で
+  動作する。</li><li><code>Vec&lt;T&gt;</code> の empty、with_capacity、from_slice、reserve、push、pop、clear、view、drop
+  が copy / non-copy の両要素で動作する。</li><li>少なくとも <code>Vec&lt;String&gt;</code>、<code>Vec&lt;File&gt;</code>、<code>Vec&lt;Vec&lt;String&gt;&gt;</code> を build/run テストし、
+  growth、early return、clear、scope exit を通して二重解放・未解放・use-after-move を
+  起こさない。</li><li>配布 <code>.nocter/std</code> と repository-local <code>development/std</code> の公開動作が一致する。</li><li>runtime primitive は <code>pub(nocter)</code> の狭い trust boundary に留め、通常 API を
+  コンパイラ固有名で special-case しない。</li></ul><p>詳細は <a href="../standard-library/index.html#content">Standard Library</a> に記す。</p><h3 id="4-lsp">4. LSP</h3><ul><li>diagnostics、semantic tokens、definition、references、document symbols が open
+  document と imports に対して同じ compile-unit facts を使う。</li><li>hover が宣言種別、完全な型または signature、generic specialization、documentation、
+  ownership capability を source-backed range とともに返す。</li><li>completion が global、local、import、member、enum pattern、struct field、keyword の
+  文脈を区別し、型・visibility・現在位置で候補を絞る。候補には kind、detail、必要な
+  insert text を含める。</li><li>call position で signature help が parameter、active parameter、return type、
+  documentation を返す。</li><li>編集途中の不完全な source でも server が落ちず、回復可能な範囲で hover と
+  completion を返す。</li><li>LSP 自身が名前解決、型推論、visibility、ownership を再実装しない。</li></ul><p>詳細は <a href="../lsp/index.html#content">LSP</a> に記す。</p><h2 id="acceptance-programs">Acceptance Programs</h2><p>リリース判定には小さな unit test だけでなく、配布 home を使う次のシナリオを含める。</p><ol><li>1. <code>Vec&lt;String&gt;</code> を空から成長させ、複数回 reserve し、pop した文字列を vector の
+   drop 後にも使用する。</li><li><code>Vec&lt;File&gt;</code> を途中で clear し、残りを scope exit で閉じる。失敗経路でも各 handle
+   が一度だけ閉じられる。</li><li><code>Vec&lt;Vec&lt;String&gt;&gt;</code> を構築し、growth が失敗した後も内側の値を回収できる経路と
+   正常終了を検証する。</li><li><code>String</code> を empty から複数回成長させ、view と clear 後の再利用を検証する。</li><li>複数ファイルの標準ライブラリ利用例で diagnostics、hover、completion、signature
+   help の JSON-RPC 応答を固定する。</li></ol><h2 id="explicit-non-goals">Explicit Non-goals</h2><p>次は v0.2.0 の終了条件に含めない。基盤を壊す暫定実装も入れない。</p><ul><li>collection literal、map literal、<code>...</code> spread / variadic syntax</li><li>string interpolation の暗黙 allocator 選択</li><li>interface runtime dispatch と embedding</li><li>vector の任意 index から所有値を抜く <code>remove</code>、sparse live-element tracking</li><li>allocator の暗黙既定値、複数 allocator family の公開設計</li><li>workspace-wide package index、rename、code action、formatter request</li><li><code>arm64-darwin</code> 以外の native backend</li></ul><p><code>pop</code> は末尾 prefix を縮めるだけなので v0.2.0 に含める。任意位置の <code>remove</code> は sparse ownership state を必要とするため後続設計とする。</p><h2 id="work-order">Work Order</h2><p>順序は依存関係で固定する。</p><ol><li>1. recursive drop obligation に fixed-array current-element staging を追加する。（完了）</li><li><code>Layout</code>、<code>RawBuffer</code>、Allocator allocation/grow/free 契約を完成させる。（完了）</li><li><code>Vec&lt;T&gt;</code> の initialized prefix、non-copy push/clear/drop を実装する。（完了）</li><li>ownership transfer として <code>Vec&lt;T&gt;.pop</code> を実装する。（完了）</li><li><code>String</code> を共通 Allocator 契約へ移し、growth failure invariants を固定する。（完了）</li><li>hover 表示を typecheck facts の安定した presentation model に統合する。（完了）</li><li>context-aware completion と signature help を compiler analysis に追加する。（完了）</li><li>distributed-home acceptance programs と全検証を通し、文書の未達項目をゼロにする。（完了）</li></ol><h2 id="release-gate">Release Gate</h2><p>以下を全て満たすまで version と release metadata を安定版へ変更しない。</p><ul><li><code>./development/compiler/scripts/verify.sh</code></li><li><code>cargo fmt --manifest-path development/compiler/Cargo.toml --check</code></li><li><code>git diff --check</code></li><li>上記 acceptance programs の build/run/LSP integration tests</li><li><code>development/docs/</code> と <code>development/TODO.md</code> に未解決の v0.2.0 必須項目がない</li><li>配布物を <code>package-local-release.sh</code> で生成し、生成した <code>.nocter</code> home だけで再検証する</li></ul>
             </div>
         </main>
     </div>

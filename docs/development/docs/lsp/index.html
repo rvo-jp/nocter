@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Std Runtime Status - Nocter</title>
-    <meta name="description" content="This document records the implementation status of the tracked development/std/ tree that is packaged as std/ inside a Nocter home. The public standard-lib">
+    <title>Language Server - Nocter</title>
+    <meta name="description" content="Nocter LSP は compiler facts の protocol view である。エディタ向けに別の resolver や 型システムを作らない。">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/std-runtime-status/">
+    <link rel="canonical" href="https://nocter.dev/development/docs/lsp/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Std Runtime Status - Nocter">
-    <meta property="og:description" content="This document records the implementation status of the tracked development/std/ tree that is packaged as std/ inside a Nocter home. The public standard-lib">
-    <meta property="og:url" content="https://nocter.dev/development/docs/std-runtime-status/">
+    <meta property="og:title" content="Language Server - Nocter">
+    <meta property="og:description" content="Nocter LSP は compiler facts の protocol view である。エディタ向けに別の resolver や 型システムを作らない。">
+    <meta property="og:url" content="https://nocter.dev/development/docs/lsp/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-07-30">
+    <meta property="article:modified_time" content="2026-08-01">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Std Runtime Status - Nocter">
-    <meta name="twitter:description" content="This document records the implementation status of the tracked development/std/ tree that is packaged as std/ inside a Nocter home. The public standard-lib">
+    <meta name="twitter:title" content="Language Server - Nocter">
+    <meta name="twitter:description" content="Nocter LSP は compiler facts の protocol view である。エディタ向けに別の resolver や 型システムを作らない。">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Std Runtime Status - Nocter","description":"This document records the implementation status of the tracked development/std/ tree that is packaged as std/ inside a Nocter home. The public standard-lib","url":"https://nocter.dev/development/docs/std-runtime-status/","mainEntityOfPage":"https://nocter.dev/development/docs/std-runtime-status/","dateModified":"2026-07-30","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Std Runtime Status","item":"https://nocter.dev/development/docs/std-runtime-status/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Language Server - Nocter","description":"Nocter LSP は compiler facts の protocol view である。エディタ向けに別の resolver や 型システムを作らない。","url":"https://nocter.dev/development/docs/lsp/","mainEntityOfPage":"https://nocter.dev/development/docs/lsp/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Lsp","item":"https://nocter.dev/development/docs/lsp/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -126,39 +126,26 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">../../spec</a></li>
+                <li><a href="../../../spec/index.html#content">spec</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Development Contract</a></li>
                 <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../implementation-status/index.html#content">Implementation Status</a></li>
-                <li><a href="../v0-closure/index.html#content">v0 Closure Definition</a></li>
-                <li><a href="../backend-v0/index.html#content">Backend V0</a></li>
-                <li><a href="./index.html#content" aria-current="page">Std Runtime Status</a></li>
-                <li><a href="../interpolation-lowering/index.html#content">Interpolation Lowering</a></li>
-                <li><a href="../roadmap/index.html#content">Roadmap</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
-                <li><a href="../../../spec/00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="./index.html#content" aria-current="page">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/std-runtime-status.md</span>
+                <span class="markdown-path-text">/development/docs/lsp.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="std-runtime-status">Std Runtime Status</h1><p>This document records the implementation status of the tracked <code>development/std/</code> tree that is packaged as <code>std/</code> inside a Nocter home. The public standard-library specification lives in <a href="../../../spec/11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a>.</p><p>Do not add a public std API here first. Add or change the public contract in the spec, then update <code>development/std/</code>, tests, and this implementation status.</p><h2 id="distribution-files">Distribution Files</h2><p>The v0 distribution currently uses stable module files:</p><pre><code class="language-text">development/std/error.nct
-development/std/fmt.nct
-development/std/io.nct
-development/std/mem.nct
-development/std/os.nct
-development/std/prelude.nct
-development/std/process.nct
-development/std/ptr.nct
-development/std/string.nct
-development/std/vec.nct
-</code></pre><p>Target-dependent declarations stay in these files behind <code>#target("...")</code>. The distribution must not require target-specific source file names such as <code>std/os/macos.nct</code>.</p><h2 id="status-terms">Status Terms</h2><ul><li><code>runtime ship</code>: user code may import, build, run, and rely on this API on the
-  v0 <code>arm64-darwin</code> target.</li><li><code>recoverable unsupported</code>: user code may import and call the API, but it
-  fails with a documented <code>error</code> instead of returning fake success.</li><li><code>check-only</code>: the name is present for future API shape, but useful native
-  lowering/runtime behavior is not shipped.</li><li><code>std internal</code>: visible only inside the active Nocter home through
-  <code>pub(nocter)</code>.</li><li><code>private helper</code>: module-private implementation detail.</li><li><code>defer</code>: not part of the v0 public surface.</li></ul><h2 id="public-runtime-surface">Public Runtime Surface</h2><table><thead><tr><th>Module</th><th>Current status</th></tr></thead><tbody><tr><td><code>std/prelude</code></td><td>Runtime-shipped synthetic prelude exports only <code>Error</code>, <code>ErrorCode</code>, and <code>String</code>. <code>Int</code> is removed. <code>Vec</code>, <code>File</code>, allocator, process, and I/O names require explicit <code>use</code>.</td></tr><tr><td><code>std/error</code></td><td>Runtime-shipped <code>ErrorCode</code>, <code>Error</code>, and <code>Error.new</code>. <code>new_error</code> is <code>pub(nocter)</code>.</td></tr><tr><td><code>std/string</code></td><td>Runtime-shipped owned <code>String</code> with private representation, explicit allocation, copy from <code>&amp;str</code>, view, len/capacity/is_empty, reserve, clear, push_str, bytes, and drop.</td></tr><tr><td><code>std/fmt</code></td><td>Runtime-shipped append helpers for <code>&amp;str</code>, <code>String</code>, <code>i32</code>, <code>usize</code>, and <code>bool</code>. Formatting APIs append into caller-owned <code>String</code> and do not choose an allocator.</td></tr><tr><td><code>std/mem</code></td><td>Runtime-shipped narrow page allocator, <code>Layout</code>, opaque <code>RawBuffer</code>, <code>Allocator</code>, alloc/free, bytes views, prefix views, and standard memory errors. <code>RawBuffer</code> storage fields are std-internal through <code>pub(nocter)</code>.</td></tr><tr><td><code>std/io</code></td><td>Runtime-shipped narrow <code>File</code>, <code>open</code>, <code>read</code>, <code>write</code>, <code>write_text</code>, stdout/stderr, <code>print</code>, close-on-drop state, and raw fd helpers behind <code>pub(nocter)</code>.</td></tr><tr><td><code>std/process</code></td><td>Runtime-shipped <code>exit</code>, <code>abort</code>, <code>cwd</code>, and <code>args</code> on <code>arm64-darwin</code>. <code>env(name): &amp;str?!</code> is check-only.</td></tr><tr><td><code>std/vec</code></td><td>Runtime-shipped narrow <code>Vec&lt;T&gt;</code> construction, capacity, len, is_empty, reserve, push, from_slice, clear, readonly/readwrite views, and storage release for scalar, <code>&amp;str</code>, and current copy-aggregate element paths.</td></tr><tr><td><code>std/ptr</code></td><td>Runtime-shipped public <code>addr</code>, <code>from_ref</code>, and <code>from_ref_mut</code> address conversions plus std-internal raw storage sizing, copy/store, and view-construction helpers. Pointer dereference is deferred.</td></tr><tr><td><code>std/os</code></td><td>Std-internal common OS records and target-gated syscall/trap primitives. No public user-facing OS module surface is shipped in v0.</td></tr></tbody></table><h2 id="known-std-gaps">Known Std Gaps</h2><ul><li><code>std/process.env</code> runtime implementation</li><li>byte-to-UTF-8 validation boundaries for all future targets</li><li>richer file modes, close API, seek, buffering, paths, directories, and async I/O</li><li>non-copy aggregate <code>Vec&lt;T&gt;</code> element storage and per-element drop glue</li><li>vector insertion/removal/iteration helpers</li><li>allocator families beyond the current page-backed allocator</li><li>public OS abstraction types</li><li>interpolation APIs that can be used without an explicit allocator source</li></ul><h2 id="growth-rules">Growth Rules</h2><p>New std APIs must be added in this order:</p><ol><li>1. Update <code>../../spec/11-stdlib-primitives-os.md</code> with the public contract.</li><li>Add or update <code>development/std/</code> declarations and implementations.</li><li>Add distributed-home tests for visibility, privacy, and status.</li><li>Add frontend/backend/runtime support only for APIs classified as
-   <code>runtime ship</code>.</li><li>Update this document and <code>implementation-status.md</code>.</li></ol><p>Placeholder APIs must not silently succeed. They either work, fail with a documented <code>error</code>, remain check-only, or stay out of the public surface.</p>
+                <h1 id="language-server">Language Server</h1><p>Nocter LSP は compiler facts の protocol view である。エディタ向けに別の resolver や 型システムを作らない。</p><h2 id="architecture">Architecture</h2><pre><code class="language-text">open documents + filesystem
+  -&gt; compile-unit frontend
+  -&gt; resolver/typecheck facts
+  -&gt; feature-specific analysis result
+  -&gt; LSP protocol conversion
+</code></pre><p><code>driver/lsp</code> は JSON-RPC、document state、URI/range conversion、capability routing を所有する。 <code>analysis</code> は hover/completion/definition/references に必要な compiler-owned result types を 提供する。visibility、type normalization、generic specialization、ownership capability は resolver/typechecker が決める。</p><h2 id="current-baseline">Current Baseline</h2><p>現在は document sync と diagnostics publish、semantic tokens、hover、definition、references、 document symbols、global/member/enum-pattern/struct-field completion、signature help を持つ。 call-site analysis は resolved target、generic specialization、active parameter、documentation を 一つの compiler result に統合し、hover と signature help が共有する。completion は lexical scope と shadowing、generic member specialization、receiver capability、signature detail、 documentation、insert text を compiler facts から返す。import path は frontend の module layout と workspace/source root を共有し、import symbol は resolved import identity と visibility から返す。 call argument は型検査器の assignability で候補を順位付けする。編集中の call・member・import は authoritative document と分離した一時 overlay で compile unit を回復する。</p><h2 id="v0-2-0-capabilities">v0.2.0 Capabilities</h2><h3 id="hover">Hover</h3><p>hover result は presentation 用文字列を AST から再構成するのではなく、型検査済み facts から組み立てる。</p><table><thead><tr><th>Target</th><th>Required contents</th></tr></thead><tbody><tr><td>local / parameter</td><td>mutability、borrow capability、resolved type</td></tr><tr><td>function / method</td><td>full signature、generic parameters/specialization、fallibility</td></tr><tr><td>struct / enum / interface</td><td>declaration kind、type parameters、documentation</td></tr><tr><td>field / variant</td><td>owner type、field/payload type、documentation</td></tr><tr><td>imported symbol</td><td>resolved declaration、module path、visibility</td></tr><tr><td>expression</td><td>normalized result type when a declaration target is not enough</td></tr></tbody></table><p>応答には source-backed range を含める。情報が確定できない編集途中の source では虚偽の型を 作らず、確定した宣言情報だけを返すか <code>null</code> にする。</p><h3 id="completion">Completion</h3><p>completion request は cursor context を分類してから候補を収集する。</p><ul><li>expression / statement: visible locals、parameters、functions、types、keywords</li><li>import: current module から到達可能な modules と public symbols</li><li>member: receiver type に対する fields と methods。borrow capability を満たさない候補を除外</li><li>enum pattern: 対象 enum の variants と payload fields</li><li>struct literal: 未指定 fields のみ</li><li>call argument: expected type と active parameter に適合する visible values</li></ul><p>候補は少なくとも <code>label</code>、<code>kind</code>、型または signature の <code>detail</code>、documentation summary、 必要な <code>insertText</code> を持つ。visibility と shadowing を尊重し、同一 semantic symbol の重複を 除く。順位は exact prefix、locality、expected-type compatibility の順を基本とし、並び順を テストで固定する。</p><h3 id="signature-help">Signature Help</h3><p>call cursor から resolved call target と argument index を取得し、次を返す。</p><ul><li>full callable signature</li><li>parameters と各 parameter documentation</li><li>active parameter</li><li>return type と fallibility</li><li>generic specialization が確定していれば concrete types</li></ul><p>overload-like 候補を文字列一致で推測しない。resolver/typechecker が target を確定できない 場合だけ、回復解析で得た候補を明示的な incomplete result として扱う。</p><h2 id="reliability-requirements">Reliability Requirements</h2><ul><li>didOpen/didChange/didClose 後に stale diagnostics を残さない。</li><li>UTF-16 LSP position と UTF-8 source byte spans の変換を一箇所に集約する。</li><li>malformed / incomplete source、unknown imports、missing receiver で panic しない。</li><li>open document overlay を imports からも参照し、disk text と混在した identity を作らない。</li><li>hover、completion、signature help が同じ cursor で矛盾する型を返さない。</li><li>protocol tests は response JSON だけでなく compiler analysis result の unit tests を持つ。</li></ul><h2 id="acceptance-tests">Acceptance Tests</h2><p>v0.2.0 では少なくとも次を integration test に固定する。</p><ol><li>1. imported generic function の hover と specialized signature help</li><li><code>Vec&lt;String&gt;</code> の method completion と receiver borrow capability</li><li>payload enum pattern と struct literal の未指定 field completion</li><li>documentation comment を持つ std symbol の hover/completion detail</li><li>一文字ずつ壊れた call、member access、import を編集する連続 didChange</li><li>multi-file open-document overlay での definition/references/diagnostics consistency</li></ol><h2 id="deferred-features">Deferred Features</h2><p>rename、code action、formatting request、workspace-wide package index、inlay hints は v0.2.0 の終了条件に含めない。hover/completion/signature help の semantic facts と recovery API を安定させた後に追加する。</p>
             </div>
         </main>
     </div>

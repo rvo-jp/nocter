@@ -8,10 +8,9 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-The current development line is `v0.2.0-dev`. Its focus is a complete Allocator
-and ownership foundation for practical `String` and `Vec<T>` programs, together
-with richer compiler-backed LSP support. The implementation target is
-`arm64-darwin`.
+Nocter v0.2.0 provides a complete Allocator and ownership foundation for
+practical `String` and `Vec<T>` programs, together with richer compiler-backed
+LSP support. The implementation target is `arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -177,8 +176,8 @@ nocter fmt main.nct
 
 ## Current Status
 
-The current v0.2.0-dev compiler parses, checks, builds, and runs the supported
-language on `arm64-darwin`. It emits ARM64 Mach-O executables directly.
+The v0.2.0 compiler parses, checks, builds, and runs the supported language on
+`arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
