@@ -21,9 +21,8 @@
 
 Complete the v0.2.0 LSP contract on top of compiler-owned semantic facts.
 
-1. Fix the consecutive-edit and multi-file JSON-RPC acceptance sequences.
-2. Run the full compiler, distributed-home, package, and install release gates.
-3. Replace development version metadata only after every acceptance condition passes.
+1. Run the full compiler, distributed-home, package, and install release gates.
+2. Replace development version metadata only after every acceptance condition passes.
 
 ## Required Verification
 

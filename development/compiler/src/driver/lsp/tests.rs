@@ -3212,11 +3212,208 @@ impl<T> Box<T> {
     assert_eq!(inspect["detail"], json!("method &Box<i32>.inspect(): void"));
 }
 
+#[test]
+fn json_rpc_recovers_consecutive_incomplete_call_member_and_import_edits() {
+    let project = TempProject::new("lsp-consecutive-recovery");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let library_text = r#"pub func add(left: i32, right: i32): i32 {
+    return left + right
+}
+
+pub struct Box {
+    value: i32
+}
+
+impl Box {
+    pub method &self.inspect(): i32 {
+        return self.value
+    }
+}
+"#;
+    let call_text = "use ./library.add\n\nfunc main(): i32 {\n    return add(20, \n}\n";
+    let member_text =
+        "use ./library.Box\n\nfunc inspect(value: &Box): i32 {\n    return value.\n}\n";
+    let import_text = "use ./library.\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let library = project.write_source("library.nct", library_text);
+    let app = project.write_source("app.nct", call_text);
+    let library_uri = file_uri(&library);
+    let app_uri = file_uri(&app);
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": { "rootUri": file_uri(&project.root) }
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didOpen",
+        "params": { "textDocument": {
+            "uri": library_uri, "languageId": "nocter", "version": 1, "text": library_text
+        }}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didOpen",
+        "params": { "textDocument": {
+            "uri": app_uri, "languageId": "nocter", "version": 1, "text": call_text
+        }}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 10, "method": "textDocument/signatureHelp",
+        "params": {
+            "textDocument": { "uri": app_uri },
+            "position": byte_offset_to_lsp_position(
+                call_text,
+                call_text.find("20, ").unwrap() + "20, ".len()
+            )
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didChange",
+        "params": {
+            "textDocument": { "uri": app_uri, "version": 2 },
+            "contentChanges": [{ "text": member_text }]
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 11, "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": app_uri },
+            "position": byte_offset_to_lsp_position(
+                member_text,
+                member_text.find("value.").unwrap() + "value.".len()
+            )
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didChange",
+        "params": {
+            "textDocument": { "uri": app_uri, "version": 3 },
+            "contentChanges": [{ "text": import_text }]
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 12, "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": app_uri },
+            "position": byte_offset_to_lsp_position(
+                import_text,
+                import_text.find("library.").unwrap() + "library.".len()
+            )
+        }
+    })));
+
+    let mut output = Vec::new();
+    run_lsp_stream(Cursor::new(input), &mut output).unwrap();
+    let messages = framed_messages(&output);
+    let signature = response_with_id(&messages, 10);
+    let member = response_with_id(&messages, 11);
+    let import = response_with_id(&messages, 12);
+
+    assert_eq!(
+        signature["result"]["signatures"][0]["label"],
+        json!("func add(left: i32, right: i32): i32")
+    );
+    assert!(
+        completion_item_with_label(member["result"]["items"].as_array().unwrap(), "inspect")
+            .is_some()
+    );
+    let import_items = import["result"]["items"].as_array().unwrap();
+    assert!(completion_item_with_label(import_items, "add").is_some());
+    assert!(completion_item_with_label(import_items, "Box").is_some());
+}
+
+#[test]
+fn json_rpc_uses_one_open_overlay_for_diagnostics_definition_and_references() {
+    let project = TempProject::new("lsp-overlay-consistency");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let disk_library = "pub func stale(): i32 {\n    return 0\n}\n";
+    let overlay_library = "pub func answer(): i32 {\n    return 42\n}\n";
+    let app_text = "use ./library.answer\n\nfunc main(): i32 {\n    return answer()\n}\n";
+    let library = project.write_source("library.nct", disk_library);
+    let app = project.write_source("app.nct", app_text);
+    let library_uri = file_uri(&library);
+    let app_uri = file_uri(&app);
+    let call_offset = app_text.rfind("answer()").unwrap();
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": { "rootUri": file_uri(&project.root) }
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didOpen",
+        "params": { "textDocument": {
+            "uri": library_uri, "languageId": "nocter", "version": 1, "text": overlay_library
+        }}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "textDocument/didOpen",
+        "params": { "textDocument": {
+            "uri": app_uri, "languageId": "nocter", "version": 1, "text": app_text
+        }}
+    })));
+    for (id, method) in [
+        (20, "textDocument/definition"),
+        (21, "textDocument/references"),
+    ] {
+        input.extend(frame(&json!({
+            "jsonrpc": "2.0", "id": id, "method": method,
+            "params": {
+                "textDocument": { "uri": app_uri },
+                "position": byte_offset_to_lsp_position(app_text, call_offset),
+                "context": { "includeDeclaration": true }
+            }
+        })));
+    }
+
+    let mut output = Vec::new();
+    run_lsp_stream(Cursor::new(input), &mut output).unwrap();
+    let messages = framed_messages(&output);
+    let definition = response_with_id(&messages, 20);
+    let references = response_with_id(&messages, 21)["result"]
+        .as_array()
+        .unwrap();
+
+    assert_eq!(definition["result"]["uri"], json!(library_uri));
+    assert!(
+        references
+            .iter()
+            .any(|location| location["uri"] == json!(library_uri))
+    );
+    assert!(
+        references
+            .iter()
+            .any(|location| location["uri"] == json!(app_uri))
+    );
+    let app_diagnostics = messages
+        .iter()
+        .rev()
+        .find(|message| {
+            message["method"] == json!("textDocument/publishDiagnostics")
+                && message["params"]["uri"] == json!(app_uri)
+        })
+        .expect("expected app diagnostics publication");
+    assert_eq!(app_diagnostics["params"]["diagnostics"], json!([]));
+}
+
 fn frame(message: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(message).unwrap();
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
     framed.extend(body);
     framed
+}
+
+fn framed_messages(bytes: &[u8]) -> Vec<Value> {
+    let mut reader = Cursor::new(bytes);
+    let mut messages = Vec::new();
+    while let Some(message) = read_message(&mut reader).unwrap() {
+        messages.push(message);
+    }
+    messages
+}
+
+fn response_with_id(messages: &[Value], id: i64) -> &Value {
+    messages
+        .iter()
+        .find(|message| message.get("id").and_then(Value::as_i64) == Some(id))
+        .unwrap_or_else(|| panic!("missing response {id}: {messages:#?}"))
 }
 
 fn file_uri(path: &Path) -> String {
