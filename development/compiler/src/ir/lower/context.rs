@@ -1,6 +1,6 @@
 use crate::abi::{
-    AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver, layout_of,
-    layout_struct,
+    AbiType, ReturnPassing, ValueLayout, abi_value_from_type_expr_with_resolver,
+    array_element_stride, layout_of, layout_struct,
 };
 use crate::ast::{
     CallExpr, Expr, IdentifierExpr, MemberExpr, TypeExpr, substitute_type_expr_parameters,
@@ -385,7 +385,16 @@ pub(super) struct PendingAggregateDrop {
 pub(super) enum AggregateDrop {
     Direct(DropGlue),
     Struct(StructDrop),
+    Array(ArrayDrop),
     PayloadEnum(PayloadEnumDrop),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ArrayDrop {
+    pub(super) length: u64,
+    pub(super) stride: u64,
+    pub(super) element_layout: ValueLayout,
+    pub(super) element_drop_kind: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

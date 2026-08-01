@@ -1,6 +1,71 @@
 use super::*;
 
 #[test]
+fn lowers_recursive_drop_fixed_array_elements_in_reverse_offset_order() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+type Files = [File; 3]
+
+func main(): i32 {
+    let files: Files = [
+        File { fd: 1 },
+        File { fd: 2 },
+        File { fd: 3 }
+    ]
+    return 0
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let drop_sources = main
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction {
+            Instruction::CallVoid { target, arguments }
+                if target == &CallTarget::same_file("File.drop") =>
+            {
+                arguments.first().and_then(|argument| match argument {
+                    ScalarArgument::Borrow(borrow) => Some(borrow.source),
+                    _ => None,
+                })
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        drop_sources,
+        vec![
+            BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 8,
+            },
+            BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 4,
+            },
+            BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 0,
+            },
+        ]
+    );
+}
+
+#[test]
 fn lowers_fixed_array_variable_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

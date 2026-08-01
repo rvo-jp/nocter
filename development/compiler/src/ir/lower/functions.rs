@@ -9,7 +9,7 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource,
+    AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource, ArrayDrop,
     BorrowParameter, ErrorPayloads, FunctionNames, FunctionSignatures, LoweringAggregateParameter,
     LoweringContext, LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropField,
     PayloadEnumDropVariant, PendingAggregateDrop, ResolvedSources, SliceTypeInfo, StructDrop,

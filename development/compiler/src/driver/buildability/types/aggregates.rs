@@ -290,6 +290,67 @@ where
     resolving_names.remove(&symbol.canonical_name);
     result
 }
+
+pub(in crate::driver::buildability) fn fixed_array_element_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
+        TypeExpr::Reference(reference) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = fixed_array_element_type_expr_with_resolver(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Generic(generic) => {
+            let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
+            let symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            let target = substitute_type_expr_parameters(target, &substitutions);
+            let result = fixed_array_element_type_expr_with_resolver(
+                &target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
+    }
+}
 pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_return_with_resolver<
     'a,
     F,

@@ -43,6 +43,41 @@ pub(in crate::ir::lower::functions) fn lower_struct_drop_instructions(
     Ok(instructions)
 }
 
+pub(in crate::ir::lower::functions) fn lower_array_drop_instructions(
+    name: &str,
+    slot_index: usize,
+    drop_: &ArrayDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_array_drop_instructions_at_offset(name, slot_index, 0, drop_, context)
+}
+
+fn lower_array_drop_instructions_at_offset(
+    name: &str,
+    slot_index: usize,
+    base_offset: u32,
+    drop_: &ArrayDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    for index in (0..drop_.length).rev() {
+        let offset = index
+            .checked_mul(drop_.stride)
+            .and_then(|offset| u64::from(base_offset).checked_add(offset))
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+        instructions.extend(lower_aggregate_drop_at_offset(
+            name,
+            slot_index,
+            offset,
+            drop_.element_layout,
+            drop_.element_drop_kind.as_ref(),
+            context,
+        )?);
+    }
+    Ok(instructions)
+}
+
 fn lower_struct_drop_field(
     name: &str,
     slot_index: usize,
@@ -90,6 +125,9 @@ fn lower_aggregate_drop_at_offset(
                 )?);
             }
             Ok(instructions)
+        }
+        AggregateDrop::Array(drop_) => {
+            lower_array_drop_instructions_at_offset(name, slot_index, offset, drop_, context)
         }
         AggregateDrop::PayloadEnum(drop_) => {
             lower_payload_enum_drop_instructions_at_offset(name, slot_index, offset, drop_, context)

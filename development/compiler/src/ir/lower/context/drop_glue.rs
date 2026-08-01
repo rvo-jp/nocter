@@ -21,6 +21,11 @@ fn aggregate_drop_for_type_expr_inner<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    if let Some(array_drop) =
+        array_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
+    {
+        return Some(AggregateDrop::Array(array_drop));
+    }
     let direct =
         drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver);
     let fields = crate::ir::lower::aggregates::aggregate_fields_from_type_expr_with_resolver(
@@ -40,6 +45,112 @@ where
 
     payload_enum_drop_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
         .map(AggregateDrop::PayloadEnum)
+}
+
+fn array_drop_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<ArrayDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let element_ty = array_element_type_expr_with_resolver(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    )?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
+    let AbiType::Array { element, length } = value.ty else {
+        return None;
+    };
+    let element_drop_kind =
+        aggregate_drop_for_type_expr_inner(&element_ty, root_source, fallback_resolved, resolver)?;
+    let element_layout = layout_of(&element).ok()?;
+    let stride = array_element_stride(&element).ok()?;
+    Some(ArrayDrop {
+        length,
+        stride,
+        element_layout,
+        element_drop_kind: Box::new(element_drop_kind),
+    })
+}
+
+fn array_element_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> Option<TypeExpr>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    match ty {
+        TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
+        TypeExpr::Reference(reference) => {
+            let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
+                ty,
+                fallback_resolved,
+                resolver,
+            );
+            let symbol = crate::ir::lower::aggregates::type_symbol_by_reference_name(
+                resolved,
+                &reference.name,
+            )?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = array_element_type_expr_with_resolver(
+                target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Generic(generic) => {
+            let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
+                ty,
+                fallback_resolved,
+                resolver,
+            );
+            let symbol = crate::ir::lower::aggregates::type_symbol_by_reference_name(
+                resolved,
+                &generic.name,
+            )?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            let target = substitute_type_expr_parameters(target, &substitutions);
+            let result = array_element_type_expr_with_resolver(
+                &target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
+    }
 }
 
 fn struct_drop_fields(fields: &[AggregateField]) -> Vec<StructDropField> {

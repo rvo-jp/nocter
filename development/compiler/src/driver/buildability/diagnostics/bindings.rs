@@ -56,6 +56,20 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         generic_substitutions,
     );
     if fixed_array_binding_type.is_some() {
+        if fixed_array_literal_requires_partial_initialization_tracking(
+            statement,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+        ) {
+            return Some(unsupported_v0_build_diagnostic(
+                sources,
+                statement.initializer.span(),
+                "fixed array literal bindings whose element initialization can exit early",
+                "initialize every recursively dropped element without `?`, `catch`, `otherwise`, or value control flow until per-element initialization state is tracked",
+            ));
+        }
         return Some(match unwrap_group_expr(&statement.initializer) {
             Expr::ArrayLiteral(_) => unsupported_v0_build_diagnostic(
                 sources,

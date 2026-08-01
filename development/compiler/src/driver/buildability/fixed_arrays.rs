@@ -89,7 +89,167 @@ pub(super) fn fixed_array_literal_binding_is_buildable(
         return false;
     };
     u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+        && (fixed_array_element_abi_is_buildable(&element)
+            || fixed_array_literal_recursive_drop_elements_are_buildable(
+                literal,
+                &ty,
+                &element,
+                resolved,
+                resolved_sources,
+            ))
+}
+
+fn fixed_array_literal_recursive_drop_elements_are_buildable(
+    literal: &crate::ast::ArrayLiteralExpr,
+    array_ty: &TypeExpr,
+    element_abi: &AbiType,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    if !fixed_array_literal_recursive_drop_element_type_is_buildable(
+        array_ty,
+        element_abi,
+        fallback_resolved,
+        resolved_sources,
+    ) {
+        return false;
+    }
+
+    literal
+        .elements
+        .iter()
+        .all(fixed_array_owned_element_initializer_is_buildable)
+}
+
+pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(
+    statement: &BindingStmt,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    let Some(ty) =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+    else {
+        return false;
+    };
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+    else {
+        return false;
+    };
+    if u64::try_from(literal.elements.len()).ok() != Some(length)
+        || !fixed_array_literal_recursive_drop_element_type_is_buildable(
+            &ty,
+            &element,
+            resolved,
+            resolved_sources,
+        )
+    {
+        return false;
+    }
+
+    literal
+        .elements
+        .iter()
+        .any(|element| !expression_completes_without_source_control_exit(element))
+}
+
+fn fixed_array_literal_recursive_drop_element_type_is_buildable(
+    array_ty: &TypeExpr,
+    element_abi: &AbiType,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    if !matches!(element_abi, AbiType::Struct(_)) {
+        return false;
+    }
+    let resolver = |source| resolved_sources.get(&source).copied();
+    let Some(element_ty) = fixed_array_element_type_expr_with_resolver(
+        array_ty,
+        fallback_resolved,
+        &resolver,
+        &mut HashSet::new(),
+    ) else {
+        return false;
+    };
+    type_expr_is_supported_aggregate_value_with_resolver(&element_ty, fallback_resolved, &resolver)
+        && type_expr_has_supported_recursive_drop_with_resolver(
+            &element_ty,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        )
+}
+
+fn fixed_array_owned_element_initializer_is_buildable(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::StructLiteral(_) | Expr::Call(_) => {
+            expression_completes_without_source_control_exit(expression)
+        }
+        Expr::Force(force) => {
+            matches!(unwrap_group_expr(&force.expression), Expr::Call(_))
+                && expression_completes_without_source_control_exit(&force.expression)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            matches!(unwrap_group_expr(&unary.operand), Expr::Identifier(_))
+        }
+        _ => false,
+    }
+}
+
+fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
+    match expression {
+        Expr::Propagate(_)
+        | Expr::Catch(_)
+        | Expr::Otherwise(_)
+        | Expr::If(_)
+        | Expr::IfIs(_)
+        | Expr::Match(_)
+        | Expr::InterpolatedString(_) => false,
+        Expr::ArrayLiteral(literal) => literal
+            .elements
+            .iter()
+            .all(expression_completes_without_source_control_exit),
+        Expr::StructLiteral(literal) => literal
+            .fields
+            .iter()
+            .all(|field| expression_completes_without_source_control_exit(&field.value)),
+        Expr::Force(force) => expression_completes_without_source_control_exit(&force.expression),
+        Expr::Borrow(borrow) => {
+            expression_completes_without_source_control_exit(&borrow.expression)
+        }
+        Expr::Unary(unary) => expression_completes_without_source_control_exit(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_completes_without_source_control_exit(&binary.left)
+                && expression_completes_without_source_control_exit(&binary.right)
+        }
+        Expr::TypeConversion(conversion) => {
+            expression_completes_without_source_control_exit(&conversion.expression)
+        }
+        Expr::Call(call) => {
+            expression_completes_without_source_control_exit(&call.callee)
+                && call
+                    .arguments
+                    .iter()
+                    .all(expression_completes_without_source_control_exit)
+        }
+        Expr::Member(member) => expression_completes_without_source_control_exit(&member.object),
+        Expr::Index(index) => {
+            expression_completes_without_source_control_exit(&index.object)
+                && expression_completes_without_source_control_exit(&index.index)
+        }
+        Expr::Group(group) => expression_completes_without_source_control_exit(&group.expression),
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::ByteLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => true,
+    }
 }
 
 pub(super) fn fixed_array_copy_binding_is_buildable(

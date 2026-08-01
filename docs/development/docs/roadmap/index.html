@@ -171,10 +171,12 @@
   runtime-shipped in the current subset. Owned call expressions include direct
   fallible calls handled by <code>?</code>, <code>!</code>, or <code>catch</code> and direct optional calls
   handled by <code>otherwise</code>. Struct cleanup now invokes an outer destructor and
-  recursively drops owned struct fields in reverse order. Remaining member and
-  value-control pattern targets depend on field moves or ownership-aware
-  control joins, so the next independent slice should design move-only
-  fixed-array/collection drop behavior unless those prerequisites land first.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
+  recursively drops owned struct fields in reverse order. Fully initialized
+  local fixed-array literals now clean supported droppable struct elements in
+  reverse index order. Remaining array work requires per-element initialization
+  state and move-aware assignment/argument/return boundaries; remaining member
+  and value-control pattern targets likewise depend on field moves or
+  ownership-aware control joins.</li><li>Update stale references whenever syntax changes remove old spellings.</li><li>Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.</li><li>Promote non-copy <code>Vec&lt;T&gt;</code> storage only after per-element drop behavior is
   designed and tested.</li><li>Promote move-only payload bindings with unsupported recursive drop trees and
   broader pattern target expressions only after array/collection element drop

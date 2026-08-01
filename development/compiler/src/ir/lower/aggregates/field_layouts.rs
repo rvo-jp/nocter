@@ -131,7 +131,7 @@ pub(super) fn generic_type_expr_substitutions(
     )
 }
 
-pub(super) fn resolved_for_type_expr<'a, F>(
+pub(in crate::ir::lower) fn resolved_for_type_expr<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,
     resolver: &F,
@@ -164,7 +164,7 @@ fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
     }
 }
 
-pub(super) fn type_symbol_by_reference_name<'a>(
+pub(in crate::ir::lower) fn type_symbol_by_reference_name<'a>(
     resolved: &'a ResolveOutput,
     name: &str,
 ) -> Option<&'a TypeSymbol> {

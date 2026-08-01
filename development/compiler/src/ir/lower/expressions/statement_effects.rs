@@ -266,7 +266,7 @@ pub(super) fn append_discarded_aggregate_drop(
                 return Err(unsupported_aggregate_call_statement_diagnostic());
             }
         }
-        AggregateDrop::Struct(_) | AggregateDrop::PayloadEnum(_) => {}
+        AggregateDrop::Struct(_) | AggregateDrop::Array(_) | AggregateDrop::PayloadEnum(_) => {}
     }
     instructions.extend(
         lower_aggregate_drop_instructions(
