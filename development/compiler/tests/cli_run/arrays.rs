@@ -2056,3 +2056,166 @@ func main(): void! {
     assert_eq!(output.stdout, b"Xba");
     assert_eq!(output.stderr, b"app.failed: failed\n");
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_replaces_direct_move_only_fixed_array_borrowed_fields() {
+    let project = TempProject::new("cli-run-replace-direct-move-only-array-field");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replace_direct_move_only_array_field.nct",
+        r#"use std/log.write
+
+struct Token {
+    tag: u8
+}
+
+impl Token {
+    drop &+self {
+        if self.tag == 1 {
+            write("a")!
+            return
+        }
+        if self.tag == 2 {
+            write("b")!
+            return
+        }
+        if self.tag == 3 {
+            write("c")!
+            return
+        }
+        write("d")!
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    tokens: [Token; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+func replace(bundle: &+Bundle): void {
+    bundle.tokens = [Token { tag: 3 }, Token { tag: 4 }]
+    return
+}
+
+func main(): i32 {
+    var bundle = Bundle {
+        code: 42,
+        tokens: [Token { tag: 1 }, Token { tag: 2 }],
+    }
+    replace(&+bundle)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"baXdc");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_recursively_drops_replaced_structs_with_move_only_array_fields() {
+    let project = TempProject::new("cli-run-replace-struct-with-move-only-array-field");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replace_struct_with_move_only_array_field.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Bundle {
+    files: [File; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+struct Container {
+    code: i32
+    bundle: Bundle
+}
+
+func main(): i32 {
+    var container = Container {
+        code: 42,
+        bundle: Bundle { files: [File { name: "a" }, File { name: "b" }] },
+    }
+    container.bundle = Bundle { files: [File { name: "c" }, File { name: "d" }] }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"XbaXdc");
+    assert!(output.stderr.is_empty());
+}
