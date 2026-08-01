@@ -1186,3 +1186,64 @@ func main(): i32 {
     assert_eq!(output.stdout, b"baba");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_move_only_fixed_arrays_across_return_boundaries() {
+    let project = TempProject::new("cli-run-move-only-fixed-array-returns");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "move_only_fixed_array_returns.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func make(first: &str, second: &str): [File; 2] {
+    return [File { name: first }, File { name: second }]
+}
+
+func main(): i32 {
+    var files: [File; 2] = make("a", "b")
+    files = make("c", "d")
+    make("e", "f")
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"bafedc");
+    assert!(output.stderr.is_empty());
+}

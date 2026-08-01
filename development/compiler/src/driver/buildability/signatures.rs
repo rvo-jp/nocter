@@ -349,6 +349,11 @@ where
         || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_move_only_fixed_array_with_resolver(
+            ty,
+            fallback_resolved,
+            resolver,
+        )
 }
 
 pub(super) fn callable_return_type_is_buildable_with_resolver<'a, F>(
@@ -432,5 +437,5 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
-        || type_expr_is_supported_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_aggregate_return_with_resolver(ty, fallback_resolved, resolver)
 }

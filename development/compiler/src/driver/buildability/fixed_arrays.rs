@@ -24,6 +24,35 @@ pub(super) fn fixed_array_literal_argument_has_fixed_array_parameter_type(
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
+pub(super) fn fixed_array_literal_argument_requires_partial_initialization_tracking(
+    call: &CallExpr,
+    index: usize,
+    argument: &Expr,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(argument) else {
+        return false;
+    };
+    let Some(ty) = call_argument_parameter_type(
+        call,
+        index,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
+        literal,
+        &ty,
+        resolved,
+        resolved_sources,
+    )
+}
+
 pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
     field: &StructLiteralField,
     resolved: &ResolveOutput,
@@ -53,6 +82,26 @@ pub(super) fn fixed_array_literal_return_has_fixed_array_type(
     return_type
         .and_then(|ty| fixed_array_return_type_abi(ty, resolved, resolved_sources))
         .is_some()
+}
+
+pub(super) fn fixed_array_literal_return_requires_partial_initialization_tracking(
+    expression: &Expr,
+    return_type: Option<&TypeExpr>,
+    resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
+        return false;
+    };
+    let Some(return_type) = return_type else {
+        return false;
+    };
+    fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
+        literal,
+        fixed_array_return_value_type_expr(return_type),
+        resolved,
+        resolved_sources,
+    )
 }
 
 pub(super) fn fixed_array_literal_for_type_has_fixed_array_type(
@@ -121,6 +170,38 @@ fn fixed_array_literal_recursive_drop_elements_are_buildable(
         .all(fixed_array_owned_element_initializer_is_buildable)
 }
 
+fn fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
+    literal: &crate::ast::ArrayLiteralExpr,
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(ty, fallback_resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_literal_recursive_drop_element_type_is_buildable(
+            ty,
+            &element,
+            fallback_resolved,
+            resolved_sources,
+        )
+        && literal
+            .elements
+            .iter()
+            .any(|element| !expression_completes_without_source_control_exit(element))
+}
+
+fn fixed_array_return_value_type_expr(ty: &TypeExpr) -> &TypeExpr {
+    match ty {
+        TypeExpr::Fallible(fallible) => fixed_array_return_value_type_expr(&fallible.success),
+        TypeExpr::Optional(optional) => fixed_array_return_value_type_expr(&optional.inner),
+        _ => ty,
+    }
+}
+
 pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(
     statement: &BindingStmt,
     resolved: &ResolveOutput,
@@ -168,21 +249,11 @@ fn fixed_array_literal_recursive_drop_element_type_is_buildable(
         return false;
     }
     let resolver = |source| resolved_sources.get(&source).copied();
-    let Some(element_ty) = fixed_array_element_type_expr_with_resolver(
+    type_expr_is_supported_move_only_fixed_array_with_resolver(
         array_ty,
         fallback_resolved,
         &resolver,
-        &mut HashSet::new(),
-    ) else {
-        return false;
-    };
-    type_expr_is_supported_aggregate_value_with_resolver(&element_ty, fallback_resolved, &resolver)
-        && type_expr_has_supported_recursive_drop_with_resolver(
-            &element_ty,
-            fallback_resolved,
-            &resolver,
-            &mut HashSet::new(),
-        )
+    )
 }
 
 fn fixed_array_owned_element_initializer_is_buildable(expression: &Expr) -> bool {
@@ -337,18 +408,16 @@ pub(super) fn fixed_array_call_binding_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    let Some((target_element, target_length, target_layout)) = fixed_array_binding_type_abi(
-        statement,
-        resolved,
-        resolved_sources,
-        typecheck_facts,
-        generic_substitutions,
-    ) else {
+    let Some(target_ty) =
+        binding_type_expr_with_substitutions(statement, typecheck_facts, generic_substitutions)
+    else {
         return false;
     };
-    if !fixed_array_element_abi_is_buildable(&target_element) {
+    let Some((target_element, target_length, target_layout)) =
+        fixed_array_type_abi_for_sources(&target_ty, resolved, resolved_sources)
+    else {
         return false;
-    }
+    };
 
     let Some(source_ty) = fixed_array_binding_call_result_type_expr(
         &statement.initializer,
@@ -364,13 +433,16 @@ pub(super) fn fixed_array_call_binding_is_buildable(
         return false;
     };
 
-    fixed_array_abi_matches_buildable_element(
+    fixed_array_abi_matches_supported_element(
+        &target_ty,
         &target_element,
         target_length,
         target_layout,
         &source_element,
         source_length,
         source_layout,
+        resolved,
+        resolved_sources,
     )
 }
 
@@ -560,7 +632,7 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
     if statement.operator != AssignmentOperator::Assign {
         return false;
     }
-    let Some((target_element, target_length, target_layout)) = fixed_array_assignment_target_abi(
+    let Some(target_ty) = fixed_array_assignment_target_type_expr(
         &statement.target,
         resolved,
         resolved_sources,
@@ -569,9 +641,11 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
     ) else {
         return false;
     };
-    if !fixed_array_element_abi_is_buildable(&target_element) {
+    let Some((target_element, target_length, target_layout)) =
+        fixed_array_type_abi_for_sources(&target_ty, resolved, resolved_sources)
+    else {
         return false;
-    }
+    };
 
     let Some(source_ty) = fixed_array_call_result_type_expr(
         &statement.value,
@@ -587,13 +661,16 @@ pub(super) fn fixed_array_call_assignment_is_buildable(
         return false;
     };
 
-    fixed_array_abi_matches_buildable_element(
+    fixed_array_abi_matches_supported_element(
+        &target_ty,
         &target_element,
         target_length,
         target_layout,
         &source_element,
         source_length,
         source_layout,
+        resolved,
+        resolved_sources,
     )
 }
 
@@ -719,6 +796,33 @@ fn fixed_array_abi_matches(
     target_element == source_element
         && target_length == source_length
         && target_layout == source_layout
+}
+
+fn fixed_array_abi_matches_supported_element(
+    target_ty: &TypeExpr,
+    target_element: &AbiType,
+    target_length: u64,
+    target_layout: crate::abi::ValueLayout,
+    source_element: &AbiType,
+    source_length: u64,
+    source_layout: crate::abi::ValueLayout,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let resolver = |source| resolved_sources.get(&source).copied();
+    fixed_array_abi_matches(
+        target_element,
+        target_length,
+        target_layout,
+        source_element,
+        source_length,
+        source_layout,
+    ) && (fixed_array_element_abi_is_buildable(source_element)
+        || type_expr_is_supported_move_only_fixed_array_with_resolver(
+            target_ty,
+            fallback_resolved,
+            &resolver,
+        ))
 }
 
 pub(super) fn fixed_array_binding_call_result_type_expr(

@@ -434,7 +434,22 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 queue.push_back(target);
             }
             for (index, argument) in expression.arguments.iter().enumerate() {
-                if fixed_array_literal_argument_has_fixed_array_parameter_type(
+                if fixed_array_literal_argument_requires_partial_initialization_tracking(
+                    expression,
+                    index,
+                    argument,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    diagnostics.push(unsupported_v0_build_diagnostic(
+                        sources,
+                        argument.span(),
+                        "fixed array argument literals whose element initialization can exit early",
+                        "initialize every recursively dropped element without `?`, `catch`, `otherwise`, or value control flow until per-element argument initialization state is tracked",
+                    ));
+                } else if fixed_array_literal_argument_has_fixed_array_parameter_type(
                     expression,
                     index,
                     argument,

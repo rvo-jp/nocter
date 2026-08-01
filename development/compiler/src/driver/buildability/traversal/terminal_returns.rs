@@ -32,6 +32,21 @@ pub(in crate::driver::buildability) fn collect_terminal_return_expression_diagno
             );
         }
         Expr::ArrayLiteral(_)
+            if fixed_array_literal_return_requires_partial_initialization_tracking(
+                expression,
+                return_type,
+                resolved,
+                resolved_sources,
+            ) =>
+        {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span(),
+                "fixed array return literals whose element initialization can exit early",
+                "initialize every recursively dropped element without `?`, `catch`, `otherwise`, or value control flow until per-element return initialization state is tracked",
+            ));
+        }
+        Expr::ArrayLiteral(_)
             if fixed_array_literal_return_has_fixed_array_type(
                 expression,
                 return_type,

@@ -1931,6 +1931,75 @@ func unused(): i32 {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
+#[test]
+fn accepts_move_only_fixed_array_return_and_call_result_boundaries() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func make(first: i32, second: i32): [File; 2] {
+    return [File { fd: first }, File { fd: second }]
+}
+
+func main(): i32 {
+    var files: [File; 2] = make(1, 2)
+    files = make(3, 4)
+    make(5, 6)
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_move_only_fixed_array_return_partial_initialization_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func open(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func make(): [File; 2]! {
+    return [File { fd: 1 }, open(2)?]
+}
+
+func main(): i32 {
+    make()!
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0435");
+    assert_eq!(
+        diagnostics[0].message,
+        "Nocter v0 build cannot lower fixed array return literals whose element initialization can exit early yet"
+    );
+}
+
 fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());
