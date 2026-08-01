@@ -41,6 +41,12 @@ replacement and return slots participate in propagation cleanup while they are
 being constructed, then transfer their bytes to the published destination and
 release their temporary obligation.
 
+Call evaluation uses a dedicated cloned lowering context. Completed owned
+argument temporaries remain registered until the call begins. If a later
+argument exits, cleanup drops those earlier arguments in reverse evaluation
+order. Beginning the call transfers their ownership to the callee and discards
+the caller-side evaluation scope.
+
 ## Construction Invariants
 
 - Reserve obligation-state ABI locals before error payload and expression
@@ -61,9 +67,6 @@ release their temporary obligation.
 The existing states deliberately do not pretend to solve non-prefix ownership.
 Future promotions extend the same obligation model:
 
-- Call evaluation needs an ownership scope that retains completed owned
-  argument temporaries until the call begins. If a later argument exits, the
-  scope drops earlier arguments in reverse evaluation order.
 - Struct construction needs per-field obligations. A field becomes live only
   after its initializer completes; an exit drops live fields in reverse
   initialization order. A struct with direct user drop glue cannot expose a

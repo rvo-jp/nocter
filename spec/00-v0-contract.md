@@ -238,8 +238,8 @@ Initial check-only or not-yet-buildable surfaces:
   initialized struct-field storage/replacement lifecycle for supported
   recursively droppable struct elements; field extraction moves remain
   deferred, field initialization that can exit early remains check-only until
-  per-field initialization state is tracked, and element initialization that
-  needs nested field or call-argument ownership state remains check-only
+  per-field initialization state is tracked, and element initialization nested
+  inside struct fields or payload construction remains check-only
 
 ## Aggregate Type Contract
 
@@ -287,11 +287,14 @@ Rules fixed for v0:
   replacements of supported recursively droppable struct elements may lower;
   their live elements are dropped in reverse index order at replacement,
   explicit drop, or scope exit
-- local fixed-array literals, whole-local replacements, and direct literal
-  returns may contain atomic fallible aggregate-call elements handled by
-  postfix `?`; lowering tracks the completed element prefix, drops only that
-  prefix on propagation, and publishes the complete array only after every
-  element succeeds
+- local fixed-array literals, whole-local replacements, direct literal returns,
+  and direct value arguments may contain atomic fallible aggregate-call
+  elements handled by postfix `?`; lowering tracks the completed element
+  prefix, drops only that prefix on propagation, and publishes the complete
+  array only after every element succeeds
+- call argument evaluation retains completed owned temporaries until the call
+  begins, dropping earlier temporaries in reverse evaluation order if a later
+  argument exits
 - explicit moves transfer a supported move-only fixed array's cleanup
   obligation between local bindings; moved or explicitly dropped `var` locals
   regain that obligation when reinitialized

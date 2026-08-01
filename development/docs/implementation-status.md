@@ -60,12 +60,15 @@ replacement, discarded results, value arguments, and owned parameters for
 plain, optional, and fallible calls.
 Their elements may be struct literals, infallible direct call results, forced
 direct call results, or explicit moves from locals; local literals,
-whole-local replacements, and direct literal returns additionally accept
-atomic fallible aggregate-call elements handled by `?`. These three paths track
+whole-local replacements, direct literal returns, and direct value arguments
+additionally accept atomic fallible aggregate-call elements handled by `?`.
+These paths track
 the completed runtime prefix, clean it in reverse index order on propagation,
-and keep replacement targets live until the replacement succeeds. Element
-expressions that need nested field state, call-argument ownership scope, or
-general value-control joins still reject before IR lowering.
+and keep replacement targets live until the replacement succeeds. Call
+evaluation also retains completed owned temporaries until the call begins, so a
+later failing argument cleans earlier arguments in reverse evaluation order.
+Element expressions that need nested field or payload state, or general
+value-control joins still reject before IR lowering.
 Explicit moves between local move-only fixed arrays transfer the cleanup
 obligation, and moved or explicitly dropped `var` locals can be reinitialized
 without retaining stale cleanup state. Moves into and between owned parameters
