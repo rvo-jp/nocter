@@ -723,7 +723,88 @@ pub(super) fn fixed_array_literal_assignment_is_buildable(
         return false;
     };
     u64::try_from(literal.elements.len()).ok() == Some(length)
-        && fixed_array_element_abi_is_buildable(&element)
+        && (fixed_array_element_abi_is_buildable(&element)
+            || fixed_array_literal_recursive_drop_assignment_is_buildable(
+                statement,
+                literal,
+                &element,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            ))
+}
+
+fn fixed_array_literal_recursive_drop_assignment_is_buildable(
+    statement: &AssignmentStmt,
+    literal: &crate::ast::ArrayLiteralExpr,
+    element_abi: &AbiType,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_)) {
+        return false;
+    }
+    let Some(target_ty) = fixed_array_assignment_target_type_expr(
+        &statement.target,
+        fallback_resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    fixed_array_literal_recursive_drop_element_type_is_buildable(
+        &target_ty,
+        element_abi,
+        fallback_resolved,
+        resolved_sources,
+    ) && literal
+        .elements
+        .iter()
+        .all(fixed_array_owned_element_initializer_is_buildable)
+}
+
+fn fixed_array_literal_assignment_requires_partial_initialization_tracking(
+    statement: &AssignmentStmt,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_)) {
+        return false;
+    }
+    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
+        return false;
+    };
+    let Some(target_ty) = fixed_array_assignment_target_type_expr(
+        &statement.target,
+        fallback_resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) else {
+        return false;
+    };
+    let Some((element, length, _layout)) =
+        fixed_array_type_abi_for_sources(&target_ty, fallback_resolved, resolved_sources)
+    else {
+        return false;
+    };
+    u64::try_from(literal.elements.len()).ok() == Some(length)
+        && fixed_array_literal_recursive_drop_element_type_is_buildable(
+            &target_ty,
+            &element,
+            fallback_resolved,
+            resolved_sources,
+        )
+        && literal
+            .elements
+            .iter()
+            .any(|element| !expression_completes_without_source_control_exit(element))
 }
 
 pub(super) fn unsupported_fixed_array_assignment_diagnostic(
@@ -777,6 +858,21 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         generic_substitutions,
     ) {
         return None;
+    }
+
+    if fixed_array_literal_assignment_requires_partial_initialization_tracking(
+        statement,
+        resolved,
+        resolved_sources,
+        typecheck_facts,
+        generic_substitutions,
+    ) {
+        return Some(unsupported_v0_build_diagnostic(
+            sources,
+            statement.value.span(),
+            "fixed array literal assignments whose element initialization can exit early",
+            "initialize every recursively dropped element without `?`, `catch`, `otherwise`, or value control flow until per-element initialization state is tracked",
+        ));
     }
 
     Some(match unwrap_group_expr(&statement.value) {

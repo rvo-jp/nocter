@@ -233,10 +233,10 @@ Initial check-only or not-yet-buildable surfaces:
   promoted
 - `Vec<T>` storage paths outside the runtime-supported scalar, `&str`, and
   explicitly promoted copy-aggregate element subset
-- move-only fixed arrays outside fully initialized local array literals whose
-  elements are supported recursively droppable structs; element initialization
-  that can exit early remains check-only until per-element initialization state
-  is tracked
+- move-only fixed arrays outside fully initialized local array literals and
+  whole-local literal replacement whose elements are supported recursively
+  droppable structs; element initialization that can exit early remains
+  check-only until per-element initialization state is tracked
 
 ## Aggregate Type Contract
 
@@ -278,9 +278,10 @@ Rules fixed for v0:
   aggregate payload binding with unsupported recursive drop trees and broader
   pattern target expressions still reject before build/run
 - fixed arrays use contiguous element layout with a compile-time length
-- fully initialized local fixed-array literals of supported recursively
-  droppable struct elements may lower; their live elements are dropped in
-  reverse index order at explicit drop or scope exit
+- fully initialized local fixed-array literals and whole-local literal
+  replacements of supported recursively droppable struct elements may lower;
+  their live elements are dropped in reverse index order at replacement,
+  explicit drop, or scope exit
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification
 - values larger than 16 bytes use indirect ABI classification

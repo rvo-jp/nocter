@@ -456,6 +456,70 @@ func make_file(): File! {
 }
 
 #[test]
+fn does_not_report_recursive_drop_fixed_array_literal_replacement() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var files: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    files = [File { fd: 3 }, File { fd: 4 }]
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_partial_initialization_recursive_drop_fixed_array_literal_replacement() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32! {
+    var files: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    files = [File { fd: 3 }, make_file()?]
+    return 0
+}
+
+func make_file(): File! {
+    return File { fd: 4 }
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0435"
+                && diagnostic
+                    .message
+                    .contains("fixed array literal assignments")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn does_not_report_payload_enum_if_is_constructor_pattern_target() {
     let (sources, analysis) = analyze_text(
         r#"enum Result {

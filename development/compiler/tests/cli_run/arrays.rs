@@ -929,3 +929,59 @@ func main(): i32 {
     assert_eq!(output.stdout, b"bax");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_replaces_recursive_drop_fixed_array_literal_after_old_cleanup() {
+    let project = TempProject::new("cli-run-replace-recursive-drop-fixed-array-literal");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replace_recursive_drop_fixed_array_literal.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func main(): i32 {
+    var files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    files = [File { name: "c" }, File { name: "d" }]
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badc");
+    assert!(output.stderr.is_empty());
+}

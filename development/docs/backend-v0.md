@@ -155,8 +155,8 @@ includes:
   fields, including signed minimum values
 - drop-aware whole-binding and field replacement in supported paths
 - reverse-index recursive cleanup for fully initialized local fixed-array
-  literals of supported droppable struct elements, including explicit drop and
-  moved element ownership transfer
+  literals and whole-local literal replacement of supported droppable struct
+  elements, including explicit drop and moved element ownership transfer
 - optional and fallible aggregate call results in supported positions
 - copy aggregate storage and slice indexing through current `Vec<T>` and
   slice-view paths

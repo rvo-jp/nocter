@@ -123,8 +123,9 @@ Recommended order:
    include plain calls, direct fallible calls handled by `?`, `!`, or `catch`,
    and direct optional calls handled by `otherwise`.
    Struct drop glue now recursively cleans owned struct fields after the outer
-   destructor. Fully initialized local fixed-array literals of supported
-   droppable struct elements now clean elements in reverse index order. The
+   destructor. Fully initialized local fixed-array literals and whole-local
+   literal replacement of supported droppable struct elements now clean
+   elements in reverse index order. The
    remaining array paths require per-element initialization state or
    move-aware assignment/argument/return ownership; do not promote them as mere
    expression shapes. Member and value-control pattern targets likewise require
@@ -307,12 +308,13 @@ Recommended order:
   and run for local and aggregate-field fixed arrays in the same element subset,
   including fixed array fields inside concrete generic structs, plus constant
   and variable numeric index compound assignment for `i32`, `u8`, and `usize`.
-  Fully initialized local literals of supported recursively droppable struct
-  elements now build and clean live elements in reverse index order, including
-  explicit drop and moved-element ownership transfer. Element initialization
-  that can exit early receives a source-backed buildability diagnostic because
-  per-element initialization state is not tracked yet. Other move-only array
-  positions remain rejected or deferred.
+  Fully initialized local literals and whole-local literal replacement of
+  supported recursively droppable struct elements now build and clean live
+  elements in reverse index order, including replacement, explicit drop, and
+  moved-element ownership transfer. Element initialization that can exit early
+  receives a source-backed buildability diagnostic because per-element
+  initialization state is not tracked yet. Other move-only array positions
+  remain rejected or deferred.
 - Release packaging layout now separates tracked inputs from generated output:
   `development/std` is the canonical standard-library source,
   `development/packaging` contains release metadata inputs, and
