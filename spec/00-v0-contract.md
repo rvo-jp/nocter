@@ -216,10 +216,12 @@ Initial check-only or not-yet-buildable surfaces:
   tag-only `if is Enum.variant(_)` statements, tag-only `match` statements, and
   scalar, string/slice view, copy aggregate payload binding, and owned
   recursively droppable aggregate payload move binding over existing enum
-  values and supported plain/forced/propagated/caught direct-call,
-  constructor, and move-local pattern targets are buildable for the current
-  payload subset, with active payload cleanup additionally supported for
-  aggregate payload fields with supported recursive drop glue
+  values and supported owned call-expression, constructor, and move-local
+  pattern targets are buildable for the current payload subset; owned call
+  expressions include plain calls, direct fallible calls handled by `?`, `!`,
+  or `catch`, and direct optional calls handled by `otherwise`, with active
+  payload cleanup additionally supported for aggregate payload fields with
+  supported recursive drop glue
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct
@@ -263,8 +265,7 @@ Rules fixed for v0:
 - payload-carrying enum construction, locals, returns, value arguments,
   tag-only `if is Enum.variant(_)` statements, and tag-only `match` statements
   may lower in the current payload subset over existing enum values and
-  supported plain/forced/propagated/caught direct-call, constructor, and
-  move-local pattern targets;
+  supported owned call-expression, constructor, and move-local pattern targets;
   scalar, string/slice view, copy aggregate payload binding, and owned
   recursively droppable aggregate payload move binding may lower in `if is` and `match`
   branches over existing enum values and supported pattern targets; active

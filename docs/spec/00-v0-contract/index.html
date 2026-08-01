@@ -174,10 +174,12 @@
   tag-only <code>if is Enum.variant(_)</code> statements, tag-only <code>match</code> statements, and
   scalar, string/slice view, copy aggregate payload binding, and owned
   recursively droppable aggregate payload move binding over existing enum
-  values and supported plain/forced/propagated/caught direct-call,
-  constructor, and move-local pattern targets are buildable for the current
-  payload subset, with active payload cleanup additionally supported for
-  aggregate payload fields with supported recursive drop glue</li><li>string interpolation lowering until the explicit standard-library formatting
+  values and supported owned call-expression, constructor, and move-local
+  pattern targets are buildable for the current payload subset; owned call
+  expressions include plain calls, direct fallible calls handled by <code>?</code>, <code>!</code>,
+  or <code>catch</code>, and direct optional calls handled by <code>otherwise</code>, with active
+  payload cleanup additionally supported for aggregate payload fields with
+  supported recursive drop glue</li><li>string interpolation lowering until the explicit standard-library formatting
   construction path is complete</li><li>ordinary input-dependent <code>error</code> success-return helper calls outside direct
   <code>Error.new(...)</code>-style <code>(&amp;str, &amp;str) -&gt; error</code> failure payload construction
   and input-free static payload wrappers; this includes helper parameters and
@@ -189,8 +191,7 @@
   by ABI v0</li><li>payload-carrying enum construction, locals, returns, value arguments,
   tag-only <code>if is Enum.variant(_)</code> statements, and tag-only <code>match</code> statements
   may lower in the current payload subset over existing enum values and
-  supported plain/forced/propagated/caught direct-call, constructor, and
-  move-local pattern targets;
+  supported owned call-expression, constructor, and move-local pattern targets;
   scalar, string/slice view, copy aggregate payload binding, and owned
   recursively droppable aggregate payload move binding may lower in <code>if is</code> and <code>match</code>
   branches over existing enum values and supported pattern targets; active

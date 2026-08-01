@@ -415,12 +415,12 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                         sources,
                         statement.pattern_span,
                         "`if is` pattern branches",
-                        "use payloadless enum patterns or supported payload bindings over existing values and supported call/constructor/move-local pattern targets",
+                        "use payloadless enum patterns or supported payload bindings over existing values and owned call-expression, constructor, or move-local pattern targets",
                     )
                 });
                 diagnostics.push(diagnostic);
             }
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,
@@ -525,12 +525,12 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                         sources,
                         statement.span,
                         "`match` statements",
-                        "use payloadless enum arms or supported payload bindings over existing values and supported call/constructor/move-local pattern targets",
+                        "use payloadless enum arms or supported payload bindings over existing values and owned call-expression, constructor, or move-local pattern targets",
                     )
                 });
                 diagnostics.push(diagnostic);
             }
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &statement.expression,
                 sources,
                 resolved,

@@ -189,7 +189,7 @@ pub(in crate::driver::buildability) fn collect_void_effect_if_is_expression_diag
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    collect_expression_diagnostics(
+    collect_payload_pattern_target_expression_diagnostics(
         &expression.expression,
         sources,
         resolved,
@@ -245,7 +245,7 @@ pub(in crate::driver::buildability) fn collect_void_effect_match_expression_diag
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    collect_expression_diagnostics(
+    collect_payload_pattern_target_expression_diagnostics(
         &expression.expression,
         sources,
         resolved,

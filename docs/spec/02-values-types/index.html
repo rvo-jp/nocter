@@ -394,11 +394,11 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   move-only payload binding transfers ownership out of an owned pattern target.
   Matching an existing local requires an explicit <code>move</code> target, such as
   <code>match move result</code>; a call result, a direct-call success value extracted by
-  postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, or a direct variant constructor is
-  already an owned temporary. Member targets cannot supply move-only payload
-  bindings until field moves are supported. Runtime lowering currently
-  supports this transfer for aggregate payloads with runtime-supported
-  recursive drop glue.
+  postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, a direct optional-call value recovered
+  by <code>otherwise</code>, or a direct variant constructor is already an owned
+  temporary. Member targets cannot supply move-only payload bindings until
+  field moves are supported. Runtime lowering currently supports this transfer
+  for aggregate payloads with runtime-supported recursive drop glue.
   The selected branch owns and drops the binding; the source enum is suppressed
   after the transfer. A non-selected branch retains and drops the source enum.</li><li>Payload-carrying enum active payload cleanup lowers for runtime-supported enum
   values whose droppable variants have supported aggregate drop trees.
@@ -407,10 +407,11 @@ type <span class="token-type">OrderId</span> <span class="token-operator">=</spa
   Multi-field payload cleanup drops active fields in reverse aggregate field
   order and applies supported struct drop trees recursively.</li><li>Payload-carrying enum <code>if is</code> / <code>match</code> over call results, direct-call
   success values extracted by postfix <code>?</code>, postfix <code>!</code>, or <code>catch</code>, direct
-  variant constructors, and explicit <code>move</code> of an enum local lower in the
-  current runtime-supported payload subset. Other pattern target expressions
-  and move-only aggregate payload bindings with unsupported recursive drop
-  trees still reject before build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
+  optional-call values recovered by <code>otherwise</code>, direct variant constructors,
+  and explicit <code>move</code> of an enum local lower in the current runtime-supported
+  payload subset. Other pattern target expressions and move-only aggregate
+  payload bindings with unsupported recursive drop trees still reject before
+  build/run.</li><li>Payload names in a pattern are bound only inside that arm block.</li><li><code>_</code> inside a payload pattern, such as <code>AppError.open_failed(_)</code>, requires a
   payload to exist and discards it without introducing a binding.</li><li><code>_</code> by itself is valid only as the <code>match</code> fallback arm. It is not a valid
   <code>if is</code> pattern.</li></ul><p>Example value selection:</p><pre><code class="language-nct"><span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>
     <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span> <span class="token-function">missing_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>

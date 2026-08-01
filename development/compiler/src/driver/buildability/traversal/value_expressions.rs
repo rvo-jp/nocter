@@ -1,5 +1,54 @@
 use super::*;
 
+pub(in crate::driver::buildability) fn collect_payload_pattern_target_expression_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    resolved_sources: &ResolvedSources<'_>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Expr::Otherwise(otherwise) = unwrap_group_expr(expression)
+        && let Some(expected_type) = typecheck_facts.expression_type_expr(expression.span())
+    {
+        let expected_type = substitute_type_expr_parameters(expected_type, generic_substitutions);
+        collect_otherwise_aggregate_value_expression_diagnostics(
+            otherwise,
+            &expected_type,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            resolved_sources,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+        return;
+    }
+
+    collect_expression_diagnostics(
+        expression,
+        sources,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+        root_source,
+        names,
+        resolved_sources,
+        nocter_home,
+        queue,
+        diagnostics,
+    );
+}
+
 pub(in crate::driver::buildability) fn collect_value_expression_diagnostics(
     expression: &Expr,
     return_type: Option<&TypeExpr>,
@@ -78,7 +127,7 @@ pub(in crate::driver::buildability) fn collect_value_expression_diagnostics(
                 generic_substitutions,
             ) =>
         {
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &expression.expression,
                 sources,
                 resolved,
@@ -131,7 +180,7 @@ pub(in crate::driver::buildability) fn collect_value_expression_diagnostics(
                 generic_substitutions,
             ) =>
         {
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &expression.expression,
                 sources,
                 resolved,

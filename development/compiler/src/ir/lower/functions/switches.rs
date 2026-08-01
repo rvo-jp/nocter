@@ -465,6 +465,16 @@ pub(super) fn lower_payload_enum_pattern_target(
         .map_err(|_| unsupported_diagnostic(diagnostic_code))?
         {
             instructions
+        } else if let Expr::Otherwise(otherwise) = unwrap_group(expression) {
+            lower_aggregate_otherwise_value_to_location(
+                otherwise,
+                &value,
+                &return_type,
+                AggregateLocation::Slot(slot_index),
+                &function_name,
+                resolved,
+                context,
+            )?
         } else {
             lower_aggregate_return_expression_to_location(
                 expression,
@@ -504,6 +514,9 @@ pub(super) fn payload_enum_pattern_target_expression_shape_is_supported(
         }
         Expr::Force(force) => matches!(unwrap_group(&force.expression), Expr::Call(_)),
         Expr::Catch(catch) => matches!(unwrap_group(&catch.expression), Expr::Call(_)),
+        Expr::Otherwise(otherwise) => {
+            matches!(unwrap_group(&otherwise.value), Expr::Call(_))
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             matches!(unwrap_group(&unary.operand), Expr::Identifier(_))
         }

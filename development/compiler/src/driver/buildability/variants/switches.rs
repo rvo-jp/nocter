@@ -166,6 +166,9 @@ pub(in crate::driver::buildability) fn payload_enum_pattern_target_expression_sh
         Expr::Catch(catch) => {
             matches!(unwrap_group_expr(&catch.expression), Expr::Call(_))
         }
+        Expr::Otherwise(otherwise) => {
+            matches!(unwrap_group_expr(&otherwise.value), Expr::Call(_))
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             matches!(unwrap_group_expr(&unary.operand), Expr::Identifier(_))
         }

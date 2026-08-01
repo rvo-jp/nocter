@@ -897,6 +897,255 @@ func make_ok(): Result! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_otherwise_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-otherwise-call-target");
+    let source = project.write_source(
+        "payload_enum_if_is_otherwise_call_target.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    return score(true) + score(false)
+}
+
+func score(has_value: bool): i32 {
+    return if (maybe_ok(has_value) otherwise { Result.ok(2) }) is Result.ok(value) {
+        value
+    } else {
+        0
+    }
+}
+
+func maybe_ok(has_value: bool): Result? {
+    if has_value {
+        return Result.ok(40)
+    }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_match_otherwise_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-match-otherwise-call-target");
+    let source = project.write_source(
+        "payload_enum_match_otherwise_call_target.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    return match (maybe_ok() otherwise { Result.ok(42) }) {
+        Result.ok(value) { value }
+        _ { 0 }
+    }
+}
+
+func maybe_ok(): Result? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_otherwise_pattern_target_fallback_locals_before_join_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-otherwise-target-fallback-drop");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_otherwise_target_fallback_drop.nct",
+        r#"use std/process.exit
+
+struct Guard {
+    code: i32
+}
+
+impl Guard {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if (maybe_ok() otherwise {
+        var guard = Guard { code: 42 }
+        Result.ok(1)
+    }) is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+
+func maybe_ok(): Result? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_owned_payload_from_otherwise_fallback_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-otherwise-owned-target");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_if_is_otherwise_owned_target.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    if (maybe_ok() otherwise { Result.ok(Payload { code: 42 }) }) is Result.ok(value) {
+        return 1
+    }
+
+    return 0
+}
+
+func maybe_ok(): Result? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_moves_otherwise_fallback_local_into_pattern_target_once() {
+    let project = TempProject::new("cli-run-payload-enum-otherwise-target-fallback-move");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "payload_enum_otherwise_target_fallback_move.nct",
+        r#"use std/log.write
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        write("drop\n")!
+        return
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    if (maybe_ok() otherwise {
+        var result = Result.ok(Payload { code: 42 })
+        move result
+    }) is Result.ok(value) {
+        return 1
+    }
+
+    return 0
+}
+
+func maybe_ok(): Result? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_if_is_constructor_target_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-constructor-target-binding");
     let source = project.write_source(

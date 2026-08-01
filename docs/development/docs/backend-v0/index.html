@@ -176,22 +176,25 @@
   for the current runtime-supported payload subset, including direct enum
   constructors in value-argument position</li><li>tag-only payload-carrying enum <code>if is Enum.variant(_)</code> statements over
   existing enum bindings and parameters, plus supported
-  plain/forced/propagated/caught direct-call, constructor, and move-local
-  pattern targets, in the current runtime-supported payload subset</li><li>payload-carrying enum <code>if is Enum.variant(binding)</code> statements and value
+  owned call-expression, constructor, and move-local pattern targets, in the
+  current runtime-supported payload subset</li><li>payload-carrying enum <code>if is Enum.variant(binding)</code> statements and value
   expressions over existing enum bindings and parameters, plus supported
-  plain/forced/propagated/caught direct-call, constructor, and move-local
-  pattern targets, when the bound payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>,
-  <code>&amp;str</code>, a slice view, a copy aggregate value, or an owned aggregate value with
-  runtime-supported recursive drop glue</li><li>tag-only payload-carrying enum <code>match</code> statements over existing enum bindings
-  and parameters, plus supported plain/forced/propagated/caught direct-call,
-  constructor, and move-local pattern targets, in the current runtime-supported
-  payload subset, including wildcard-only, nonexhaustive no-wildcard, and
-  exhaustive no-wildcard statement forms</li><li>payload-carrying enum <code>match</code> statement and value-expression arm bindings over
+  owned call-expression, constructor, and move-local pattern targets, when the
+  bound payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>, <code>&amp;str</code>, a slice view, a
+  copy aggregate value, or an owned aggregate value with runtime-supported
+  recursive drop glue</li><li>tag-only payload-carrying enum <code>match</code> statements over existing enum bindings
+  and parameters, plus supported owned call-expression, constructor, and
+  move-local pattern targets, in the current runtime-supported payload subset,
+  including wildcard-only, nonexhaustive no-wildcard, and exhaustive
+  no-wildcard statement forms</li><li>payload-carrying enum <code>match</code> statement and value-expression arm bindings over
   existing enum bindings and parameters, plus supported
-  plain/forced/propagated/caught direct-call, constructor, and move-local
-  pattern targets, when the bound payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>,
-  <code>&amp;str</code>, a slice view, a copy aggregate value, or an owned aggregate value with
-  runtime-supported recursive drop glue</li><li>active payload cleanup for payload-carrying enum values whose droppable
+  owned call-expression, constructor, and move-local pattern targets, when the
+  bound payload ABI is <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>, <code>&amp;str</code>, a slice view, a
+  copy aggregate value, or an owned aggregate value with runtime-supported
+  recursive drop glue</li><li>owned call-expression pattern targets include plain calls, direct fallible
+  calls handled by <code>?</code>, <code>!</code>, or <code>catch</code>, and direct optional calls handled by
+  <code>otherwise</code>; a value-producing <code>otherwise</code> fallback rejoins pattern matching
+  after dropping fallback-local owned values</li><li>active payload cleanup for payload-carrying enum values whose droppable
   variants have runtime-supported recursive aggregate drop trees, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
   bindings, whole-local replacement, and multi-field payload cleanup in reverse

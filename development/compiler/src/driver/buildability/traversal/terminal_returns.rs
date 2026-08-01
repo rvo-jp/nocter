@@ -185,7 +185,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_expression_diagno
                 generic_substitutions,
             ) =>
         {
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &expression.expression,
                 sources,
                 resolved,
@@ -238,7 +238,7 @@ pub(in crate::driver::buildability) fn collect_terminal_return_expression_diagno
                 generic_substitutions,
             ) =>
         {
-            collect_expression_diagnostics(
+            collect_payload_pattern_target_expression_diagnostics(
                 &expression.expression,
                 sources,
                 resolved,

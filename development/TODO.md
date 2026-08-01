@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `d9a9271 Lower fallible payload pattern targets`
   - `463af26 Drop owned struct fields recursively`
   - `17bc706 Lower owned direct-drop payload bindings`
   - `111c5bf Update handoff after payload ownership work`
@@ -109,15 +110,16 @@ Recommended order:
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
-   over existing values and supported plain/forced/propagated/caught
-   direct-call, constructor, and move-local pattern targets, plus scalar,
-   string/slice view, copy aggregate payload binding, and
+   over existing values and supported owned call-expression, constructor, and
+   move-local pattern targets, plus scalar, string/slice view, copy aggregate
+   payload binding, and
    owned recursively droppable aggregate payload move binding in `if is`
    statements and value expressions and `match` statement/value-expression arms. The frontend
    records copy-versus-move payload binding mode and requires explicit `move`
    when a move-only binding extracts from an existing local; member extraction
-   remains blocked until field moves exist. Plain, forced, propagated, and
-   caught direct-call success values are supported owned pattern targets.
+   remains blocked until field moves exist. Owned call-expression targets
+   include plain calls, direct fallible calls handled by `?`, `!`, or `catch`,
+   and direct optional calls handled by `otherwise`.
    Struct drop glue now recursively cleans owned struct fields after the outer
    destructor. Next, broaden the remaining pattern target expressions before
    collection expansion.
@@ -399,9 +401,8 @@ Recommended order:
   re-resolving source syntax in backend lowering.
 - Payload-carrying enum ABI layout now backs runtime-supported payload enum
   construction, local slots, returns, value arguments, and tag-only `if is` /
-  `match` statements over existing values and supported plain/forced/
-  propagated/caught direct-call, constructor, and move-local pattern targets,
-  including wildcard-only,
+  `match` statements over existing values and supported owned call-expression,
+  constructor, and move-local pattern targets, including wildcard-only,
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,

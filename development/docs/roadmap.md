@@ -61,13 +61,15 @@ for v0.2.0:
 - Continue the v0.2.0 payload enum promotion. Construction/local/return/value
   arguments, tag-only control flow, scalar, string/slice view, and copy
   aggregate payload binding over existing values and supported
-  plain/forced/propagated/caught direct-call, constructor, and move-local
-  pattern targets, and direct-drop aggregate active cleanup and owned
-  recursively droppable aggregate payload move binding, including conditional
-  source cleanup, are runtime-shipped in the current subset. Struct cleanup now
-  invokes an outer destructor and recursively drops owned struct fields in
-  reverse order. The next slice should broaden the remaining pattern target
-  expressions before broad collection expansion.
+  owned call-expression, constructor, and move-local pattern targets, and
+  direct-drop aggregate active cleanup and owned recursively droppable
+  aggregate payload move binding, including conditional source cleanup, are
+  runtime-shipped in the current subset. Owned call expressions include direct
+  fallible calls handled by `?`, `!`, or `catch` and direct optional calls
+  handled by `otherwise`. Struct cleanup now invokes an outer destructor and
+  recursively drops owned struct fields in reverse order. The next slice should
+  broaden the remaining pattern target expressions before broad collection
+  expansion.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.
