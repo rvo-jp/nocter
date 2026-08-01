@@ -39,11 +39,13 @@ mod call_instructions;
 mod copyability;
 mod field_layouts;
 mod field_values;
+mod initialization;
 mod literals;
 
 pub(super) use call_instructions::*;
 pub(super) use copyability::*;
 pub(super) use field_layouts::*;
+pub(super) use initialization::*;
 pub(super) use literals::*;
 
 use field_values::lower_aggregate_field_to_location;

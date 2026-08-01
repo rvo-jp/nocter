@@ -268,6 +268,34 @@ pub(super) fn lower_aggregate_array_literal_to_location_at_offset_with_temporari
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_array_literal_to_location_with_progress(
+        literal,
+        expected_type,
+        expected_layout,
+        destination,
+        base_offset,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        temporaries,
+        None,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_aggregate_array_literal_to_location_with_progress(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    progress: Option<ArrayInitializationProgress>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let actual_layout = layout_of(expected_type).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
     })?;
@@ -315,6 +343,15 @@ pub(super) fn lower_aggregate_array_literal_to_location_at_offset_with_temporari
             context,
             temporaries,
         )?);
+        if let Some(progress) = progress {
+            let initialized_count = u64::try_from(index)
+                .ok()
+                .and_then(|index| index.checked_add(1))
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            instructions.push(progress.complete_element(initialized_count));
+        }
     }
     Ok(instructions)
 }

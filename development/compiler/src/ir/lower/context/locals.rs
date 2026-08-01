@@ -65,6 +65,18 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Usize);
     }
 
+    pub(in crate::ir::lower) fn reserve_drop_state_usize_local(
+        &mut self,
+    ) -> Result<UsizeLocation, Vec<Diagnostic>> {
+        let index = self.next_local_index(1)?;
+        self.locals.push(LocalBinding {
+            name: format!("<drop-state-{index}>"),
+            kind: LocalKind::Usize,
+            index,
+        });
+        Ok(UsizeLocation::Local(index))
+    }
+
     pub(in crate::ir::lower) fn define_bool_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Bool);
     }
@@ -111,7 +123,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index,
                 is_copy,
-                drop_state: AggregateDropState::from_drop_kind(&drop_kind),
+                drop_obligation: DropObligation::for_drop_kind(&drop_kind),
                 drop_kind,
             },
             index: 0,
@@ -352,7 +364,7 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_dropped(&mut self, name: &str) {
-        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
+        self.update_aggregate_drop_obligation(name, DropObligation::Inactive);
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_dropped_by_slot(&mut self, slot_index: usize) {
@@ -367,14 +379,17 @@ impl<'a> LoweringContext<'a> {
         }) else {
             return;
         };
-        let LocalKind::Aggregate { drop_state, .. } = &mut local.kind else {
+        let LocalKind::Aggregate {
+            drop_obligation, ..
+        } = &mut local.kind
+        else {
             return;
         };
-        *drop_state = AggregateDropState::Suppressed;
+        *drop_obligation = DropObligation::Inactive;
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_moved(&mut self, name: &str) {
-        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
+        self.update_aggregate_drop_obligation(name, DropObligation::Inactive);
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_initialized(&mut self, name: &str) {
@@ -387,13 +402,40 @@ impl<'a> LoweringContext<'a> {
         };
         let LocalKind::Aggregate {
             drop_kind,
-            drop_state,
+            drop_obligation,
             ..
         } = &mut local.kind
         else {
             return;
         };
-        *drop_state = AggregateDropState::from_drop_kind(drop_kind);
+        *drop_obligation = DropObligation::for_drop_kind(drop_kind);
+    }
+
+    pub(in crate::ir::lower) fn mark_aggregate_local_array_prefix(
+        &mut self,
+        name: &str,
+        initialized: UsizeLocation,
+    ) -> bool {
+        let Some(local) = self
+            .locals
+            .iter_mut()
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
+        else {
+            return false;
+        };
+        let LocalKind::Aggregate {
+            drop_kind,
+            drop_obligation,
+            ..
+        } = &mut local.kind
+        else {
+            return false;
+        };
+        if !matches!(drop_kind, Some(AggregateDrop::Array(_))) {
+            return false;
+        }
+        *drop_obligation = DropObligation::ArrayPrefix { initialized };
+        true
     }
 
     pub(in crate::ir::lower) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
@@ -404,14 +446,14 @@ impl<'a> LoweringContext<'a> {
                 let LocalKind::Aggregate {
                     layout,
                     slot_index,
-                    drop_state,
+                    drop_obligation,
                     ref drop_kind,
                     ..
                 } = local.kind
                 else {
                     return None;
                 };
-                if drop_state != AggregateDropState::NeedsDrop {
+                if !drop_obligation.is_active() {
                     return None;
                 }
                 Some(PendingAggregateDrop {
@@ -419,6 +461,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index,
                     layout,
                     drop_kind: drop_kind.clone()?,
+                    obligation: drop_obligation,
                 })
             })
             .collect()
@@ -460,14 +503,14 @@ impl<'a> LoweringContext<'a> {
                 let LocalKind::Aggregate {
                     layout,
                     slot_index,
-                    drop_state,
+                    drop_obligation,
                     ref drop_kind,
                     ..
                 } = local.kind
                 else {
                     return None;
                 };
-                if drop_state != AggregateDropState::NeedsDrop {
+                if !drop_obligation.is_active() {
                     return None;
                 }
                 Some(PendingAggregateDrop {
@@ -475,6 +518,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index,
                     layout,
                     drop_kind: drop_kind.clone()?,
+                    obligation: drop_obligation,
                 })
             })
             .collect()
@@ -488,14 +532,14 @@ impl<'a> LoweringContext<'a> {
             let LocalKind::Aggregate {
                 layout,
                 slot_index: local_slot_index,
-                drop_state,
+                drop_obligation,
                 ref drop_kind,
                 ..
             } = local.kind
             else {
                 return None;
             };
-            if local_slot_index != slot_index || drop_state != AggregateDropState::NeedsDrop {
+            if local_slot_index != slot_index || !drop_obligation.is_active() {
                 return None;
             }
             Some(PendingAggregateDrop {
@@ -503,6 +547,7 @@ impl<'a> LoweringContext<'a> {
                 slot_index,
                 layout,
                 drop_kind: drop_kind.clone()?,
+                obligation: drop_obligation,
             })
         })
     }
@@ -591,7 +636,7 @@ impl<'a> LoweringContext<'a> {
         self.locals.push(LocalBinding { name, kind, index });
     }
 
-    fn update_aggregate_drop_state(&mut self, name: &str, state: AggregateDropState) {
+    fn update_aggregate_drop_obligation(&mut self, name: &str, obligation: DropObligation) {
         let Some(local) = self
             .locals
             .iter_mut()
@@ -599,10 +644,13 @@ impl<'a> LoweringContext<'a> {
         else {
             return;
         };
-        let LocalKind::Aggregate { drop_state, .. } = &mut local.kind else {
+        let LocalKind::Aggregate {
+            drop_obligation, ..
+        } = &mut local.kind
+        else {
             return;
         };
-        *drop_state = state;
+        *drop_obligation = obligation;
     }
 
     fn used_local_abi_words(&self) -> usize {

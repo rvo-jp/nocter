@@ -8,8 +8,10 @@ mod sources;
 mod support;
 mod terminal;
 
-pub(in crate::ir::lower) use drops::lower_aggregate_drop_instructions_at_location;
 pub(super) use drops::lower_aggregate_drop_instructions_at_root_location;
+pub(in crate::ir::lower) use drops::{
+    lower_aggregate_drop_instructions_at_location, lower_array_prefix_drop_instructions,
+};
 pub(super) use entry::*;
 pub(super) use literals::*;
 pub(super) use otherwise::*;

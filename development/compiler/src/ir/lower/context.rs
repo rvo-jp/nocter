@@ -228,6 +228,7 @@ pub(super) struct BorrowParameter {
 mod call_resolution;
 mod construction;
 mod drop_glue;
+mod drop_obligation;
 mod drop_queries;
 mod enum_variants;
 mod locals;
@@ -236,6 +237,7 @@ pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
     drop_glue_for_type_expr_with_resolver,
 };
+pub(super) use drop_obligation::DropObligation;
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
     if source == root_source {
@@ -380,6 +382,7 @@ pub(super) struct PendingAggregateDrop {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
     pub(super) drop_kind: AggregateDrop,
+    pub(super) obligation: DropObligation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -513,7 +516,7 @@ enum LocalKind {
         layout: ValueLayout,
         slot_index: usize,
         is_copy: bool,
-        drop_state: AggregateDropState,
+        drop_obligation: DropObligation,
         drop_kind: Option<AggregateDrop>,
     },
 }
@@ -525,22 +528,6 @@ impl LocalKind {
             Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
             Self::Aggregate { .. } => 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AggregateDropState {
-    NeedsDrop,
-    Suppressed,
-}
-
-impl AggregateDropState {
-    fn from_drop_kind(drop_kind: &Option<AggregateDrop>) -> Self {
-        if drop_kind.is_some() {
-            Self::NeedsDrop
-        } else {
-            Self::Suppressed
         }
     }
 }

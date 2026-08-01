@@ -66,6 +66,97 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_partial_fixed_array_initialization_cleanup_from_runtime_prefix() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func make_file(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func main(): i32! {
+    let files: [File; 2] = [File { fd: 1 }, make_file(2)?]
+    return 0
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    assert!(main.instructions.contains(&Instruction::SetUsize {
+        destination: UsizeLocation::Local(0),
+        value: UsizeValue::Const(0),
+    }));
+    assert!(main.instructions.contains(&Instruction::SetUsize {
+        destination: UsizeLocation::Local(0),
+        value: UsizeValue::Const(1),
+    }));
+
+    let cleanup = main.instructions.iter().find_map(|instruction| {
+        let failure_mode = match instruction {
+            Instruction::CallFallibleAggregate { failure_mode, .. }
+            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            _ => return None,
+        };
+        match failure_mode {
+            FallibleFailureMode::PropagateWithCleanup {
+                code,
+                message,
+                instructions,
+            } => {
+                assert_eq!(*code, StrLocation::Local(1));
+                assert_eq!(*message, StrLocation::Local(3));
+                Some(instructions)
+            }
+            _ => None,
+        }
+    });
+    let cleanup = cleanup.expect("expected fallible element initialization cleanup");
+    assert_eq!(cleanup.len(), 2);
+    assert!(matches!(
+        &cleanup[0],
+        Instruction::If {
+            condition: BoolValue::UsizeComparison {
+                operator: I32ComparisonOperator::Greater,
+                left: UsizeValue::Location(UsizeLocation::Local(0)),
+                right: UsizeValue::Const(1),
+            },
+            ..
+        }
+    ));
+    assert!(matches!(
+        &cleanup[1],
+        Instruction::If {
+            condition: BoolValue::UsizeComparison {
+                operator: I32ComparisonOperator::Greater,
+                left: UsizeValue::Location(UsizeLocation::Local(0)),
+                right: UsizeValue::Const(0),
+            },
+            then_instructions,
+            ..
+        } if then_instructions == &vec![Instruction::CallVoid {
+            target: CallTarget::same_file("File.drop"),
+            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField {
+                    slot_index: 0,
+                    offset: 0,
+                },
+            })],
+        }]
+    ));
+}
+
+#[test]
 fn lowers_fixed_array_variable_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

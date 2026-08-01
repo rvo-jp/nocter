@@ -33,13 +33,24 @@ pub(in crate::ir::lower) fn lower_pending_aggregate_drop(
     drop_: &PendingAggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_aggregate_drop_instructions(
-        &drop_.name,
-        drop_.slot_index,
-        drop_.layout,
-        &drop_.drop_kind,
-        context,
-    )
+    match drop_.obligation {
+        DropObligation::Inactive => Ok(Vec::new()),
+        DropObligation::Complete => lower_aggregate_drop_instructions(
+            &drop_.name,
+            drop_.slot_index,
+            drop_.layout,
+            &drop_.drop_kind,
+            context,
+        ),
+        DropObligation::ArrayPrefix { initialized } => lower_array_prefix_drop_instructions(
+            &drop_.name,
+            AggregateLocation::Slot(drop_.slot_index),
+            0,
+            &drop_.drop_kind,
+            initialized,
+            context,
+        ),
+    }
 }
 
 pub(in crate::ir::lower) fn mark_explicit_moves_in_block(

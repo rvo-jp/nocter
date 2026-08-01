@@ -54,7 +54,7 @@ impl<'a> LoweringContext<'a> {
                     layout: parameter.layout,
                     slot_index: parameter.slot_index,
                     is_copy: parameter.is_copy,
-                    drop_state: AggregateDropState::from_drop_kind(&parameter.drop_kind),
+                    drop_obligation: DropObligation::for_drop_kind(&parameter.drop_kind),
                     drop_kind: parameter.drop_kind,
                 },
                 index: 0,

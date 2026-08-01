@@ -1,7 +1,9 @@
 use super::aggregates::{
-    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
-    aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
+    ArrayInitializationProgress, aggregate_call_return_layout_from_resolved,
+    aggregate_fields_from_type_expr, aggregate_fields_from_type_expr_with_resolver,
+    aggregate_type_layout, array_literal_requires_runtime_progress,
     lower_aggregate_array_literal_to_location, lower_aggregate_array_literal_to_location_at_offset,
+    lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_with_temporaries,

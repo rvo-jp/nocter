@@ -106,6 +106,47 @@ fn lower_array_drop_instructions_at_location(
     Ok(instructions)
 }
 
+pub(in crate::ir::lower) fn lower_array_prefix_drop_instructions(
+    name: &str,
+    location: AggregateLocation,
+    base_offset: u32,
+    drop_kind: &AggregateDrop,
+    initialized: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let AggregateDrop::Array(drop_) = drop_kind else {
+        return Err(unsupported_drop_statement_diagnostic(name));
+    };
+
+    let mut instructions = Vec::new();
+    for index in (0..drop_.length).rev() {
+        let offset = index
+            .checked_mul(drop_.stride)
+            .and_then(|offset| u64::from(base_offset).checked_add(offset))
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+        let then_instructions = lower_aggregate_drop_at_offset(
+            name,
+            location,
+            offset,
+            true,
+            drop_.element_layout,
+            drop_.element_drop_kind.as_ref(),
+            context,
+        )?;
+        instructions.push(Instruction::If {
+            condition: BoolValue::UsizeComparison {
+                operator: I32ComparisonOperator::Greater,
+                left: UsizeValue::Location(initialized),
+                right: UsizeValue::Const(index),
+            },
+            then_instructions,
+            else_instructions: Vec::new(),
+        });
+    }
+    Ok(instructions)
+}
+
 fn lower_struct_drop_field(
     name: &str,
     location: AggregateLocation,

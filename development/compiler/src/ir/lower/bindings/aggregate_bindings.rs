@@ -82,6 +82,8 @@ pub(super) fn lower_aggregate_array_literal_binding(
         context.resolved_source(source)
     });
     let drop_kind = context.aggregate_drop_for_type_expr(&ty);
+    let tracks_initialization = matches!(&drop_kind, Some(AggregateDrop::Array(_)))
+        && array_literal_requires_runtime_progress(literal);
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
@@ -93,16 +95,34 @@ pub(super) fn lower_aggregate_array_literal_binding(
         slot_index,
         layout: value.layout,
     }];
-    instructions.extend(lower_aggregate_array_literal_to_location(
+    let progress = if tracks_initialization {
+        let progress = ArrayInitializationProgress::new(context.reserve_drop_state_usize_local()?);
+        if !context.mark_aggregate_local_array_prefix(statement.name.as_str(), progress.location())
+        {
+            return Err(unsupported_binding_diagnostic(
+                "IR v0 cannot establish fixed array initialization state",
+            ));
+        }
+        instructions.push(progress.initialize());
+        Some(progress)
+    } else {
+        None
+    };
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    instructions.extend(lower_aggregate_array_literal_to_location_with_progress(
         literal,
         &value.ty,
         value.layout,
         AggregateLocation::Slot(slot_index),
+        0,
         "E8008",
         "local bindings",
         resolved,
         context,
+        &mut temporaries,
+        progress,
     )?);
+    context.mark_aggregate_local_initialized(statement.name.as_str());
     Ok(Some(instructions))
 }
 

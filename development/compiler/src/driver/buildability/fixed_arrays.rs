@@ -186,7 +186,7 @@ fn fixed_array_literal_recursive_drop_elements_are_buildable(
     literal
         .elements
         .iter()
-        .all(fixed_array_owned_element_initializer_is_buildable)
+        .all(fixed_array_owned_element_initializer_is_buildable_with_tracking)
 }
 
 fn fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
@@ -289,6 +289,15 @@ fn fixed_array_owned_element_initializer_is_buildable(expression: &Expr) -> bool
         }
         _ => false,
     }
+}
+
+fn fixed_array_owned_element_initializer_is_buildable_with_tracking(expression: &Expr) -> bool {
+    fixed_array_owned_element_initializer_is_buildable(expression)
+        || matches!(
+            unwrap_group_expr(expression),
+            Expr::Propagate(propagation)
+                if matches!(unwrap_group_expr(&propagation.expression), Expr::Call(_))
+        )
 }
 
 fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
