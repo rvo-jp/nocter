@@ -108,7 +108,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             }
             Type::Aggregate { .. } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_array_argument_source(
+                    lower_tracked_struct_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -116,6 +116,15 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_array_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else {
                     lower_aggregate_argument_source(
@@ -141,7 +150,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             }
             Type::DirectAggregate { layout, words } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_array_argument_source(
+                    lower_tracked_struct_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -149,6 +158,15 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_array_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else {
                     lower_aggregate_argument_source(

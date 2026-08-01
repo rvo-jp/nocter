@@ -7,6 +7,7 @@ use super::aggregates::{
     lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset,
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location_with_temporaries,
     lower_payload_enum_constructor_to_location, payload_enum_constructor_member_and_arguments,

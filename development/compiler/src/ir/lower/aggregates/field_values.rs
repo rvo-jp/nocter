@@ -1,4 +1,7 @@
-use super::literals::lower_aggregate_array_literal_to_location_at_offset_with_temporaries;
+use super::literals::{
+    lower_aggregate_array_literal_to_location_at_offset_with_temporaries,
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
+};
 use super::*;
 
 pub(super) fn lower_aggregate_field_to_location(
@@ -576,18 +579,39 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 subject,
             ));
         };
-        let nested_offset = u32::try_from(field_layout.offset)
-            .ok()
-            .and_then(|offset| base_offset.checked_add(offset))
-            .ok_or_else(|| {
+        let field_offset = u32::try_from(field_layout.offset).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let nested_offset = base_offset.checked_add(field_offset).ok_or_else(|| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let array_progress =
+            progress.and_then(|progress| progress.array_field_progress(field_offset));
+        let struct_progress =
+            progress.and_then(|progress| progress.struct_field_progress(field_offset));
+        if let (Some(struct_progress), AbiType::Struct(_), Expr::StructLiteral(literal)) = (
+            struct_progress,
+            field_type,
+            unwrap_field_value_group(&field.value),
+        ) {
+            let field_value_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
-        let array_progress = progress.and_then(|progress| {
-            u32::try_from(field_layout.offset)
-                .ok()
-                .and_then(|offset| progress.array_field_progress(offset))
-        });
-        if let (Some(array_progress), AbiType::Array { .. }, Expr::ArrayLiteral(literal)) = (
+            instructions.extend(
+                lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+                    literal,
+                    field_value_layout,
+                    destination,
+                    nested_offset,
+                    diagnostic_code,
+                    subject,
+                    resolved,
+                    context,
+                    temporaries,
+                    Some(&struct_progress),
+                )?,
+            );
+        } else if let (Some(array_progress), AbiType::Array { .. }, Expr::ArrayLiteral(literal)) = (
             array_progress,
             field_type,
             unwrap_field_value_group(&field.value),
@@ -621,11 +645,8 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 temporaries,
             )?);
         }
-        if let Some(completed) = progress.and_then(|progress| {
-            u32::try_from(field_layout.offset)
-                .ok()
-                .and_then(|offset| progress.complete_field(offset))
-        }) {
+        if let Some(completed) = progress.and_then(|progress| progress.complete_field(field_offset))
+        {
             instructions.push(completed);
         }
     }

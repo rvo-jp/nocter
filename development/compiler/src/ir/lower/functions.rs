@@ -1,9 +1,11 @@
 use super::aggregates::{
-    ArrayInitializationProgress, aggregate_call_return_layout_from_resolved,
-    aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
-    array_literal_requires_runtime_progress, lower_aggregate_array_literal_to_location,
+    ArrayInitializationProgress, StructInitializationProgress,
+    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr_with_resolver,
+    aggregate_type_layout, array_literal_requires_runtime_progress,
+    lower_aggregate_array_literal_to_location,
     lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location,
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_temporaries,
     lower_payload_enum_constructor_to_location, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
@@ -53,7 +55,8 @@ use super::types::{
     type_expr_with_self_type, view_element_type_from_type_expr_with_resolver,
 };
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr_with_resolver,
+    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
+    abi_value_from_type_expr_with_resolver,
     function_parameter_abi_word_count_from_signature_with_resolver, layout_of,
 };
 use crate::ast::{

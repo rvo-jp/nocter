@@ -38,6 +38,21 @@ pub(super) fn lower_aggregate_assignment(
         );
     }
 
+    if let Expr::StructLiteral(literal) = unwrap_group(expression)
+        && let Some(target) = context.aggregate_local_by_slot(slot_index)
+        && let Some(drop_kind @ (AggregateDrop::Direct(_) | AggregateDrop::Struct(_))) =
+            target.drop_kind
+    {
+        return lower_tracked_aggregate_struct_replacement(
+            slot_index,
+            layout,
+            literal,
+            drop_kind,
+            replacement_drop,
+            context,
+        );
+    }
+
     let mut temporaries = TemporaryAllocator::new(context)?;
     let replacement_slot = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
@@ -54,6 +69,65 @@ pub(super) fn lower_aggregate_assignment(
     instructions.extend(replacement_drop);
     instructions.push(Instruction::CopyAggregate {
         destination: AggregateLocation::Slot(slot_index),
+        source: AggregateLocation::Slot(replacement_slot),
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_tracked_aggregate_struct_replacement(
+    destination_slot: usize,
+    layout: ValueLayout,
+    literal: &crate::ast::StructLiteralExpr,
+    drop_kind: AggregateDrop,
+    replacement_drop: Vec<Instruction>,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let value = abi_value_from_type_expr(&literal.ty, resolved)
+        .map_err(|_error| unsupported_assignment_diagnostic())?;
+    let AbiType::Struct(fields) = &value.ty else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if value.layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let replacement_slot = context.reserve_aggregate_slot_index();
+    let progress = StructInitializationProgress::new(fields, literal, &drop_kind, context)?;
+    if !context.register_temporary_struct_fields_drop(
+        replacement_slot,
+        layout,
+        drop_kind,
+        progress.drop_states(),
+    ) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout,
+    }];
+    instructions.extend(progress.initialize());
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+        literal,
+        layout,
+        AggregateLocation::Slot(replacement_slot),
+        0,
+        "E8008",
+        "assignments",
+        resolved,
+        context,
+        &mut temporaries,
+        Some(&progress),
+    );
+    context.release_temporary_aggregate_drop(replacement_slot);
+    instructions.extend(lowered?);
+    instructions.extend(replacement_drop);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination_slot),
         source: AggregateLocation::Slot(replacement_slot),
         layout,
     });

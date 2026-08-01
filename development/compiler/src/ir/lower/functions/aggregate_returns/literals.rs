@@ -10,6 +10,24 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_struct_literal_return_to_
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
 
+    if let Ok(value) = abi_value_from_type_expr(&literal.ty, resolved)
+        && value.layout == expected_layout
+        && let AbiType::Struct(fields) = &value.ty
+        && let Some(drop_kind @ (AggregateDrop::Direct(_) | AggregateDrop::Struct(_))) =
+            context.aggregate_drop_for_type_expr(&literal.ty)
+    {
+        return lower_tracked_aggregate_struct_literal_return(
+            literal,
+            fields,
+            expected_layout,
+            destination,
+            function_name,
+            resolved,
+            drop_kind,
+            context,
+        );
+    }
+
     let subject = format!("returns from function `{function_name}`");
     let aggregate_slot_mark = context.aggregate_slot_mark();
     let lowered_direct = lower_aggregate_struct_literal_to_location(
@@ -36,6 +54,66 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_struct_literal_return_to_
         }
         Err(error) => return Err(error),
     })
+}
+
+fn lower_tracked_aggregate_struct_literal_return(
+    literal: &StructLiteralExpr,
+    fields: &[crate::abi::AbiField],
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    drop_kind: AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(expected_layout) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let mut initialization_context = context.clone();
+    let slot_index = initialization_context.reserve_aggregate_slot_index();
+    let progress = StructInitializationProgress::new(
+        fields,
+        literal,
+        &drop_kind,
+        &mut initialization_context,
+    )?;
+    if !initialization_context.register_temporary_struct_fields_drop(
+        slot_index,
+        expected_layout,
+        drop_kind,
+        progress.drop_states(),
+    ) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let subject = format!("returns from function `{function_name}`");
+    let mut temporaries = TemporaryAllocator::new(&initialization_context)?;
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(progress.initialize());
+    instructions.extend(
+        lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+            literal,
+            expected_layout,
+            AggregateLocation::Slot(slot_index),
+            0,
+            "E8007",
+            &subject,
+            resolved,
+            &initialization_context,
+            &mut temporaries,
+            Some(&progress),
+        )?,
+    );
+    instructions.push(Instruction::CopyAggregate {
+        destination,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
+    Ok(instructions)
 }
 
 pub(in crate::ir::lower::functions) fn lower_aggregate_array_literal_return_to_location(

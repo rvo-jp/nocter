@@ -430,7 +430,7 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_at_offset
     )
 }
 
-fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
     literal: &StructLiteralExpr,
     expected_layout: ValueLayout,
     destination: AggregateLocation,

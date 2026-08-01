@@ -81,6 +81,27 @@ impl LoweringContext<'_> {
         )
     }
 
+    pub(in crate::ir::lower) fn register_temporary_struct_fields_drop(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+        fields: Vec<StructFieldDropState>,
+    ) -> bool {
+        if !matches!(
+            drop_kind,
+            AggregateDrop::Direct(_) | AggregateDrop::Struct(_)
+        ) {
+            return false;
+        }
+        self.register_temporary_aggregate_drop(
+            slot_index,
+            layout,
+            drop_kind,
+            DropObligation::StructFields { fields },
+        )
+    }
+
     pub(in crate::ir::lower) fn register_or_complete_temporary_aggregate_drop(
         &mut self,
         slot_index: usize,
