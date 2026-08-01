@@ -15,6 +15,8 @@ Normative user-facing language rules live in [../../spec](../../spec/README.md).
   Nocter v0 implementation work.
 - [Backend V0](backend-v0.md): ARM64 Darwin backend, Nocter ABI lowering, frame
   and call model, aggregate handling, and backend non-goals.
+- [Drop Obligation Design](drop-obligations.md): separation of semantic place
+  state, aggregate drop shape, runtime live state, and construction cleanup.
 - [Std Runtime Status](std-runtime-status.md): what the tracked standard
   library ships, rejects, or keeps check-only when packaged as distributed
   `std/`.

@@ -10,6 +10,10 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `89f8e75 Track partial fixed array returns`
+  - `900bad3 Track partial fixed array replacements`
+  - `f4ce259 Track partial fixed array initialization`
+  - `d9acad3 Add hierarchical ownership place state`
   - `c80f77d Support move-only array enum payloads`
   - `df2857a Document move-only array field ownership`
   - `4d5acd0 Cover recursive move-only array field cleanup`
@@ -141,11 +145,14 @@ Recommended order:
    struct-field storage/replacement through literals, replacement, explicit
    moves/drop/reinitialization, reverse-index cleanup, returns, call results,
    value arguments, owned parameters, and local-to-field moves across plain,
-   optional, and fallible calls. Remaining array paths require per-element
-   initialization state, per-field initialization state for exiting
-   initializers, or field extraction ownership; do not promote them as mere
-   expression shapes. Payload enums now carry these arrays through direct and
-   indirect construction, generic substitution, scope/call cleanup, and
+   optional, and fallible calls. Local literals, whole-local replacements, and
+   direct literal returns now track a completed runtime prefix for atomic
+   aggregate-call elements handled by `?`. Remaining array paths require a
+   call-evaluation ownership scope, per-field initialization state for exiting
+   initializers, sparse indexed live state, or field extraction ownership; do
+   not promote them as mere expression shapes. Payload enums now carry these
+   arrays through direct and indirect construction, generic substitution,
+   scope/call cleanup, and
    move-pattern ownership transfer; propagation cleanup reserves the original
    error payload before lowering recursive drop temporaries. Member and
    value-control pattern targets likewise require field moves or
@@ -333,9 +340,11 @@ Recommended order:
   whole-local literal replacement, explicit local moves/drop/reinitialization,
   moved-element ownership transfer, reverse-index cleanup, direct/indirect
   returns, call-result binding/replacement/discard, value arguments, and owned
-  parameters across plain, optional, and fallible calls. Element
-  initialization that can exit early receives a source-backed buildability
-  diagnostic because per-element initialization state is not tracked yet.
+  parameters across plain, optional, and fallible calls. Local literal,
+  whole-local replacement, and direct literal return paths track initialized
+  prefixes for atomic aggregate-call elements handled by `?`; argument and
+  nested-field exits remain diagnosed until their broader obligation scopes
+  are implemented.
   Fully initialized struct fields store and replace the same arrays from
   literals, calls, optional/fallible success values, and explicit local moves;
   replacement stages the new value, recursively drops the old field, and works

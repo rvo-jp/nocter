@@ -59,10 +59,13 @@ struct elements. Callable boundaries cover returns, call-result bindings and
 replacement, discarded results, value arguments, and owned parameters for
 plain, optional, and fallible calls.
 Their elements may be struct literals, infallible direct call results, forced
-direct call results, or explicit moves from locals; replacement, scope-end, and
-explicit cleanup drop live elements in reverse index order. Element expressions
-that can exit through `?`, `catch`, `otherwise`, or value control flow reject
-before IR lowering until per-element initialization state is tracked.
+direct call results, or explicit moves from locals; local literals,
+whole-local replacements, and direct literal returns additionally accept
+atomic fallible aggregate-call elements handled by `?`. These three paths track
+the completed runtime prefix, clean it in reverse index order on propagation,
+and keep replacement targets live until the replacement succeeds. Element
+expressions that need nested field state, call-argument ownership scope, or
+general value-control joins still reject before IR lowering.
 Explicit moves between local move-only fixed arrays transfer the cleanup
 obligation, and moved or explicitly dropped `var` locals can be reinitialized
 without retaining stale cleanup state. Moves into and between owned parameters
