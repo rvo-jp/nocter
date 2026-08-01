@@ -157,6 +157,15 @@ pub(in crate::driver::buildability) fn payload_enum_pattern_target_expression_sh
         Expr::Member(member) => typecheck_facts
             .enum_variant_target(member.member_span)
             .is_some(),
+        Expr::Propagate(propagation) => {
+            matches!(unwrap_group_expr(&propagation.expression), Expr::Call(_))
+        }
+        Expr::Force(force) => {
+            matches!(unwrap_group_expr(&force.expression), Expr::Call(_))
+        }
+        Expr::Catch(catch) => {
+            matches!(unwrap_group_expr(&catch.expression), Expr::Call(_))
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             matches!(unwrap_group_expr(&unary.operand), Expr::Identifier(_))
         }

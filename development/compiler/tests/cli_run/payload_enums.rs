@@ -740,6 +740,163 @@ func make_ok(): Result {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_payload_enum_if_is_forced_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-forced-call-target");
+    let source = project.write_source(
+        "payload_enum_if_is_forced_call_target.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if make_ok()! is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+
+func make_ok(): Result! {
+    return Result.ok(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_owned_payload_from_forced_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-forced-owned-target");
+    write_process_exit_home(&project);
+    let source = project.write_source(
+        "payload_enum_if_is_forced_owned_target.nct",
+        r#"use std/process.exit
+
+struct Payload {
+    code: i32
+}
+
+impl Payload {
+    drop &+self {
+        exit(self.code)
+    }
+}
+
+enum Result {
+    ok(value: Payload)
+    failed
+}
+
+func main(): i32 {
+    if make_ok()! is Result.ok(value) {
+        return 1
+    }
+
+    return 0
+}
+
+func make_ok(): Result! {
+    return Result.ok(Payload { code: 42 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_propagated_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-propagated-call-target");
+    let source = project.write_source(
+        "payload_enum_if_is_propagated_call_target.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32! {
+    if make_ok()? is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+
+func make_ok(): Result! {
+    return Result.ok(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_accepts_payload_enum_if_is_caught_call_target_exit_code() {
+    let project = TempProject::new("cli-run-payload-enum-if-is-caught-call-target");
+    let source = project.write_source(
+        "payload_enum_if_is_caught_call_target.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    if (make_ok() catch error { return 1 }) is Result.ok(value) {
+        return value
+    }
+
+    return 0
+}
+
+func make_ok(): Result! {
+    return Result.ok(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_accepts_payload_enum_if_is_constructor_target_binding_exit_code() {
     let project = TempProject::new("cli-run-payload-enum-if-is-constructor-target-binding");
     let source = project.write_source(

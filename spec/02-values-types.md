@@ -698,10 +698,12 @@ Rules:
 - A copy payload binding copies the payload into its branch-local binding. A
   move-only payload binding transfers ownership out of an owned pattern target.
   Matching an existing local requires an explicit `move` target, such as
-  `match move result`; a call result or direct variant constructor is already
-  an owned temporary. Member targets cannot supply move-only payload bindings
-  until field moves are supported. Runtime lowering currently supports this
-  transfer for aggregate payloads with runtime-supported recursive drop glue.
+  `match move result`; a call result, a direct-call success value extracted by
+  postfix `?`, postfix `!`, or `catch`, or a direct variant constructor is
+  already an owned temporary. Member targets cannot supply move-only payload
+  bindings until field moves are supported. Runtime lowering currently
+  supports this transfer for aggregate payloads with runtime-supported
+  recursive drop glue.
   The selected branch owns and drops the binding; the source enum is suppressed
   after the transfer. A non-selected branch retains and drops the source enum.
 - Payload-carrying enum active payload cleanup lowers for runtime-supported enum
@@ -710,11 +712,12 @@ Rules:
   bindings, and whole-local replacement drop only the active payload fields.
   Multi-field payload cleanup drops active fields in reverse aggregate field
   order and applies supported struct drop trees recursively.
-- Payload-carrying enum `if is` / `match` over call results, direct variant
-  constructors, and explicit `move` of an enum local lower in the current
-  runtime-supported payload subset. Other pattern target expressions and
-  move-only aggregate payload bindings with unsupported recursive drop trees
-  still reject before build/run.
+- Payload-carrying enum `if is` / `match` over call results, direct-call
+  success values extracted by postfix `?`, postfix `!`, or `catch`, direct
+  variant constructors, and explicit `move` of an enum local lower in the
+  current runtime-supported payload subset. Other pattern target expressions
+  and move-only aggregate payload bindings with unsupported recursive drop
+  trees still reject before build/run.
 - Payload names in a pattern are bound only inside that arm block.
 - `_` inside a payload pattern, such as `AppError.open_failed(_)`, requires a
   payload to exist and discards it without introducing a binding.

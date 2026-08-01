@@ -109,15 +109,18 @@ Recommended order:
 3. Continue the v0.2.0 payload enum promotion. The first runtime slice covers
    payload-carrying enum construction/local/return/value-argument support for
    copy/no-drop payloads and tag-only payload enum `if is` / `match` statements
-   over existing values and supported call/constructor/move-local pattern
-   targets, plus scalar, string/slice view, copy aggregate payload binding, and
-   owned recursively droppable aggregate payload move binding in `if is` statements and
-   value expressions and `match` statement/value-expression arms. The frontend
+   over existing values and supported plain/forced/propagated/caught
+   direct-call, constructor, and move-local pattern targets, plus scalar,
+   string/slice view, copy aggregate payload binding, and
+   owned recursively droppable aggregate payload move binding in `if is`
+   statements and value expressions and `match` statement/value-expression arms. The frontend
    records copy-versus-move payload binding mode and requires explicit `move`
    when a move-only binding extracts from an existing local; member extraction
-   remains blocked until field moves exist. Struct drop glue now recursively
-   cleans owned struct fields after the outer destructor. Next, broaden pattern
-   target expressions before collection expansion.
+   remains blocked until field moves exist. Plain, forced, propagated, and
+   caught direct-call success values are supported owned pattern targets.
+   Struct drop glue now recursively cleans owned struct fields after the outer
+   destructor. Next, broaden the remaining pattern target expressions before
+   collection expansion.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in
@@ -171,8 +174,8 @@ Recommended order:
   into resolver, typecheck facts, hover, ownership, or buildability state.
   Runtime lowering now supports tag-only payload enum `if is` statements and
   value expressions plus `match` statement and value-expression arms over
-  existing enum locals/parameters and supported call/constructor/move-local
-  pattern targets for scalar/string/slice view payload bindings and `_`
+  existing enum locals/parameters and the pattern targets supported at that
+  stage for scalar/string/slice view payload bindings and `_`
   discards. Copy aggregate payload binding is promoted for `if is` statements
   and value expressions and `match` statement/value-expression arms over
   existing enum values and supported pattern targets. Non-copy aggregate payload
@@ -396,8 +399,9 @@ Recommended order:
   re-resolving source syntax in backend lowering.
 - Payload-carrying enum ABI layout now backs runtime-supported payload enum
   construction, local slots, returns, value arguments, and tag-only `if is` /
-  `match` statements over existing values and supported
-  call/constructor/move-local pattern targets, including wildcard-only,
+  `match` statements over existing values and supported plain/forced/
+  propagated/caught direct-call, constructor, and move-local pattern targets,
+  including wildcard-only,
   nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms.
   `if is Enum.variant(binding)` statements/value expressions and `match`
   statement/value-expression arms also build/run for `i32`, `u8`, `usize`,

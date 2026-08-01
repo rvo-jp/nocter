@@ -499,6 +499,11 @@ pub(super) fn payload_enum_pattern_target_expression_shape_is_supported(
     match unwrap_group(expression) {
         Expr::Identifier(_) | Expr::Call(_) => true,
         Expr::Member(member) => context.enum_variant_tag(member).is_some(),
+        Expr::Propagate(propagation) => {
+            matches!(unwrap_group(&propagation.expression), Expr::Call(_))
+        }
+        Expr::Force(force) => matches!(unwrap_group(&force.expression), Expr::Call(_)),
+        Expr::Catch(catch) => matches!(unwrap_group(&catch.expression), Expr::Call(_)),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             matches!(unwrap_group(&unary.operand), Expr::Identifier(_))
         }

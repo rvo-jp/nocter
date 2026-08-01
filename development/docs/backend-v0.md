@@ -118,22 +118,25 @@ includes:
   constructors in value-argument position
 - tag-only payload-carrying enum `if is Enum.variant(_)` statements over
   existing enum bindings and parameters, plus supported
-  call/constructor/move-local pattern targets, in the current runtime-supported
-  payload subset
+  plain/forced/propagated/caught direct-call, constructor, and move-local
+  pattern targets, in the current runtime-supported payload subset
 - payload-carrying enum `if is Enum.variant(binding)` statements and value
   expressions over existing enum bindings and parameters, plus supported
-  call/constructor/move-local pattern targets, when the bound payload ABI is
-  `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a copy aggregate value, or
-  an owned aggregate value with runtime-supported recursive drop glue
+  plain/forced/propagated/caught direct-call, constructor, and move-local
+  pattern targets, when the bound payload ABI is `i32`, `u8`, `usize`, `bool`,
+  `&str`, a slice view, a copy aggregate value, or an owned aggregate value with
+  runtime-supported recursive drop glue
 - tag-only payload-carrying enum `match` statements over existing enum bindings
-  and parameters, plus supported call/constructor/move-local pattern targets, in
-  the current runtime-supported payload subset, including wildcard-only,
-  nonexhaustive no-wildcard, and exhaustive no-wildcard statement forms
+  and parameters, plus supported plain/forced/propagated/caught direct-call,
+  constructor, and move-local pattern targets, in the current runtime-supported
+  payload subset, including wildcard-only, nonexhaustive no-wildcard, and
+  exhaustive no-wildcard statement forms
 - payload-carrying enum `match` statement and value-expression arm bindings over
   existing enum bindings and parameters, plus supported
-  call/constructor/move-local pattern targets, when the bound payload ABI is
-  `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, a copy aggregate value, or
-  an owned aggregate value with runtime-supported recursive drop glue
+  plain/forced/propagated/caught direct-call, constructor, and move-local
+  pattern targets, when the bound payload ABI is `i32`, `u8`, `usize`, `bool`,
+  `&str`, a slice view, a copy aggregate value, or an owned aggregate value with
+  runtime-supported recursive drop glue
 - active payload cleanup for payload-carrying enum values whose droppable
   variants have runtime-supported recursive aggregate drop trees, covering
   scope-end cleanup, parameter cleanup, discarded call results, call-result
