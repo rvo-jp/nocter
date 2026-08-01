@@ -11,6 +11,7 @@ mod documents;
 mod hover;
 mod locations;
 mod protocol;
+mod recovery;
 mod references;
 mod semantic;
 mod signature_help;
@@ -42,6 +43,7 @@ use protocol::{
     LspPosition, lsp_position_to_byte_offset, position_from_params, read_message, response,
     write_message,
 };
+use recovery::workspace_analysis_with_recovered_document;
 use references::{references_for_document, references_for_file_analysis};
 #[cfg(test)]
 use semantic::ClassifiedIdentifier;
@@ -346,6 +348,7 @@ impl LspServer {
             .and_then(|uri| {
                 let position = position_from_params(params)?;
                 self.workspace_completion_for_uri(&uri, &position)
+                    .or_else(|| self.workspace_completion_for_recovered_uri(&uri, &position))
                     .or_else(|| {
                         self.documents.get(&uri).and_then(|document| {
                             let offset = lsp_position_to_byte_offset(
@@ -380,6 +383,7 @@ impl LspServer {
                     offset,
                 )
             })
+            .or_else(|| self.workspace_signature_help_for_recovered_uri(&uri, &position))
         });
         response(
             id,
@@ -452,6 +456,44 @@ impl LspServer {
                 root_offset,
             ))
         })
+    }
+
+    fn workspace_completion_for_recovered_uri(
+        &self,
+        uri: &str,
+        position: &LspPosition,
+    ) -> Option<Vec<Value>> {
+        let document = self.documents.get(uri)?;
+        let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let recovered = crate::analysis::completion_recovery_text(&document.text, offset)?;
+        let workspace =
+            workspace_analysis_with_recovered_document(uri, &self.documents, recovered)?;
+        let file = workspace.root_file()?;
+        Some(completion_items_for_file_analysis_at_offset(
+            &workspace.sources,
+            &workspace.analysis,
+            file,
+            offset,
+        ))
+    }
+
+    fn workspace_signature_help_for_recovered_uri(
+        &self,
+        uri: &str,
+        position: &LspPosition,
+    ) -> Option<crate::analysis::signature_help::SignatureHelpInfo> {
+        let document = self.documents.get(uri)?;
+        let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let recovered = crate::analysis::signature_recovery_text(&document.text, offset)?;
+        let workspace =
+            workspace_analysis_with_recovered_document(uri, &self.documents, recovered)?;
+        let file = workspace.root_file()?;
+        crate::analysis::signature_help::signature_help_for_file_analysis(
+            &workspace.sources,
+            &workspace.analysis,
+            file,
+            offset,
+        )
     }
 
     fn with_workspace_file_for_uri<T>(

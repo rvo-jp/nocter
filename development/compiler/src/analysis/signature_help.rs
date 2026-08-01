@@ -260,6 +260,9 @@ fn specialized_callable_name(
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &crate::resolve::ResolveOutput,
 ) -> String {
+    if generic_parameters.is_empty() {
+        return name.to_string();
+    }
     let arguments = generic_parameters
         .iter()
         .map(|parameter| substitutions.get(*parameter))

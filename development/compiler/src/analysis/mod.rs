@@ -14,6 +14,8 @@ mod single_file;
 pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;
+
+pub(crate) use completion_recovery::{completion_recovery_text, signature_recovery_text};
 mod visible_locals;
 
 use crate::ast::AstFile;

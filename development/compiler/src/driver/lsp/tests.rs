@@ -3003,6 +3003,93 @@ func edit(values: &+Vec<String>): void {
     );
 }
 
+#[test]
+fn signature_help_recovers_incomplete_imported_call() {
+    let project = TempProject::new("lsp-incomplete-imported-call");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    project.write_source(
+        "math.nct",
+        "pub func add(left: i32, right: i32): i32 {\n    return left + right\n}\n",
+    );
+    let text = "use ./math.add\n\nfunc main(): i32 {\n    return add(20, \n}\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(2), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("20, ").unwrap() + "20, ".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.signature_help_response(
+        json!(7),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("func add(left: i32, right: i32): i32")
+    );
+    assert_eq!(response["result"]["activeParameter"], json!(1));
+}
+
+#[test]
+fn member_completion_recovers_incomplete_imported_receiver() {
+    let project = TempProject::new("lsp-incomplete-imported-member");
+    let home = project.write_nocter_home();
+    std::fs::write(
+        home.join("std/box.nct"),
+        r#"pub struct Box<T> {
+    value: T
+}
+
+impl<T> Box<T> {
+    pub method &self.inspect(): void {
+        return
+    }
+}
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let text = "use std/box.Box\n\nfunc inspect(value: &Box<i32>): void {\n    value.\n}\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(2), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("value.").unwrap() + "value.".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let inspect = completion_item_with_label(items, "inspect")
+        .unwrap_or_else(|| panic!("expected recovered member completion: {items:#?}"));
+
+    assert_eq!(inspect["detail"], json!("method &Box<i32>.inspect(): void"));
+}
+
 fn frame(message: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(message).unwrap();
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
