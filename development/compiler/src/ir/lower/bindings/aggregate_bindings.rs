@@ -862,7 +862,7 @@ pub(super) fn call_success_type_is_copy_aggregate_value(
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return false;
     };
-    let Some(return_type) = context.call_return_type_expr(call) else {
+    let Some(return_type) = context.call_value_type_expr(call) else {
         return false;
     };
     type_expr_is_copy_aggregate_value_with_resolver(&return_type, resolved, |source| {
@@ -877,7 +877,7 @@ pub(super) fn call_success_aggregate_fields(
     let Some((root_source, resolved)) = context.resolved_calls() else {
         return Vec::new();
     };
-    let Some(return_type) = context.call_return_type_expr(call) else {
+    let Some(return_type) = context.call_value_type_expr(call) else {
         return Vec::new();
     };
     aggregate_fields_from_type_expr(&return_type, root_source, resolved).unwrap_or_default()
@@ -887,6 +887,6 @@ pub(super) fn call_success_aggregate_drop(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<crate::ir::lower::context::AggregateDrop> {
-    let return_type = context.call_return_type_expr(call)?;
+    let return_type = context.call_value_type_expr(call)?;
     context.aggregate_drop_for_type_expr(&return_type)
 }

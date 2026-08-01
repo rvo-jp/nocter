@@ -1380,3 +1380,350 @@ func main(): i32 {
     assert_eq!(output.stdout, b"ba");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_successful_fallible_move_only_fixed_array_results() {
+    let project = TempProject::new("cli-run-fallible-move-only-fixed-array-success");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "fallible_move_only_fixed_array_success.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func make(): [File; 2]! {
+    return [File { name: "a" }, File { name: "b" }]
+}
+
+func main(): i32! {
+    var files: [File; 2] = make()?
+    files = make()?
+    make()?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"bababa");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_move_only_fixed_array_target_on_propagated_failure() {
+    let project = TempProject::new("cli-run-fallible-move-only-fixed-array-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "fallible_move_only_fixed_array_failure.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func replace(): void! {
+    var files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    files = fail()?
+}
+
+func fail(): [File; 2]! {
+    return Error.new("app.failed", "failed")
+}
+
+func main(): void! {
+    replace()?
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ba");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_forces_direct_fallible_move_only_fixed_array_argument() {
+    let project = TempProject::new("cli-run-direct-fallible-move-only-fixed-array-force");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "direct_fallible_move_only_fixed_array_force.nct",
+        r#"use std/log.write
+
+struct Token {
+    tag: u8
+}
+
+impl Token {
+    drop &+self {
+        if self.tag == 1 {
+            write("a")!
+        } else {
+            write("b")!
+        }
+        return
+    }
+}
+
+func make(): [Token; 2]! {
+    return [Token { tag: 1 }, Token { tag: 2 }]
+}
+
+func consume(tokens: [Token; 2]): void {
+    return
+}
+
+func main(): i32 {
+    consume(make()!)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ba");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_does_not_drop_uninitialized_move_only_fixed_array_catch_binding() {
+    let project = TempProject::new("cli-run-move-only-fixed-array-catch-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "move_only_fixed_array_catch_failure.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func fail(): [File; 2]! {
+    return Error.new("app.failed", "failed")
+}
+
+func main(): i32! {
+    let files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    let unused: [File; 2] = fail() catch error {
+        write("x")!
+        return 0
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"xba");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_owns_optional_move_only_fixed_array_success_and_fallback_values() {
+    let project = TempProject::new("cli-run-optional-move-only-fixed-array-values");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "optional_move_only_fixed_array_values.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+func maybe_files(present: bool): [File; 2]? {
+    if present {
+        return [File { name: "a" }, File { name: "b" }]
+    }
+    return none
+}
+
+func main(): i32 {
+    let success: [File; 2] = maybe_files(true) otherwise {
+        [File { name: "x" }, File { name: "y" }]
+    }
+    let fallback: [File; 2] = maybe_files(false) otherwise {
+        [File { name: "c" }, File { name: "d" }]
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"dcba");
+    assert!(output.stderr.is_empty());
+}

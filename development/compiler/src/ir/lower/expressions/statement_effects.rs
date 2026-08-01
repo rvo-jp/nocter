@@ -158,7 +158,7 @@ pub(super) fn lower_aggregate_normal_call_statement(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(return_type_expr) = context.call_return_type_expr(call) else {
+    let Some(return_type_expr) = context.call_value_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
     let drop_kind = context.aggregate_drop_for_type_expr(&return_type_expr);
@@ -213,7 +213,7 @@ pub(super) fn lower_aggregate_fallible_call_statement(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(return_type_expr) = context.call_return_type_expr(call) else {
+    let Some(return_type_expr) = context.call_value_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
     let drop_kind = context.aggregate_drop_for_type_expr(&return_type_expr);

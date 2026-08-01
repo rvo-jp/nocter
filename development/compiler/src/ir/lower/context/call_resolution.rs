@@ -48,6 +48,17 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(in crate::ir::lower) fn call_value_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        let mut ty = self.call_return_type_expr(call)?;
+        loop {
+            match ty {
+                TypeExpr::Fallible(fallible) => ty = *fallible.success,
+                TypeExpr::Optional(optional) => ty = *optional.inner,
+                _ => return Some(ty),
+            }
+        }
+    }
+
     pub(in crate::ir::lower) fn call_argument_parameter_type_expr(
         &self,
         call: &CallExpr,
