@@ -610,7 +610,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
         context.resolved_source(source)
     });
     if let Ok(value) = value
-        && matches!(value.ty, AbiType::Struct(_))
+        && matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
         && supported_aggregate_copy_layout(value.layout)
     {
         let (value_instructions, source) = lower_aggregate_store_value_source(
@@ -631,7 +631,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
     }
 
     Err(unsupported_pointer_primitive_diagnostic(
-        "`store_value_to_ptr` supports only scalar, string-view, and struct element types",
+        "`store_value_to_ptr` supports only scalar, string-view, and aggregate element types",
     ))
 }
 

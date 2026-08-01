@@ -305,6 +305,7 @@ pub func view<T>(values: &Vec<T>): &[T]
 pub func view_mut<T>(values: &+Vec<T>): &+[T]
 pub func reserve<T>(values: &+Vec<T>, additional: usize): void!
 pub func clear<T>(values: &+Vec<T>): void
+pub func pop<T>(values: &+Vec<T>): T?
 pub func push<T>(values: &+Vec<T>, value: T): void!
 pub func capacity_overflow(): error
 
@@ -316,6 +317,7 @@ impl<T> Vec<T> {
     pub method &+self.view_mut(): &+[T]
     pub method &+self.reserve(additional: usize): void!
     pub method &+self.clear(): void
+    pub method &+self.pop(): T?
     pub method &+self.push(value: T): void!
 
     drop &+self {
@@ -334,16 +336,16 @@ Rules:
   queries. Capacity multiplication is checked before allocation.
 - `reserve` grows through the allocator provenance bound to `storage` and publishes the new typed
   pointer and capacity only after successful growth.
-- The v0 runtime surface is narrow. Scalar, `&str`, and explicitly promoted
-  copy-aggregate element storage paths are supported by the current
-  implementation.
-- Non-copy aggregate element storage, per-element drop glue, insertion/removal
-  APIs, and iterator helpers are deferred.
+- Scalar, `&str`, fixed-array, and struct element storage paths are supported. Struct and array
+  elements may own nested values and are destroyed recursively.
+- `push` transfers a non-copy argument into the initialized prefix only after reserve succeeds.
+  `pop` transfers the last initialized element to its return value before shrinking that prefix.
+- Payload-enum element storage, arbitrary-position insertion/removal, and iterator helpers are
+  deferred.
 - `check` may accept `Vec<T>` APIs outside the runtime-supported element subset
   when they typecheck. `build` and `run` must reject unsupported `Vec<T>` element
   storage paths during v0 buildability validation.
-- `clear` resets length. Element drop behavior is deferred until per-element
-  drop glue is designed.
+- `clear` and vector drop destroy every initialized element exactly once in reverse order.
 - `view` and `view_mut` expose slices over initialized elements only.
 
 ### I/O API
@@ -362,11 +364,13 @@ pub func File.open(path: &str): File!
 pub func read(file: &+File, buffer: &+[u8]): usize!
 pub func write(file: &+File, bytes: &[u8]): void!
 pub func write_text(file: &+File, text: &str): void!
+pub func close(file: &+File): void
 
 impl File {
     pub method &+self.read(buffer: &+[u8]): usize!
     pub method &+self.write(bytes: &[u8]): void!
     pub method &+self.write_text(text: &str): void!
+    pub method &+self.close(): void
 
     drop &+self {
         ...
@@ -397,7 +401,9 @@ Rules:
 - `File` internally distinguishes owned handles from borrowed process standard streams.
 - Dropping a `File` returned by `File.open(path)` closes the owned handle.
 - Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
-- The `File` drop member cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
+- `File.close()` closes an owned handle immediately and is idempotent. A later drop does not close
+  the same handle again. It does nothing for borrowed process standard streams.
+- Explicit close and the `File` drop member cannot fail. Close errors are ignored in v0.2.0.
 - Unexpected OS errors are converted to `"std.os.unexpected_os_error"` with a message that preserves useful target context.
 
 Physical placement:

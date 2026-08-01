@@ -1222,6 +1222,132 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_nested_vec_failed_growth_preserves_ownership() {
+    let project = TempProject::new("distributed-home-nested-vec-failed-growth-run");
+    let source = project.write_source(
+        "nested_vec_failed_growth.nct",
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/vec.Vec
+
+func recover(outer: &+Vec<Vec<String>>): i32! {
+    var recovered_inner = outer.pop() otherwise { return 2 }
+    let recovered_text = recovered_inner.pop() otherwise { return 3 }
+    print(recovered_text.view())?
+    return 0
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "preserved")?
+    inner.push(move text)?
+
+    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
+    outer.push(move inner)?
+    outer.reserve(18446744073709551614) catch error {
+        return recover(&+outer)?
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(text(&output.stdout), "preserved");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_file_clear_closes_each_handle_once() {
+    let project = TempProject::new("distributed-home-vec-file-clear-run");
+    let data = project.write_source("data.txt", "payload");
+    let program = r#"use std/io.{File, open}
+use std/mem.{alloc, page_allocator}
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var files: Vec<File> = Vec.empty()
+    let first = open("__DATA_PATH__")?
+    files.push(move first)?
+    files.clear()
+    if files.len() != 0 {
+        return 1
+    }
+
+    var replacement = open("__DATA_PATH__")?
+    drop files
+    var buffer = alloc(&+allocator, 1, 1)?
+    let count: usize = replacement.read(buffer.bytes_mut())?
+    if count != 1 {
+        return 2
+    }
+    if buffer.bytes()[0] != 112 {
+        return 3
+    }
+    replacement.close()
+    return 0
+}
+"#
+    .replace("__DATA_PATH__", &data.display().to_string());
+    let source = project.write_source("vec_file_clear.nct", &program);
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_fixed_array_push_and_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-fixed-array-run");
+    let source = project.write_source(
+        "vec_fixed_array.nct",
+        r#"use std/vec.Vec
+
+func main(): i32! {
+    var values: Vec<[i32; 2]> = Vec.empty()
+    let pair: [i32; 2] = [20, 22]
+    values.push(pair)?
+    let popped = values.pop() otherwise { return 1 }
+    return popped[0] + popped[1]
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_string_pop_transfers_ownership_runs() {
     let project = TempProject::new("distributed-home-vec-string-pop-run");
     let source = project.write_source(

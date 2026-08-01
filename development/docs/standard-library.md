@@ -10,8 +10,8 @@
 |---|---|---|
 | `error` | structured recoverable error | allocator / collection error IDs を安定化 |
 | `fmt` | scalar and text formatting helpers | owning text の動作確認 |
-| `io` | file open/read/write and stdout/stderr | `Vec<File>` の deterministic drop を検証 |
-| `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | layout/grow/free 契約を完成 |
+| `io` | file open/read/write/close and stdout/stderr | deterministic handle ownership 完了 |
+| `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | layout/grow/free 契約完了 |
 | `os` | target-gated syscall boundary | allocator の内側へ限定 |
 | `prelude` | implicit common declarations | v0.2.0 で拡張しない |
 | `process` | exit/abort/cwd/args; env is check-only | allocator 完成に必要な範囲だけ維持 |
@@ -33,8 +33,9 @@ private `RawBuffer` に集約し、typed pointer は非所有 alias として扱
 with_capacity、from_slice、len/capacity、reserve、push、clear、views、storage release は共通
 Allocator 上へ移行済みである。non-copy push は所有権を storage へ移し、clear と drop は
 initialized prefix を逆順に再帰 drop する。pop も末尾 obligation を返り値へ移す。
-残る未達は `Vec<File>` と nested Vec の失敗経路で drop-once を外部効果として観測する
-acceptance test である。
+`Vec<File>.clear()` 後に同じ descriptor 番号へ再割当された handle が vector drop 後も
+読めることを確認し、handle の close-once を外部効果として固定している。nested Vec も
+growth failure 後に内側の `String` を回収して利用できることを確認済みである。
 
 ## v0.2.0 Required Behavior
 
