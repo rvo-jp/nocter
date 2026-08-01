@@ -477,6 +477,10 @@ impl CallableProvenanceSummary {
     pub(in crate::typecheck) fn result(&self) -> Option<&ValueProvenance> {
         self.result.as_ref()
     }
+
+    pub(in crate::typecheck) fn needs_current_allocation_context(&self) -> bool {
+        self.needs_current_allocation_context
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -503,6 +507,24 @@ impl CallableProvenanceSummaries {
     pub(in crate::typecheck) fn result(&self, callable: CallableId) -> Option<&ValueProvenance> {
         self.get(callable)
             .and_then(CallableProvenanceSummary::result)
+    }
+
+    pub(in crate::typecheck) fn set_needs_current_allocation_context(
+        &mut self,
+        callable: CallableId,
+    ) {
+        self.entries
+            .entry(callable)
+            .or_default()
+            .needs_current_allocation_context = true;
+    }
+
+    pub(in crate::typecheck) fn needs_current_allocation_context(
+        &self,
+        callable: CallableId,
+    ) -> bool {
+        self.get(callable)
+            .is_some_and(CallableProvenanceSummary::needs_current_allocation_context)
     }
 }
 

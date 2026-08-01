@@ -1,5 +1,6 @@
 use crate::ast::{BindingKind, CallExpr, Expr, IdentifierExpr, TypeExpr, Visibility};
 use crate::diagnostics::Diagnostic;
+use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
@@ -25,6 +26,7 @@ pub struct ResolveOutput {
     pub(super) call_targets: HashMap<ByteSpan, SymbolId>,
     pub(super) local_symbols: Vec<LocalSymbol>,
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
+    pub(crate) trusted_declarations: TrustedDeclarationFacts,
 }
 
 impl ResolveOutput {
@@ -233,6 +235,7 @@ impl ResolveOutput {
             call_targets: HashMap::new(),
             local_symbols: Vec::new(),
             local_identifier_targets: HashMap::new(),
+            trusted_declarations: TrustedDeclarationFacts::default(),
         }
     }
 

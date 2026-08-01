@@ -7,10 +7,15 @@ pub(in crate::typecheck) fn callable_provenance_summaries(
     for _ in 0..=borrow_return_callable_count(summary_sources) {
         let next = collect_callable_provenance_summaries(summary_sources, &summaries);
         if next == summaries {
-            return summaries;
+            summaries = next;
+            break;
         }
         summaries = next;
     }
+    crate::typecheck::allocation::infer_callable_allocation_effects(
+        summary_sources,
+        &mut summaries,
+    );
     summaries
 }
 

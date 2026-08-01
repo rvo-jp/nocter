@@ -1,3 +1,4 @@
+use super::allocation::type_is_aborting_allocator_capability;
 use super::arrays::{check_array_literal_elements, check_index_expression};
 use super::bindings::{
     check_binding_annotation, check_binding_initializer_copyability, continuing_binding_type,
@@ -12,7 +13,8 @@ use super::diagnostics::{
     assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
     immutable_assignment_diagnostic, loop_control_outside_loop_diagnostic,
     non_copy_struct_assignment_diagnostic, non_writable_assignment_target_diagnostic,
-    readwrite_borrow_requires_writable_place_diagnostic, self_move_assignment_diagnostic,
+    readwrite_borrow_requires_writable_place_diagnostic, region_allocator_capability_diagnostic,
+    self_move_assignment_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -386,11 +388,18 @@ fn check_statement_expressions(
                 environment,
                 loop_depth,
             );
+            let allocator_type = expression_type(&statement.allocator, resolved, environment);
+            if !allocator_type.is_unknown_or_unresolved()
+                && !type_is_aborting_allocator_capability(&allocator_type, resolved)
+            {
+                diagnostics.push(region_allocator_capability_diagnostic(
+                    sources,
+                    statement.allocator.span(),
+                    &allocator_type,
+                ));
+            }
             let mut body_environment = environment.clone();
-            body_environment.define(
-                statement.name.clone(),
-                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
-            );
+            body_environment.define(statement.name.clone(), allocator_type);
             check_block_expressions(
                 sources,
                 &statement.body,

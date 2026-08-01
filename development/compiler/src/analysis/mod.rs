@@ -23,6 +23,7 @@ mod visible_locals;
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_compile_unit};
+use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::typecheck::{
     TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
@@ -38,6 +39,7 @@ pub(crate) struct CompileUnit {
     import_sources: ImportSourceMap,
     prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
+    trusted_declarations: TrustedDeclarationFacts,
 }
 
 impl CompileUnit {
@@ -54,7 +56,16 @@ impl CompileUnit {
             import_sources,
             prelude_sources,
             nocter_home,
+            trusted_declarations: TrustedDeclarationFacts::default(),
         }
+    }
+
+    pub(crate) fn with_trusted_declarations(
+        mut self,
+        trusted_declarations: TrustedDeclarationFacts,
+    ) -> Self {
+        self.trusted_declarations = trusted_declarations;
+        self
     }
 }
 
@@ -142,13 +153,15 @@ fn analyze_compile_unit_with_root_policy(
         .files
         .iter()
         .map(|file| {
-            resolve_compile_unit(
+            let mut resolved = resolve_compile_unit(
                 sources,
                 file,
                 &unit.files,
                 &unit.import_sources,
                 &unit.prelude_sources,
-            )
+            );
+            resolved.trusted_declarations = unit.trusted_declarations.clone();
+            resolved
         })
         .collect::<Vec<_>>();
     let typecheck_sources = unit

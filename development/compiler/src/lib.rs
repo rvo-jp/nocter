@@ -17,6 +17,7 @@ pub mod lexer;
 mod literals;
 pub mod parser;
 pub mod resolve;
+mod semantics;
 pub mod source;
 pub mod target;
 pub mod typecheck;

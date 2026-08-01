@@ -1,4 +1,65 @@
-use super::check_text;
+use super::check;
+use crate::ast::Item;
+use crate::diagnostics::Diagnostic;
+use crate::lexer::lex;
+use crate::parser::parse;
+use crate::resolve::resolve;
+use crate::semantics::{AllocatorCapabilityKind, TrustedDeclarationRole};
+use crate::source::SourceMap;
+
+fn check_text(text: &str) -> Vec<Diagnostic> {
+    check_text_with_trusted_allocator(text, true)
+}
+
+fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<Diagnostic> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("app.nct", None, text);
+    let lexed = lex(&sources, source);
+    assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+    let parsed = parse(&sources, source, &lexed.tokens);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    let ast = parsed.ast.unwrap();
+    let mut resolved = resolve(&sources, &ast);
+    for item in &ast.items {
+        if trust_allocator
+            && let Item::Struct(struct_) = item
+            && struct_.name == "Arena"
+        {
+            resolved.trusted_declarations.insert(
+                struct_.span,
+                TrustedDeclarationRole::AllocatorCapability(AllocatorCapabilityKind::Aborting),
+            );
+        }
+    }
+    let mut diagnostics = resolved.diagnostics.clone();
+    diagnostics.extend(check(&sources, &ast, &resolved));
+    diagnostics
+}
+
+#[test]
+fn rejects_untrusted_region_allocator_type() {
+    let diagnostics = check_text_with_trusted_allocator(
+        r#"copy struct Arena {
+    id: usize
+}
+
+func use_region(parent: Arena): void {
+    region temp using parent {
+        let value = 1
+    }
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        false,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0439");
+}
 
 #[test]
 fn diagnoses_direct_region_handle_return() {

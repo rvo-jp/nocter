@@ -1,4 +1,4 @@
-use super::{Diagnostic, DiagnosticNote, Expr, ReturnContext, SourceMap};
+use super::{Diagnostic, DiagnosticNote, Expr, ReturnContext, SourceMap, Type};
 use crate::source::ByteSpan;
 
 pub(in crate::typecheck) fn region_allocator_not_place_diagnostic(
@@ -12,6 +12,26 @@ pub(in crate::typecheck) fn region_allocator_not_place_diagnostic(
     diagnostic.primary_span = sources.span_to_json(allocator_span).ok().map(Box::new);
     diagnostic.help = Some(
         "bind the allocator/context value first, then use that binding or one of its fields"
+            .to_string(),
+    );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn region_allocator_capability_diagnostic(
+    sources: &SourceMap,
+    allocator_span: ByteSpan,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0439",
+        format!(
+            "a region parent must have the trusted aborting allocator capability, found `{}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(allocator_span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "use `std.mem.Allocator`; recoverable allocators are available only through explicit `try_*` APIs"
             .to_string(),
     );
     diagnostic

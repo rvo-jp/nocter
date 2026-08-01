@@ -1,0 +1,127 @@
+//! Registry for semantic roles owned by trusted standard-library declarations.
+
+use crate::ast::{AstFile, Item, type_expr_display_lossy};
+use crate::semantics::{
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationFacts,
+    TrustedDeclarationRole,
+};
+
+pub(crate) fn trusted_declarations_for_module(
+    module_path: &str,
+    ast: &AstFile,
+) -> TrustedDeclarationFacts {
+    let mut facts = TrustedDeclarationFacts::default();
+    if module_path != "std/mem" {
+        return facts;
+    }
+
+    for item in &ast.items {
+        match item {
+            Item::Struct(struct_) => {
+                let kind = match struct_.name.as_str() {
+                    "Allocator" if allocator_shape_matches(struct_) => {
+                        AllocatorCapabilityKind::Aborting
+                    }
+                    "TryAllocator" if allocator_shape_matches(struct_) => {
+                        AllocatorCapabilityKind::Recoverable
+                    }
+                    _ => continue,
+                };
+                facts.insert(
+                    struct_.span,
+                    TrustedDeclarationRole::AllocatorCapability(kind),
+                );
+            }
+            Item::Primitive(primitive) => {
+                let role = match primitive.name.as_str() {
+                    "current_allocator" => TrustedDeclarationRole::CurrentAllocationContext,
+                    "alloc_current" => TrustedDeclarationRole::AllocationOperation {
+                        source: AllocationSource::CurrentContext,
+                        failure_policy: AllocationFailurePolicy::Abort,
+                    },
+                    "try_alloc_current" => TrustedDeclarationRole::AllocationOperation {
+                        source: AllocationSource::CurrentContext,
+                        failure_policy: AllocationFailurePolicy::Recoverable,
+                    },
+                    "region_enter" => TrustedDeclarationRole::RegionEnter,
+                    "region_release" => TrustedDeclarationRole::RegionRelease,
+                    _ => continue,
+                };
+                facts.insert(primitive.name_span, role);
+            }
+            Item::Function(function) => {
+                let role = match function.name.as_str() {
+                    "alloc"
+                        if function_shape_matches(
+                            function,
+                            &[
+                                ("allocator", "&+Allocator"),
+                                ("size", "usize"),
+                                ("align", "usize"),
+                            ],
+                            "RawBuffer!",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationOperation {
+                            source: AllocationSource::Input(0),
+                            failure_policy: AllocationFailurePolicy::Recoverable,
+                        }
+                    }
+                    "alloc_layout"
+                        if function_shape_matches(
+                            function,
+                            &[("allocator", "&+Allocator"), ("requested", "Layout")],
+                            "RawBuffer!",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationOperation {
+                            source: AllocationSource::Input(0),
+                            failure_policy: AllocationFailurePolicy::Recoverable,
+                        }
+                    }
+                    _ => continue,
+                };
+                facts.insert(function.name_span, role);
+            }
+            Item::Import(_)
+            | Item::FromImport(_)
+            | Item::TypeAlias(_)
+            | Item::Enum(_)
+            | Item::Interface(_)
+            | Item::Impl(_) => {}
+        }
+    }
+
+    facts
+}
+
+fn allocator_shape_matches(struct_: &crate::ast::StructDecl) -> bool {
+    !struct_.is_copy
+        && struct_.generics.parameters.is_empty()
+        && struct_.fields.len() == 2
+        && field_matches(&struct_.fields[0], "state", "usize")
+        && field_matches(&struct_.fields[1], "kind", "usize")
+}
+
+fn field_matches(field: &crate::ast::StructField, name: &str, ty: &str) -> bool {
+    field.name == name && type_expr_display_lossy(&field.ty) == ty
+}
+
+fn function_shape_matches(
+    function: &crate::ast::FunctionDecl,
+    parameters: &[(&str, &str)],
+    return_type: &str,
+) -> bool {
+    function.owner.is_none()
+        && function.generics.parameters.is_empty()
+        && function.parameters.parameters.len() == parameters.len()
+        && function
+            .parameters
+            .parameters
+            .iter()
+            .zip(parameters)
+            .all(|(actual, (name, ty))| {
+                actual.name == *name && type_expr_display_lossy(&actual.ty) == *ty
+            })
+        && type_expr_display_lossy(&function.return_type) == return_type
+}

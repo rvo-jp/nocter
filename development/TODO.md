@@ -39,9 +39,15 @@ parameter identity から caller argument へ写像する。これにより regi
 helper が構築した aggregate を経由しても escape 検査を迂回できない。borrow receiver/parameter
 については従来どおり参照先 storage を追跡し、by-value input とは分離している。
 
-次の checkpoint では callable summary に allocation effect を追加する。trusted allocation
-declaration metadata と allocator capability role を導入し、`using` の型検査と current
-allocation context の静的伝播を接続する。
+frontend は active Nocter home 内の検証済み declaration identity に compiler-owned semantic
+role を付与する。`Allocator` capability は構造を含めて registry で検証され、`region using`
+は任意の同名型や recoverable capability を受け付けない。callable summary の allocation
+effect は trusted current-context operation を seed とし、function/method call graph を fixed
+point まで伝播する。型検査、analysis、lowering は同じ `ResolveOutput` 上の trusted facts を
+参照できる。
+
+次の checkpoint では trusted current-context/region runtime primitive を標準ライブラリと
+backend に接続し、共有 fallible allocator core、aborting adapter、`TryAllocator` を実装する。
 
 Phase 0 gate:
 

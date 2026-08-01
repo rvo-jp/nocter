@@ -7,7 +7,12 @@ use std::collections::HashMap;
 #[test]
 fn reports_region_runtime_boundary_before_ir_lowering() {
     let (sources, analysis) = analyze_text(
-        r#"func use_region(arena: usize): i32 {
+        r#"struct Allocator {
+    state: usize
+    kind: usize
+}
+
+func use_region(arena: Allocator): i32 {
     region temp using arena {
         let value = 1
     }
@@ -15,7 +20,7 @@ fn reports_region_runtime_boundary_before_ir_lowering() {
 }
 
 func main(): i32 {
-    return use_region(0)
+    return use_region(Allocator { state: 0, kind: 0 })
 }
 "#,
     );
@@ -2384,7 +2389,9 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
         parsed.diagnostics
     );
     let ast = parsed.ast.expect("expected ast");
-    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
+    let trusted = crate::target::trusted::trusted_declarations_for_module("std/mem", &ast);
+    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None)
+        .with_trusted_declarations(trusted);
     let analysis = analyze_executable_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();
     assert!(

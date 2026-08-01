@@ -1,5 +1,6 @@
 //! Type checking, ownership, borrowing, move, and drop checks.
 
+mod allocation;
 mod arrays;
 mod bindings;
 mod body;
