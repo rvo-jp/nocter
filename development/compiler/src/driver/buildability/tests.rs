@@ -2074,6 +2074,89 @@ func main(): i32! {
     );
 }
 
+#[test]
+fn accepts_move_only_fixed_array_struct_field_storage_and_replacement() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+func make(): [File; 2] {
+    return [File { fd: 3 }, File { fd: 4 }]
+}
+
+func consume(bundle: Bundle): void {
+    return
+}
+
+func main(): i32 {
+    let initial: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    var bundle = Bundle { code: 42, files: move initial }
+    bundle.files = [File { fd: 3 }, File { fd: 4 }]
+    bundle.files = make()
+    let replacement: [File; 2] = [File { fd: 5 }, File { fd: 6 }]
+    bundle.files = move replacement
+    consume(move bundle)
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_move_only_fixed_array_struct_field_partial_initialization_before_ir_lowering() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+func make(): [File; 2]! {
+    return [File { fd: 1 }, File { fd: 2 }]
+}
+
+func main(): i32! {
+    let bundle = Bundle { code: 42, files: make()? }
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0435");
+    assert_eq!(
+        diagnostics[0].message,
+        "Nocter v0 build cannot lower move-only fixed array struct fields whose initialization can exit early yet"
+    );
+}
+
 fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("test.nct", None, text.to_string());

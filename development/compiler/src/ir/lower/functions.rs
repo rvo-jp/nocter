@@ -94,6 +94,7 @@ use parameters::*;
 use switches::*;
 use value_returns::*;
 
+pub(in crate::ir::lower) use aggregate_returns::lower_aggregate_drop_instructions_at_location;
 pub(in crate::ir::lower) use callable_body::reachable_body_prefix;
 pub(in crate::ir::lower) use entrypoints::*;
 pub(in crate::ir::lower) use payload_patterns::*;

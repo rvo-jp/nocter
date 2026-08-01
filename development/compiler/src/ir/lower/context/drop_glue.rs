@@ -9,7 +9,19 @@ pub(in crate::ir::lower) fn aggregate_drop_for_type_expr_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    aggregate_drop_for_type_expr_inner(ty, root_source, fallback_resolved, &resolver)
+    aggregate_drop_for_type_expr_with_resolver_ref(ty, root_source, fallback_resolved, &resolver)
+}
+
+pub(in crate::ir::lower) fn aggregate_drop_for_type_expr_with_resolver_ref<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    aggregate_drop_for_type_expr_inner(ty, root_source, fallback_resolved, resolver)
 }
 
 fn aggregate_drop_for_type_expr_inner<'a, F>(
@@ -28,7 +40,7 @@ where
     }
     let direct =
         drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver);
-    let fields = crate::ir::lower::aggregates::aggregate_fields_from_type_expr_with_resolver(
+    let fields = crate::ir::lower::aggregates::aggregate_fields_from_type_expr_with_resolver_ref(
         ty,
         root_source,
         fallback_resolved,
@@ -162,21 +174,11 @@ fn struct_drop_fields(fields: &[AggregateField]) -> Vec<StructDropField> {
 }
 
 fn struct_drop_field(field: &AggregateField) -> Option<StructDropField> {
-    let AggregateFieldKind::Aggregate { layout, fields } = &field.kind else {
-        return None;
-    };
-    let nested_fields = struct_drop_fields(fields);
-    let drop_kind = if nested_fields.is_empty() {
-        AggregateDrop::Direct(field.drop_glue.clone()?)
-    } else {
-        AggregateDrop::Struct(StructDrop {
-            direct: field.drop_glue.clone(),
-            fields: nested_fields,
-        })
-    };
+    let layout = field.kind.copy_aggregate_layout()?;
+    let drop_kind = field.drop_kind.clone()?;
     Some(StructDropField {
         offset: field.offset,
-        layout: *layout,
+        layout,
         drop_kind: Box::new(drop_kind),
     })
 }

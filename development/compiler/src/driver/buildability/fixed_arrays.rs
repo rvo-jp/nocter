@@ -70,6 +70,25 @@ pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
+pub(super) fn move_only_fixed_array_struct_field_requires_partial_initialization_tracking(
+    field: &StructLiteralField,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> bool {
+    if expression_completes_without_source_control_exit(&field.value) {
+        return false;
+    }
+    let Some(ty) = field_type_expr_for_span(field.name_span, fallback_resolved, typecheck_facts)
+    else {
+        return false;
+    };
+    let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
+    let resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_is_supported_move_only_fixed_array_with_resolver(&ty, fallback_resolved, &resolver)
+}
+
 pub(super) fn fixed_array_literal_return_has_fixed_array_type(
     expression: &Expr,
     return_type: Option<&TypeExpr>,
@@ -391,7 +410,7 @@ pub(super) fn fixed_array_move_binding_is_buildable(
     else {
         return false;
     };
-    fixed_array_move_between_local_types_is_buildable(
+    fixed_array_move_to_target_is_buildable(
         &target_ty,
         identifier,
         resolved,
@@ -543,9 +562,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if statement.operator != AssignmentOperator::Assign
-        || !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_))
-    {
+    if statement.operator != AssignmentOperator::Assign {
         return false;
     }
     let Expr::Unary(unary) = unwrap_group_expr(&statement.value) else {
@@ -566,7 +583,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
     ) else {
         return false;
     };
-    fixed_array_move_between_local_types_is_buildable(
+    fixed_array_move_to_target_is_buildable(
         &target_ty,
         identifier,
         resolved,
@@ -576,7 +593,7 @@ pub(super) fn fixed_array_move_assignment_is_buildable(
     )
 }
 
-fn fixed_array_move_between_local_types_is_buildable(
+fn fixed_array_move_to_target_is_buildable(
     target_ty: &TypeExpr,
     source: &IdentifierExpr,
     resolved: &ResolveOutput,
@@ -687,7 +704,7 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
     if !matches!(unwrap_group_expr(&statement.value), Expr::Otherwise(_)) {
         return false;
     }
-    let Some((target_element, target_length, target_layout)) = fixed_array_assignment_target_abi(
+    let Some(target_ty) = fixed_array_assignment_target_type_expr(
         &statement.target,
         resolved,
         resolved_sources,
@@ -696,9 +713,11 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
     ) else {
         return false;
     };
-    if !fixed_array_element_abi_is_buildable(&target_element) {
+    let Some((target_element, target_length, target_layout)) =
+        fixed_array_type_abi_for_sources(&target_ty, resolved, resolved_sources)
+    else {
         return false;
-    }
+    };
 
     let Some(source_ty) = fixed_array_binding_call_result_type_expr(
         &statement.value,
@@ -714,13 +733,16 @@ pub(super) fn fixed_array_otherwise_assignment_is_buildable(
         return false;
     };
 
-    fixed_array_abi_matches_buildable_element(
+    fixed_array_abi_matches_supported_element(
+        &target_ty,
         &target_element,
         target_length,
         target_layout,
         &source_element,
         source_length,
         source_layout,
+        resolved,
+        resolved_sources,
     )
 }
 
@@ -982,9 +1004,6 @@ fn fixed_array_literal_recursive_drop_assignment_is_buildable(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_)) {
-        return false;
-    }
     let Some(target_ty) = fixed_array_assignment_target_type_expr(
         &statement.target,
         fallback_resolved,
@@ -1012,9 +1031,6 @@ fn fixed_array_literal_assignment_requires_partial_initialization_tracking(
     typecheck_facts: &TypecheckFacts,
     generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> bool {
-    if !matches!(unwrap_group_expr(&statement.target), Expr::Identifier(_)) {
-        return false;
-    }
     let Expr::ArrayLiteral(literal) = unwrap_group_expr(&statement.value) else {
         return false;
     };

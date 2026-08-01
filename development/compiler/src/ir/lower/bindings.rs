@@ -34,9 +34,10 @@ use super::expressions::{
     push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
-    lower_drop_statement, lower_never_expression_with_scope_drops,
-    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
-    propagating_failure_mode, replacement_drop_for_aggregate_slot,
+    lower_aggregate_drop_instructions_at_location, lower_drop_statement,
+    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_scope_end_drops_for_locals_since, propagating_failure_mode,
+    replacement_drop_for_aggregate_slot,
 };
 use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
@@ -55,9 +56,9 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, FallibleFailureMode,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
-    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, FallibleFailureMode, I32Location, I32Value,
+    Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::resolve::ResolveOutput;
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};

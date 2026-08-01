@@ -1727,3 +1727,332 @@ func main(): i32 {
     assert_eq!(output.stdout, b"dcba");
     assert!(output.stderr.is_empty());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_recursively_drops_move_only_fixed_array_struct_fields() {
+    let project = TempProject::new("cli-run-move-only-fixed-array-struct-field-drop");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "move_only_fixed_array_struct_field_drop.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+func make(): Bundle {
+    let files: [File; 2] = [File { name: "a" }, File { name: "b" }]
+    return Bundle { code: 42, files: move files }
+}
+
+func consume(bundle: Bundle): void {
+    return
+}
+
+func main(): i32 {
+    consume(make())
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Xba");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_replaces_move_only_fixed_array_struct_fields() {
+    let project = TempProject::new("cli-run-replace-move-only-fixed-array-struct-fields");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replace_move_only_fixed_array_struct_fields.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+func make(first: &str, second: &str): [File; 2] {
+    return [File { name: first }, File { name: second }]
+}
+
+func main(): i32 {
+    var bundle = Bundle { code: 42, files: [File { name: "a" }, File { name: "b" }] }
+    bundle.files = [File { name: "c" }, File { name: "d" }]
+    bundle.files = make("e", "f")
+    let replacement: [File; 2] = [File { name: "g" }, File { name: "h" }]
+    bundle.files = move replacement
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badcfeXhg");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_replaces_borrowed_move_only_fixed_array_struct_fields() {
+    let project = TempProject::new("cli-run-replace-borrowed-move-only-array-field");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replace_borrowed_move_only_array_field.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+func make(): [File; 2]! {
+    return [File { name: "c" }, File { name: "d" }]
+}
+
+func maybe_files(): [File; 2]? {
+    return none
+}
+
+func replace(bundle: &+Bundle): void! {
+    bundle.files = make()?
+    bundle.files = maybe_files() otherwise {
+        [File { name: "e" }, File { name: "f" }]
+    }
+    return
+}
+
+func main(): i32! {
+    var bundle = Bundle {
+        code: 42,
+        files: [File { name: "a" }, File { name: "b" }],
+    }
+    replace(&+bundle)?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badcXfe");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_move_only_fixed_array_field_on_call_failure() {
+    let project = TempProject::new("cli-run-preserve-move-only-array-field-on-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "preserve_move_only_array_field_on_failure.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+impl Bundle {
+    drop &+self {
+        write("X")!
+        return
+    }
+}
+
+func fail(): [File; 2]! {
+    return Error.new("app.failed", "failed")
+}
+
+func replace(bundle: &+Bundle): void! {
+    bundle.files = fail()?
+}
+
+func main(): void! {
+    var bundle = Bundle {
+        code: 42,
+        files: [File { name: "a" }, File { name: "b" }],
+    }
+    replace(&+bundle)?
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Xba");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}

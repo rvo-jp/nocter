@@ -461,21 +461,13 @@ pub(in crate::ir::lower) fn lower_aggregate_drop_instructions(
     drop_kind: &AggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match drop_kind {
-        AggregateDrop::Direct(drop_glue) => {
-            lower_direct_aggregate_drop_instruction(name, slot_index, layout, drop_glue, context)
-                .map(|instruction| vec![instruction])
-        }
-        AggregateDrop::Struct(drop_) => {
-            lower_struct_drop_instructions(name, slot_index, layout, drop_, context)
-        }
-        AggregateDrop::Array(drop_) => {
-            lower_array_drop_instructions(name, slot_index, drop_, context)
-        }
-        AggregateDrop::PayloadEnum(drop_) => {
-            lower_payload_enum_drop_instructions(name, slot_index, drop_, context)
-        }
-    }
+    lower_aggregate_drop_instructions_at_root_location(
+        name,
+        AggregateLocation::Slot(slot_index),
+        layout,
+        drop_kind,
+        context,
+    )
 }
 
 pub(in crate::ir::lower) fn mark_lowered_statement_aggregate_uses(

@@ -17,7 +17,7 @@ pub(super) fn lower_aggregate_field_assignment(
     let destination = field.source;
     let offset = field.offset;
     let field_is_copy = field.is_copy;
-    let field_drop_glue = field.drop_glue.clone();
+    let field_drop_kind = field.drop_kind.clone();
     match field.kind {
         AggregateFieldKind::I8 => Ok(vec![Instruction::StoreAggregateU8 {
             destination,
@@ -150,6 +150,8 @@ pub(super) fn lower_aggregate_field_assignment(
             layout,
             element,
             length,
+            field_is_copy,
+            field_drop_kind,
             value,
             context,
         ),
@@ -161,7 +163,7 @@ pub(super) fn lower_aggregate_field_assignment(
                     destination,
                     offset,
                     layout,
-                    field_drop_glue,
+                    field_drop_kind,
                     value,
                     context,
                 )
@@ -171,6 +173,65 @@ pub(super) fn lower_aggregate_field_assignment(
 }
 
 pub(super) fn lower_aggregate_array_field_assignment(
+    destination: AggregateLocation,
+    offset: u32,
+    layout: ValueLayout,
+    element: AbiType,
+    length: u64,
+    is_copy: bool,
+    drop_kind: Option<AggregateDrop>,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !is_copy {
+        let Some(drop_kind) = drop_kind else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let replacement_slot = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: replacement_slot,
+            layout,
+        }];
+        instructions.extend(lower_aggregate_array_field_value_assignment(
+            AggregateLocation::Slot(replacement_slot),
+            0,
+            layout,
+            element,
+            length,
+            value,
+            context,
+        )?);
+        instructions.extend(lower_aggregate_drop_instructions_at_location(
+            "aggregate field replacement",
+            destination,
+            offset,
+            layout,
+            &drop_kind,
+            context,
+        )?);
+        instructions.push(Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: offset,
+            source: AggregateLocation::Slot(replacement_slot),
+            source_offset: 0,
+            layout,
+        });
+        return Ok(instructions);
+    }
+
+    lower_aggregate_array_field_value_assignment(
+        destination,
+        offset,
+        layout,
+        element,
+        length,
+        value,
+        context,
+    )
+}
+
+fn lower_aggregate_array_field_value_assignment(
     destination: AggregateLocation,
     offset: u32,
     layout: ValueLayout,
@@ -398,7 +459,7 @@ pub(super) fn lower_aggregate_member_replacement_assignment(
     destination: AggregateLocation,
     destination_offset: u32,
     layout: ValueLayout,
-    drop_glue: Option<DropGlue>,
+    drop_kind: Option<AggregateDrop>,
     value: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -419,14 +480,15 @@ pub(super) fn lower_aggregate_member_replacement_assignment(
         value,
         context,
     )?);
-    if let Some(drop_instruction) = replacement_drop_for_aggregate_field(
-        destination,
-        destination_offset,
-        layout,
-        drop_glue,
-        context,
-    )? {
-        instructions.push(drop_instruction);
+    if let Some(drop_kind) = drop_kind {
+        instructions.extend(lower_aggregate_drop_instructions_at_location(
+            "aggregate field replacement",
+            destination,
+            destination_offset,
+            layout,
+            &drop_kind,
+            context,
+        )?);
     }
     instructions.push(Instruction::CopyAggregateRange {
         destination,
@@ -436,76 +498,6 @@ pub(super) fn lower_aggregate_member_replacement_assignment(
         layout,
     });
     Ok(instructions)
-}
-
-pub(super) fn replacement_drop_for_aggregate_field(
-    destination: AggregateLocation,
-    destination_offset: u32,
-    layout: ValueLayout,
-    drop_glue: Option<DropGlue>,
-    context: &LoweringContext,
-) -> Result<Option<Instruction>, Vec<Diagnostic>> {
-    let Some(drop_glue) = drop_glue else {
-        return Ok(None);
-    };
-    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
-        return Err(unsupported_assignment_diagnostic());
-    };
-    if parameter_types.len() != 1
-        || !drop_parameter_matches_aggregate_layout(&parameter_types[0], layout)
-    {
-        return Err(unsupported_assignment_diagnostic());
-    }
-
-    let source = borrow_source_for_aggregate_field(destination, destination_offset)?;
-    Ok(Some(Instruction::CallVoid {
-        target: drop_glue.target,
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument { source })],
-    }))
-}
-
-pub(super) fn borrow_source_for_aggregate_field(
-    destination: AggregateLocation,
-    offset: u32,
-) -> Result<BorrowSource, Vec<Diagnostic>> {
-    match destination {
-        AggregateLocation::Slot(slot_index) => {
-            Ok(BorrowSource::AggregateSlotField { slot_index, offset })
-        }
-        AggregateLocation::Parameter(parameter_index) => {
-            Ok(BorrowSource::AggregateParameterField {
-                parameter_index,
-                offset,
-            })
-        }
-        AggregateLocation::Return
-        | AggregateLocation::DirectReturn
-        | AggregateLocation::DirectParameter { .. } => Err(unsupported_assignment_diagnostic()),
-    }
-}
-
-pub(super) fn drop_parameter_matches_aggregate_layout(
-    parameter_type: &Type,
-    layout: ValueLayout,
-) -> bool {
-    let Type::Borrow {
-        is_readwrite: true,
-        inner,
-    } = parameter_type
-    else {
-        return false;
-    };
-
-    match inner.as_ref() {
-        Type::Aggregate {
-            layout: parameter_layout,
-        }
-        | Type::DirectAggregate {
-            layout: parameter_layout,
-            ..
-        } => *parameter_layout == layout,
-        _ => false,
-    }
 }
 
 pub(super) fn lower_aggregate_call_member_value_assignment(

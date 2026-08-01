@@ -1,4 +1,3 @@
-use super::copyability::fixed_array_element_abi_is_runtime_copy;
 use super::*;
 
 pub(in crate::ir::lower) fn aggregate_fields_from_type_expr(
@@ -18,17 +17,29 @@ pub(in crate::ir::lower) fn aggregate_fields_from_type_expr_with_resolver<'a, F>
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    aggregate_fields_from_type_expr_with_resolver_ref(ty, root_source, fallback_resolved, &resolver)
+}
+
+pub(in crate::ir::lower) fn aggregate_fields_from_type_expr_with_resolver_ref<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<Vec<AggregateField>>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
     let ty = match ty {
         TypeExpr::Fallible(fallible) => &fallible.success,
         TypeExpr::Optional(optional) => &optional.inner,
         _ => ty,
     };
-    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, &resolver).ok()?;
+    let value = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).ok()?;
     let AbiType::Struct(fields) = value.ty else {
         return Some(Vec::new());
     };
     let struct_layout = layout_struct(&fields).ok()?;
-    let source_fields = struct_field_signatures_from_type_expr(ty, fallback_resolved, &resolver)?;
+    let source_fields = struct_field_signatures_from_type_expr(ty, fallback_resolved, resolver)?;
     if fields.len() != source_fields.len() {
         return None;
     }
@@ -46,7 +57,7 @@ where
             layout.offset,
             root_source,
             fallback_resolved,
-            &resolver,
+            resolver,
             &mut aggregate_fields,
         )?;
     }
@@ -195,12 +206,24 @@ where
         aggregate_field_kind_from_abi_type(ty, source_ty, fallback_resolved, resolver)
     {
         let offset = u32::try_from(base_offset).ok()?;
+        let is_copy = !matches!(kind, AggregateFieldKind::Array { .. })
+            || source_ty.is_some_and(|ty| {
+                type_expr_is_copy_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+            });
+        let drop_kind = source_ty.and_then(|ty| {
+            aggregate_drop_for_type_expr_with_resolver_ref(
+                ty,
+                root_source,
+                fallback_resolved,
+                resolver,
+            )
+        });
         aggregate_fields.push(AggregateField {
             name: name.to_string(),
             offset,
             kind,
-            is_copy: true,
-            drop_glue: None,
+            is_copy,
+            drop_kind,
         });
         return Some(());
     }
@@ -247,8 +270,13 @@ where
         is_copy: source_ty.is_some_and(|ty| {
             type_expr_is_copy_struct_with_resolver(ty, fallback_resolved, resolver)
         }),
-        drop_glue: source_ty.and_then(|ty| {
-            drop_glue_for_type_expr_with_resolver(ty, root_source, fallback_resolved, resolver)
+        drop_kind: source_ty.and_then(|ty| {
+            aggregate_drop_for_type_expr_with_resolver_ref(
+                ty,
+                root_source,
+                fallback_resolved,
+                resolver,
+            )
         }),
     });
 
@@ -294,9 +322,7 @@ where
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
-        AbiType::Array { element, length }
-            if fixed_array_element_abi_is_runtime_copy(element.as_ref()) =>
-        {
+        AbiType::Array { element, length } => {
             let stride = array_element_stride(element).ok()?;
             Some(AggregateFieldKind::Array {
                 layout: layout_of(ty).ok()?,

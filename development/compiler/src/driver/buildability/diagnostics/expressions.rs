@@ -70,7 +70,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
-                if fixed_array_literal_struct_field_has_fixed_array_type(
+                if move_only_fixed_array_struct_field_requires_partial_initialization_tracking(
+                    field,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                ) {
+                    diagnostics.push(unsupported_v0_build_diagnostic(
+                        sources,
+                        field.value.span(),
+                        "move-only fixed array struct fields whose initialization can exit early",
+                        "initialize the field without `?`, `catch`, `otherwise`, or value control flow until per-field initialization state is tracked",
+                    ));
+                } else if fixed_array_literal_struct_field_has_fixed_array_type(
                     field,
                     resolved,
                     resolved_sources,

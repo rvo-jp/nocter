@@ -1,7 +1,7 @@
 use super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::context::{
     AggregateField, AggregateFieldKind, LoweringContext, SliceTypeInfo,
-    drop_glue_for_type_expr_with_resolver,
+    aggregate_drop_for_type_expr_with_resolver_ref,
 };
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,

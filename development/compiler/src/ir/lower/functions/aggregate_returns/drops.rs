@@ -1,8 +1,31 @@
 use super::*;
 
-pub(in crate::ir::lower::functions) fn lower_direct_aggregate_drop_instruction(
+pub(in crate::ir::lower) fn lower_aggregate_drop_instructions_at_location(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
+    offset: u32,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_drop_at_offset(name, location, offset, true, layout, drop_kind, context)
+}
+
+pub(in crate::ir::lower::functions) fn lower_aggregate_drop_instructions_at_root_location(
+    name: &str,
+    location: AggregateLocation,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_drop_at_offset(name, location, 0, false, layout, drop_kind, context)
+}
+
+fn lower_direct_aggregate_drop_instruction_at_location(
+    name: &str,
+    location: AggregateLocation,
+    offset: u32,
+    is_field: bool,
     layout: ValueLayout,
     drop_glue: &crate::ir::lower::context::DropGlue,
     context: &LoweringContext,
@@ -17,44 +40,48 @@ pub(in crate::ir::lower::functions) fn lower_direct_aggregate_drop_instruction(
     Ok(Instruction::CallVoid {
         target: drop_glue.target.clone(),
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlot(slot_index),
+            source: aggregate_borrow_source_at_offset(location, offset, is_field)
+                .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?,
         })],
     })
 }
 
-pub(in crate::ir::lower::functions) fn lower_struct_drop_instructions(
+fn lower_struct_drop_instructions_at_location(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
+    base_offset: u32,
+    is_field: bool,
     layout: ValueLayout,
     drop_: &StructDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
     if let Some(direct) = &drop_.direct {
-        instructions.push(lower_direct_aggregate_drop_instruction(
-            name, slot_index, layout, direct, context,
+        instructions.push(lower_direct_aggregate_drop_instruction_at_location(
+            name,
+            location,
+            base_offset,
+            is_field,
+            layout,
+            direct,
+            context,
         )?);
     }
     for field in drop_.fields.iter().rev() {
         instructions.extend(lower_struct_drop_field(
-            name, slot_index, 0, field, context,
+            name,
+            location,
+            base_offset,
+            field,
+            context,
         )?);
     }
     Ok(instructions)
 }
 
-pub(in crate::ir::lower::functions) fn lower_array_drop_instructions(
+fn lower_array_drop_instructions_at_location(
     name: &str,
-    slot_index: usize,
-    drop_: &ArrayDrop,
-    context: &LoweringContext,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_array_drop_instructions_at_offset(name, slot_index, 0, drop_, context)
-}
-
-fn lower_array_drop_instructions_at_offset(
-    name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     base_offset: u32,
     drop_: &ArrayDrop,
     context: &LoweringContext,
@@ -68,8 +95,9 @@ fn lower_array_drop_instructions_at_offset(
             .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
         instructions.extend(lower_aggregate_drop_at_offset(
             name,
-            slot_index,
+            location,
             offset,
+            true,
             drop_.element_layout,
             drop_.element_drop_kind.as_ref(),
             context,
@@ -80,7 +108,7 @@ fn lower_array_drop_instructions_at_offset(
 
 fn lower_struct_drop_field(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     base_offset: u32,
     field: &StructDropField,
     context: &LoweringContext,
@@ -90,8 +118,9 @@ fn lower_struct_drop_field(
         .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
     lower_aggregate_drop_at_offset(
         name,
-        slot_index,
+        location,
         offset,
+        true,
         field.layout,
         field.drop_kind.as_ref(),
         context,
@@ -100,76 +129,34 @@ fn lower_struct_drop_field(
 
 fn lower_aggregate_drop_at_offset(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     offset: u32,
+    is_field: bool,
     layout: ValueLayout,
     drop_kind: &AggregateDrop,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match drop_kind {
         AggregateDrop::Direct(drop_glue) => {
-            Ok(vec![lower_direct_aggregate_field_drop_instruction(
-                name, slot_index, offset, layout, drop_glue, context,
+            Ok(vec![lower_direct_aggregate_drop_instruction_at_location(
+                name, location, offset, is_field, layout, drop_glue, context,
             )?])
         }
-        AggregateDrop::Struct(drop_) => {
-            let mut instructions = Vec::new();
-            if let Some(direct) = &drop_.direct {
-                instructions.push(lower_direct_aggregate_field_drop_instruction(
-                    name, slot_index, offset, layout, direct, context,
-                )?);
-            }
-            for nested in drop_.fields.iter().rev() {
-                instructions.extend(lower_struct_drop_field(
-                    name, slot_index, offset, nested, context,
-                )?);
-            }
-            Ok(instructions)
-        }
+        AggregateDrop::Struct(drop_) => lower_struct_drop_instructions_at_location(
+            name, location, offset, is_field, layout, drop_, context,
+        ),
         AggregateDrop::Array(drop_) => {
-            lower_array_drop_instructions_at_offset(name, slot_index, offset, drop_, context)
+            lower_array_drop_instructions_at_location(name, location, offset, drop_, context)
         }
         AggregateDrop::PayloadEnum(drop_) => {
-            lower_payload_enum_drop_instructions_at_offset(name, slot_index, offset, drop_, context)
+            lower_payload_enum_drop_instructions_at_location(name, location, offset, drop_, context)
         }
     }
 }
 
-fn lower_direct_aggregate_field_drop_instruction(
+fn lower_payload_enum_drop_instructions_at_location(
     name: &str,
-    slot_index: usize,
-    offset: u32,
-    layout: ValueLayout,
-    drop_glue: &crate::ir::lower::context::DropGlue,
-    context: &LoweringContext,
-) -> Result<Instruction, Vec<Diagnostic>> {
-    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
-        return Err(unsupported_drop_statement_diagnostic(name));
-    };
-    if parameter_types.len() != 1 || !drop_parameter_matches_local(&parameter_types[0], layout) {
-        return Err(unsupported_drop_statement_diagnostic(name));
-    }
-
-    Ok(Instruction::CallVoid {
-        target: drop_glue.target.clone(),
-        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-            source: BorrowSource::AggregateSlotField { slot_index, offset },
-        })],
-    })
-}
-
-pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_instructions(
-    name: &str,
-    slot_index: usize,
-    drop_: &PayloadEnumDrop,
-    context: &LoweringContext,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    lower_payload_enum_drop_instructions_at_offset(name, slot_index, 0, drop_, context)
-}
-
-fn lower_payload_enum_drop_instructions_at_offset(
-    name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     base_offset: u32,
     drop_: &PayloadEnumDrop,
     context: &LoweringContext,
@@ -178,13 +165,13 @@ fn lower_payload_enum_drop_instructions_at_offset(
     let tag = temporaries.next_u8()?;
     let mut instructions = vec![Instruction::LoadAggregateU8 {
         destination: tag,
-        source: AggregateLocation::Slot(slot_index),
+        source: location,
         offset: base_offset,
     }];
     for variant in drop_.variants.iter().rev() {
         instructions.push(lower_payload_enum_drop_variant_if(
             name,
-            slot_index,
+            location,
             base_offset,
             tag,
             variant,
@@ -194,9 +181,9 @@ fn lower_payload_enum_drop_instructions_at_offset(
     Ok(instructions)
 }
 
-pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_variant_if(
+fn lower_payload_enum_drop_variant_if(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     base_offset: u32,
     tag: U8Location,
     variant: &PayloadEnumDropVariant,
@@ -206,7 +193,7 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_variant_if(
     for field in variant.fields.iter().rev() {
         then_instructions.extend(lower_payload_enum_drop_field(
             name,
-            slot_index,
+            location,
             base_offset,
             field,
             context,
@@ -224,9 +211,9 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_variant_if(
     })
 }
 
-pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_field(
+fn lower_payload_enum_drop_field(
     name: &str,
-    slot_index: usize,
+    location: AggregateLocation,
     base_offset: u32,
     field: &PayloadEnumDropField,
     context: &LoweringContext,
@@ -236,10 +223,38 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_drop_field(
         .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
     lower_aggregate_drop_at_offset(
         name,
-        slot_index,
+        location,
         offset,
+        true,
         field.payload_layout,
         field.drop_kind.as_ref(),
         context,
     )
+}
+
+fn aggregate_borrow_source_at_offset(
+    location: AggregateLocation,
+    offset: u32,
+    is_field: bool,
+) -> Option<BorrowSource> {
+    match (location, is_field) {
+        (AggregateLocation::Slot(slot_index), false) => {
+            Some(BorrowSource::AggregateSlot(slot_index))
+        }
+        (AggregateLocation::Slot(slot_index), true) => {
+            Some(BorrowSource::AggregateSlotField { slot_index, offset })
+        }
+        (AggregateLocation::Parameter(parameter_index), false) => {
+            Some(BorrowSource::AggregateParameter(parameter_index))
+        }
+        (AggregateLocation::Parameter(parameter_index), true) => {
+            Some(BorrowSource::AggregateParameterField {
+                parameter_index,
+                offset,
+            })
+        }
+        (AggregateLocation::Return, _)
+        | (AggregateLocation::DirectReturn, _)
+        | (AggregateLocation::DirectParameter { .. }, _) => None,
+    }
 }

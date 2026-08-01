@@ -233,7 +233,8 @@ mod enum_variants;
 mod locals;
 
 pub(super) use drop_glue::{
-    aggregate_drop_for_type_expr_with_resolver, drop_glue_for_type_expr_with_resolver,
+    aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
+    drop_glue_for_type_expr_with_resolver,
 };
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
@@ -439,7 +440,7 @@ pub(super) struct AggregateField {
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -449,7 +450,7 @@ pub(super) struct AggregateFieldAccess {
     pub(super) kind: AggregateFieldKind,
     pub(super) is_readwrite: bool,
     pub(super) is_copy: bool,
-    pub(super) drop_glue: Option<DropGlue>,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

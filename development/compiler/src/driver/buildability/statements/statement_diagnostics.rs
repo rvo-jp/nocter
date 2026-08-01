@@ -186,7 +186,8 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                                 &ty,
                                 resolved,
                                 resolved_sources,
-                            )
+                            ) || fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources)
+                                .is_some()
                         }) =>
                 {
                     &member.object
@@ -213,21 +214,22 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             );
-            let assignment_targets_fixed_array = fixed_array_assignment_target_abi(
-                &statement.target,
-                resolved,
-                resolved_sources,
-                typecheck_facts,
-                generic_substitutions,
-            )
-            .is_some();
-            let assignment_aggregate_type = aggregate_assignment_target_type_expr(
+            let assignment_fixed_array_type = fixed_array_assignment_target_type_expr(
                 &statement.target,
                 resolved,
                 resolved_sources,
                 typecheck_facts,
                 generic_substitutions,
             );
+            let assignment_targets_fixed_array = assignment_fixed_array_type.is_some();
+            let assignment_aggregate_type = aggregate_assignment_target_type_expr(
+                &statement.target,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+            )
+            .or(assignment_fixed_array_type);
             let assignment_is_scalar_or_view = assignment_value_may_use_value_control_expression(
                 statement,
                 resolved,

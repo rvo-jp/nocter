@@ -528,7 +528,7 @@ impl<'a> LoweringContext<'a> {
                 kind: field.kind.clone(),
                 is_readwrite: true,
                 is_copy: field.is_copy,
-                drop_glue: field.drop_glue.clone(),
+                drop_kind: field.drop_kind.clone(),
             })
     }
 
@@ -551,7 +551,7 @@ impl<'a> LoweringContext<'a> {
                 kind: field.kind.clone(),
                 is_readwrite: borrow.is_readwrite,
                 is_copy: field.is_copy,
-                drop_glue: field.drop_glue.clone(),
+                drop_kind: field.drop_kind.clone(),
             })
     }
 

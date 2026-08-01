@@ -171,6 +171,34 @@ pub(super) fn lower_aggregate_field_to_location(
                         layout: expected_layout,
                     }])
                 }
+                Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+                    let Expr::Identifier(identifier) = unwrap_field_value_group(&unary.operand)
+                    else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    let Some(source) = context.aggregate_local(&identifier.name) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    if source.layout != expected_layout || source.is_copy {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    }
+                    Ok(vec![Instruction::CopyAggregateRange {
+                        destination,
+                        destination_offset: offset,
+                        source: AggregateLocation::Slot(source.slot_index),
+                        source_offset: 0,
+                        layout: expected_layout,
+                    }])
+                }
                 Expr::Call(call) => lower_aggregate_call_field_value_to_location(
                     call,
                     expected_layout,
@@ -466,6 +494,13 @@ pub(super) fn lower_aggregate_field_to_location(
             diagnostic_code,
             subject,
         )),
+    }
+}
+
+fn unwrap_field_value_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_field_value_group(&group.expression),
+        _ => expression,
     }
 }
 
