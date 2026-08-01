@@ -57,20 +57,18 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         source.resolved,
                         &environment,
                     );
-                    if type_contains_borrow_like(&return_type, source.resolved) {
-                        let provenance = borrow_return_provenance_for_callable_body(
-                            &function.body,
-                            &return_type,
-                            source.resolved,
-                            &environment,
-                            previous,
-                        )
-                        .unwrap_or_else(ValueProvenance::static_storage);
-                        summaries.insert_result(
-                            CallableId::declared_at(function_summary_key(function)),
-                            provenance,
-                        );
-                    }
+                    let provenance = borrow_return_provenance_for_callable_body(
+                        &function.body,
+                        &return_type,
+                        source.resolved,
+                        &environment,
+                        previous,
+                    )
+                    .unwrap_or(ValueProvenance::Independent);
+                    summaries.insert_result(
+                        CallableId::declared_at(function_summary_key(function)),
+                        provenance,
+                    );
                 }
                 Item::Impl(impl_) => {
                     for member in &impl_.members {
@@ -86,20 +84,16 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             source.resolved,
                             &environment,
                         );
-                        if type_contains_borrow_like(&return_type, source.resolved) {
-                            let provenance = borrow_return_provenance_for_callable_body(
-                                body,
-                                &return_type,
-                                source.resolved,
-                                &environment,
-                                previous,
-                            )
-                            .unwrap_or_else(ValueProvenance::static_storage);
-                            summaries.insert_result(
-                                CallableId::declared_at(method.name_span),
-                                provenance,
-                            );
-                        }
+                        let provenance = borrow_return_provenance_for_callable_body(
+                            body,
+                            &return_type,
+                            source.resolved,
+                            &environment,
+                            previous,
+                        )
+                        .unwrap_or(ValueProvenance::Independent);
+                        summaries
+                            .insert_result(CallableId::declared_at(method.name_span), provenance);
                     }
                 }
                 _ => {}
@@ -126,10 +120,6 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_callable_body(
     environment: &TypeEnvironment,
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
-    if !type_contains_borrow_like(return_type, resolved) {
-        return None;
-    }
-
     let mut flow = ProvenanceFlow::default();
     let mut body_environment = environment.clone();
     let mut body_borrow_provenance = ProvenanceEnvironment::default();

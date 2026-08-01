@@ -34,9 +34,14 @@ projection、lexical parent relation を持ち、`typecheck/regions` は `using`
 place に制限する。region handle の直接 return、owned aggregate 内の間接 return、外側 binding
 への代入を同じ provenance environment で拒否し、pure copy result は許可する。
 
-次の checkpoint では callable summary を borrow-like result だけでなく storage-dependent owned
-result と allocation effect に拡張する。trusted allocation declaration metadata と allocator
-capability role を追加し、`using` の型検査と current allocation context の静的伝播を接続する。
+callable result summary は borrow-like result に限定せず、owned value の storage origin も
+parameter identity から caller argument へ写像する。これにより region value は helper call や
+helper が構築した aggregate を経由しても escape 検査を迂回できない。borrow receiver/parameter
+については従来どおり参照先 storage を追跡し、by-value input とは分離している。
+
+次の checkpoint では callable summary に allocation effect を追加する。trusted allocation
+declaration metadata と allocator capability role を導入し、`using` の型検査と current
+allocation context の静的伝播を接続する。
 
 Phase 0 gate:
 

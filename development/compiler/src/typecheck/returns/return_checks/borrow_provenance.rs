@@ -31,6 +31,9 @@ pub(in crate::typecheck::returns) fn check_borrow_return_provenance(
         ));
         return;
     }
+    if !type_contains_borrow_like(ty, resolved) {
+        return;
+    }
     let Some(source) = provenance.escaping_source() else {
         return;
     };

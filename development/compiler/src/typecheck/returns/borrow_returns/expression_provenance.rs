@@ -543,7 +543,16 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
         && InputId::declared_at(method.receiver.name_span) == source
         && let Some(member) = method_member_for_call(call)
     {
-        return borrow_return_provenance_for_borrowed_input(
+        if method_receiver_is_borrow(method) {
+            return borrow_return_provenance_for_borrowed_input(
+                &member.object,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+        }
+        return value_provenance_for_call_input(
             &member.object,
             resolved,
             environment,
@@ -555,7 +564,21 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(
     for (index, parameter) in signature.signature.parameters.iter().enumerate() {
         if InputId::declared_at(parameter.name_span) == source {
             return call.arguments.get(index).and_then(|argument| {
-                borrow_return_provenance_for_borrowed_input(
+                if type_expr_contains_borrow_like(
+                    &parameter.ty,
+                    resolved,
+                    &HashMap::new(),
+                    &mut HashSet::new(),
+                ) {
+                    return borrow_return_provenance_for_borrowed_input(
+                        argument,
+                        resolved,
+                        environment,
+                        borrow_provenance,
+                        summaries,
+                    );
+                }
+                value_provenance_for_call_input(
                     argument,
                     resolved,
                     environment,

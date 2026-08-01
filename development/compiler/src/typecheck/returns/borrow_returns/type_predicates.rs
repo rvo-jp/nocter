@@ -1,9 +1,6 @@
 use super::*;
 
-pub(in crate::typecheck::returns) fn type_contains_borrow_like(
-    ty: &Type,
-    resolved: &ResolveOutput,
-) -> bool {
+pub(in crate::typecheck) fn type_contains_borrow_like(ty: &Type, resolved: &ResolveOutput) -> bool {
     type_contains_borrow_like_inner(ty, resolved, &mut HashSet::new())
 }
 

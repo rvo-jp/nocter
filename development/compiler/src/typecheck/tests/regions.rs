@@ -152,3 +152,61 @@ func main(): i32 {
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn diagnoses_region_value_returned_through_helper() {
+    let diagnostics = check_text(
+        r#"copy struct Arena {
+    id: usize
+}
+
+func identity(value: Arena): Arena {
+    return value
+}
+
+func leak(parent: Arena): Arena {
+    region temp using parent {
+        return identity(temp)
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+}
+
+#[test]
+fn diagnoses_region_value_wrapped_by_helper() {
+    let diagnostics = check_text(
+        r#"copy struct Arena {
+    id: usize
+}
+
+copy struct Holder {
+    arena: Arena
+}
+
+func wrap(value: Arena): Holder {
+    return Holder { arena: value }
+}
+
+func leak(parent: Arena): Holder {
+    region temp using parent {
+        return wrap(temp)
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+}

@@ -340,6 +340,12 @@ pub(super) fn returned_borrow_sources(
     summaries: &CallableProvenanceSummaries,
     active_borrows: &[ActiveBorrow],
 ) -> Vec<DirectBorrowSource> {
+    if !type_contains_borrow_like(
+        &expression_type(expression, resolved, environment),
+        resolved,
+    ) {
+        return Vec::new();
+    }
     if let Some(source) = direct_borrow_source(expression) {
         return vec![source];
     }
