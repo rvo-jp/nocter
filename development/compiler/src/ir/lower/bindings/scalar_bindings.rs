@@ -8,7 +8,7 @@ pub(super) fn lower_error_local_binding(
         return Ok(None);
     };
 
-    let payload_context = context.with_reserved_local_abi_words(4);
+    let payload_context = context.with_reserved_error_local_abi_words();
     let Some(payload) = lower_error_payload(
         &statement.initializer,
         resolved,

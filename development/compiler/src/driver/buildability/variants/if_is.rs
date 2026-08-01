@@ -145,7 +145,12 @@ pub(in crate::driver::buildability) fn payload_move_binding_type_expr_is_buildab
     else {
         return false;
     };
-    abi_value_is_supported_aggregate_value(&value)
+    (abi_value_is_supported_aggregate_value(&value)
+        || type_expr_is_supported_move_only_fixed_array_with_resolver(
+            ty,
+            fallback_resolved,
+            &source_resolver,
+        ))
         && type_expr_has_supported_recursive_drop_with_resolver(
             ty,
             fallback_resolved,

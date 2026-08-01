@@ -232,6 +232,83 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_live_enum_cleanup_on_propagated_pattern_target_failure() {
+    let ir = lower_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func fail(): Result! {
+    return Result.failed
+}
+
+func main(): void! {
+    let guard = Result.ok([File { code: 1 }, File { code: 2 }])
+    match (fail()?) {
+        Result.ok(files) { return }
+        _ { return }
+    }
+}
+"#,
+    );
+
+    let main = &ir.functions[0];
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallFallibleAggregate {
+                failure_mode:
+                    FallibleFailureMode::PropagateWithCleanup {
+                        code,
+                        message,
+                        instructions,
+                    },
+                ..
+            }
+            | Instruction::CallFallibleDirectAggregate {
+                failure_mode:
+                    FallibleFailureMode::PropagateWithCleanup {
+                        code,
+                        message,
+                        instructions,
+                    },
+                ..
+            } => Some((code, message, instructions)),
+            _ => None,
+        });
+
+    let Some((StrLocation::Local(code), StrLocation::Local(message), instructions)) = cleanup
+    else {
+        panic!("expected propagated cleanup with local error payload: {main:?}");
+    };
+    let Some(Instruction::LoadAggregateU8 {
+        destination: U8Location::Local(cleanup_temporary),
+        ..
+    }) = instructions.first()
+    else {
+        panic!("expected enum cleanup discriminator load: {instructions:?}");
+    };
+
+    assert!(!instructions.is_empty());
+    assert!(
+        ![*code, *code + 1, *message, *message + 1].contains(cleanup_temporary),
+        "cleanup temporary must not overlap the preserved error payload: {main:?}"
+    );
+}
+
+#[test]
 fn lowers_payload_enum_slice_payload_binding() {
     let score = lower_named_function(
         r#"enum Result {

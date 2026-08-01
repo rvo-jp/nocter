@@ -331,6 +331,83 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_move_only_fixed_array_payload_construction_and_binding() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok([File { code: 20 }, File { code: 22 }])
+    return match move result {
+        Result.ok(files) {
+            var owned = move files
+            return 42
+        }
+        _ { 0 }
+    }
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn reports_partial_move_only_fixed_array_payload_initialization_before_ir() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func main(): i32! {
+    let result = Result.ok([File { code: 20 }, make_file()?])
+    return 42
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0435");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("fixed array argument literals whose element initialization can exit early"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn reports_owned_payload_match_move_binding_without_direct_drop() {
     let (sources, analysis) = analyze_text(
         r#"struct Detail {

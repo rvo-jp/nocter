@@ -417,7 +417,8 @@ pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(
 pub(in crate::ir::lower) fn propagating_failure_mode(
     context: &LoweringContext,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let instructions = lower_scope_end_drop_instructions(context)?;
+    let cleanup_context = context.with_reserved_error_local_abi_words();
+    let instructions = lower_scope_end_drop_instructions(&cleanup_context)?;
     if instructions.is_empty() {
         return Ok(FallibleFailureMode::Propagate);
     }

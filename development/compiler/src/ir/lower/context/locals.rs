@@ -49,6 +49,10 @@ impl<'a> LoweringContext<'a> {
         context
     }
 
+    pub(in crate::ir::lower) fn with_reserved_error_local_abi_words(&self) -> Self {
+        self.with_reserved_local_abi_words(LocalKind::Error.abi_word_count())
+    }
+
     pub(in crate::ir::lower) fn define_i32_local(&mut self, name: String) {
         self.define_local(name, LocalKind::I32);
     }

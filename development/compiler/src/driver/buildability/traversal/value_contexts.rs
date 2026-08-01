@@ -166,7 +166,12 @@ pub(in crate::driver::buildability) fn call_argument_parameter_type(
         return Some(ty);
     }
 
-    let signature = resolved.call_signature_for_call(call)?;
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        let argument = call.arguments.get(index)?;
+        return typecheck_facts
+            .expression_type_expr(argument.span())
+            .map(|ty| substitute_type_expr_parameters(ty, generic_substitutions));
+    };
     let parameter = signature.parameters.get(index)?;
     let mut ty = parameter.ty.clone();
 

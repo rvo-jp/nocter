@@ -239,10 +239,17 @@ where
                 .collect();
             (symbol, substitutions)
         }
+        TypeExpr::Array(_) => {
+            return type_expr_is_supported_recursive_drop_array_with_resolver(
+                ty,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            );
+        }
         TypeExpr::Pointer(_)
         | TypeExpr::Borrow(_)
         | TypeExpr::View(_)
-        | TypeExpr::Array(_)
         | TypeExpr::Optional(_)
         | TypeExpr::Fallible(_) => return false,
     };
@@ -289,6 +296,41 @@ where
     };
     resolving_names.remove(&symbol.canonical_name);
     result
+}
+
+fn type_expr_is_supported_recursive_drop_array_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+    resolving_names: &mut HashSet<String>,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
+        return false;
+    };
+    let AbiType::Array { element, .. } = &value.ty else {
+        return false;
+    };
+    if !matches!(element.as_ref(), AbiType::Struct(_)) {
+        return false;
+    }
+    let Some(element_ty) = fixed_array_element_type_expr_with_resolver(
+        ty,
+        fallback_resolved,
+        resolver,
+        &mut HashSet::new(),
+    ) else {
+        return false;
+    };
+    type_expr_is_supported_aggregate_value_with_resolver(&element_ty, fallback_resolved, resolver)
+        && type_expr_has_supported_recursive_drop_with_resolver(
+            &element_ty,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        )
 }
 
 pub(in crate::driver::buildability) fn fixed_array_element_type_expr_with_resolver<'a, F>(
@@ -363,30 +405,12 @@ pub(in crate::driver::buildability) fn type_expr_is_supported_move_only_fixed_ar
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
-        return false;
-    };
-    let AbiType::Array { element, .. } = &value.ty else {
-        return false;
-    };
-    if !matches!(element.as_ref(), AbiType::Struct(_)) {
-        return false;
-    }
-    let Some(element_ty) = fixed_array_element_type_expr_with_resolver(
+    type_expr_is_supported_recursive_drop_array_with_resolver(
         ty,
         fallback_resolved,
         resolver,
         &mut HashSet::new(),
-    ) else {
-        return false;
-    };
-    type_expr_is_supported_aggregate_value_with_resolver(&element_ty, fallback_resolved, resolver)
-        && type_expr_has_supported_recursive_drop_with_resolver(
-            &element_ty,
-            fallback_resolved,
-            resolver,
-            &mut HashSet::new(),
-        )
+    )
 }
 
 pub(in crate::driver::buildability) fn type_expr_is_supported_aggregate_return_with_resolver<

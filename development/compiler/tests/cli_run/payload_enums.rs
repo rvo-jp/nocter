@@ -2886,3 +2886,381 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_owns_and_moves_indirect_fixed_array_enum_payloads() {
+    let project = TempProject::new("cli-run-indirect-fixed-array-enum-payload-ownership");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "indirect_fixed_array_enum_payload_ownership.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    other(value: [File; 2])
+    failed
+}
+
+enum Outcome<T> {
+    value(payload: T)
+    empty
+}
+
+func scope_cleanup(): void {
+    let result = Result.ok([File { name: "a" }, File { name: "b" }])
+    return
+}
+
+func move_binding_cleanup(): void {
+    let result = Result.ok([File { name: "c" }, File { name: "d" }])
+    match move result {
+        Result.ok(files) {
+            let length = 2
+        }
+        _ {
+            return
+        }
+    }
+    return
+}
+
+func unmatched_target_cleanup(): void {
+    let result = Result.other([File { name: "e" }, File { name: "f" }])
+    match move result {
+        Result.ok(files) {
+            return
+        }
+        _ {
+            let length = 2
+        }
+    }
+    return
+}
+
+func moved_constructor_argument_cleanup(): void {
+    let files: [File; 2] = [File { name: "g" }, File { name: "h" }]
+    let result = Result.ok(move files)
+    return
+}
+
+func generic_payload_cleanup(): void {
+    let outcome: Outcome<[File; 2]> = Outcome.value([File { name: "i" }, File { name: "j" }])
+    match move outcome {
+        Outcome.value(files) {
+            let length = 2
+        }
+        _ {
+            return
+        }
+    }
+    return
+}
+
+func main(): i32 {
+    scope_cleanup()
+    move_binding_cleanup()
+    unmatched_target_cleanup()
+    moved_constructor_argument_cleanup()
+    generic_payload_cleanup()
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badcfehgji");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_moves_direct_fixed_array_enum_payloads() {
+    let project = TempProject::new("cli-run-direct-fixed-array-enum-payload-ownership");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "direct_fixed_array_enum_payload_ownership.nct",
+        r#"use std/log.write
+
+struct Token {
+    tag: u8
+}
+
+impl Token {
+    drop &+self {
+        if self.tag == 1 {
+            write("a")!
+            return
+        }
+        write("b")!
+        return
+    }
+}
+
+enum Event {
+    tokens(value: [Token; 2])
+    empty
+}
+
+func main(): i32 {
+    let event = Event.tokens([Token { tag: 1 }, Token { tag: 2 }])
+    match move event {
+        Event.tokens(tokens) {
+            let length = 2
+        }
+        _ {
+            return 1
+        }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ba");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_transfers_fixed_array_enum_payloads_across_call_boundaries() {
+    let project = TempProject::new("cli-run-fixed-array-enum-payload-call-boundaries");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "fixed_array_enum_payload_call_boundaries.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func make(first: &str, second: &str): Result {
+    return Result.ok([File { name: first }, File { name: second }])
+}
+
+func maybe(): Result? {
+    return none
+}
+
+func fallible(): Result! {
+    return Result.ok([File { name: "g" }, File { name: "h" }])
+}
+
+func consume(result: Result): void {
+    return
+}
+
+func main(): i32 {
+    consume(make("a", "b"))
+    match make("c", "d") {
+        Result.ok(files) {
+            let length = 2
+        }
+        _ {
+            return 1
+        }
+    }
+    match (maybe() otherwise {
+        Result.ok([File { name: "e" }, File { name: "f" }])
+    }) {
+        Result.ok(files) {
+            let length = 2
+        }
+        _ {
+            return 2
+        }
+    }
+    match fallible()! {
+        Result.ok(files) {
+            let length = 2
+        }
+        _ {
+            return 3
+        }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badcfehg");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_does_not_drop_uninitialized_fixed_array_enum_success_payload() {
+    let project = TempProject::new("cli-run-fixed-array-enum-payload-failure-cleanup");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "fixed_array_enum_payload_failure_cleanup.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+func fail(): Result! {
+    return Error.new("app.failed", "failed")
+}
+
+func main(): void! {
+    let guard = Result.ok([File { name: "a" }, File { name: "b" }])
+    match (fail()?) {
+        Result.ok(files) {
+            return
+        }
+        _ {
+            return
+        }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ba");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
