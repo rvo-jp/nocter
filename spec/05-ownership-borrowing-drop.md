@@ -438,7 +438,14 @@ move array[index]
 move copy_value
 ```
 
-To change one field of a move-only struct, move the whole value into a new binding, mutate that binding, then return or pass the whole value.
+Assignment may replace a live move-only field when the right-hand side produces
+a complete replacement value. The replacement is evaluated first, then the old
+field is dropped, and ownership of the replacement transfers into the field.
+Moving a value out of a field remains invalid in v0 because it would require
+tracking the field as separately dead. Code that needs to transfer a field
+separately must transfer or rebuild the whole owner instead. To update a field
+in a functional style, move the whole owner into a new binding, replace the
+field, then return or pass the whole value.
 
 ```nct
 func rename(user: User, name: String): User {

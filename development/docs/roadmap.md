@@ -73,9 +73,11 @@ for v0.2.0:
   local moves, explicit drop, reinitialization, and reverse-index cleanup. They
   also cross direct/indirect return, call-result, value-argument, and owned
   parameter boundaries for plain, optional, and fallible calls, including
-  success-only cleanup activation. Remaining array work requires per-element
-  initialization state and move-aware field boundaries; remaining member and
-  value-control pattern targets
+  success-only cleanup activation. Fully initialized struct fields also support
+  storage, staged replacement, local-to-field moves, and recursive cleanup for
+  these arrays. Remaining array work requires per-element initialization state,
+  per-field initialization state for exiting initializers, and field extraction
+  moves; remaining member and value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,

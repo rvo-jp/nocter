@@ -233,10 +233,13 @@ Initial check-only or not-yet-buildable surfaces:
   promoted
 - `Vec<T>` storage paths outside the runtime-supported scalar, `&str`, and
   explicitly promoted copy-aggregate element subset
-- move-only fixed arrays outside the completed local and callable ownership
-  lifecycle for supported recursively droppable struct elements; field storage
-  and field moves remain deferred, and element initialization that can exit
-  early remains check-only until per-element initialization state is tracked
+- move-only fixed arrays outside the completed local, callable, and fully
+  initialized struct-field storage/replacement lifecycle for supported
+  recursively droppable struct elements; field extraction moves remain
+  deferred, field initialization that can exit early remains check-only until
+  per-field initialization state is tracked, and element initialization that
+  can exit early remains check-only until per-element initialization state is
+  tracked
 
 ## Aggregate Type Contract
 
@@ -290,6 +293,10 @@ Rules fixed for v0:
   owned parameters; plain, optional, and fallible calls transfer one cleanup
   obligation only after a successful result, while failure paths leave existing
   assignment targets live and never drop an uninitialized result slot
+- fully initialized struct fields may store supported move-only fixed arrays;
+  replacement stages the new array before recursively dropping the old field,
+  and explicit moves from local arrays transfer their cleanup obligation into
+  the field
 - optional and fallible values use explicit tags
 - values of 16 bytes or less use direct ABI classification
 - values larger than 16 bytes use indirect ABI classification

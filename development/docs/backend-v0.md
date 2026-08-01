@@ -164,6 +164,10 @@ includes:
   parameters, parameter re-moves, and optional/fallible success values; failure
   paths preserve live assignment targets and do not clean uninitialized result
   storage
+- recursive cleanup and staged replacement of fully initialized move-only fixed
+  array struct fields, including nonzero field offsets, direct and indirect
+  array ABI layouts, local and read-write-borrowed owners, explicit moves from
+  local arrays, and nested struct replacement
 - optional and fallible aggregate call results in supported positions
 - copy aggregate storage and slice indexing through current `Vec<T>` and
   slice-view paths
@@ -172,8 +176,8 @@ Remaining aggregate backend work is concentrated around payload-carrying enum
 move-only aggregate payload bindings with unsupported recursive drop trees,
 broader payload enum pattern target expressions, broader field-level live-state
 tracking, per-element initialization state, non-copy aggregate collection
-elements, move-only array field positions, broad control-flow joins, and
-unsupported expression shapes.
+elements, move-only field extraction, broad control-flow joins, and unsupported
+expression shapes.
 
 ## Safety Checks
 
