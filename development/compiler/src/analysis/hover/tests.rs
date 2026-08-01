@@ -44,6 +44,24 @@ fn workspace_hover_uses_typecheck_facts_for_namespace_imported_function_member_c
 }
 
 #[test]
+fn workspace_hover_presents_imported_generic_call_specialization() {
+    let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.identity(42)\n}\n";
+    let module_text =
+        "/// Returns its input.\npub func identity<T>(value: T): T {\n    return value\n}\n";
+    let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = root_text
+        .find("identity(42)")
+        .expect("expected generic call");
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
+    assert_eq!(hover.documentation.as_deref(), Some("Returns its input."));
+}
+
+#[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
     let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
     let (sources, analysis) = analyze_text(text);

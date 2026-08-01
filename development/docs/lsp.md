@@ -21,9 +21,10 @@ resolver/typechecker が決める。
 ## Current Baseline
 
 現在は document sync と diagnostics publish、semantic tokens、hover、definition、references、
-document symbols、global/local/member/enum-pattern/struct-field completion を持つ。複数機能が
-同じ compile unit を解析できる一方、hover の情報密度、completion の文脈・詳細・回復、
-signature help は v0.2.0 の完成水準に達していない。
+document symbols、global/member/enum-pattern/struct-field completion、signature help を持つ。
+call-site analysis は resolved target、generic specialization、active parameter、documentation を
+一つの compiler result に統合し、hover と signature help が共有する。残る未達は local / import /
+call-argument completion、候補の signature・documentation・insert text、編集途中の call 回復である。
 
 ## v0.2.0 Capabilities
 

@@ -1,5 +1,6 @@
 //! Whole-compile-unit semantic analysis.
 
+mod call_sites;
 pub(crate) mod call_specializations;
 pub(crate) mod completion;
 mod completion_recovery;
@@ -8,6 +9,7 @@ pub(crate) mod hover;
 pub(crate) mod references;
 mod scoped_imports;
 pub(crate) mod semantic;
+pub(crate) mod signature_help;
 mod single_file;
 pub(crate) mod symbols;
 #[cfg(test)]

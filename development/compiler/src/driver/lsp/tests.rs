@@ -54,6 +54,57 @@ fn handles_initialize_request() {
     assert!(text.contains("\"referencesProvider\""));
     assert!(text.contains("\"documentSymbolProvider\""));
     assert!(text.contains("\"completionProvider\""));
+    assert!(text.contains("\"signatureHelpProvider\""));
+}
+
+#[test]
+fn returns_specialized_signature_help_for_imported_generic_call() {
+    let project = TempProject::new("lsp-signature-help-generic-import");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app_text = r#"use ./math.identity
+
+func main(): i32 {
+    return identity(42)
+}
+"#;
+    let math_text = r#"/// Returns the provided value.
+pub func identity<T>(value: T): T {
+    return value
+}
+"#;
+    let app = project.write_source("app.nct", app_text);
+    project.write_source("math.nct", math_text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), app_text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        app_text,
+        app_text.find("42").expect("expected call argument"),
+    );
+
+    let response = server.signature_help_response(
+        json!(2),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("func identity<i32>(value: i32): i32")
+    );
+    assert_eq!(response["result"]["activeParameter"], json!(0));
+    assert_eq!(
+        response["result"]["signatures"][0]["documentation"]["value"],
+        json!("Returns the provided value.")
+    );
 }
 
 #[test]

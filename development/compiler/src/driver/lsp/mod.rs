@@ -13,6 +13,7 @@ mod locations;
 mod protocol;
 mod references;
 mod semantic;
+mod signature_help;
 mod symbols;
 
 use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
@@ -58,6 +59,7 @@ use semantic::{
 };
 #[cfg(test)]
 use semantic::{classified_identifiers, classified_identifiers_for_file_analysis};
+use signature_help::signature_help_value;
 use symbols::document_symbols_for_document;
 #[cfg(test)]
 use symbols::{
@@ -178,6 +180,10 @@ impl LspServer {
                 write_message(writer, self.completion_response(id, params))?;
                 Ok(None)
             }
+            "textDocument/signatureHelp" => {
+                write_message(writer, self.signature_help_response(id, params))?;
+                Ok(None)
+            }
             "shutdown" => {
                 self.shutdown_requested = true;
                 write_message(writer, response(id, Value::Null))?;
@@ -191,7 +197,7 @@ impl LspServer {
                         "id": id,
                         "error": {
                             "code": -32601,
-                            "message": format!("method `{method}` is not supported by nocter lsp v0")
+                        "message": format!("method `{method}` is not supported by Nocter LSP v0.2.0")
                         }
                     }),
                 )?;
@@ -361,6 +367,26 @@ impl LspServer {
         )
     }
 
+    fn signature_help_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let signature = document_uri_from_params(params).and_then(|uri| {
+            let position = position_from_params(params)?;
+            self.with_workspace_file_for_uri(&uri, |document, workspace, file| {
+                let offset =
+                    lsp_position_to_byte_offset(&document.text, position.line, position.character);
+                crate::analysis::signature_help::signature_help_for_file_analysis(
+                    &workspace.sources,
+                    &workspace.analysis,
+                    file,
+                    offset,
+                )
+            })
+        });
+        response(
+            id,
+            signature.map(signature_help_value).unwrap_or(Value::Null),
+        )
+    }
+
     fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
         let position = position_from_params(params)?;
         self.with_workspace_file_for_uri(uri, |document, workspace, file| {
@@ -463,6 +489,10 @@ fn initialize_response(id: Value) -> Value {
                 "completionProvider": {
                     "resolveProvider": false,
                     "triggerCharacters": [".", ":"]
+                },
+                "signatureHelpProvider": {
+                    "triggerCharacters": ["(", ","],
+                    "retriggerCharacters": [","]
                 }
             },
             "serverInfo": {

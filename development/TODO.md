@@ -14,19 +14,18 @@
   partially constructed current element, and payload enum fields
 - tracked std provides checked `Layout`, provenance-carrying `RawBuffer`, failure-atomic allocator
   growth, initial `String`/`Vec<T>`, and file/process/fmt support
-- LSP provides diagnostics, semantic tokens, hover, definition, references, document symbols, and
-  several completion contexts
+- LSP provides diagnostics, semantic tokens, hover, definition, references, document symbols,
+  resolved generic signature help, and several completion contexts
 
 ## Next Concrete Area
 
-Promote non-copy `Vec<T>` elements on top of the completed common Allocator contract.
+Complete the v0.2.0 LSP contract on top of compiler-owned semantic facts.
 
-1. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
-   drop.
-2. Implement ownership-transferring `pop` after initialized-prefix cleanup is correct.
-
-Do not implement arbitrary indexed `remove` as an exception to prefix ownership. It requires a later
-sparse-live-element design. `pop` is allowed after initialized-prefix transfer is correct.
+1. Add scope-correct local and parameter completion without recreating name resolution.
+2. Present callable/member/field types, receiver capability, documentation, and insert text in
+   completion items.
+3. Recover signature help and completion for incomplete call/member/import edits, then fix the
+   multi-file JSON-RPC acceptance sequence.
 
 ## Required Verification
 

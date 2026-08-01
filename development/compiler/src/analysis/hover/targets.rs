@@ -7,6 +7,16 @@ pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
     offset: usize,
 ) -> Option<HoverInfo> {
     let (span, label) = file.typecheck_facts.call_hover_at_offset(offset)?;
+    if let Some(signature) =
+        crate::analysis::signature_help::call_signature_at_offset(sources, analysis, file, offset)
+        && signature.is_specialized
+    {
+        return Some(HoverInfo {
+            span,
+            label: signature.label,
+            documentation: signature.documentation,
+        });
+    }
     Some(HoverInfo {
         span,
         label: label.to_string(),

@@ -60,3 +60,7 @@ use hover_labels::*;
 use specializations::*;
 use type_exprs::*;
 use utility::*;
+
+pub(crate) fn type_expr_presentation_label(ty: &TypeExpr, resolved: &ResolveOutput) -> String {
+    type_label(ty, resolved, None)
+}
