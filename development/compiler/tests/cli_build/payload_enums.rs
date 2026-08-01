@@ -20,6 +20,25 @@ enum Result {
     failed
 }
 
+enum Outer {
+    ok(value: Result)
+    failed
+}
+
+struct Wrapper {
+    prefix: i32
+    result: Result
+}
+
+enum Status {
+    value(code: i32)
+    empty
+}
+
+struct PlainWrapper {
+    status: Status
+}
+
 func make_file(): File! {
     return File { code: 22 }
 }
@@ -42,10 +61,54 @@ func replace_local(): i32! {
     return 1
 }
 
+func construct_nested_payload(): Outer! {
+    return Outer.ok(Result.ok([File { code: 20 }, make_file()?]))
+}
+
+func construct_struct_field(): Wrapper! {
+    return Wrapper {
+        prefix: 1,
+        result: Result.ok([File { code: 20 }, make_file()?]),
+    }
+}
+
+func consume_wrapper(wrapper: Wrapper): i32 {
+    return 1
+}
+
+func construct_struct_argument(): i32! {
+    return consume_wrapper(Wrapper {
+        prefix: 1,
+        result: Result.ok([File { code: 20 }, make_file()?]),
+    })
+}
+
+func replace_borrowed_struct_field(wrapper: &+Wrapper): i32! {
+    wrapper.result = Result.ok([File { code: 20 }, make_file()?])
+    return 1
+}
+
+func construct_plain_struct_field(): PlainWrapper {
+    return PlainWrapper { status: Status.value(1) }
+}
+
+func replace_struct_field(): i32! {
+    var wrapper = Wrapper { prefix: 1, result: Result.failed }
+    wrapper.result = Result.ok([File { code: 20 }, make_file()?])
+    return 1
+}
+
 func main(): i32 {
     construct_argument()!
     construct_return()!
     replace_local()!
+    let outer = construct_nested_payload()!
+    var wrapper = construct_struct_field()!
+    construct_struct_argument()!
+    replace_borrowed_struct_field(&+wrapper)!
+    var plain_wrapper = construct_plain_struct_field()
+    plain_wrapper.status = Status.value(2)
+    replace_struct_field()!
     return 0
 }
 "#,

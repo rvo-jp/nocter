@@ -294,9 +294,10 @@ Required v0 diagnostic families:
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
 - Check-only construct used with `build` or `run`, such as string interpolation
   before interpolation lowering is implemented, `std/process.env(name)` before
-  environment runtime support is promoted, or move-only payload binding with an
-  unsupported recursive drop tree and broader payload enum pattern target
-  expressions before those lowering paths are promoted.
+  environment runtime support is promoted, a fixed-array element type containing
+  a payload enum, or move-only payload binding with an unsupported recursive drop
+  tree and broader payload enum pattern target expressions before those lowering
+  paths are promoted.
 - Standard-library runtime subset violation during buildability validation, such
   as an unsupported `Vec<T>` element storage path.
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.

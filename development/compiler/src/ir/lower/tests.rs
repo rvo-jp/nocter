@@ -31,6 +31,7 @@ mod drops;
 mod generics;
 mod imports;
 mod optional_fallible;
+mod payload_enum_fields;
 mod payload_enums;
 mod scalars;
 mod slices_strings_pointers;

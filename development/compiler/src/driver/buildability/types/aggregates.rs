@@ -30,18 +30,36 @@ pub(in crate::driver::buildability) fn abi_value_is_supported_aggregate_value(
     value: &AbiValue,
 ) -> bool {
     match &value.ty {
-        AbiType::Struct(_) => value.layout.size > 0 && !abi_type_contains_enum(&value.ty),
-        AbiType::Array { element, .. } => {
-            fixed_array_element_abi_is_buildable(element) && !abi_type_contains_enum(element)
+        AbiType::Struct(_) => {
+            value.layout.size > 0 && !abi_type_contains_enum_below_array(&value.ty)
         }
+        AbiType::Array { element, .. } => fixed_array_element_abi_is_buildable(element),
         _ => false,
     }
 }
-pub(in crate::driver::buildability) fn abi_type_contains_enum(ty: &AbiType) -> bool {
+
+fn abi_type_contains_enum_below_array(ty: &AbiType) -> bool {
+    abi_type_contains_enum_below_array_inner(ty, false)
+}
+
+/// The array prefix obligation knows how many whole elements are live, but it
+/// cannot describe a partially initialized enum nested in the current element.
+/// Keep that ownership boundary explicit while allowing enums everywhere else
+/// in the recursive aggregate ABI tree.
+fn abi_type_contains_enum_below_array_inner(ty: &AbiType, below_array: bool) -> bool {
     match ty {
-        AbiType::Enum(_) => true,
-        AbiType::Array { element, .. } => abi_type_contains_enum(element),
-        AbiType::Struct(fields) => fields.iter().any(|field| abi_type_contains_enum(&field.ty)),
+        AbiType::Array { element, .. } => abi_type_contains_enum_below_array_inner(element, true),
+        AbiType::Struct(fields) => fields
+            .iter()
+            .any(|field| abi_type_contains_enum_below_array_inner(&field.ty, below_array)),
+        AbiType::Enum(enum_) => {
+            below_array
+                || enum_.variants.iter().any(|variant| {
+                    variant.payload.as_ref().is_some_and(|payload| {
+                        abi_type_contains_enum_below_array_inner(payload, below_array)
+                    })
+                })
+        }
         AbiType::Bool
         | AbiType::U8
         | AbiType::I8
@@ -78,12 +96,14 @@ pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
-    type_expr_is_supported_payload_enum_value_inner(
-        ty,
-        fallback_resolved,
-        resolver,
-        &mut HashSet::new(),
-    )
+    abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver)
+        .is_ok_and(|value| !abi_type_contains_enum_below_array(&value.ty))
+        && type_expr_is_supported_payload_enum_value_inner(
+            ty,
+            fallback_resolved,
+            resolver,
+            &mut HashSet::new(),
+        )
 }
 pub(in crate::driver::buildability) fn type_expr_is_supported_payload_enum_value_inner<'a, F>(
     ty: &TypeExpr,
@@ -292,7 +312,34 @@ where
             });
             has_drop && fields_are_supported
         }
-        TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+        TypeSymbolKind::Enum => {
+            let mut has_drop = false;
+            let payloads_are_supported = symbol.variants.iter().all(|variant| {
+                variant.payload.iter().all(|payload| {
+                    let payload_ty = substitute_type_expr_parameters(&payload.ty, &substitutions);
+                    if type_expr_is_runtime_copy_value_with_resolver(
+                        &payload_ty,
+                        fallback_resolved,
+                        resolver,
+                        &mut HashSet::new(),
+                    ) {
+                        true
+                    } else if type_expr_has_supported_recursive_drop_with_resolver(
+                        &payload_ty,
+                        fallback_resolved,
+                        resolver,
+                        resolving_names,
+                    ) {
+                        has_drop = true;
+                        true
+                    } else {
+                        false
+                    }
+                })
+            });
+            has_drop && payloads_are_supported
+        }
+        TypeSymbolKind::Interface => false,
     };
     resolving_names.remove(&symbol.canonical_name);
     result

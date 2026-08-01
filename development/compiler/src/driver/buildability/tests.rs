@@ -401,6 +401,125 @@ func main(): i32! {
 }
 
 #[test]
+fn accepts_payload_enums_nested_in_aggregate_abi_surfaces() {
+    let (sources, analysis) = analyze_text(
+        r#"struct File {
+    code: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+enum Outer {
+    ok(value: Result)
+    failed
+}
+
+struct Wrapper {
+    prefix: i32
+    result: Result
+}
+
+func make_file(): File! {
+    return File { code: 22 }
+}
+
+func construct_nested_payload(): Outer! {
+    return Outer.ok(Result.ok([File { code: 20 }, make_file()?]))
+}
+
+func construct_struct_field(): Wrapper! {
+    return Wrapper {
+        prefix: 1,
+        result: Result.ok([File { code: 20 }, make_file()?]),
+    }
+}
+
+func main(): i32 {
+    let outer = construct_nested_payload()!
+    let wrapper = construct_struct_field()!
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn rejects_enum_bearing_structs_below_fixed_array_boundaries() {
+    let (sources, analysis) = analyze_text(
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Wrapper {
+    result: Result
+}
+
+func main(): i32 {
+    let wrappers: [Wrapper; 1] = [Wrapper { result: Result.ok(42) }]
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0435"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn rejects_payload_enums_with_enum_bearing_fixed_array_payloads() {
+    let (sources, analysis) = analyze_text(
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+struct Wrapper {
+    result: Result
+}
+
+enum Outer {
+    ok(value: [Wrapper; 1])
+    failed
+}
+
+func main(): i32 {
+    let outer = Outer.ok([Wrapper { result: Result.ok(42) }])
+    return 0
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0435"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn reports_owned_payload_match_move_binding_without_direct_drop() {
     let (sources, analysis) = analyze_text(
         r#"struct Detail {

@@ -83,9 +83,11 @@ for v0.2.0:
   struct and fixed-array literals, across locals, replacements, returns, and
   owned arguments. Variant-specific payload obligations cover exiting payload
   initializers across the same storage boundaries, and the lowering model can
-  recurse through nested payload, struct, and fixed-array constructors.
-  Payload-enum values nested inside broader aggregate field/return ABI surfaces
-  still need matching buildability promotion. Remaining array work is sparse
+  recurse through nested payload, struct, and fixed-array constructors. Payload
+  enums nested in struct fields and other payload enums now cross supported
+  construction, return, call, cleanup, and direct field-replacement paths.
+  Fixed-array elements whose type tree contains a payload enum remain blocked
+  until per-element nested live state is modeled. Remaining array work is sparse
   extraction and field extraction moves; remaining member and
   value-control pattern targets
   likewise depend on field moves or ownership-aware control joins.

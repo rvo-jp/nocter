@@ -3,7 +3,7 @@ use super::*;
 pub(super) fn lower_aggregate_field_assignment(
     target: &MemberExpr,
     value: &Expr,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((identifier_name, field_path)) = aggregate_assignment_target_path(target) else {
         return Err(unsupported_assignment_diagnostic());
@@ -159,6 +159,17 @@ pub(super) fn lower_aggregate_field_assignment(
             if field_is_copy {
                 lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
             } else {
+                if let Some(instructions) = lower_payload_enum_field_replacement(
+                    target,
+                    destination,
+                    offset,
+                    layout,
+                    field_drop_kind.as_ref(),
+                    value,
+                    context,
+                )? {
+                    return Ok(instructions);
+                }
                 lower_aggregate_member_replacement_assignment(
                     destination,
                     offset,

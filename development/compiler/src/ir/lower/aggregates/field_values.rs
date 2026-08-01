@@ -495,6 +495,17 @@ pub(super) fn lower_aggregate_field_to_location(
                 )),
             }
         }
+        AbiType::Enum(_) => lower_enum_field_value_to_location(
+            field_type,
+            expression,
+            destination,
+            offset,
+            diagnostic_code,
+            subject,
+            resolved,
+            context,
+            temporaries,
+        ),
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
@@ -681,7 +692,7 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
     Ok(instructions)
 }
 
-fn lower_aggregate_call_field_value_to_location(
+pub(super) fn lower_aggregate_call_field_value_to_location(
     call: &CallExpr,
     expected_layout: ValueLayout,
     destination: AggregateLocation,
@@ -797,7 +808,7 @@ fn lower_aggregate_call_field_value_to_location(
     Ok(instructions)
 }
 
-fn lower_aggregate_fallible_call_field_value_to_location(
+pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     call: &CallExpr,
     expected_layout: ValueLayout,
     destination: AggregateLocation,
@@ -866,7 +877,7 @@ fn lower_aggregate_fallible_call_field_value_to_location(
     Ok(instructions)
 }
 
-fn lower_aggregate_member_field_value_to_location(
+pub(super) fn lower_aggregate_member_field_value_to_location(
     expression: &Expr,
     expected_layout: ValueLayout,
     destination: AggregateLocation,
@@ -907,7 +918,7 @@ fn lower_aggregate_member_field_value_to_location(
     Ok(instructions)
 }
 
-fn call_expression(expression: &Expr) -> Option<&CallExpr> {
+pub(super) fn call_expression(expression: &Expr) -> Option<&CallExpr> {
     match expression {
         Expr::Call(call) => Some(call),
         Expr::Group(group) => call_expression(&group.expression),

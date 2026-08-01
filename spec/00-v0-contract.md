@@ -223,9 +223,10 @@ Initial check-only or not-yet-buildable surfaces:
   or `catch`, and direct optional calls handled by `otherwise`, with active
   payload cleanup additionally supported for aggregate and fixed-array payload
   fields with supported recursive drop glue
-- payload-enum values nested inside broader aggregate field/return ABI
-  surfaces, even though lowering's internal obligation model composes these
-  shapes recursively
+- fixed-array elements whose type tree contains a payload enum, until the array
+  obligation model can represent the current element's nested partial state;
+  payload enums nested in ordinary struct fields and other payload enums are
+  buildable across the documented aggregate value boundaries
 - string interpolation lowering until the explicit standard-library formatting
   construction path is complete
 - ordinary input-dependent `error` success-return helper calls outside direct

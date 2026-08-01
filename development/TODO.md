@@ -158,11 +158,13 @@ Recommended order:
    and owned call arguments. Payload construction now tracks the selected
    variant and recursive per-field obligations across locals, staged
    replacements, returns, and owned call arguments; the lowering model also
-   composes nested payload, struct, and array child obligations. Promoting
-   payload-enum values nested inside broader aggregate ABI surfaces still
-   requires matching buildability classification. Remaining array paths require
-   sparse indexed live state or field extraction ownership; do not promote them
-   as mere expression shapes.
+   composes nested payload, struct, and array child obligations. Payload enums
+   now participate in broader struct field/return/call ABI surfaces, including
+   direct field construction and staged replacement. Fixed-array elements whose
+   type tree contains a payload enum remain blocked until the array prefix model
+   can represent the current element's nested live state. Remaining array paths
+   require sparse indexed live state or field extraction ownership; do not
+   promote them as mere expression shapes.
    Payload enums now carry these
    arrays through direct and indirect construction, generic substitution,
    scope/call cleanup, and

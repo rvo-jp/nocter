@@ -37,6 +37,7 @@ use std::collections::{HashMap, HashSet};
 
 mod call_instructions;
 mod copyability;
+mod enum_field_values;
 mod field_layouts;
 mod field_values;
 mod initialization;
@@ -46,6 +47,7 @@ mod struct_initialization;
 
 pub(super) use call_instructions::*;
 pub(super) use copyability::*;
+use enum_field_values::*;
 pub(super) use field_layouts::*;
 pub(super) use initialization::*;
 pub(super) use literals::*;

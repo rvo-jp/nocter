@@ -3183,6 +3183,100 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_drops_payload_enums_nested_in_aggregate_abi_surfaces() {
+    let project = TempProject::new("cli-run-nested-payload-enum-aggregate-abi");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "nested_payload_enum_aggregate_abi.nct",
+        r#"use std/log.write
+
+struct File {
+    name: &str
+}
+
+impl File {
+    drop &+self {
+        write(self.name)!
+        return
+    }
+}
+
+enum Result {
+    ok(value: [File; 2])
+    failed
+}
+
+enum Outer {
+    ok(value: Result)
+    failed
+}
+
+struct Wrapper {
+    prefix: i32
+    result: Result
+}
+
+func make_outer(): Outer {
+    return Outer.ok(Result.ok([File { name: "a" }, File { name: "b" }]))
+}
+
+func make_result(first: &str, second: &str): Result {
+    return Result.ok([File { name: first }, File { name: second }])
+}
+
+func consume(outer: Outer): void {
+    return
+}
+
+func replace(wrapper: &+Wrapper): void {
+    wrapper.result = Result.ok([File { name: "i" }, File { name: "j" }])
+}
+
+func main(): i32 {
+    consume(make_outer())
+    var wrapper = Wrapper {
+        prefix: 1,
+        result: Result.ok([File { name: "c" }, File { name: "d" }]),
+    }
+    replace(&+wrapper)
+    let result = Result.ok([File { name: "e" }, File { name: "f" }])
+    let moved_wrapper = Wrapper { prefix: 2, result: move result }
+    let call_wrapper = Wrapper { prefix: 3, result: make_result("g", "h") }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"badchgfeji");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_does_not_drop_uninitialized_fixed_array_enum_success_payload() {
     let project = TempProject::new("cli-run-fixed-array-enum-payload-failure-cleanup");
     project.write_nocter_home_file(

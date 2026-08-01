@@ -178,10 +178,11 @@ includes:
 Remaining aggregate backend work is concentrated around payload-carrying enum
 move-only payload bindings with recursive drop trees beyond supported structs
 and their fixed arrays,
-broader payload enum pattern target expressions, broader field-level live-state
-tracking, per-element initialization state, non-copy aggregate collection
-elements, move-only field extraction, broad control-flow joins, and unsupported
-expression shapes.
+broader payload enum pattern target expressions, fixed-array elements whose type
+tree contains a payload enum, broader field-level live-state tracking,
+per-element initialization state, non-copy aggregate collection elements,
+move-only field extraction, broad control-flow joins, and unsupported expression
+shapes.
 
 ## Safety Checks
 
