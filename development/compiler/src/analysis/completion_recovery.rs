@@ -5,6 +5,41 @@ const COMPLETION_PLACEHOLDER_IDENT: &str = "__nocter_completion_placeholder";
 pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<String> {
     incomplete_member_completion_text(text, offset)
         .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
+        .or_else(|| incomplete_import_symbol_completion_text(text, offset))
+}
+
+fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_start();
+    let use_body = prefix
+        .strip_prefix("use ")
+        .or_else(|| prefix.strip_prefix("pub use "))
+        .or_else(|| prefix.strip_prefix("nocter use "))?;
+    let dot = use_body.rfind('.')?;
+    let path = &use_body[..dot];
+    if path.is_empty() || path.ends_with('/') || path == "." || path.ends_with("..") {
+        return None;
+    }
+    let selector = &use_body[dot + 1..];
+    if !selector
+        .bytes()
+        .all(|byte| byte == b'{' || byte == b',' || byte.is_ascii_whitespace())
+    {
+        return None;
+    }
+
+    let mut insertion = COMPLETION_PLACEHOLDER_IDENT.to_string();
+    if selector.contains('{') {
+        insertion.push('}');
+    }
+    let mut recovered = String::with_capacity(text.len() + insertion.len());
+    recovered.push_str(&text[..offset]);
+    recovered.push_str(&insertion);
+    recovered.push_str(&text[offset..]);
+    Some(recovered)
 }
 
 pub(crate) fn signature_recovery_text(text: &str, offset: usize) -> Option<String> {
@@ -199,5 +234,14 @@ mod tests {
         let recovered = signature_recovery_text(text, offset).expect("expected recovery");
 
         assert!(recovered.contains("parse(\"(\")\n"), "{recovered}");
+    }
+
+    #[test]
+    fn inserts_placeholder_for_incomplete_import_selector() {
+        let text = "use std/vec.\n";
+        let offset = text.find('.').unwrap() + 1;
+        let recovered = completion_recovery_text(text, offset).expect("expected recovery");
+
+        assert_eq!(recovered, "use std/vec.__nocter_completion_placeholder\n");
     }
 }

@@ -9,6 +9,7 @@ mod definition;
 mod diagnostics;
 mod documents;
 mod hover;
+mod import_completion;
 mod locations;
 mod protocol;
 mod recovery;
@@ -17,7 +18,12 @@ mod semantic;
 mod signature_help;
 mod symbols;
 
-use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
+use analysis::{
+    LspWorkspaceAnalysis, diagnostics_for_workspace_with_source_root,
+    workspace_analysis_for_uri_with_source_root,
+};
+#[cfg(test)]
+use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{
     LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER, LSP_COMPLETION_ITEM_KIND_FIELD,
@@ -37,6 +43,7 @@ use documents::{
 #[cfg(test)]
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
+use import_completion::{module_completion_items, source_root_for_document};
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
 use protocol::{
@@ -267,7 +274,12 @@ impl LspServer {
         root_uri: &str,
         writer: &mut W,
     ) -> io::Result<()> {
-        let diagnostics_by_uri = diagnostics_for_workspace(root_uri, &self.documents);
+        let source_root = self
+            .documents
+            .get(root_uri)
+            .and_then(|document| source_root_for_document(document, &self.workspace_roots));
+        let diagnostics_by_uri =
+            diagnostics_for_workspace_with_source_root(root_uri, &self.documents, source_root);
         let current_uris = diagnostics_by_uri
             .iter()
             .map(|(uri, _)| uri.clone())
@@ -347,18 +359,13 @@ impl LspServer {
         let items = document_uri_from_params(params)
             .and_then(|uri| {
                 let position = position_from_params(params)?;
-                self.workspace_completion_for_uri(&uri, &position)
+                let document = self.documents.get(&uri)?;
+                let offset =
+                    lsp_position_to_byte_offset(&document.text, position.line, position.character);
+                module_completion_items(document, &self.workspace_roots, offset)
+                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
                     .or_else(|| self.workspace_completion_for_recovered_uri(&uri, &position))
-                    .or_else(|| {
-                        self.documents.get(&uri).and_then(|document| {
-                            let offset = lsp_position_to_byte_offset(
-                                &document.text,
-                                position.line,
-                                position.character,
-                            );
-                            completion_items_for_document_at_offset(document, offset)
-                        })
-                    })
+                    .or_else(|| completion_items_for_document_at_offset(document, offset))
             })
             .unwrap_or_else(keyword_completion_items);
         response(
@@ -466,8 +473,13 @@ impl LspServer {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
         let recovered = crate::analysis::completion_recovery_text(&document.text, offset)?;
-        let workspace =
-            workspace_analysis_with_recovered_document(uri, &self.documents, recovered)?;
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        let workspace = workspace_analysis_with_recovered_document(
+            uri,
+            &self.documents,
+            recovered,
+            source_root,
+        )?;
         let file = workspace.root_file()?;
         Some(completion_items_for_file_analysis_at_offset(
             &workspace.sources,
@@ -485,8 +497,13 @@ impl LspServer {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
         let recovered = crate::analysis::signature_recovery_text(&document.text, offset)?;
-        let workspace =
-            workspace_analysis_with_recovered_document(uri, &self.documents, recovered)?;
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        let workspace = workspace_analysis_with_recovered_document(
+            uri,
+            &self.documents,
+            recovered,
+            source_root,
+        )?;
         let file = workspace.root_file()?;
         crate::analysis::signature_help::signature_help_for_file_analysis(
             &workspace.sources,
@@ -502,7 +519,9 @@ impl LspServer {
         f: impl FnOnce(&OpenDocument, &LspWorkspaceAnalysis, &FileAnalysis) -> Option<T>,
     ) -> Option<T> {
         let document = self.documents.get(uri)?;
-        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        let workspace =
+            workspace_analysis_for_uri_with_source_root(uri, &self.documents, source_root)?;
         let file = workspace.root_file()?;
 
         f(document, &workspace, file)

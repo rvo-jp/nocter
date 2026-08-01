@@ -43,7 +43,7 @@ pub(super) fn keyword_completion_items() -> Vec<Value> {
     completion_values(analysis_keyword_completion_items())
 }
 
-fn completion_values(items: Vec<CompletionItemInfo>) -> Vec<Value> {
+pub(super) fn completion_values(items: Vec<CompletionItemInfo>) -> Vec<Value> {
     items.iter().map(completion_item).collect()
 }
 
@@ -72,6 +72,12 @@ fn completion_item(item: &CompletionItemInfo) -> Value {
         && let Some(object) = value.as_object_mut()
     {
         object.insert("insertText".to_string(), Value::String(insert_text.clone()));
+    }
+
+    if let Some(sort_text) = &item.sort_text
+        && let Some(object) = value.as_object_mut()
+    {
+        object.insert("sortText".to_string(), Value::String(sort_text.clone()));
     }
 
     value

@@ -47,6 +47,17 @@ pub(crate) use facts::{
     TypecheckSliceElementKind, collect_typecheck_facts, type_expr_presentation_label,
 };
 
+pub(crate) fn type_expr_is_assignable(
+    expected: &crate::ast::TypeExpr,
+    actual: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    operations::is_assignable(
+        &type_expr::type_expr_to_type(expected, resolved),
+        &type_expr::type_expr_to_type(actual, resolved),
+    )
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TypecheckSource<'a> {
     ast: &'a AstFile,

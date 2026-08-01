@@ -21,10 +21,9 @@
 
 Complete the v0.2.0 LSP contract on top of compiler-owned semantic facts.
 
-1. Recover signature help and completion for incomplete call/member/import edits without replacing
-   the authoritative open-document overlay.
-2. Add import-path and expected call-argument completion from resolver/typecheck facts.
-3. Fix the multi-file JSON-RPC acceptance sequence, then run the release gate.
+1. Fix the consecutive-edit and multi-file JSON-RPC acceptance sequences.
+2. Run the full compiler, distributed-home, package, and install release gates.
+3. Replace development version metadata only after every acceptance condition passes.
 
 ## Required Verification
 

@@ -25,8 +25,10 @@ document symbols、global/member/enum-pattern/struct-field completion、signatur
 call-site analysis は resolved target、generic specialization、active parameter、documentation を
 一つの compiler result に統合し、hover と signature help が共有する。completion は lexical
 scope と shadowing、generic member specialization、receiver capability、signature detail、
-documentation、insert text を compiler facts から返す。残る未達は import / call-argument completion
-と、編集途中の call・member・import に対する compile-unit 回復である。
+documentation、insert text を compiler facts から返す。import path は frontend の module layout と
+workspace/source root を共有し、import symbol は resolved import identity と visibility から返す。
+call argument は型検査器の assignability で候補を順位付けする。編集中の call・member・import は
+authoritative document と分離した一時 overlay で compile unit を回復する。
 
 ## v0.2.0 Capabilities
 

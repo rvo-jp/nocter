@@ -25,6 +25,7 @@ pub(crate) struct SignatureHelpInfo {
 pub(crate) struct SignatureParameterInfo {
     pub(crate) label: String,
     pub(crate) documentation: Option<String>,
+    pub(crate) ty: TypeExpr,
 }
 
 pub(crate) fn signature_help_for_file_analysis(
@@ -112,9 +113,14 @@ fn signature_info_for_call(
         ),
     };
 
-    let rendered_parameters = parameters
+    let specialized_parameters = parameters
         .iter()
-        .map(|parameter| parameter_label(parameter, &substitutions, &file.resolved))
+        .map(|parameter| {
+            (
+                parameter_label(parameter, &substitutions, &file.resolved),
+                substitute_type_expr_parameters(&parameter.ty, &substitutions),
+            )
+        })
         .collect::<Vec<_>>();
     let return_type = substitute_type_expr_parameters(return_type, &substitutions);
     let return_label = type_expr_presentation_label(&return_type, &file.resolved);
@@ -128,16 +134,21 @@ fn signature_info_for_call(
     };
     let label = format!(
         "{kind} {callable}({}): {return_label}",
-        rendered_parameters.join(", ")
+        specialized_parameters
+            .iter()
+            .map(|(label, _)| label.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     );
 
     Some(SignatureHelpInfo {
         label,
-        parameters: rendered_parameters
+        parameters: specialized_parameters
             .into_iter()
-            .map(|label| SignatureParameterInfo {
+            .map(|(label, ty)| SignatureParameterInfo {
                 label,
                 documentation: None,
+                ty,
             })
             .collect(),
         active_parameter: active_parameter(call, offset, parameters.len()),

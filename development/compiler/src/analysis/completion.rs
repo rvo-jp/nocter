@@ -44,7 +44,8 @@ pub(crate) struct CompletionItemInfo {
     pub(crate) detail: Option<String>,
     pub(crate) documentation: Option<String>,
     pub(crate) insert_text: Option<String>,
-    declaration_span: Option<ByteSpan>,
+    pub(crate) sort_text: Option<String>,
+    pub(crate) declaration_span: Option<ByteSpan>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,8 +95,30 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
-    let mut items = completion_items_for_file_analysis_at_offset(file, offset);
+    let mut items = super::import_completion::import_symbol_items_at_offset(analysis, file, offset)
+        .unwrap_or_else(|| completion_items_for_file_analysis_at_offset(file, offset));
+    let compatible_locals = super::expected_completion::compatible_local_spans_at_offset(
+        sources, analysis, file, offset,
+    );
+    let prefix = sources
+        .get(file.ast.span.source)
+        .map(|source| identifier_prefix_at_offset(source.text(), offset))
+        .unwrap_or_default();
     for item in &mut items {
+        let expected_rank = if item
+            .declaration_span
+            .is_some_and(|span| compatible_locals.contains(&span))
+        {
+            0
+        } else {
+            1
+        };
+        let prefix_rank = usize::from(!prefix.is_empty() && !item.label.starts_with(prefix));
+        let locality_rank = usize::from(item.kind != CompletionItemKind::Variable);
+        item.sort_text = Some(format!(
+            "{prefix_rank}{locality_rank}{expected_rank}-{}",
+            item.label
+        ));
         let Some(target) = item.declaration_span else {
             continue;
         };
@@ -107,6 +130,18 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
                 .and_then(|hover| hover.documentation);
     }
     items
+}
+
+fn identifier_prefix_at_offset(text: &str, offset: usize) -> &str {
+    let Some(prefix) = text.get(..offset) else {
+        return "";
+    };
+    let start = prefix
+        .char_indices()
+        .rev()
+        .find(|(_, char)| !(*char == '_' || char.is_alphanumeric()))
+        .map_or(0, |(index, char)| index + char.len_utf8());
+    &prefix[start..]
 }
 
 pub(crate) fn completion_items_for_text_at_offset(
@@ -155,11 +190,13 @@ pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
             detail: Some("keyword".to_string()),
             documentation: None,
             insert_text: Some((*keyword).to_string()),
+            sort_text: None,
             declaration_span: None,
         })
         .collect()
 }
 
+#[cfg(test)]
 fn completion_items_for_resolved_symbols(
     resolved: &ResolveOutput,
     visible_hidden_symbol_spans: HashSet<ByteSpan>,
@@ -202,6 +239,7 @@ fn completion_items_for_resolved_symbols_excluding(
             detail: Some(symbol_detail(symbol, resolved)),
             documentation: None,
             insert_text: Some(symbol_insert_text(symbol)),
+            sort_text: None,
             declaration_span: Some(symbol.declaration_span),
         });
     }
@@ -228,6 +266,7 @@ fn local_completion_items(
                 detail: Some(detail),
                 documentation: None,
                 insert_text: Some(name),
+                sort_text: None,
                 declaration_span: Some(binding.name_span),
             }
         })
@@ -244,6 +283,21 @@ fn completion_kind_for_symbol(symbol: &Symbol) -> CompletionItemKind {
             TypeSymbolKind::Interface => CompletionItemKind::Interface,
         },
         SymbolKind::Imported(_) => CompletionItemKind::Module,
+    }
+}
+
+pub(super) fn completion_item_for_symbol(
+    symbol: &Symbol,
+    resolved: &ResolveOutput,
+) -> CompletionItemInfo {
+    CompletionItemInfo {
+        label: symbol.name.clone(),
+        kind: completion_kind_for_symbol(symbol),
+        detail: Some(symbol_detail(symbol, resolved)),
+        documentation: None,
+        insert_text: Some(symbol_insert_text(symbol)),
+        sort_text: None,
+        declaration_span: Some(symbol.declaration_span),
     }
 }
 
@@ -470,6 +524,7 @@ fn enum_variant_completion_item(
         } else {
             format!("{}(_)", variant.name)
         }),
+        sort_text: None,
         declaration_span: Some(variant.name_span),
     }
 }
@@ -489,6 +544,7 @@ fn associated_function_completion_item(
         )),
         documentation: None,
         insert_text: Some(format!("{}()", function.name)),
+        sort_text: None,
         declaration_span: Some(function.name_span),
     }
 }
@@ -514,6 +570,7 @@ fn struct_field_completion_item(
         } else {
             field.name.clone()
         }),
+        sort_text: None,
         declaration_span: Some(field.name_span),
     }
 }
@@ -556,6 +613,7 @@ fn method_completion_item(
         )),
         documentation: None,
         insert_text: Some(format!("{}()", method.name)),
+        sort_text: None,
         declaration_span: Some(method.name_span),
     }
 }

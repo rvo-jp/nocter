@@ -3043,6 +3043,128 @@ fn signature_help_recovers_incomplete_imported_call() {
 }
 
 #[test]
+fn call_argument_completion_ranks_assignable_locals_first() {
+    let project = TempProject::new("lsp-expected-argument-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"func choose(value: bool): bool {
+    return value
+}
+
+func main(good: bool, bad: i32): bool {
+    return choose(bad)
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.rfind("bad)").expect("expected call argument");
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let good = completion_item_with_label(items, "good").expect("expected compatible local");
+    let bad = completion_item_with_label(items, "bad").expect("expected other local");
+
+    assert_eq!(good["sortText"], json!("000-good"));
+    assert_eq!(bad["sortText"], json!("001-bad"));
+}
+
+#[test]
+fn import_symbol_completion_recovers_and_filters_visibility() {
+    let project = TempProject::new("lsp-import-symbol-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    project.write_source(
+        "math.nct",
+        "pub func add(value: i32): i32 {\n    return value\n}\n\nfunc hidden(): i32 {\n    return 0\n}\n",
+    );
+    let text = "use ./math.\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(2), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("math.").unwrap() + "math.".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let add = completion_item_with_label(items, "add")
+        .unwrap_or_else(|| panic!("expected exported symbol, got {items:#?}"));
+
+    assert_eq!(add["detail"], json!("func add(value: i32): i32"));
+    assert!(completion_item_with_label(items, "hidden").is_none());
+}
+
+#[test]
+fn import_path_completion_discovers_reachable_module_segments() {
+    let project = TempProject::new("lsp-import-path-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    project.write_source(
+        "lib/math.nct",
+        "pub func answer(): i32 {\n    return 42\n}\n",
+    );
+    project.write_source("lib/value.nct", "pub struct Value {\n    raw: i32\n}\n");
+    let text = "use lib/ma\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(2), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("lib/ma").unwrap() + "lib/ma".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(10),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"].as_array().unwrap();
+    let math = completion_item_with_label(items, "math")
+        .unwrap_or_else(|| panic!("expected module segment, got {items:#?}"));
+
+    assert_eq!(math["kind"], json!(LSP_COMPLETION_ITEM_KIND_MODULE));
+    assert_eq!(math["detail"], json!("module path segment"));
+    assert!(completion_item_with_label(items, "value").is_none());
+}
+
+#[test]
 fn member_completion_recovers_incomplete_imported_receiver() {
     let project = TempProject::new("lsp-incomplete-imported-member");
     let home = project.write_nocter_home();
@@ -3185,6 +3307,9 @@ impl TempProject {
 
     fn write_source(&self, name: &str, text: &str) -> PathBuf {
         let path = self.root.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
         std::fs::write(&path, text).unwrap();
         path
     }
