@@ -98,6 +98,19 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_call_return_to_location(
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if primitive_take_value_at_ptr_call(call, context) {
+        let (layout, _) = aggregate_return_layout_and_destination(return_type);
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        return lower_take_value_at_ptr_primitive_call(
+            call,
+            PointerTakeDestination::Aggregate {
+                location: destination,
+                layout,
+            },
+            context,
+            &mut temporaries,
+        );
+    }
     if macos_syscall_primitive_call(call, context)
         && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
     {

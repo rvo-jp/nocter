@@ -52,6 +52,12 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::StoreUsizeToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. } => true,
+        Instruction::CopyPointerToAggregate { .. }
+        | Instruction::LoadU8FromPointer { .. }
+        | Instruction::LoadI32FromPointer { .. }
+        | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadBoolFromPointer { .. }
+        | Instruction::LoadStrFromPointer { .. } => false,
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -194,6 +200,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
+        | Instruction::CopyPointerToAggregate { .. }
         | Instruction::CopySliceElementToAggregate { .. }
         | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::StoreU8ToPointer { .. }
@@ -206,6 +213,11 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreUsizeToSliceIndex { .. }
         | Instruction::StoreBoolToSliceIndex { .. }
         | Instruction::StoreStrToSliceIndex { .. } => true,
+        Instruction::LoadU8FromPointer { .. }
+        | Instruction::LoadI32FromPointer { .. }
+        | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadBoolFromPointer { .. }
+        | Instruction::LoadStrFromPointer { .. } => false,
         Instruction::CopyAggregate {
             destination,
             source,

@@ -408,6 +408,12 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CopyStrToPointer { .. }
             | Instruction::CopyPointerBytes { .. }
             | Instruction::CopyAggregateToPointer { .. }
+            | Instruction::CopyPointerToAggregate { .. }
+            | Instruction::LoadU8FromPointer { .. }
+            | Instruction::LoadI32FromPointer { .. }
+            | Instruction::LoadUsizeFromPointer { .. }
+            | Instruction::LoadBoolFromPointer { .. }
+            | Instruction::LoadStrFromPointer { .. }
             | Instruction::CopySliceElementToAggregate { .. }
             | Instruction::CopyAggregateToSliceElement { .. }
             | Instruction::StoreU8ToPointer { .. }

@@ -256,6 +256,8 @@ const PTR_DROP_VALUE_AT_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "usize",
     },
 ];
+const PTR_TAKE_VALUE_AT_PTR_PARAMETERS: &[PrimitiveParameterSpec] =
+    PTR_DROP_VALUE_AT_PTR_PARAMETERS;
 const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "pointer",
@@ -534,6 +536,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: PTR_COPY_STR_TO_PTR_PARAMETERS,
             return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "take_value_at_ptr",
+            generics: &["T"],
+            parameters: PTR_TAKE_VALUE_AT_PTR_PARAMETERS,
+            return_type: "T",
         },
         PrimitiveSpec {
             module_path: "std/ptr",

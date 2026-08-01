@@ -510,7 +510,7 @@ fn distributed_std_vec_contract_shape_passes_check() {
     let source = project.write_source(
         "vec_contract_shape.nct",
         r#"use std/mem.Allocator
-use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, push, reserve, view, view_mut}
+use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, pop, push, reserve, view, view_mut}
 
 func inspect(values: &Vec<usize>): usize {
     return len(values) + capacity(values) + view(values).len()
@@ -525,6 +525,12 @@ func mutate(values: &+Vec<usize>, value: usize): usize! {
     push(values, value)?
     clear(values)
     return view_mut(values).len()
+}
+
+func pop_shapes(values: &+Vec<usize>): usize? {
+    let free_value = pop(values) otherwise { return none }
+    values.push(free_value)!
+    return values.pop() otherwise { return none }
 }
 
 func method_shape(allocator: &+Allocator, values: &[usize]): usize! {
@@ -1197,6 +1203,139 @@ func main(): i32! {
         return 1
     }
     return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_string_pop_transfers_ownership_runs() {
+    let project = TempProject::new("distributed-home-vec-string-pop-run");
+    let source = project.write_source(
+        "vec_string_pop.nct",
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "popped")?
+    values.push(move text)?
+    let popped = values.pop() otherwise { return 2 }
+    drop values
+    print(popped.view())?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(text(&output.stdout), "popped");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_i32_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-i32-pop-run");
+    let source = project.write_source(
+        "vec_i32_pop.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<i32> = Vec.with_capacity(&+allocator, 1)?
+    values.push(42)?
+    let popped = values.pop() otherwise { return 2 }
+    return popped
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_direct_aggregate_pop_runs() {
+    let project = TempProject::new("distributed-home-vec-direct-aggregate-pop-run");
+    let source = project.write_source(
+        "vec_direct_aggregate_pop.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+copy struct Pair {
+    value: i32
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?
+    values.push(Pair { value: 42 })?
+    let popped = values.pop() otherwise { return 2 }
+    return popped.value
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_empty_pop_returns_none() {
+    let project = TempProject::new("distributed-home-vec-empty-pop-run");
+    let source = project.write_source(
+        "vec_empty_pop.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var values: Vec<i32> = Vec.empty()
+    let unexpected = values.pop() otherwise { return 0 }
+    return unexpected
 }
 "#,
     );
@@ -3285,6 +3424,8 @@ fn distributed_ptr_raw_helpers_are_not_public_api() {
         "copy_ptr_to_ptr",
         "store_u8_to_ptr",
         "store_value_to_ptr",
+        "drop_value_at_ptr",
+        "take_value_at_ptr",
         "str_from_raw_parts",
         "slice_from_raw_parts",
         "slice_from_raw_parts_mut",

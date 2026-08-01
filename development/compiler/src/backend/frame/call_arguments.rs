@@ -105,6 +105,12 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
+        | Instruction::CopyPointerToAggregate { .. }
+        | Instruction::LoadU8FromPointer { .. }
+        | Instruction::LoadI32FromPointer { .. }
+        | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadBoolFromPointer { .. }
+        | Instruction::LoadStrFromPointer { .. }
         | Instruction::CopySliceElementToAggregate { .. }
         | Instruction::CopyAggregateToSliceElement { .. }
         | Instruction::StoreU8ToPointer { .. }

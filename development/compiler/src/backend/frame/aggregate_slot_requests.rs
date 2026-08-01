@@ -46,6 +46,16 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             }
             Ok(())
         }
+        Instruction::CopyPointerToAggregate {
+            destination,
+            layout,
+            ..
+        } => {
+            if let AggregateLocation::Slot(slot_index) = destination {
+                record_aggregate_slot_request(*slot_index, *layout, requests)?;
+            }
+            Ok(())
+        }
         Instruction::CopySliceElementToAggregate {
             destination,
             layout,
@@ -105,6 +115,11 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
+        | Instruction::LoadU8FromPointer { .. }
+        | Instruction::LoadI32FromPointer { .. }
+        | Instruction::LoadUsizeFromPointer { .. }
+        | Instruction::LoadBoolFromPointer { .. }
+        | Instruction::LoadStrFromPointer { .. }
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }

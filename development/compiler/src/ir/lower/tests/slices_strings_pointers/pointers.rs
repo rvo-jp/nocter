@@ -737,6 +737,58 @@ pub func drop_at(pointer: *Item, offset: usize): void {
 }
 
 #[test]
+fn lowers_take_value_at_ptr_call_for_owned_aggregate_return() {
+    let take_at = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_take.take_at
+
+func main(): void {
+    return
+}
+"#,
+        "take_at",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive take_value_at_ptr<T>(pointer: *T, offset: usize): T
+"#,
+            ),
+            (
+                "std/ptr_take.nct",
+                r#"use std/ptr.take_value_at_ptr
+
+struct Item {
+    value: i32
+}
+
+impl Item {
+    drop &+self {
+        return
+    }
+}
+
+pub func take_at(pointer: *Item, offset: usize): Item {
+    return take_value_at_ptr(pointer, offset)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        take_at.instructions,
+        vec![
+            Instruction::CopyPointerToAggregate {
+                destination: AggregateLocation::DirectReturn,
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_pointee_size_call_for_usize_pointer_field() {
     let size = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_size.size

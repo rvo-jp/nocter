@@ -107,6 +107,24 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         }
         Instruction::CopyAggregateToPointer {
             pointer, offset, ..
+        }
+        | Instruction::CopyPointerToAggregate {
+            pointer, offset, ..
+        }
+        | Instruction::LoadU8FromPointer {
+            pointer, offset, ..
+        }
+        | Instruction::LoadI32FromPointer {
+            pointer, offset, ..
+        }
+        | Instruction::LoadUsizeFromPointer {
+            pointer, offset, ..
+        }
+        | Instruction::LoadBoolFromPointer {
+            pointer, offset, ..
+        }
+        | Instruction::LoadStrFromPointer {
+            pointer, offset, ..
         } => {
             usize_value_uses_process_arguments(pointer)
                 || usize_value_uses_process_arguments(offset)

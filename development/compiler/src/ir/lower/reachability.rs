@@ -106,6 +106,12 @@ fn collect_reachable_call_targets(
             | Instruction::CopyStrToPointer { .. }
             | Instruction::CopyPointerBytes { .. }
             | Instruction::CopyAggregateToPointer { .. }
+            | Instruction::CopyPointerToAggregate { .. }
+            | Instruction::LoadU8FromPointer { .. }
+            | Instruction::LoadI32FromPointer { .. }
+            | Instruction::LoadUsizeFromPointer { .. }
+            | Instruction::LoadBoolFromPointer { .. }
+            | Instruction::LoadStrFromPointer { .. }
             | Instruction::CopySliceElementToAggregate { .. }
             | Instruction::CopyAggregateToSliceElement { .. }
             | Instruction::StoreU8ToPointer { .. }

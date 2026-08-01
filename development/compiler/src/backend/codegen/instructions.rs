@@ -366,6 +366,39 @@ impl EntryEmitter {
             } => {
                 self.emit_copy_aggregate_to_pointer(pointer, offset, *source, *layout, frame)?;
             }
+            Instruction::CopyPointerToAggregate {
+                destination,
+                pointer,
+                offset,
+                layout,
+            } => {
+                self.emit_copy_pointer_to_aggregate(*destination, pointer, offset, *layout, frame)?;
+            }
+            Instruction::LoadU8FromPointer {
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_u8_from_pointer(*destination, pointer, offset)?,
+            Instruction::LoadI32FromPointer {
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_i32_from_pointer(*destination, pointer, offset)?,
+            Instruction::LoadUsizeFromPointer {
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_usize_from_pointer(*destination, pointer, offset)?,
+            Instruction::LoadBoolFromPointer {
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_bool_from_pointer(*destination, pointer, offset)?,
+            Instruction::LoadStrFromPointer {
+                destination,
+                pointer,
+                offset,
+            } => self.emit_load_str_from_pointer(*destination, pointer, offset)?,
             Instruction::StoreU8ToPointer {
                 pointer,
                 offset,

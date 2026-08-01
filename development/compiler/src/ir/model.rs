@@ -277,6 +277,37 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         layout: ValueLayout,
     },
+    CopyPointerToAggregate {
+        destination: AggregateLocation,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        layout: ValueLayout,
+    },
+    LoadU8FromPointer {
+        destination: U8Location,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
+    LoadI32FromPointer {
+        destination: I32Location,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
+    LoadUsizeFromPointer {
+        destination: UsizeLocation,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
+    LoadBoolFromPointer {
+        destination: BoolLocation,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
+    LoadStrFromPointer {
+        destination: StrLocation,
+        pointer: UsizeValue,
+        offset: UsizeValue,
+    },
     StoreU8ToPointer {
         pointer: UsizeValue,
         offset: UsizeValue,

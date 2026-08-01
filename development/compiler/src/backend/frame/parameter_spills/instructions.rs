@@ -248,6 +248,63 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(offset, requests);
             }
         }
+        Instruction::CopyPointerToAggregate {
+            destination,
+            pointer,
+            offset,
+            layout,
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    0,
+                    layout.size,
+                    requests,
+                );
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
+        Instruction::LoadU8FromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
+        Instruction::LoadI32FromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
+        Instruction::LoadUsizeFromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
+        Instruction::LoadBoolFromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
+        Instruction::LoadStrFromPointer {
+            pointer, offset, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+            }
+        }
         Instruction::CopySliceElementToAggregate {
             destination,
             source,

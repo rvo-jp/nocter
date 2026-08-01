@@ -20,6 +20,7 @@ use std/ptr.pointee_size
 use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
+use std/ptr.take_value_at_ptr
 
 pub struct Vec<T> {
     ptr: *T
@@ -159,6 +160,16 @@ pub func clear<T>(values: &+Vec<T>): void {
     return
 }
 
+pub func pop<T>(values: &+Vec<T>): T? {
+    if values.len == 0 {
+        return none
+    }
+    let next_len: usize = values.len - 1
+    values.len = next_len
+    let element_size: usize = pointee_size(values.ptr)
+    return take_value_at_ptr(values.ptr, next_len * element_size)
+}
+
 pub func push<T>(values: &+Vec<T>, value: T): void! {
     let old_len: usize = values.len
     reserve(values, 1)?
@@ -211,6 +222,10 @@ impl<T> Vec<T> {
     pub method &+self.push(value: T): void! {
         push(self, move value)?
         return
+    }
+
+    pub method &+self.pop(): T? {
+        return pop(self) otherwise { return none }
     }
 
     drop &+self {

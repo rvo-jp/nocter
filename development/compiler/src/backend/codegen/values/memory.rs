@@ -114,6 +114,129 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(in crate::backend::codegen) fn emit_copy_pointer_to_aggregate(
+        &mut self,
+        destination: AggregateLocation,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "aggregate pointer take emission requires a stack frame",
+            )]);
+        };
+        let layout_size = u32::try_from(layout.size)
+            .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        if layout_size == 0 {
+            return Err(aggregate_copy_diagnostic(
+                "aggregate pointer take requires a non-empty aggregate layout",
+            ));
+        }
+        validate_aggregate_copy_destination_exact(destination, 0, layout_size, frame)?;
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_pointer_offset_address(pointer, offset, XReg::X9)?;
+        let mut chunk_offset = 0_u32;
+        while chunk_offset < layout_size {
+            let remaining = layout_size
+                .checked_sub(chunk_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
+            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X9, chunk_offset, chunk_bytes)?;
+            self.emit_aggregate_copy_scratch_to_destination(
+                destination,
+                chunk_offset,
+                chunk_bytes,
+                frame,
+            )?;
+            chunk_offset = chunk_offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_u8_from_pointer(
+        &mut self,
+        destination: U8Location,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X16)?;
+        let register = self.u8_register_destination_or_scratch(destination)?;
+        self.encoder.emit_ldrb_w_imm(register, XReg::X16, 0);
+        self.emit_w_to_u8_location(register, destination)
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_i32_from_pointer(
+        &mut self,
+        destination: I32Location,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X16)?;
+        let register = self.i32_register_destination_or_scratch(destination)?;
+        self.encoder.emit_ldr_w_imm(register, XReg::X16, 0);
+        self.emit_w_to_i32_location(register, destination)
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_usize_from_pointer(
+        &mut self,
+        destination: UsizeLocation,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X16)?;
+        let register = self.usize_register_destination_or_scratch(destination)?;
+        self.encoder.emit_ldr_x_imm(register, XReg::X16, 0);
+        self.emit_x_to_usize_location(register, destination)
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_bool_from_pointer(
+        &mut self,
+        destination: BoolLocation,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X16)?;
+        let register = self.bool_register_destination_or_scratch(destination)?;
+        self.encoder.emit_ldrb_w_imm(register, XReg::X16, 0);
+        self.emit_w_to_bool_location(register, destination)
+    }
+
+    pub(in crate::backend::codegen) fn emit_load_str_from_pointer(
+        &mut self,
+        destination: StrLocation,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_pointer_offset_address(pointer, offset, XReg::X16)?;
+        self.encoder.emit_ldr_x_imm(XReg::X17, XReg::X16, 8);
+        self.encoder.emit_ldr_x_imm(XReg::X16, XReg::X16, 0);
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
+    }
+
+    fn emit_pointer_offset_address(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(pointer, destination)?;
+        let offset_register = if destination == XReg::X17 {
+            XReg::X16
+        } else {
+            XReg::X17
+        };
+        self.emit_usize_value_to_x(offset, offset_register)?;
+        self.encoder
+            .emit_add_x(destination, destination, offset_register);
+        Ok(())
+    }
+
     pub(in crate::backend::codegen) fn emit_copy_slice_element_to_aggregate(
         &mut self,
         destination: AggregateLocation,

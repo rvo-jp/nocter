@@ -170,6 +170,57 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_value(pointer, highest_local_index);
             record_usize_value(offset, highest_local_index);
         }
+        Instruction::CopyPointerToAggregate {
+            pointer, offset, ..
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
+        Instruction::LoadU8FromPointer {
+            destination,
+            pointer,
+            offset,
+        } => {
+            record_u8_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
+        Instruction::LoadI32FromPointer {
+            destination,
+            pointer,
+            offset,
+        } => {
+            record_i32_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
+        Instruction::LoadUsizeFromPointer {
+            destination,
+            pointer,
+            offset,
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
+        Instruction::LoadBoolFromPointer {
+            destination,
+            pointer,
+            offset,
+        } => {
+            record_bool_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
+        Instruction::LoadStrFromPointer {
+            destination,
+            pointer,
+            offset,
+        } => {
+            record_str_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+        }
         Instruction::CopySliceElementToAggregate { source, index, .. } => {
             record_slice_location(*source, highest_local_index);
             record_slice_element_index(*index, highest_local_index);

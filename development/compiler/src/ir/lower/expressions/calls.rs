@@ -48,6 +48,7 @@ mod borrow_arguments;
 mod evaluation;
 mod normal_calls;
 mod pointer_drops;
+mod pointer_takes;
 mod primitives;
 mod return_validation;
 mod tail_calls;
@@ -74,6 +75,10 @@ pub(in crate::ir::lower) use normal_calls::{
 };
 pub(super) use pointer_drops::{
     lower_drop_value_at_ptr_primitive_call, primitive_drop_value_at_ptr_call,
+};
+pub(in crate::ir::lower) use pointer_takes::{
+    PointerTakeDestination, lower_take_value_at_ptr_primitive_call,
+    primitive_take_value_at_ptr_call,
 };
 pub(super) use primitives::{
     lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,

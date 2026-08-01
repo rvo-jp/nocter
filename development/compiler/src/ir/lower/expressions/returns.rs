@@ -28,7 +28,20 @@ pub(in crate::ir::lower) fn lower_i32_return_expression(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Call(call) => {
+            if primitive_take_value_at_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                let mut instructions = lower_take_value_at_ptr_primitive_call(
+                    call,
+                    PointerTakeDestination::I32(I32Location::Return),
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            lower_direct_tail_call(call, context)
+        }
         Expr::Group(group) => lower_i32_return_expression(&group.expression, context),
         _ => {
             let mut instructions = lower_i32_expression(expression, context)?;
@@ -61,7 +74,20 @@ pub(in crate::ir::lower) fn lower_u8_return_expression(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Call(call) => {
+            if primitive_take_value_at_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                let mut instructions = lower_take_value_at_ptr_primitive_call(
+                    call,
+                    PointerTakeDestination::U8(U8Location::Return),
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            lower_direct_tail_call(call, context)
+        }
         Expr::Group(group) => lower_u8_return_expression(&group.expression, context),
         _ => {
             let mut instructions =
@@ -115,6 +141,16 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_take_value_at_ptr_call(call, context) {
+                let mut instructions = lower_take_value_at_ptr_primitive_call(
+                    call,
+                    PointerTakeDestination::Usize(UsizeLocation::Return),
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
                 let lowered = value?;
                 let mut instructions = lowered.instructions;
@@ -197,6 +233,16 @@ pub(in crate::ir::lower) fn lower_str_return_expression(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_take_value_at_ptr_call(call, context) {
+                let mut instructions = lower_take_value_at_ptr_primitive_call(
+                    call,
+                    PointerTakeDestination::Str(StrLocation::Return),
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if primitive_arg_raw_call(call, context) {
                 let (mut instructions, value) =
                     lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
@@ -277,6 +323,16 @@ pub(in crate::ir::lower) fn lower_bool_return_expression(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_take_value_at_ptr_call(call, context) {
+                let mut instructions = lower_take_value_at_ptr_primitive_call(
+                    call,
+                    PointerTakeDestination::Bool(BoolLocation::Return),
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if let Some(value) =
                 lower_builtin_is_empty_call_to_value(call, context, &mut temporaries)
             {
