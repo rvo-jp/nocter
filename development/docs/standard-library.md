@@ -25,13 +25,15 @@
 failure-atomic grow、deterministic `RawBuffer` drop を持つ。alignment、zero-size、OOM、grow失敗
 後の内容保持は distributed-home runtime tests で固定されている。
 
-現在の `String` は empty、with_capacity、from/copy、view、len/capacity、reserve、clear、
-push_str、bytes、storage release を持つ。現在の `Vec<T>` は empty、with_capacity、
+現在の `String` は private `RawBuffer` に allocator provenance と capacity を保持し、
+empty、with_capacity、from/copy、view、len/capacity、reserve、clear、push_str、deterministic
+storage release を共通 Allocator 上で実行する。grow failure 後の内容・len・capacity 保持も
+runtime test で固定されている。現在の `Vec<T>` は empty、with_capacity、
 from_slice、len/capacity、reserve、push、clear、views、storage release を持つが、要素 drop
 を伴う non-copy collection の契約は未完成である。
 
-`String` と `Vec<T>` はまだ page allocation primitive を直接使用している。これは完成した
-`std/mem` 契約へ移す対象であり、安定 API とみなさない。
+`Vec<T>` はまだ page allocation primitive を直接使用している。これは完成した `std/mem`
+契約へ移す対象であり、安定 API とみなさない。
 
 ## v0.2.0 Required Behavior
 

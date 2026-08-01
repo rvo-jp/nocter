@@ -19,15 +19,12 @@
 
 ## Next Concrete Area
 
-Move owning collections onto the completed common Allocator contract, then promote non-copy
-elements.
+Move `Vec<T>` onto the completed common Allocator contract, then promote non-copy elements.
 
-1. Store `String` capacity through `RawBuffer` and replace direct page allocation/free with
-   allocator allocation/grow/drop.
-2. Store `Vec<T>` byte capacity through the same buffer contract without exposing raw ownership.
-3. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
+1. Store `Vec<T>` byte capacity through `RawBuffer` without exposing raw ownership.
+2. Reuse fixed-array current-element transitions for `Vec<T>.push`, initialized length, clear, and
    drop.
-4. Implement ownership-transferring `pop` after initialized-prefix cleanup is correct.
+3. Implement ownership-transferring `pop` after initialized-prefix cleanup is correct.
 
 Do not implement arbitrary indexed `remove` as an exception to prefix ownership. It requires a later
 sparse-live-element design. `pop` is allowed after initialized-prefix transfer is correct.

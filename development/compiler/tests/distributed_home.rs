@@ -3870,6 +3870,56 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_string_failed_growth_preserves_contents() {
+    let project = TempProject::new("distributed-home-string-failed-growth-run");
+    let source = project.write_source(
+        "string_failed_growth.nct",
+        r#"use std/mem.page_allocator
+
+func grow_huge(text: &+String): void! {
+    text.reserve(18446744073709551611)?
+    return
+}
+
+func preserved(text: &String): i32 {
+    if text.view() != "keep" {
+        return 1
+    }
+    if text.len() != 4 {
+        return 2
+    }
+    if text.capacity() != 4 {
+        return 3
+    }
+    return 42
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = String.from_str(&+allocator, "keep")?
+    grow_huge(&+text) catch error {
+        return preserved(&text)
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_string_empty_push_str_runs() {
     let project = TempProject::new("distributed-home-string-empty-push-str-run");
     let source = project.write_source(

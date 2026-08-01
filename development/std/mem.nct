@@ -39,6 +39,16 @@ pub func page_allocator(): Allocator {
     return Allocator { state: 0, kind: 0 }
 }
 
+pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
+    return RawBuffer {
+        ptr: from_addr(1),
+        len: 0,
+        align: align,
+        allocator_state: 0,
+        allocator_kind: 0,
+    }
+}
+
 pub func Layout.new(size: usize, align: usize): Layout! {
     if !valid_alignment(align) {
         return invalid_argument()
@@ -148,6 +158,15 @@ pub func grow(
 
     replacement.ptr = from_addr(1)
     replacement.len = 0
+    return
+}
+
+pub(nocter) func grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    var allocator = Allocator {
+        state: buffer.allocator_state,
+        kind: buffer.allocator_kind,
+    }
+    grow(&+allocator, buffer, new_size)?
     return
 }
 

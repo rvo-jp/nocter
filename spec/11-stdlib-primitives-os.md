@@ -140,7 +140,8 @@ Initial `std/string` public surface:
 
 ```nct
 pub struct String {
-    ...
+    storage: RawBuffer
+    len: usize
 }
 
 pub func String.empty(): String
@@ -188,6 +189,13 @@ Rules:
 - These functions are ordinary standard-library APIs, not compiler built-ins.
 - Fallible functions fail with the built-in `error` payload. `std/string` and `std/fmt` must not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
 - `std/string.with_capacity` and `std/string.from_str` take an explicit `&+Allocator`.
+- Every `String` stores its allocator provenance in a private `RawBuffer`. `String.empty()` binds a
+  canonical zero-sized buffer to the page allocator; `with_capacity(allocator, 0)` retains the
+  supplied allocator identity without performing an OS allocation.
+- `reserve` grows through the bound allocator and is failure-atomic: allocation failure leaves the
+  pointer, contents, length, and capacity unchanged.
+- `String` storage is released by recursive deterministic drop of its private `RawBuffer`; string
+  code does not call target page allocation or release primitives directly.
 - The formatting append functions operate on an already-created `String`; they do not choose an allocator.
 - Future lowering for string interpolation must be expressed in terms of explicit `String` construction and `std/fmt.append_*` calls. It must not silently choose a process-global allocator.
 - `std/fmt` is not part of the initial prelude. User code imports it explicitly unless future prelude policy changes.
