@@ -31,13 +31,6 @@ pub(in crate::ir::lower) fn aggregate_call_return_layout_from_resolved(
     }
 }
 
-pub(in crate::ir::lower) fn type_expr_is_copy_struct(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> bool {
-    type_expr_is_copy_struct_with_resolver(ty, resolved, |_| Some(resolved))
-}
-
 pub(in crate::ir::lower) fn type_expr_is_copy_struct_with_resolver<'a, F>(
     ty: &TypeExpr,
     fallback_resolved: &'a ResolveOutput,

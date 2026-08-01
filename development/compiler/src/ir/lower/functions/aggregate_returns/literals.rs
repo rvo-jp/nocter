@@ -10,11 +10,12 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_struct_literal_return_to_
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
 
-    if let Ok(value) = abi_value_from_type_expr(&literal.ty, resolved)
+    if let Some(return_type_expr) = aggregate_return_value_type_expr(context)
+        && let Some(value) = context.abi_value_for_type_expr(return_type_expr)
         && value.layout == expected_layout
         && let AbiType::Struct(fields) = &value.ty
         && let Some(drop_kind @ (AggregateDrop::Direct(_) | AggregateDrop::Struct(_))) =
-            context.aggregate_drop_for_type_expr(&literal.ty)
+            context.aggregate_drop_for_type_expr(return_type_expr)
     {
         return lower_tracked_aggregate_struct_literal_return(
             literal,
@@ -133,7 +134,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_array_literal_return_to_l
     }
 
     if array_literal_requires_runtime_progress(literal)
-        && let Some(return_type_expr) = fixed_array_return_value_type_expr(context)
+        && let Some(return_type_expr) = aggregate_return_value_type_expr(context)
         && let Some(drop_kind @ AggregateDrop::Array(_)) =
             context.aggregate_drop_for_type_expr(return_type_expr)
     {
@@ -179,7 +180,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_array_literal_return_to_l
     })
 }
 
-fn fixed_array_return_value_type_expr<'context>(
+fn aggregate_return_value_type_expr<'context>(
     context: &'context LoweringContext<'_>,
 ) -> Option<&'context TypeExpr> {
     let mut ty = context.function_return_type_expr()?;
@@ -333,7 +334,7 @@ pub(in crate::ir::lower::functions) fn lower_payload_enum_constructor_value_to_l
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     if matches!(&value.ty, AbiType::Enum(_))
-        && let Some(return_type_expr) = fixed_array_return_value_type_expr(context)
+        && let Some(return_type_expr) = aggregate_return_value_type_expr(context)
         && let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) =
             context.aggregate_drop_for_type_expr(return_type_expr)
     {

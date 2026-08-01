@@ -769,6 +769,61 @@ pub func size(holder: Holder): usize {
 }
 
 #[test]
+fn lowers_pointee_align_call_from_concrete_aggregate_layout() {
+    let align = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_align.align
+
+func main(): void {
+    return
+}
+"#,
+        "align",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive pointee_align<T>(pointer: *T): usize
+"#,
+            ),
+            (
+                "std/ptr_align.nct",
+                r#"use std/ptr.pointee_align
+
+pub copy struct Pair {
+    pub byte: u8
+    pub word: usize
+}
+
+pub copy struct Holder {
+    pub ptr: *Pair
+}
+
+pub func align(holder: Holder): usize {
+    return pointee_align(holder.ptr)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert!(
+        align.instructions.contains(&Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::Const(8),
+        }),
+        "{:?}",
+        align.instructions
+    );
+    assert!(
+        !align.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallUsize { target, .. } if call_target_name_is(target, "pointee_align")
+        )),
+        "{:?}",
+        align.instructions
+    );
+}
+
+#[test]
 fn lowers_slice_from_raw_parts_call() {
     let view = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_slice.view_mut

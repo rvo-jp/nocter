@@ -56,8 +56,7 @@ use super::types::{
     type_expr_with_self_type, view_element_type_from_type_expr_with_resolver,
 };
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
-    abi_value_from_type_expr_with_resolver,
+    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr_with_resolver,
     function_parameter_abi_word_count_from_signature_with_resolver, layout_of,
 };
 use crate::ast::{

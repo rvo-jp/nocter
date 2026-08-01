@@ -472,9 +472,9 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     value,
                 });
             }
-            if primitive_pointee_size_call(call, context) {
+            if primitive_pointee_layout_call(call, context) {
                 let (instructions, value) =
-                    lower_pointee_size_primitive_call_to_word(call, context, temporaries)?;
+                    lower_pointee_layout_primitive_call_to_word(call, context, temporaries)?;
                 return Ok(LoweredUsizeValue {
                     instructions,
                     value,

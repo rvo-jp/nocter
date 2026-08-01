@@ -701,9 +701,9 @@ pub(in crate::ir::lower) fn lower_aggregate_struct_literal_to_location_at_offset
     temporaries: &mut TemporaryAllocator,
     progress: Option<&StructInitializationProgress>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
-        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-    })?;
+    let value = context
+        .abi_value_for_type_expr(&literal.ty)
+        .ok_or_else(|| unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject))?;
     if value.layout != expected_layout {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,

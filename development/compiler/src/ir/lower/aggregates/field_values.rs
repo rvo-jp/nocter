@@ -313,8 +313,9 @@ pub(super) fn lower_aggregate_field_to_location(
 
             match expression {
                 Expr::StructLiteral(literal) => {
-                    let actual =
-                        abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
+                    let actual = context
+                        .abi_value_for_type_expr(&literal.ty)
+                        .ok_or_else(|| {
                             unsupported_aggregate_struct_literal_diagnostic(
                                 diagnostic_code,
                                 subject,

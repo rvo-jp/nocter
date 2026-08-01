@@ -33,8 +33,8 @@ source place state と runtime cleanup state を同じ bitset や ad-hoc flag �
   の順で行う。publish 前の失敗は old state を変更しない。
 - public callers は `RawBuffer` の representation を構築・改変できない。
 
-OS syscall は allocator implementation の内側に置く。`String` は private `RawBuffer` へ
-移行済みであり、`Vec<T>` が `alloc_pages` / `free_pages` を直接呼ぶ状態だけが残る。
+OS syscall は allocator implementation の内側に置く。`String` と `Vec<T>` は private
+`RawBuffer` へ移行済みであり、page primitive を直接呼ばない。
 
 ## Recursive Drop Model
 

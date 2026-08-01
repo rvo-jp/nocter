@@ -150,11 +150,14 @@ pub(in crate::ir::lower::expressions) fn primitive_from_ref_call(
     )
 }
 
-pub(in crate::ir::lower::expressions) fn primitive_pointee_size_call(
+pub(in crate::ir::lower::expressions) fn primitive_pointee_layout_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("pointee_size"))
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("pointee_size" | "pointee_align")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_arg_count_raw_call(
@@ -358,26 +361,29 @@ fn lower_from_ref_primitive_call_to_borrow_source(
     Ok((instructions, argument.source))
 }
 
-pub(in crate::ir::lower::expressions) fn lower_pointee_size_primitive_call_to_word(
+pub(in crate::ir::lower::expressions) fn lower_pointee_layout_primitive_call_to_word(
     call: &CallExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    let primitive_name = context
+        .primitive_name_for_call(call)
+        .unwrap_or("pointee layout primitive");
     if call.arguments.len() != 1 {
-        return Err(unsupported_pointer_primitive_diagnostic(
-            "`pointee_size` requires one pointer argument",
-        ));
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires one pointer argument"
+        )));
     }
     let (instructions, _pointer) =
         lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
     let Some(pointee_type) = context.function_call_type_substitution(call, "T") else {
         return Err(unsupported_pointer_primitive_diagnostic(
-            "`pointee_size` requires a concrete pointer element type",
+            "`{primitive_name}` requires a concrete pointer element type",
         ));
     };
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_pointer_primitive_diagnostic(
-            "`pointee_size` requires resolved type information",
+            "`{primitive_name}` requires resolved type information",
         ));
     };
     let value = abi_value_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
@@ -385,10 +391,14 @@ pub(in crate::ir::lower::expressions) fn lower_pointee_size_primitive_call_to_wo
     })
     .map_err(|_error| {
         unsupported_pointer_primitive_diagnostic(
-            "`pointee_size` requires a pointer element type with an ABI layout",
+            "`{primitive_name}` requires a pointer element type with an ABI layout",
         )
     })?;
-    Ok((instructions, UsizeValue::Const(value.layout.size)))
+    let result = match primitive_name {
+        "pointee_align" => value.layout.align,
+        _ => value.layout.size,
+    };
+    Ok((instructions, UsizeValue::Const(result)))
 }
 
 pub(in crate::ir::lower::expressions) fn lower_arg_count_raw_primitive_call_to_word(

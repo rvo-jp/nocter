@@ -13,17 +13,26 @@ pub(super) fn lower_aggregate_struct_literal_binding(
         ));
     };
 
-    let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
+    let ty = context
+        .binding_type_expr(statement.name_span)
+        .or_else(|| statement.ty.clone())
+        .unwrap_or_else(|| literal.ty.clone());
+    let value = context.abi_value_for_type_expr(&ty).ok_or_else(|| {
         unsupported_binding_diagnostic(
             "IR v0 can only lower local aggregate bindings whose initializer has an ABI layout",
         )
     })?;
     validate_aggregate_binding_layout(value.layout)?;
 
-    let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
-    let drop_kind = context.aggregate_drop_for_type_expr(&literal.ty);
+    let is_copy = type_expr_is_copy_struct_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    });
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
     let fields =
-        aggregate_fields_from_type_expr(&literal.ty, root_source, resolved).unwrap_or_default();
+        aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .unwrap_or_default();
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,

@@ -285,7 +285,10 @@ Initial public surface:
 
 ```nct
 pub struct Vec<T> {
-    ...
+    ptr: *T
+    storage: RawBuffer
+    len: usize
+    capacity: usize
 }
 
 pub func Vec.empty<T>(): Vec<T>
@@ -325,6 +328,12 @@ Rules:
 
 - `Vec<T>` is not exported by `std/prelude`; user code imports `std/vec.Vec`
   explicitly.
+- `storage` is the sole allocation owner. `ptr` is a private typed alias used to form initialized
+  element views and never owns or releases storage.
+- Element size and alignment come from the concrete ABI layout through trusted pointer layout
+  queries. Capacity multiplication is checked before allocation.
+- `reserve` grows through the allocator provenance bound to `storage` and publishes the new typed
+  pointer and capacity only after successful growth.
 - The v0 runtime surface is narrow. Scalar, `&str`, and explicitly promoted
   copy-aggregate element storage paths are supported by the current
   implementation.
@@ -679,6 +688,7 @@ pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
 pub(nocter) primitive from_addr<T>(address: usize): *T
 pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+pub(nocter) primitive pointee_align<T>(pointer: *T): usize
 pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
 pub(nocter) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
 pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
@@ -690,7 +700,7 @@ pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[
 pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
 ```
 
-`from_addr`, pointee sizing, raw-storage copy/store helpers, and raw-storage
+`from_addr`, pointee layout queries, raw-storage copy/store helpers, and raw-storage
 view construction helpers are `pub(nocter)` and therefore restricted to trusted
 modules inside the active Nocter home. User project modules must not call them.
 Calls to `from_addr` with an address expression statically known to be zero are

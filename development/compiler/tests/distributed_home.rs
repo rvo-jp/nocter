@@ -1070,6 +1070,7 @@ func main(): i32! {
 
     return 42
 }
+
 "#,
     );
 
@@ -1084,6 +1085,56 @@ func main(): i32! {
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
     assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_failed_growth_preserves_elements() {
+    let project = TempProject::new("distributed-home-vec-failed-growth-run");
+    let source = project.write_source(
+        "vec_failed_growth.nct",
+        r#"use std/vec.Vec
+
+func grow_huge(values: &+Vec<u8>): void! {
+    values.reserve(18446744073709551614)?
+    return
+}
+
+func preserved(values: &Vec<u8>): i32 {
+    if values.len() != 1 {
+        return 1
+    }
+    if values.capacity() != 1 {
+        return 2
+    }
+    if values.view()[0] != 42 {
+        return 3
+    }
+    return 42
+}
+
+func main(): i32! {
+    var values: Vec<u8> = Vec.empty()
+    values.push(42)?
+    grow_huge(&+values) catch error {
+        return preserved(&values)
+    }
+    return 4
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -3135,6 +3186,7 @@ fn distributed_ptr_raw_helpers_are_not_public_api() {
     for helper in [
         "from_addr",
         "pointee_size",
+        "pointee_align",
         "copy_str_to_ptr",
         "copy_ptr_to_ptr",
         "store_u8_to_ptr",

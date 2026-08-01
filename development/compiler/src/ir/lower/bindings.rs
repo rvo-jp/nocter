@@ -14,8 +14,7 @@ use super::aggregates::{
     lower_payload_enum_constructor_to_location_with_progress,
     payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct,
-    type_expr_is_copy_struct_with_resolver,
+    type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct_with_resolver,
 };
 use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
 use super::errors::lower_error_payload;

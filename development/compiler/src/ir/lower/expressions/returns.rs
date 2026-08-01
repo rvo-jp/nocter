@@ -158,9 +158,9 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
-            if primitive_pointee_size_call(call, context) {
+            if primitive_pointee_layout_call(call, context) {
                 let (mut instructions, value) =
-                    lower_pointee_size_primitive_call_to_word(call, context, &mut temporaries)?;
+                    lower_pointee_layout_primitive_call_to_word(call, context, &mut temporaries)?;
                 instructions.push(Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value,

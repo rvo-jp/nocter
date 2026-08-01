@@ -17,6 +17,8 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 
 pub(nocter) primitive pointee_size<T>(pointer: *T): usize
 
+pub(nocter) primitive pointee_align<T>(pointer: *T): usize
+
 pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
 
 pub(nocter) primitive copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void

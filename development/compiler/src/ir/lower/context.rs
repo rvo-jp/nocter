@@ -234,6 +234,7 @@ mod drop_obligation;
 mod drop_queries;
 mod enum_variants;
 mod locals;
+mod type_queries;
 
 pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
