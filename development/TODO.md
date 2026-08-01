@@ -10,6 +10,7 @@ in `spec/`.
 - Release tag: `v0.1.0` points at `660aba7 License Nocter under Apache-2.0`.
 - Current development version: `0.2.0-dev`
 - Latest known repository-state commits:
+  - `ca00f7a Lower optional payload pattern targets`
   - `d9a9271 Lower fallible payload pattern targets`
   - `463af26 Drop owned struct fields recursively`
   - `17bc706 Lower owned direct-drop payload bindings`
@@ -121,8 +122,10 @@ Recommended order:
    include plain calls, direct fallible calls handled by `?`, `!`, or `catch`,
    and direct optional calls handled by `otherwise`.
    Struct drop glue now recursively cleans owned struct fields after the outer
-   destructor. Next, broaden the remaining pattern target expressions before
-   collection expansion.
+   destructor. The remaining member and value-control pattern targets require
+   field moves or ownership-aware control joins; do not promote them as mere
+   expression shapes. Continue with array/collection drop planning unless one
+   of those ownership prerequisites is implemented first.
 4. Continue backend and ABI work around aggregates, ownership cleanup, direct
    and indirect calls, enum payload lowering, and supported collection storage.
 5. Continue std runtime work only when the public API is stable in

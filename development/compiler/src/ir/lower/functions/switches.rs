@@ -506,21 +506,15 @@ pub(super) fn payload_enum_pattern_target_expression_shape_is_supported(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
-    match unwrap_group(expression) {
-        Expr::Identifier(_) | Expr::Call(_) => true,
-        Expr::Member(member) => context.enum_variant_tag(member).is_some(),
-        Expr::Propagate(propagation) => {
-            matches!(unwrap_group(&propagation.expression), Expr::Call(_))
+    match expression.payload_enum_pattern_target_shape() {
+        Some(PayloadEnumPatternTargetShape::Member) => {
+            let Expr::Member(member) = expression.without_groups() else {
+                unreachable!("member pattern target shape must contain a member expression");
+            };
+            context.enum_variant_tag(member).is_some()
         }
-        Expr::Force(force) => matches!(unwrap_group(&force.expression), Expr::Call(_)),
-        Expr::Catch(catch) => matches!(unwrap_group(&catch.expression), Expr::Call(_)),
-        Expr::Otherwise(otherwise) => {
-            matches!(unwrap_group(&otherwise.value), Expr::Call(_))
-        }
-        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
-            matches!(unwrap_group(&unary.operand), Expr::Identifier(_))
-        }
-        _ => false,
+        Some(_) => true,
+        None => false,
     }
 }
 

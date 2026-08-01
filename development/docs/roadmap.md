@@ -67,9 +67,10 @@ for v0.2.0:
   runtime-shipped in the current subset. Owned call expressions include direct
   fallible calls handled by `?`, `!`, or `catch` and direct optional calls
   handled by `otherwise`. Struct cleanup now invokes an outer destructor and
-  recursively drops owned struct fields in reverse order. The next slice should
-  broaden the remaining pattern target expressions before broad collection
-  expansion.
+  recursively drops owned struct fields in reverse order. Remaining member and
+  value-control pattern targets depend on field moves or ownership-aware
+  control joins, so the next independent slice should design move-only
+  fixed-array/collection drop behavior unless those prerequisites land first.
 - Update stale references whenever syntax changes remove old spellings.
 - Broaden copy-aggregate and aggregate-slice runtime support only when ABI,
   ownership, and std tests agree.

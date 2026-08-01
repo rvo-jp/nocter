@@ -97,6 +97,11 @@ When a feature is promoted to runtime support:
 4. add parser, resolver, typecheck, buildability, lowering, backend, std, CLI,
    or LSP tests at the narrowest sufficient layers
 
+When buildability and IR lowering recognize the same purely syntactic
+expression subset, define that shape once on the AST and reuse it. Each phase
+must still apply its own semantic facts, such as resolved enum-variant identity;
+shared syntax classification must not become backend semantic inference.
+
 ## IR And ABI Boundary
 
 IR lowering should consume typed facts and emit explicit operations. ABI

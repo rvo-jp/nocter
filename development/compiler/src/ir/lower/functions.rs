@@ -56,8 +56,9 @@ use crate::abi::{
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
     FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralExpr, MemberExpr, MethodDecl, Parameter,
-    ReturnStmt, Stmt, StructLiteralExpr, SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr,
-    TypeReference, UnaryOperator, substitute_type_expr_parameters,
+    PayloadEnumPatternTargetShape, ReturnStmt, Stmt, StructLiteralExpr, SwitchArm,
+    SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

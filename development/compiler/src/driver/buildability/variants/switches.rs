@@ -152,27 +152,17 @@ pub(in crate::driver::buildability) fn payload_enum_pattern_target_expression_sh
     expression: &Expr,
     typecheck_facts: &TypecheckFacts,
 ) -> bool {
-    match unwrap_group_expr(expression) {
-        Expr::Identifier(_) | Expr::Call(_) => true,
-        Expr::Member(member) => typecheck_facts
-            .enum_variant_target(member.member_span)
-            .is_some(),
-        Expr::Propagate(propagation) => {
-            matches!(unwrap_group_expr(&propagation.expression), Expr::Call(_))
+    match expression.payload_enum_pattern_target_shape() {
+        Some(PayloadEnumPatternTargetShape::Member) => {
+            let Expr::Member(member) = expression.without_groups() else {
+                unreachable!("member pattern target shape must contain a member expression");
+            };
+            typecheck_facts
+                .enum_variant_target(member.member_span)
+                .is_some()
         }
-        Expr::Force(force) => {
-            matches!(unwrap_group_expr(&force.expression), Expr::Call(_))
-        }
-        Expr::Catch(catch) => {
-            matches!(unwrap_group_expr(&catch.expression), Expr::Call(_))
-        }
-        Expr::Otherwise(otherwise) => {
-            matches!(unwrap_group_expr(&otherwise.value), Expr::Call(_))
-        }
-        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
-            matches!(unwrap_group_expr(&unary.operand), Expr::Identifier(_))
-        }
-        _ => false,
+        Some(_) => true,
+        None => false,
     }
 }
 

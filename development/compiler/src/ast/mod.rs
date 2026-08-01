@@ -535,6 +535,18 @@ pub enum Expr {
     Match(Box<SwitchStmt>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PayloadEnumPatternTargetShape {
+    Identifier,
+    Call,
+    Member,
+    PropagatedCall,
+    ForcedCall,
+    CaughtCall,
+    OtherwiseCall,
+    MovedIdentifier,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdentifierExpr {
     pub span: ByteSpan,
@@ -841,6 +853,37 @@ impl Expr {
             Expr::Force(force) => matches!(force.expression.without_groups(), Expr::Call(_)),
             Expr::Catch(catch) => matches!(catch.expression.without_groups(), Expr::Call(_)),
             _ => false,
+        }
+    }
+
+    pub fn payload_enum_pattern_target_shape(&self) -> Option<PayloadEnumPatternTargetShape> {
+        match self.without_groups() {
+            Expr::Identifier(_) => Some(PayloadEnumPatternTargetShape::Identifier),
+            Expr::Call(_) => Some(PayloadEnumPatternTargetShape::Call),
+            Expr::Member(_) => Some(PayloadEnumPatternTargetShape::Member),
+            Expr::Propagate(propagation)
+                if matches!(propagation.expression.without_groups(), Expr::Call(_)) =>
+            {
+                Some(PayloadEnumPatternTargetShape::PropagatedCall)
+            }
+            Expr::Force(force) if matches!(force.expression.without_groups(), Expr::Call(_)) => {
+                Some(PayloadEnumPatternTargetShape::ForcedCall)
+            }
+            Expr::Catch(catch) if matches!(catch.expression.without_groups(), Expr::Call(_)) => {
+                Some(PayloadEnumPatternTargetShape::CaughtCall)
+            }
+            Expr::Otherwise(otherwise)
+                if matches!(otherwise.value.without_groups(), Expr::Call(_)) =>
+            {
+                Some(PayloadEnumPatternTargetShape::OtherwiseCall)
+            }
+            Expr::Unary(unary)
+                if unary.operator == UnaryOperator::Move
+                    && matches!(unary.operand.without_groups(), Expr::Identifier(_)) =>
+            {
+                Some(PayloadEnumPatternTargetShape::MovedIdentifier)
+            }
+            _ => None,
         }
     }
 }
