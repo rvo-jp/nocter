@@ -453,7 +453,7 @@ impl<'a> LoweringContext<'a> {
     pub(in crate::ir::lower) fn mark_aggregate_local_struct_fields(
         &mut self,
         name: &str,
-        fields: Vec<StructFieldDropFlag>,
+        fields: Vec<StructFieldDropState>,
     ) -> bool {
         let Some(local) = self
             .locals

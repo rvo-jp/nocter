@@ -15,7 +15,7 @@ use super::context::{
     BorrowParameter, DropObligation, ErrorPayloads, FunctionNames, FunctionSignatures,
     LoweringAggregateParameter, LoweringContext, LoweringParameterSlots, PayloadEnumDrop,
     PayloadEnumDropField, PayloadEnumDropVariant, PendingAggregateDrop, ResolvedSources,
-    SliceTypeInfo, StructDrop, StructDropField, StructFieldDropFlag,
+    SliceTypeInfo, StructDrop, StructDropField, StructFieldDropState,
     aggregate_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{

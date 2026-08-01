@@ -550,3 +550,44 @@ func make_words(): [&str; 2] {
     assert_success(&output);
     assert_macho_executable(&executable);
 }
+
+#[test]
+fn build_command_tracks_partial_move_only_array_struct_fields() {
+    let project = TempProject::new("cli-build-partial-move-only-array-struct-fields");
+    let source = project.write_source(
+        "partial_move_only_array_struct_fields.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+struct Bundle {
+    code: i32
+    files: [File; 2]
+}
+
+func make_file(): File! {
+    return File { fd: 2 }
+}
+
+func main(): i32! {
+    let bundle = Bundle {
+        code: 42,
+        files: [File { fd: 1 }, make_file()?]
+    }
+    return bundle.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}

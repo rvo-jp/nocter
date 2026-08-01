@@ -9,10 +9,11 @@ use super::{AggregateDrop, LoweringContext, PendingAggregateDrop};
 /// Keeping this separate from `AggregateDrop` is intentional: `AggregateDrop`
 /// describes the type's drop shape, while this value describes the runtime
 /// initialization state of one particular storage location.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ir::lower) struct StructFieldDropFlag {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ir::lower) struct StructFieldDropState {
     pub(in crate::ir::lower) offset: u32,
     pub(in crate::ir::lower) initialized: BoolLocation,
+    pub(in crate::ir::lower) partial: Box<DropObligation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +21,7 @@ pub(in crate::ir::lower) enum DropObligation {
     Inactive,
     Complete,
     ArrayPrefix { initialized: UsizeLocation },
-    StructFields { fields: Vec<StructFieldDropFlag> },
+    StructFields { fields: Vec<StructFieldDropState> },
 }
 
 impl DropObligation {

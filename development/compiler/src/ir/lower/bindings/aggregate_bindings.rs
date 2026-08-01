@@ -43,7 +43,7 @@ pub(super) fn lower_aggregate_struct_literal_binding(
     };
     if let Some(progress) = &progress {
         if !context
-            .mark_aggregate_local_struct_fields(statement.name.as_str(), progress.drop_flags())
+            .mark_aggregate_local_struct_fields(statement.name.as_str(), progress.drop_states())
         {
             return Err(unsupported_binding_diagnostic(
                 "IR v0 cannot establish struct field initialization state",

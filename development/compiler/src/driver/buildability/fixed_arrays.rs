@@ -80,32 +80,6 @@ pub(super) fn fixed_array_literal_struct_field_has_fixed_array_type(
     fixed_array_type_abi_for_sources(&ty, resolved, resolved_sources).is_some()
 }
 
-pub(super) fn move_only_fixed_array_struct_literal_field_requires_element_tracking(
-    field: &StructLiteralField,
-    fallback_resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-    typecheck_facts: &TypecheckFacts,
-    generic_substitutions: &HashMap<String, TypeExpr>,
-) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(&field.value) else {
-        return false;
-    };
-    if literal
-        .elements
-        .iter()
-        .all(expression_completes_without_source_control_exit)
-    {
-        return false;
-    }
-    let Some(ty) = field_type_expr_for_span(field.name_span, fallback_resolved, typecheck_facts)
-    else {
-        return false;
-    };
-    let ty = substitute_type_expr_parameters(&ty, generic_substitutions);
-    let resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_supported_move_only_fixed_array_with_resolver(&ty, fallback_resolved, &resolver)
-}
-
 pub(super) fn fixed_array_literal_return_has_fixed_array_type(
     expression: &Expr,
     return_type: Option<&TypeExpr>,

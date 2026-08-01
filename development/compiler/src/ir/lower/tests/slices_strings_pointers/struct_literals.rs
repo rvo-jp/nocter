@@ -609,10 +609,18 @@ func main(): i32 {
                 slot_index: 1,
                 layout: ValueLayout::new(4, 4),
             },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(false),
+            },
             Instruction::StoreAggregateI32 {
                 destination: AggregateLocation::Slot(1),
                 offset: 0,
                 value: i32_const(2),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(true),
             },
             Instruction::ReserveAggregateSlot {
                 slot_index: 2,
@@ -633,7 +641,7 @@ func main(): i32 {
                 layout: ValueLayout::new(4, 4),
             },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Local(1),
                 source: AggregateLocation::Slot(1),
                 offset: 0,
             },
@@ -641,7 +649,7 @@ func main(): i32 {
             drop_holder_file,
             Instruction::SetI32 {
                 destination: I32Location::Return,
-                value: i32_local(0),
+                value: i32_local(1),
             },
             Instruction::Return,
         ],
@@ -1628,6 +1636,10 @@ func main(): i32 {
                 slot_index: 1,
                 layout: ValueLayout::new(4, 4),
             },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(false),
+            },
             Instruction::CopyAggregateRange {
                 destination: AggregateLocation::Slot(1),
                 destination_offset: 0,
@@ -1635,8 +1647,12 @@ func main(): i32 {
                 source_offset: 0,
                 layout: ValueLayout::new(4, 4),
             },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(true),
+            },
             Instruction::LoadAggregateI32 {
-                destination: I32Location::Local(0),
+                destination: I32Location::Local(1),
                 source: AggregateLocation::Slot(1),
                 offset: 0,
             },
@@ -1657,7 +1673,7 @@ func main(): i32 {
             },
             Instruction::SetI32 {
                 destination: I32Location::Return,
-                value: i32_local(0),
+                value: i32_local(1),
             },
             Instruction::Return,
         ],

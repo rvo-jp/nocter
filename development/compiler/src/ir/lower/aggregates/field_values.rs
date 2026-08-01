@@ -582,17 +582,45 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
             .ok_or_else(|| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
-        instructions.extend(lower_aggregate_field_to_location(
+        let array_progress = progress.and_then(|progress| {
+            u32::try_from(field_layout.offset)
+                .ok()
+                .and_then(|offset| progress.array_field_progress(offset))
+        });
+        if let (Some(array_progress), AbiType::Array { .. }, Expr::ArrayLiteral(literal)) = (
+            array_progress,
             field_type,
-            &field.value,
-            destination,
-            nested_offset,
-            diagnostic_code,
-            subject,
-            resolved,
-            context,
-            temporaries,
-        )?);
+            unwrap_field_value_group(&field.value),
+        ) {
+            let field_value_layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            instructions.extend(lower_aggregate_array_literal_to_location_with_progress(
+                literal,
+                field_type,
+                field_value_layout,
+                destination,
+                nested_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+                Some(array_progress),
+            )?);
+        } else {
+            instructions.extend(lower_aggregate_field_to_location(
+                field_type,
+                &field.value,
+                destination,
+                nested_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?);
+        }
         if let Some(completed) = progress.and_then(|progress| {
             u32::try_from(field_layout.offset)
                 .ok()

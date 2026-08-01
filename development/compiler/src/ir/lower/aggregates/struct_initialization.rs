@@ -1,11 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::abi::{AbiField, layout_struct};
-use crate::ast::StructLiteralExpr;
+use crate::ast::{Expr, StructLiteralExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolValue, Instruction};
 
-use crate::ir::lower::context::{AggregateDrop, LoweringContext, StructFieldDropFlag};
+use crate::ir::lower::context::{
+    AggregateDrop, DropObligation, LoweringContext, StructFieldDropState,
+};
+
+use super::ArrayInitializationProgress;
 
 /// Runtime ownership state for a struct while its fields are initialized.
 ///
@@ -14,7 +18,7 @@ use crate::ir::lower::context::{AggregateDrop, LoweringContext, StructFieldDropF
 /// prefix even when a literal names its fields in a different order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::ir::lower) struct StructInitializationProgress {
-    fields: Vec<StructFieldDropFlag>,
+    fields: Vec<StructFieldDropState>,
 }
 
 impl StructInitializationProgress {
@@ -24,13 +28,13 @@ impl StructInitializationProgress {
         drop_kind: &AggregateDrop,
         context: &mut LoweringContext,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let owned_offsets = match drop_kind {
-            AggregateDrop::Direct(_) => HashSet::new(),
+        let owned_fields = match drop_kind {
+            AggregateDrop::Direct(_) => HashMap::new(),
             AggregateDrop::Struct(drop_) => drop_
                 .fields
                 .iter()
-                .map(|field| field.offset)
-                .collect::<HashSet<_>>(),
+                .map(|field| (field.offset, field.drop_kind.as_ref()))
+                .collect::<HashMap<_, _>>(),
             AggregateDrop::Array(_) | AggregateDrop::PayloadEnum(_) => {
                 return Err(invalid_struct_initialization_state_diagnostic());
             }
@@ -47,34 +51,53 @@ impl StructInitializationProgress {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        let mut fields = Vec::with_capacity(owned_offsets.len());
+        let mut fields = Vec::with_capacity(owned_fields.len());
         for field in &literal.fields {
             let Some(offset) = offsets.get(field.name.as_str()).copied() else {
                 return Err(invalid_struct_initialization_state_diagnostic());
             };
-            if owned_offsets.contains(&offset) {
-                fields.push(StructFieldDropFlag {
+            if let Some(drop_kind) = owned_fields.get(&offset) {
+                let initialized = context.reserve_drop_state_bool_local()?;
+                let partial = match (&field.value, drop_kind) {
+                    (Expr::ArrayLiteral(_), AggregateDrop::Array(_)) => {
+                        let progress = ArrayInitializationProgress::new(
+                            context.reserve_drop_state_usize_local()?,
+                        );
+                        Box::new(DropObligation::ArrayPrefix {
+                            initialized: progress.location(),
+                        })
+                    }
+                    _ => Box::new(DropObligation::Inactive),
+                };
+                fields.push(StructFieldDropState {
                     offset,
-                    initialized: context.reserve_drop_state_bool_local()?,
+                    initialized,
+                    partial,
                 });
             }
         }
-        if fields.len() != owned_offsets.len() {
+        if fields.len() != owned_fields.len() {
             return Err(invalid_struct_initialization_state_diagnostic());
         }
         Ok(Self { fields })
     }
 
-    pub(in crate::ir::lower) fn drop_flags(&self) -> Vec<StructFieldDropFlag> {
+    pub(in crate::ir::lower) fn drop_states(&self) -> Vec<StructFieldDropState> {
         self.fields.clone()
     }
 
     pub(in crate::ir::lower) fn initialize(&self) -> Vec<Instruction> {
         self.fields
             .iter()
-            .map(|field| Instruction::SetBool {
-                destination: field.initialized,
-                value: BoolValue::Const(false),
+            .flat_map(|field| {
+                let mut instructions = vec![Instruction::SetBool {
+                    destination: field.initialized,
+                    value: BoolValue::Const(false),
+                }];
+                if let DropObligation::ArrayPrefix { initialized } = field.partial.as_ref() {
+                    instructions.push(ArrayInitializationProgress::new(*initialized).initialize());
+                }
+                instructions
             })
             .collect()
     }
@@ -87,6 +110,17 @@ impl StructInitializationProgress {
                 destination: field.initialized,
                 value: BoolValue::Const(true),
             })
+    }
+
+    pub(in crate::ir::lower) fn array_field_progress(
+        &self,
+        offset: u32,
+    ) -> Option<ArrayInitializationProgress> {
+        let field = self.fields.iter().find(|field| field.offset == offset)?;
+        let DropObligation::ArrayPrefix { initialized } = field.partial.as_ref() else {
+            return None;
+        };
+        Some(ArrayInitializationProgress::new(*initialized))
     }
 }
 
@@ -105,9 +139,10 @@ mod tests {
     #[test]
     fn completed_fields_are_marked_independently() {
         let progress = StructInitializationProgress {
-            fields: vec![StructFieldDropFlag {
+            fields: vec![StructFieldDropState {
                 offset: 8,
                 initialized: BoolLocation::Local(3),
+                partial: Box::new(DropObligation::Inactive),
             }],
         };
 

@@ -152,7 +152,7 @@ pub(in crate::ir::lower) fn lower_struct_fields_drop_instructions(
     location: AggregateLocation,
     base_offset: u32,
     drop_kind: &AggregateDrop,
-    fields: &[StructFieldDropFlag],
+    fields: &[StructFieldDropState],
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let struct_fields = match drop_kind {
@@ -172,6 +172,9 @@ pub(in crate::ir::lower) fn lower_struct_fields_drop_instructions(
         else {
             return Err(unsupported_drop_statement_diagnostic(name));
         };
+        let offset = base_offset
+            .checked_add(field.offset)
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
         instructions.push(Instruction::If {
             condition: BoolValue::Location(state.initialized),
             then_instructions: lower_struct_drop_field(
@@ -181,10 +184,46 @@ pub(in crate::ir::lower) fn lower_struct_fields_drop_instructions(
                 field,
                 context,
             )?,
-            else_instructions: Vec::new(),
+            else_instructions: lower_partial_aggregate_drop_at_offset(
+                name,
+                location,
+                offset,
+                field.layout,
+                field.drop_kind.as_ref(),
+                state.partial.as_ref(),
+                context,
+            )?,
         });
     }
     Ok(instructions)
+}
+
+fn lower_partial_aggregate_drop_at_offset(
+    name: &str,
+    location: AggregateLocation,
+    offset: u32,
+    layout: ValueLayout,
+    drop_kind: &AggregateDrop,
+    obligation: &DropObligation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match obligation {
+        DropObligation::Inactive => Ok(Vec::new()),
+        DropObligation::Complete => {
+            lower_aggregate_drop_at_offset(name, location, offset, true, layout, drop_kind, context)
+        }
+        DropObligation::ArrayPrefix { initialized } => lower_array_prefix_drop_instructions(
+            name,
+            location,
+            offset,
+            drop_kind,
+            *initialized,
+            context,
+        ),
+        DropObligation::StructFields { fields } => lower_struct_fields_drop_instructions(
+            name, location, offset, drop_kind, fields, context,
+        ),
+    }
 }
 
 fn lower_struct_drop_field(

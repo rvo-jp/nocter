@@ -2206,7 +2206,7 @@ func main(): i32! {
 }
 
 #[test]
-fn reports_partial_move_only_fixed_array_literal_struct_field_initialization() {
+fn accepts_partial_move_only_fixed_array_literal_struct_field_initialization() {
     let (sources, analysis) = analyze_text(
         r#"struct File {
     fd: i32
@@ -2235,12 +2235,7 @@ func main(): i32! {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert_eq!(
-        diagnostics[0].message,
-        "Nocter v0 build cannot lower move-only fixed array literal fields whose element initialization can exit early yet"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
