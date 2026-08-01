@@ -439,32 +439,36 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
-        self.locals
-            .iter()
-            .rev()
-            .filter_map(|local| {
-                let LocalKind::Aggregate {
-                    layout,
-                    slot_index,
-                    drop_obligation,
-                    ref drop_kind,
-                    ..
-                } = local.kind
-                else {
-                    return None;
-                };
-                if !drop_obligation.is_active() {
-                    return None;
-                }
-                Some(PendingAggregateDrop {
-                    name: local.name.clone(),
-                    slot_index,
-                    layout,
-                    drop_kind: drop_kind.clone()?,
-                    obligation: drop_obligation,
+        let mut pending = self.pending_temporary_aggregate_drops();
+        pending.extend(
+            self.locals
+                .iter()
+                .rev()
+                .filter_map(|local| {
+                    let LocalKind::Aggregate {
+                        layout,
+                        slot_index,
+                        drop_obligation,
+                        ref drop_kind,
+                        ..
+                    } = local.kind
+                    else {
+                        return None;
+                    };
+                    if !drop_obligation.is_active() {
+                        return None;
+                    }
+                    Some(PendingAggregateDrop {
+                        name: local.name.clone(),
+                        slot_index,
+                        layout,
+                        drop_kind: drop_kind.clone()?,
+                        obligation: drop_obligation,
+                    })
                 })
-            })
-            .collect()
+                .collect::<Vec<_>>(),
+        );
+        pending
     }
 
     pub(in crate::ir::lower) fn local_mark(&self) -> usize {
@@ -496,32 +500,36 @@ impl<'a> LoweringContext<'a> {
         local_mark: usize,
     ) -> Vec<PendingAggregateDrop> {
         let locals = self.locals.get(local_mark..).unwrap_or(&[]);
-        locals
-            .iter()
-            .rev()
-            .filter_map(|local| {
-                let LocalKind::Aggregate {
-                    layout,
-                    slot_index,
-                    drop_obligation,
-                    ref drop_kind,
-                    ..
-                } = local.kind
-                else {
-                    return None;
-                };
-                if !drop_obligation.is_active() {
-                    return None;
-                }
-                Some(PendingAggregateDrop {
-                    name: local.name.clone(),
-                    slot_index,
-                    layout,
-                    drop_kind: drop_kind.clone()?,
-                    obligation: drop_obligation,
+        let mut pending = self.pending_temporary_aggregate_drops();
+        pending.extend(
+            locals
+                .iter()
+                .rev()
+                .filter_map(|local| {
+                    let LocalKind::Aggregate {
+                        layout,
+                        slot_index,
+                        drop_obligation,
+                        ref drop_kind,
+                        ..
+                    } = local.kind
+                    else {
+                        return None;
+                    };
+                    if !drop_obligation.is_active() {
+                        return None;
+                    }
+                    Some(PendingAggregateDrop {
+                        name: local.name.clone(),
+                        slot_index,
+                        layout,
+                        drop_kind: drop_kind.clone()?,
+                        obligation: drop_obligation,
+                    })
                 })
-            })
-            .collect()
+                .collect::<Vec<_>>(),
+        );
+        pending
     }
 
     pub(in crate::ir::lower) fn pending_aggregate_drop_by_slot(

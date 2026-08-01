@@ -1,6 +1,7 @@
+use crate::abi::ValueLayout;
 use crate::ir::UsizeLocation;
 
-use super::AggregateDrop;
+use super::{AggregateDrop, LoweringContext, PendingAggregateDrop};
 
 /// Describes which initialized portion of an aggregate still owns its drop
 /// obligation while IR is being lowered.
@@ -26,6 +27,51 @@ impl DropObligation {
 
     pub(super) fn is_active(self) -> bool {
         !matches!(self, Self::Inactive)
+    }
+}
+
+impl LoweringContext<'_> {
+    pub(in crate::ir::lower) fn register_temporary_array_prefix_drop(
+        &mut self,
+        slot_index: usize,
+        layout: ValueLayout,
+        drop_kind: AggregateDrop,
+        initialized: UsizeLocation,
+    ) -> bool {
+        if !matches!(drop_kind, AggregateDrop::Array(_))
+            || self
+                .temporary_aggregate_drops
+                .iter()
+                .any(|drop_| drop_.slot_index == slot_index)
+        {
+            return false;
+        }
+        self.temporary_aggregate_drops.push(PendingAggregateDrop {
+            name: format!("temporary aggregate slot {slot_index}"),
+            slot_index,
+            layout,
+            drop_kind,
+            obligation: DropObligation::ArrayPrefix { initialized },
+        });
+        true
+    }
+
+    pub(in crate::ir::lower) fn release_temporary_aggregate_drop(
+        &mut self,
+        slot_index: usize,
+    ) -> bool {
+        let old_len = self.temporary_aggregate_drops.len();
+        self.temporary_aggregate_drops
+            .retain(|drop_| drop_.slot_index != slot_index);
+        self.temporary_aggregate_drops.len() != old_len
+    }
+
+    pub(super) fn pending_temporary_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
+        self.temporary_aggregate_drops
+            .iter()
+            .rev()
+            .cloned()
+            .collect()
     }
 }
 

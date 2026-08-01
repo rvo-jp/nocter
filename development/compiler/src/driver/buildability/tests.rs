@@ -553,7 +553,7 @@ func main(): i32 {
 }
 
 #[test]
-fn reports_partial_initialization_recursive_drop_fixed_array_literal_replacement() {
+fn accepts_tracked_partial_initialization_recursive_drop_fixed_array_literal_replacement() {
     let (sources, analysis) = analyze_text(
         r#"struct File {
     fd: i32
@@ -579,15 +579,7 @@ func make_file(): File! {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "E0435"
-                && diagnostic
-                    .message
-                    .contains("fixed array literal assignments")),
-        "{diagnostics:?}"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

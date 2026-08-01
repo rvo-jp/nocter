@@ -1030,7 +1030,7 @@ fn fixed_array_literal_recursive_drop_assignment_is_buildable(
     ) && literal
         .elements
         .iter()
-        .all(fixed_array_owned_element_initializer_is_buildable)
+        .all(fixed_array_owned_element_initializer_is_buildable_with_tracking)
 }
 
 fn fixed_array_literal_assignment_requires_partial_initialization_tracking(

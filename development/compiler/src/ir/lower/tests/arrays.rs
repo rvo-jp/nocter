@@ -157,6 +157,89 @@ func main(): i32! {
 }
 
 #[test]
+fn lowers_partial_fixed_array_replacement_cleanup_before_preserving_old_value() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func make_file(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func main(): i32! {
+    var files: [File; 2] = [File { fd: 1 }, File { fd: 2 }]
+    files = [File { fd: 3 }, make_file(4)?]
+    return 0
+}
+"#,
+    );
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    let cleanup = main.instructions.iter().find_map(|instruction| {
+        let failure_mode = match instruction {
+            Instruction::CallFallibleAggregate { failure_mode, .. }
+            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            _ => return None,
+        };
+        match failure_mode {
+            FallibleFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
+            _ => None,
+        }
+    });
+    let cleanup = cleanup.expect("expected replacement initialization cleanup");
+
+    assert_eq!(cleanup.len(), 4);
+    assert!(matches!(
+        &cleanup[1],
+        Instruction::If {
+            condition: BoolValue::UsizeComparison {
+                operator: I32ComparisonOperator::Greater,
+                left: UsizeValue::Location(UsizeLocation::Local(0)),
+                right: UsizeValue::Const(0),
+            },
+            then_instructions,
+            ..
+        } if matches!(
+            then_instructions.as_slice(),
+            [Instruction::CallVoid { arguments, .. }]
+                if matches!(
+                    arguments.as_slice(),
+                    [ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField { slot_index: 1, offset: 0 }
+                    })]
+                )
+        )
+    ));
+    assert!(matches!(
+        &cleanup[2..],
+        [
+            Instruction::CallVoid { arguments: second, .. },
+            Instruction::CallVoid { arguments: first, .. },
+        ] if matches!(
+            second.as_slice(),
+            [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 4 }
+            })]
+        ) && matches!(
+            first.as_slice(),
+            [ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
+            })]
+        )
+    ));
+}
+
+#[test]
 fn lowers_fixed_array_variable_index_compound_assignment() {
     let function = lower_named_function(
         r#"func main(): i32 {

@@ -5,7 +5,7 @@ pub(super) fn lower_aggregate_assignment(
     layout: ValueLayout,
     target_type: Option<&TypeExpr>,
     expression: &Expr,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if aggregate_assignment_moves_from_slot(expression, slot_index, context) {
         return Err(unsupported_assignment_diagnostic());
@@ -18,6 +18,22 @@ pub(super) fn lower_aggregate_assignment(
             layout,
             target_type,
             expression,
+            context,
+        );
+    }
+
+    if let Expr::ArrayLiteral(literal) = unwrap_group(expression)
+        && array_literal_requires_runtime_progress(literal)
+        && let Some(target) = context.aggregate_local_by_slot(slot_index)
+        && let Some(drop_kind @ AggregateDrop::Array(_)) = target.drop_kind
+    {
+        return lower_tracked_aggregate_array_replacement(
+            slot_index,
+            layout,
+            target_type,
+            literal,
+            drop_kind,
+            replacement_drop,
             context,
         );
     }
@@ -38,6 +54,54 @@ pub(super) fn lower_aggregate_assignment(
     instructions.extend(replacement_drop);
     instructions.push(Instruction::CopyAggregate {
         destination: AggregateLocation::Slot(slot_index),
+        source: AggregateLocation::Slot(replacement_slot),
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_tracked_aggregate_array_replacement(
+    destination_slot: usize,
+    layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
+    literal: &crate::ast::ArrayLiteralExpr,
+    drop_kind: AggregateDrop,
+    replacement_drop: Vec<Instruction>,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let replacement_slot = context.reserve_aggregate_slot_index();
+    let progress = ArrayInitializationProgress::new(context.reserve_drop_state_usize_local()?);
+    if !context.register_temporary_array_prefix_drop(
+        replacement_slot,
+        layout,
+        drop_kind,
+        progress.location(),
+    ) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let mut instructions = vec![
+        Instruction::ReserveAggregateSlot {
+            slot_index: replacement_slot,
+            layout,
+        },
+        progress.initialize(),
+    ];
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_aggregate_array_literal_assignment_with_progress(
+        replacement_slot,
+        layout,
+        target_type,
+        literal,
+        context,
+        &mut temporaries,
+        Some(progress),
+    );
+    context.release_temporary_aggregate_drop(replacement_slot);
+    instructions.extend(lowered?);
+    instructions.extend(replacement_drop);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination_slot),
         source: AggregateLocation::Slot(replacement_slot),
         layout,
     });
@@ -301,6 +365,27 @@ pub(super) fn lower_aggregate_array_literal_assignment(
     literal: &crate::ast::ArrayLiteralExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_aggregate_array_literal_assignment_with_progress(
+        slot_index,
+        layout,
+        target_type,
+        literal,
+        context,
+        &mut temporaries,
+        None,
+    )
+}
+
+fn lower_aggregate_array_literal_assignment_with_progress(
+    slot_index: usize,
+    layout: ValueLayout,
+    target_type: Option<&TypeExpr>,
+    literal: &crate::ast::ArrayLiteralExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    progress: Option<ArrayInitializationProgress>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(ty) = target_type else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -315,15 +400,18 @@ pub(super) fn lower_aggregate_array_literal_assignment(
         return Err(unsupported_assignment_diagnostic());
     }
 
-    lower_aggregate_array_literal_to_location(
+    lower_aggregate_array_literal_to_location_with_progress(
         literal,
         &value.ty,
         layout,
         AggregateLocation::Slot(slot_index),
+        0,
         "E8008",
         "assignments",
         resolved,
         context,
+        temporaries,
+        progress,
     )
 }
 
