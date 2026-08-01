@@ -5,14 +5,15 @@
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
 //! v0.2.0 fixes the public contract while promoting generic collection lowering.
-//! Empty vectors, capacity allocation, read-only shape operations, scalar,
-//! string-view, and copy aggregate pushes, copying, and release are ordinary std
-//! functions. Non-copy element moves stay outside the storage contract until
-//! per-element drop glue is wired into vector storage.
+//! Vec owns the fully initialized prefix `[0, len)`. Push transfers values into
+//! that prefix, while clear and drop destroy its elements in reverse order.
+//! `from_slice` remains a copying constructor and therefore accepts only copyable
+//! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
 use std/mem.{Allocator, RawBuffer, alloc, grow_owned}
 use std/ptr.addr
+use std/ptr.drop_value_at_ptr
 use std/ptr.from_addr
 use std/ptr.pointee_align
 use std/ptr.pointee_size
@@ -149,7 +150,12 @@ pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
 }
 
 pub func clear<T>(values: &+Vec<T>): void {
-    values.len = 0
+    let element_size: usize = pointee_size(values.ptr)
+    while values.len != 0 {
+        let next_len: usize = values.len - 1
+        values.len = next_len
+        drop_value_at_ptr(values.ptr, next_len * element_size)
+    }
     return
 }
 
@@ -158,7 +164,7 @@ pub func push<T>(values: &+Vec<T>, value: T): void! {
     reserve(values, 1)?
     let element_size: usize = pointee_size(values.ptr)
     let byte_offset: usize = old_len * element_size
-    store_value_to_ptr(values.ptr, byte_offset, value)
+    store_value_to_ptr(values.ptr, byte_offset, move value)
     values.len = old_len + 1
     return
 }
@@ -203,12 +209,12 @@ impl<T> Vec<T> {
     }
 
     pub method &+self.push(value: T): void! {
-        push(self, value)?
+        push(self, move value)?
         return
     }
 
     drop &+self {
-        self.len = 0
+        clear(self)
         self.capacity = 0
         return
     }

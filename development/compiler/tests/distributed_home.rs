@@ -1139,6 +1139,83 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_string_push_clear_and_drop_runs() {
+    let project = TempProject::new("distributed-home-vec-string-ownership-run");
+    let source = project.write_source(
+        "vec_string_ownership.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<String> = Vec.empty()
+    let first = String.from_str(&+allocator, "first")?
+    values.push(move first)?
+    let second = String.from_str(&+allocator, " second")?
+    values.push(move second)?
+    values.clear()
+    if values.len() != 0 {
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_nested_vec_string_clear_and_drop_runs() {
+    let project = TempProject::new("distributed-home-nested-vec-string-ownership-run");
+    let source = project.write_source(
+        "nested_vec_string_ownership.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
+    let text = String.from_str(&+allocator, "nested")?
+    inner.push(move text)?
+
+    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
+    outer.push(move inner)?
+    outer.clear()
+    if outer.len() != 0 {
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_push_scalar_values_runs() {
     let project = TempProject::new("distributed-home-vec-push-scalar-run");
     let source = project.write_source(
@@ -1766,7 +1843,7 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_vec_rejects_cross_source_generic_non_copy_aggregate_with_capacity() {
+fn distributed_std_vec_builds_cross_source_generic_non_copy_aggregate_with_capacity() {
     let project =
         TempProject::new("distributed-home-vec-cross-source-generic-non-copy-aggregate-capacity");
     project.write_source(
@@ -1803,33 +1880,22 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
     assert!(
-        stderr
-            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
-        "expected Vec element storage diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
-        "expected factory source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for non-copy aggregate Vec.with_capacity"
     );
 }
 
 #[test]
-fn distributed_std_vec_rejects_cross_source_non_copy_generic_copy_struct_with_capacity() {
+fn distributed_std_vec_builds_cross_source_non_copy_generic_copy_struct_with_capacity() {
     let project =
         TempProject::new("distributed-home-vec-cross-source-non-copy-generic-copy-struct-capacity");
     project.write_source(
@@ -1870,28 +1936,17 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
     assert!(
-        stderr
-            .contains("`Vec` element storage outside scalar, `&str`, and copy aggregate elements"),
-        "expected Vec element storage diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     return Vec.with_capacity(&+allocator, 1)?"),
-        "expected factory source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should produce an executable for non-copy generic aggregate Vec.with_capacity"
     );
 }
 
@@ -1974,6 +2029,45 @@ func main(): i32! {
     assert!(
         executable.exists(),
         "build should produce an executable for copy aggregate Vec.from_slice"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_non_copy_aggregate_from_slice() {
+    let project = TempProject::new("distributed-home-vec-non-copy-from-slice-boundary");
+    let source = project.write_source(
+        "vec_non_copy_from_slice_boundary.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+struct Text {
+    value: &str
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var values: Vec<Text> = Vec.empty()
+    let value = Text { value: "owned" }
+    values.push(move value)?
+    let copy = Vec.from_slice(&+allocator, values.view())?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_non_copy_from_slice_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]")
+            && stderr.contains("`Vec.from_slice` with a non-copy element type"),
+        "expected Vec.from_slice copyability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not produce an executable for non-copy Vec.from_slice"
     );
 }
 

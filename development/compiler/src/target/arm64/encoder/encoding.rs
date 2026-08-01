@@ -6,6 +6,7 @@ pub(in crate::target::arm64::encoder) const ORR_W_BASE: u32 = 0x2a00_0000;
 pub(in crate::target::arm64::encoder) const ORR_X_BASE: u32 = 0xaa00_0000;
 #[allow(dead_code)]
 pub(in crate::target::arm64::encoder) const ADD_W_BASE: u32 = 0x0b00_0000;
+pub(in crate::target::arm64::encoder) const ADD_X_BASE: u32 = 0x8b00_0000;
 pub(in crate::target::arm64::encoder) const ADDS_W_BASE: u32 = 0x2b00_0000;
 pub(in crate::target::arm64::encoder) const ADDS_X_BASE: u32 = 0xab00_0000;
 #[allow(dead_code)]

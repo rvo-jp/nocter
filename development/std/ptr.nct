@@ -27,6 +27,8 @@ pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8
 
 pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 
+pub(nocter) primitive drop_value_at_ptr<T>(pointer: *T, offset: usize): void
+
 pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
 
 pub(nocter) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]

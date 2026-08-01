@@ -709,6 +709,12 @@ pub(super) fn record_borrow_source(source: BorrowSource, highest_local_index: &m
             record_slice_location(source, highest_local_index);
             record_slice_element_index(index, highest_local_index);
         }
+        BorrowSource::PointerOffset {
+            pointer, offset, ..
+        } => {
+            record_usize_location(pointer, highest_local_index);
+            record_usize_location(offset, highest_local_index);
+        }
         BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. }
         | BorrowSource::AggregateParameter(_)

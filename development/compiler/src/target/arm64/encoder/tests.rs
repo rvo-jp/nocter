@@ -64,6 +64,15 @@ fn encodes_add_w0_w0_w1() {
 }
 
 #[test]
+fn encodes_add_x16_x17_x19() {
+    let mut encoder = Encoder::new();
+
+    encoder.emit_add_x(XReg::X16, XReg::X17, XReg::X19);
+
+    assert_eq!(encoder.finish(), vec![0x30, 0x02, 0x13, 0x8b]);
+}
+
+#[test]
 fn encodes_adds_w0_w0_w1() {
     let mut encoder = Encoder::new();
 

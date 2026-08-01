@@ -174,7 +174,7 @@ impl OwnershipState {
         ty: &Type,
         resolved: &ResolveOutput,
     ) {
-        if non_copy_owned_type_kind(ty, resolved).is_some() {
+        if non_copy_owned_type_kind(ty, resolved).is_some() || matches!(ty, Type::Parameter(_)) {
             if self.places.contains_root(&name) {
                 self.places.initialize(&BorrowPlace::whole(name), span);
             } else {

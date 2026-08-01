@@ -9,7 +9,6 @@ use super::super::aggregates::{
     lower_payload_enum_constructor_to_location_with_progress,
     payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
-    type_expr_is_copy_struct_with_resolver,
 };
 use super::super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::super::context::{
@@ -48,6 +47,7 @@ mod arguments;
 mod borrow_arguments;
 mod evaluation;
 mod normal_calls;
+mod pointer_drops;
 mod primitives;
 mod return_validation;
 mod tail_calls;
@@ -71,6 +71,9 @@ pub(in crate::ir::lower) use normal_calls::{
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
+};
+pub(super) use pointer_drops::{
+    lower_drop_value_at_ptr_primitive_call, primitive_drop_value_at_ptr_call,
 };
 pub(super) use primitives::{
     lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,

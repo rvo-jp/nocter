@@ -246,6 +246,16 @@ const PTR_STORE_VALUE_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "T",
     },
 ];
+const PTR_DROP_VALUE_AT_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "pointer",
+        ty: "*T",
+    },
+    PrimitiveParameterSpec {
+        name: "offset",
+        ty: "usize",
+    },
+];
 const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "pointer",
@@ -550,6 +560,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             name: "store_value_to_ptr",
             generics: &["T"],
             parameters: PTR_STORE_VALUE_TO_PTR_PARAMETERS,
+            return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "drop_value_at_ptr",
+            generics: &["T"],
+            parameters: PTR_DROP_VALUE_AT_PTR_PARAMETERS,
             return_type: "void",
         },
         PrimitiveSpec {

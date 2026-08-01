@@ -168,7 +168,6 @@ pub primitive from_ref<T>(value: &T): *T
 "#,
         )],
     );
-
     assert_eq!(
         function,
         Function {
@@ -670,6 +669,67 @@ pub func store_pair(address: usize, offset: usize, value: Pair): void {
                 offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
                 source: AggregateLocation::Slot(0),
                 layout: pair_layout,
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_drop_value_at_ptr_call_for_owned_aggregate() {
+    let drop_at = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_drop.drop_at
+
+func main(): void {
+    return
+}
+"#,
+        "drop_at",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive drop_value_at_ptr<T>(pointer: *T, offset: usize): void
+"#,
+            ),
+            (
+                "std/ptr_drop.nct",
+                r#"use std/ptr.drop_value_at_ptr
+
+struct Item {
+    value: i32
+}
+
+impl Item {
+    drop &+self {
+        return
+    }
+}
+
+pub func drop_at(pointer: *Item, offset: usize): void {
+    drop_value_at_ptr(pointer, offset)
+    return
+}
+"#,
+            ),
+        ],
+    );
+    let drop_source = match drop_at.target {
+        CallTarget::Imported { source, .. } => source,
+        CallTarget::SameFile(_) => panic!("expected imported pointer-drop helper"),
+    };
+
+    assert_eq!(
+        drop_at.instructions,
+        vec![
+            Instruction::CallVoid {
+                target: CallTarget::imported(drop_source, "Item.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::PointerOffset {
+                        pointer: UsizeLocation::Parameter(0),
+                        offset: UsizeLocation::Parameter(1),
+                        field_offset: 0,
+                    },
+                })],
             },
             Instruction::Return,
         ]

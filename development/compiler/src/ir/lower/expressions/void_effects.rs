@@ -26,6 +26,11 @@ pub(in crate::ir::lower) fn lower_void_expression_statement(
                 return lower_store_value_to_ptr_primitive_call(call, context, &mut temporaries)
                     .map(Some);
             }
+            if primitive_drop_value_at_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                return lower_drop_value_at_ptr_primitive_call(call, context, &mut temporaries)
+                    .map(Some);
+            }
             if primitive_close_fd_raw_call(call, context) {
                 let mut temporaries = TemporaryAllocator::new(context)?;
                 return lower_close_fd_raw_primitive_call(call, context, &mut temporaries)

@@ -171,11 +171,31 @@ pub(in crate::driver::buildability) fn type_expr_is_supported_std_vec_element_st
         return true;
     }
 
-    type_expr_is_supported_copy_aggregate_vec_element_with_resolver(
-        ty,
-        fallback_resolved,
-        &source_resolver,
-    )
+    let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, source_resolver)
+    else {
+        return false;
+    };
+    matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        && type_expr_is_supported_aggregate_value_with_resolver(
+            ty,
+            fallback_resolved,
+            &source_resolver,
+        )
+}
+
+pub(in crate::driver::buildability) fn type_expr_is_supported_std_vec_copy_element_storage(
+    ty: &TypeExpr,
+    fallback_resolved: &ResolveOutput,
+    resolved_sources: &ResolvedSources<'_>,
+) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    type_expr_slice_element_kind_with_resolver(ty, fallback_resolved, &source_resolver)
+        != TypecheckSliceElementKind::Other
+        || type_expr_is_supported_copy_aggregate_vec_element_with_resolver(
+            ty,
+            fallback_resolved,
+            &source_resolver,
+        )
 }
 pub(in crate::driver::buildability) fn type_expr_slice_element_kind_with_resolver<'a, F>(
     ty: &TypeExpr,

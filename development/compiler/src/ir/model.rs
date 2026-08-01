@@ -741,6 +741,11 @@ pub(crate) enum BorrowSource {
         parameter_index: usize,
         offset: u32,
     },
+    PointerOffset {
+        pointer: UsizeLocation,
+        offset: UsizeLocation,
+        field_offset: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

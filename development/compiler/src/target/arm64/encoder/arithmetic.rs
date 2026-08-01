@@ -1,6 +1,10 @@
 use super::*;
 
 impl Encoder {
+    pub(crate) fn emit_add_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(ADD_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_add_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());

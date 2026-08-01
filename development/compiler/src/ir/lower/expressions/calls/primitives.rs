@@ -532,6 +532,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
         lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
     let offset = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
     instructions.extend(offset.instructions);
+    let stored_value = unwrap_pointer_store_move(&call.arguments[2]);
 
     if let Some(value_type) =
         scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
@@ -540,7 +541,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
     {
         match value_type {
             Type::U8 => {
-                let value = lower_u8_expression_to_value(&call.arguments[2], context, temporaries)?;
+                let value = lower_u8_expression_to_value(stored_value, context, temporaries)?;
                 instructions.extend(value.instructions);
                 instructions.push(Instruction::StoreU8ToPointer {
                     pointer,
@@ -549,8 +550,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                 });
             }
             Type::I32 => {
-                let value =
-                    lower_i32_expression_to_value(&call.arguments[2], context, temporaries)?;
+                let value = lower_i32_expression_to_value(stored_value, context, temporaries)?;
                 instructions.extend(value.instructions);
                 instructions.push(Instruction::StoreI32ToPointer {
                     pointer,
@@ -559,8 +559,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                 });
             }
             Type::Usize => {
-                let value =
-                    lower_usize_expression_to_value(&call.arguments[2], context, temporaries)?;
+                let value = lower_usize_expression_to_value(stored_value, context, temporaries)?;
                 instructions.extend(value.instructions);
                 instructions.push(Instruction::StoreUsizeToPointer {
                     pointer,
@@ -570,7 +569,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
             }
             Type::Bool => {
                 let value = lower_bool_expression_to_value_with_temporaries(
-                    &call.arguments[2],
+                    stored_value,
                     context,
                     "E8006",
                     temporaries,
@@ -583,8 +582,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                 });
             }
             Type::Str => {
-                let value =
-                    lower_str_expression_to_value(&call.arguments[2], context, temporaries)?;
+                let value = lower_str_expression_to_value(stored_value, context, temporaries)?;
                 instructions.extend(value.instructions);
                 instructions.push(Instruction::StoreStrToPointer {
                     pointer,
@@ -608,23 +606,13 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
         return Ok(instructions);
     }
 
-    if type_expr_is_copy_struct_with_resolver(&pointee_type, resolved, |source| {
+    let value = abi_value_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
         context.resolved_source(source)
-    }) {
-        let value = abi_value_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
-            context.resolved_source(source)
-        })
-        .map_err(|_error| {
-            unsupported_pointer_primitive_diagnostic(
-                "`store_value_to_ptr` requires aggregate element types with an ABI layout",
-            )
-        })?;
-        if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout)
-        {
-            return Err(unsupported_pointer_primitive_diagnostic(
-                "`store_value_to_ptr` requires aggregate element types with a non-empty ABI layout",
-            ));
-        }
+    });
+    if let Ok(value) = value
+        && matches!(value.ty, AbiType::Struct(_))
+        && supported_aggregate_copy_layout(value.layout)
+    {
         let (value_instructions, source) = lower_aggregate_store_value_source(
             &call.arguments[2],
             value.layout,
@@ -643,8 +631,15 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
     }
 
     Err(unsupported_pointer_primitive_diagnostic(
-        "`store_value_to_ptr` supports only scalar, string-view, and copy aggregate element types",
+        "`store_value_to_ptr` supports only scalar, string-view, and struct element types",
     ))
+}
+
+fn unwrap_pointer_store_move(expression: &Expr) -> &Expr {
+    match unwrap_group(expression) {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => &unary.operand,
+        expression => expression,
+    }
 }
 
 fn lower_aggregate_store_value_source(
@@ -655,6 +650,15 @@ fn lower_aggregate_store_value_source(
     resolved: &crate::resolve::ResolveOutput,
 ) -> Result<(Vec<Instruction>, AggregateLocation), Vec<Diagnostic>> {
     match expression {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            lower_aggregate_store_value_source(
+                &unary.operand,
+                layout,
+                context,
+                temporaries,
+                resolved,
+            )
+        }
         Expr::Identifier(identifier) => {
             let Some(local) = context.aggregate_local(&identifier.name) else {
                 return Err(unsupported_pointer_primitive_diagnostic(

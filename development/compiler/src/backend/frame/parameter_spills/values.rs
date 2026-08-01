@@ -223,6 +223,16 @@ pub(super) fn record_borrow_source_parameter_spill_request(
             record_slice_location_parameter_pair_spill_requests(source, requests);
             record_slice_element_index_parameter_spill_request(index, requests);
         }
+        BorrowSource::PointerOffset {
+            pointer, offset, ..
+        } => {
+            if let UsizeLocation::Parameter(index) = pointer {
+                requests.insert(index);
+            }
+            if let UsizeLocation::Parameter(index) = offset {
+                requests.insert(index);
+            }
+        }
         BorrowSource::I32(I32Location::Return | I32Location::Local(_))
         | BorrowSource::U8(U8Location::Return | U8Location::Local(_))
         | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Local(_))

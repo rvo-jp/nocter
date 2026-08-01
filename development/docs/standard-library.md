@@ -31,7 +31,9 @@ storage release を共通 Allocator 上で実行する。grow failure 後の内�
 runtime test で固定されている。現在の `Vec<T>` も byte capacity と allocator provenance を
 private `RawBuffer` に集約し、typed pointer は非所有 alias として扱う。empty、
 with_capacity、from_slice、len/capacity、reserve、push、clear、views、storage release は共通
-Allocator 上へ移行済みだが、要素 drop を伴う non-copy collection の契約は未完成である。
+Allocator 上へ移行済みである。non-copy push は所有権を storage へ移し、clear と drop は
+initialized prefix を逆順に再帰 drop する。残る collection ownership の未達は、末尾要素を
+返り値へ移す pop と、その返却値を含む失敗経路の検証である。
 
 ## v0.2.0 Required Behavior
 

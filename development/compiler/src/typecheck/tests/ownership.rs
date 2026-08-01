@@ -263,6 +263,42 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_move_of_generic_parameter() {
+    let diagnostics = check_text(
+        r#"func identity<T>(value: T): T {
+    return move value
+}
+
+func main(): i32 {
+    return identity(42)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_use_after_move_of_generic_parameter() {
+    let diagnostics = check_text(
+        r#"func duplicate<T>(value: T): T {
+    let moved = move value
+    return value
+}
+
+func main(): i32 {
+    return duplicate(42)
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("value"));
+    assert!(diagnostics[0].message.contains("moved"));
+}
+
+#[test]
 fn accepts_var_reinitialization_after_move() {
     let diagnostics = check_text(
         r#"struct Text {

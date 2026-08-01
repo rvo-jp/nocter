@@ -411,7 +411,8 @@ pub(super) fn check_expression_ownership(
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = expression.operand.as_ref()
                 && let Some(ty) = environment.get(&identifier.name)
-                && non_copy_owned_type_kind(ty, resolved).is_some()
+                && (non_copy_owned_type_kind(ty, resolved).is_some()
+                    || matches!(ty, Type::Parameter(_)))
             {
                 ownership.ensure_binding_from_environment(
                     &identifier.name,

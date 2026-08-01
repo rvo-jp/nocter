@@ -81,6 +81,25 @@ impl EntryEmitter {
                 return self
                     .emit_checked_slice_element_address_to_x(source, index, element, register);
             }
+            BorrowSource::PointerOffset {
+                pointer,
+                offset,
+                field_offset,
+            } => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(pointer), register)?;
+                let scratch = if register == XReg::X16 {
+                    XReg::X17
+                } else {
+                    XReg::X16
+                };
+                self.emit_usize_value_to_x(&UsizeValue::Location(offset), scratch)?;
+                self.encoder.emit_add_x(register, register, scratch);
+                if field_offset != 0 {
+                    self.encoder
+                        .emit_add_x_imm(register, register, field_offset);
+                }
+                return Ok(());
+            }
             BorrowSource::I32(I32Location::Return)
             | BorrowSource::U8(U8Location::Return)
             | BorrowSource::Usize(UsizeLocation::Return)

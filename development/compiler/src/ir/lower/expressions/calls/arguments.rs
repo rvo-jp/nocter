@@ -44,23 +44,35 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
         let context = evaluation.context();
         match parameter_type {
             Type::I32 => {
-                let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+                let argument = lower_i32_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::I32(argument.value));
             }
             Type::U8 => {
-                let argument = lower_u8_expression_to_value(argument, context, temporaries)?;
+                let argument = lower_u8_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::U8(argument.value));
             }
             Type::Usize => {
-                let argument = lower_usize_expression_to_value(argument, context, temporaries)?;
+                let argument = lower_usize_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Usize(argument.value));
             }
             Type::Bool => {
                 let argument = lower_bool_expression_to_value_with_temporaries(
-                    argument,
+                    unwrap_copy_move_argument(argument),
                     context,
                     "E8006",
                     temporaries,
@@ -69,12 +81,20 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                 arguments.push(ScalarArgument::Bool(argument.value));
             }
             Type::Str => {
-                let argument = lower_str_expression_to_value(argument, context, temporaries)?;
+                let argument = lower_str_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Str(argument.value));
             }
             Type::Slice { .. } => {
-                let argument = lower_slice_expression_to_value(argument, context, temporaries)?;
+                let argument = lower_slice_expression_to_value(
+                    unwrap_copy_move_argument(argument),
+                    context,
+                    temporaries,
+                )?;
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Slice(argument.value));
             }
@@ -332,6 +352,13 @@ fn call_argument_abi_word_count(
     }
 
     Ok(count)
+}
+
+fn unwrap_copy_move_argument(expression: &Expr) -> &Expr {
+    match unwrap_group(expression) {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => &unary.operand,
+        expression => expression,
+    }
 }
 
 fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
