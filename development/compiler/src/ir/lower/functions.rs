@@ -1,6 +1,8 @@
 use super::aggregates::{
-    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr_with_resolver,
-    aggregate_type_layout, lower_aggregate_array_literal_to_location,
+    ArrayInitializationProgress, aggregate_call_return_layout_from_resolved,
+    aggregate_fields_from_type_expr_with_resolver, aggregate_type_layout,
+    array_literal_requires_runtime_progress, lower_aggregate_array_literal_to_location,
+    lower_aggregate_array_literal_to_location_with_progress,
     lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries,
     lower_payload_enum_constructor_to_location, push_aggregate_call_instruction,

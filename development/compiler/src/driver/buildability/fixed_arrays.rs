@@ -103,26 +103,6 @@ pub(super) fn fixed_array_literal_return_has_fixed_array_type(
         .is_some()
 }
 
-pub(super) fn fixed_array_literal_return_requires_partial_initialization_tracking(
-    expression: &Expr,
-    return_type: Option<&TypeExpr>,
-    resolved: &ResolveOutput,
-    resolved_sources: &ResolvedSources<'_>,
-) -> bool {
-    let Expr::ArrayLiteral(literal) = unwrap_group_expr(expression) else {
-        return false;
-    };
-    let Some(return_type) = return_type else {
-        return false;
-    };
-    fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
-        literal,
-        fixed_array_return_value_type_expr(return_type),
-        resolved,
-        resolved_sources,
-    )
-}
-
 pub(super) fn fixed_array_literal_for_type_has_fixed_array_type(
     expression: &Expr,
     ty: Option<&TypeExpr>,
@@ -211,14 +191,6 @@ fn fixed_array_literal_for_value_type_requires_partial_initialization_tracking(
             .elements
             .iter()
             .any(|element| !expression_completes_without_source_control_exit(element))
-}
-
-fn fixed_array_return_value_type_expr(ty: &TypeExpr) -> &TypeExpr {
-    match ty {
-        TypeExpr::Fallible(fallible) => fixed_array_return_value_type_expr(&fallible.success),
-        TypeExpr::Optional(optional) => fixed_array_return_value_type_expr(&optional.inner),
-        _ => ty,
-    }
 }
 
 pub(super) fn fixed_array_literal_requires_partial_initialization_tracking(

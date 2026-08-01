@@ -54,6 +54,23 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_array_literal_return_to_l
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
+    if array_literal_requires_runtime_progress(literal)
+        && let Some(return_type_expr) = fixed_array_return_value_type_expr(context)
+        && let Some(drop_kind @ AggregateDrop::Array(_)) =
+            context.aggregate_drop_for_type_expr(return_type_expr)
+    {
+        return lower_tracked_aggregate_array_literal_return(
+            literal,
+            &value.ty,
+            expected_layout,
+            destination,
+            function_name,
+            resolved,
+            drop_kind,
+            context,
+        );
+    }
+
     let subject = format!("returns from function `{function_name}`");
     let aggregate_slot_mark = context.aggregate_slot_mark();
     let lowered_direct = lower_aggregate_array_literal_to_location(
@@ -82,6 +99,76 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_array_literal_return_to_l
         }
         Err(error) => return Err(error),
     })
+}
+
+fn fixed_array_return_value_type_expr<'context>(
+    context: &'context LoweringContext<'_>,
+) -> Option<&'context TypeExpr> {
+    let mut ty = context.function_return_type_expr()?;
+    loop {
+        match ty {
+            TypeExpr::Fallible(fallible) => ty = &fallible.success,
+            TypeExpr::Optional(optional) => ty = &optional.inner,
+            _ => return Some(ty),
+        }
+    }
+}
+
+fn lower_tracked_aggregate_array_literal_return(
+    literal: &ArrayLiteralExpr,
+    expected_type: &AbiType,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    drop_kind: AggregateDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(expected_layout) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let mut initialization_context = context.clone();
+    let slot_index = initialization_context.reserve_aggregate_slot_index();
+    let progress =
+        ArrayInitializationProgress::new(initialization_context.reserve_drop_state_usize_local()?);
+    if !initialization_context.register_temporary_array_prefix_drop(
+        slot_index,
+        expected_layout,
+        drop_kind,
+        progress.location(),
+    ) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let subject = format!("returns from function `{function_name}`");
+    let mut temporaries = TemporaryAllocator::new(&initialization_context)?;
+    let mut instructions = vec![
+        Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: expected_layout,
+        },
+        progress.initialize(),
+    ];
+    instructions.extend(lower_aggregate_array_literal_to_location_with_progress(
+        literal,
+        expected_type,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        0,
+        "E8007",
+        &subject,
+        resolved,
+        &initialization_context,
+        &mut temporaries,
+        Some(progress),
+    )?);
+    instructions.push(Instruction::CopyAggregate {
+        destination,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
+    Ok(instructions)
 }
 
 pub(in crate::ir::lower::functions) fn fixed_array_return_abi_value(

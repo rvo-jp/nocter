@@ -776,6 +776,74 @@ func consume(pair: [i32; 2], words: [&str; 3], empty: [u8; 0]): i32 {
 }
 
 #[test]
+fn lowers_partial_fixed_array_return_through_tracked_temporary() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func open(fd: i32): File! {
+    return File { fd: fd }
+}
+
+func make(): [File; 2]! {
+    return [File { fd: 1 }, open(2)?]
+}
+
+func main(): i32 {
+    make()!
+    return 0
+}
+"#,
+    );
+    let make = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("make"))
+        .expect("expected lowered make function");
+    let cleanup = make.instructions.iter().find_map(|instruction| {
+        let failure_mode = match instruction {
+            Instruction::CallFallibleAggregate { failure_mode, .. }
+            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            _ => return None,
+        };
+        match failure_mode {
+            FallibleFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
+            _ => None,
+        }
+    });
+    let cleanup = cleanup.expect("expected return initialization cleanup");
+    assert_eq!(cleanup.len(), 2);
+    assert!(matches!(
+        &cleanup[1],
+        Instruction::If {
+            then_instructions,
+            ..
+        } if matches!(
+            then_instructions.as_slice(),
+            [Instruction::CallVoid { arguments, .. }]
+                if matches!(
+                    arguments.as_slice(),
+                    [ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField { slot_index: 0, offset: 0 }
+                    })]
+                )
+        )
+    ));
+    assert!(make.instructions.contains(&Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(0),
+        layout: ValueLayout::new(8, 4),
+    }));
+}
+
+#[test]
 fn lowers_zero_length_fixed_array_parameters_calls_and_returns() {
     let source = r#"func main(): i32 {
     let empty: [u8; 0] = []
