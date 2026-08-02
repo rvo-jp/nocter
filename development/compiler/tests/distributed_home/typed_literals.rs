@@ -305,28 +305,22 @@ fn typed_literal_region_release_unmaps_literal_owned_storage() {
     let project = TempProject::new("distributed-home-typed-literal-region-unmap-run");
     let home = project.root().join(".nocter");
     copy_tree(&distributed_home(), &home);
+    let vec_module = home.join("std/vec.nct");
+    let vec_source = fs::read_to_string(&vec_module).unwrap();
+    fs::write(
+        &vec_module,
+        format!(
+            "{vec_source}\n\npub func storage_address<T>(values: &Vec<T>): usize {{\n    return addr(values.storage.ptr)\n}}\n"
+        ),
+    )
+    .unwrap();
     fs::write(
         home.join("std/literal_region_probe.nct"),
-        r#"use std/mem.{RawBuffer, alloc, current_allocator}
-use std/os.syscall3
-use std/ptr.addr
-
-pub struct LiteralBuffer {
-    storage: RawBuffer
-}
-
-pub literal LiteralBuffer ""(text: &str): Self {
-    var allocator = current_allocator()
-    let storage = alloc(&+allocator, 16384, 16384)
-    return LiteralBuffer { storage: move storage }
-}
-
-pub func buffer_address(buffer: &LiteralBuffer): usize {
-    return addr(buffer.storage.ptr)
-}
+        r#"use std/os.syscall3
 
 pub func is_mapped(address: usize): bool {
-    let result = syscall3(0x0200004a, address, 16384, 3)
+    let page_start = address / 16384 * 16384
+    let result = syscall3(0x0200004a, page_start, 16384, 3)
     return result.errno == 0
 }
 "#,
@@ -334,15 +328,16 @@ pub func is_mapped(address: usize): bool {
     .unwrap();
     let source = project.write_source(
         "typed_literal_region_unmap.nct",
-        r#"use std/literal_region_probe.{LiteralBuffer, buffer_address, is_mapped}
+        r#"use std/literal_region_probe.is_mapped
 use std/mem.page_allocator
+use std/vec.{Vec, storage_address}
 
 func main(): i32 {
     var arena = page_allocator()
     var address: usize = 0
     region temporary using arena {
-        let buffer = LiteralBuffer "payload"
-        address = buffer_address(&buffer)
+        let values = Vec [10, 20, 12]
+        address = storage_address(&values)
         if !is_mapped(address) {
             return 1
         }
