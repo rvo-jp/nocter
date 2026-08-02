@@ -14,8 +14,9 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_switch_arm, impl_member_name,
+    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
+    environment_for_method, environment_for_parameters_in_impl, environment_for_switch_arm,
+    impl_member_name,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
@@ -89,6 +90,27 @@ pub(super) fn check_return_types(
             }
             Item::Impl(impl_) => {
                 check_impl_member_return_types(sources, impl_, resolved, diagnostics, summaries);
+            }
+            Item::Literal(literal) => {
+                let mut environment = environment_for_literal(literal, resolved);
+                let mut borrow_provenance = ProvenanceEnvironment::default();
+                let context = ReturnContext::new(
+                    CallableKind::Literal(crate::typecheck::type_expr::type_expr_display_lossy(
+                        &literal.target,
+                    )),
+                    type_expr_to_type_in_environment(&literal.return_type, resolved, &environment),
+                    literal.return_type.span(),
+                );
+                check_block_returns(
+                    sources,
+                    &literal.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    &mut borrow_provenance,
+                    summaries,
+                );
             }
             _ => {}
         }

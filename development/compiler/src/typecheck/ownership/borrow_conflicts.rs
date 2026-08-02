@@ -262,6 +262,9 @@ fn statement_conflicting_action(
                 .or_else(|| expression_move_action(&statement.end, source, resolved, environment))
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
+        Stmt::LiteralPackFor(statement) => {
+            block_move_action(&statement.body, source, resolved, environment)
+        }
         Stmt::While(statement) => {
             expression_move_action(&statement.condition, source, resolved, environment)
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
@@ -356,6 +359,9 @@ fn statement_read_action(
                 .or_else(|| expression_read_action(&statement.end, source, resolved, environment))
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
+        Stmt::LiteralPackFor(statement) => {
+            block_read_action(&statement.body, source, resolved, environment)
+        }
         Stmt::While(statement) => {
             expression_read_action(&statement.condition, source, resolved, environment)
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
@@ -397,6 +403,18 @@ fn expression_move_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_move_action(element, source, resolved, environment))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    expression_move_action(&using.allocator, source, resolved, environment)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression.using.as_ref().and_then(|using| {
+            expression_move_action(&using.allocator, source, resolved, environment)
+        }),
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             match expression.operand.as_ref() {
                 Expr::Identifier(identifier)
@@ -541,6 +559,18 @@ fn expression_read_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_read_action(element, source, resolved, environment))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    expression_read_action(&using.allocator, source, resolved, environment)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression.using.as_ref().and_then(|using| {
+            expression_read_action(&using.allocator, source, resolved, environment)
+        }),
         Expr::Identifier(identifier) => {
             let place = BorrowPlace::whole(identifier.name.clone());
             place.conflicts_with(source).then_some(BorrowAction {

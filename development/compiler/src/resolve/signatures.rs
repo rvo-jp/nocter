@@ -229,6 +229,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         associated_functions: Vec::new(),
         methods: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
     }
 }
 
@@ -254,6 +255,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .map(|method| method_signature_inner(method, None, &interface.generics))
             .collect(),
         drop_member: None,
+        literals: Vec::new(),
     }
 }
 
@@ -288,6 +290,7 @@ pub(super) fn struct_type_symbol(
         associated_functions: Vec::new(),
         methods: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
     }
 }
 
@@ -317,6 +320,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
         associated_functions: Vec::new(),
         methods: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
     }
 }
 

@@ -2,9 +2,11 @@
 
 mod documentation;
 mod json;
+mod literals;
 mod types;
 
 pub use json::{AstEnvelope, JsonAstNode};
+pub use literals::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
 
 use crate::source::ByteSpan;
@@ -26,6 +28,7 @@ pub enum Item {
     Enum(EnumDecl),
     Interface(InterfaceDecl),
     Impl(ImplDecl),
+    Literal(LiteralDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -327,6 +330,7 @@ pub enum Stmt {
     IfIs(IfIsStmt),
     Switch(SwitchStmt),
     ForRange(ForRangeStmt),
+    LiteralPackFor(LiteralPackForStmt),
     While(WhileStmt),
     Loop(LoopStmt),
     Region(RegionStmt),
@@ -529,6 +533,8 @@ pub enum Expr {
     BoolLiteral(LiteralExpr),
     NoneLiteral(LiteralExpr),
     ArrayLiteral(ArrayLiteralExpr),
+    TypedSequenceLiteral(TypedSequenceLiteralExpr),
+    TypedStringLiteral(TypedStringLiteralExpr),
     StructLiteral(StructLiteralExpr),
     Propagate(PropagationExpr),
     Force(ForceExpr),
@@ -753,6 +759,7 @@ impl Item {
             Item::Enum(item) => item.span,
             Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
+            Item::Literal(item) => item.span,
         }
     }
 }
@@ -809,6 +816,7 @@ impl Stmt {
             Stmt::IfIs(statement) => statement.span,
             Stmt::Switch(statement) => statement.span,
             Stmt::ForRange(statement) => statement.span,
+            Stmt::LiteralPackFor(statement) => statement.span,
             Stmt::While(statement) => statement.span,
             Stmt::Loop(statement) => statement.span,
             Stmt::Region(statement) => statement.span,
@@ -831,6 +839,8 @@ impl Expr {
             Expr::BoolLiteral(expression) => expression.span,
             Expr::NoneLiteral(expression) => expression.span,
             Expr::ArrayLiteral(expression) => expression.span,
+            Expr::TypedSequenceLiteral(expression) => expression.span,
+            Expr::TypedStringLiteral(expression) => expression.span,
             Expr::StructLiteral(expression) => expression.span,
             Expr::Propagate(expression) => expression.span,
             Expr::Force(expression) => expression.span,

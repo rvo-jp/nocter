@@ -23,6 +23,7 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
         Item::Import(item) => paths.push(&item.path),
         Item::FromImport(item) => paths.push(&item.path),
         Item::Function(function) => collect_block_import_paths(&function.body, paths),
+        Item::Literal(literal) => collect_block_import_paths(&literal.body, paths),
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
@@ -88,6 +89,9 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
             Stmt::ForRange(statement) => {
                 collect_expression_import_paths(&statement.start, paths);
                 collect_expression_import_paths(&statement.end, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
+            Stmt::LiteralPackFor(statement) => {
                 collect_block_import_paths(&statement.body, paths);
             }
             Stmt::While(statement) => {
@@ -171,6 +175,19 @@ fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_import_paths(element, paths);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_import_paths(element, paths);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_import_paths(&using.allocator, paths);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_import_paths(&using.allocator, paths);
             }
         }
         Expr::StructLiteral(expression) => {

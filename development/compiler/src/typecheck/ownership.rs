@@ -7,8 +7,8 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_switch_arm,
+    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
+    environment_for_method, environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};

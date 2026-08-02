@@ -136,6 +136,10 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
         LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
         LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
         LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
+        LocalSymbolKind::LiteralPackFor => {
+            format!("literal-pack loop binding `{}`", identifier.name)
+        }
+        LocalSymbolKind::LiteralCapture => format!("literal pack `{}`", identifier.name),
     };
 
     Some(ValueProvenance::scope(symbol.name_span, source))

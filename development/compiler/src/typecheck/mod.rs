@@ -16,6 +16,7 @@ mod facts;
 mod fallible;
 mod generics;
 mod interfaces;
+mod literals;
 mod model;
 mod numeric;
 mod operations;
@@ -133,6 +134,7 @@ pub(crate) fn check_module_with_summary_sources(
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);
+    literals::check_literal_declarations(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_region_statements(sources, ast, &mut diagnostics);
     let provenance_summaries = callable_provenance_summaries(summary_sources);

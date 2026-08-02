@@ -137,6 +137,15 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
             define(locals, &statement.name, statement.name_span, "range");
             collect_block(&statement.body, offset, locals);
         }
+        Stmt::LiteralPackFor(statement) if contains(statement.body.span, offset) => {
+            define(
+                locals,
+                &statement.name,
+                statement.name_span,
+                "literal pack element",
+            );
+            collect_block(&statement.body, offset, locals);
+        }
         Stmt::While(statement) => collect_matching_block(&statement.body, offset, locals),
         Stmt::Loop(statement) => collect_matching_block(&statement.body, offset, locals),
         Stmt::Region(statement) if contains(statement.body.span, offset) => {
@@ -164,7 +173,8 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
         | Stmt::Continue(_)
         | Stmt::Drop(_)
         | Stmt::Region(_)
-        | Stmt::ForRange(_) => {}
+        | Stmt::ForRange(_)
+        | Stmt::LiteralPackFor(_) => {}
     }
 }
 
@@ -246,6 +256,19 @@ fn collect_expression_scope(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_scope(element, offset, locals);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_scope(element, offset, locals);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_scope(&using.allocator, offset, locals);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_scope(&using.allocator, offset, locals);
             }
         }
         Expr::StructLiteral(expression) => {

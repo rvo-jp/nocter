@@ -89,6 +89,9 @@ fn collect_scoped_import_name_spans_in_statement(statement: &Stmt, spans: &mut H
             collect_scoped_import_name_spans_in_expression(&statement.end, spans);
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
+        Stmt::LiteralPackFor(statement) => {
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
         Stmt::While(statement) => {
             collect_scoped_import_name_spans_in_expression(&statement.condition, spans);
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
@@ -125,6 +128,19 @@ fn collect_scoped_import_name_spans_in_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_scoped_import_name_spans_in_expression(element, spans);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_scoped_import_name_spans_in_expression(element, spans);
+            }
+            if let Some(using) = &expression.using {
+                collect_scoped_import_name_spans_in_expression(&using.allocator, spans);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_scoped_import_name_spans_in_expression(&using.allocator, spans);
             }
         }
         Expr::StructLiteral(expression) => {
@@ -316,6 +332,9 @@ fn scoped_import_spans_in_statement_at_offset(
                     scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
                 })
         }
+        Stmt::LiteralPackFor(statement) => {
+            scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+        }
         Stmt::While(statement) => {
             scoped_import_spans_in_expression_at_offset(&statement.condition, offset, visible)
                 .or_else(|| {
@@ -361,6 +380,24 @@ fn scoped_import_spans_in_expression_at_offset(
         Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
             scoped_import_spans_in_expression_at_offset(element, offset, visible)
         }),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| {
+                scoped_import_spans_in_expression_at_offset(element, offset, visible)
+            })
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    scoped_import_spans_in_expression_at_offset(&using.allocator, offset, visible)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| {
+                scoped_import_spans_in_expression_at_offset(&using.allocator, offset, visible)
+            })
+            .or_else(|| Some(visible.clone())),
         Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
             scoped_import_spans_in_expression_at_offset(&field.value, offset, visible)
         }),

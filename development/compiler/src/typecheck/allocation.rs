@@ -5,7 +5,8 @@ use super::bindings::continuing_binding_type;
 use super::calls::resolved_call_signature;
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_switch_arm,
+    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
+    environment_for_method, environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -110,6 +111,20 @@ pub(super) fn infer_callable_allocation_effects(
                                 summaries.set_needs_current_allocation_context(callable);
                                 changed = true;
                             }
+                        }
+                    }
+                    Item::Literal(literal) => {
+                        let callable = CallableId::declared_at(literal.span);
+                        if !summaries.needs_current_allocation_context(callable)
+                            && block_needs_current_allocation_context(
+                                &literal.body,
+                                source.resolved,
+                                &mut environment_for_literal(literal, source.resolved),
+                                summaries,
+                            )
+                        {
+                            summaries.set_needs_current_allocation_context(callable);
+                            changed = true;
                         }
                     }
                     Item::Import(_)
@@ -279,6 +294,12 @@ fn statement_needs_current_allocation_context(
                 summaries,
             )
         }
+        Stmt::LiteralPackFor(statement) => block_needs_current_allocation_context(
+            &statement.body,
+            resolved,
+            &mut environment_for_literal_pack_binding(statement, environment),
+            summaries,
+        ),
         Stmt::While(statement) => {
             expression_needs_current_allocation_context(
                 &statement.condition,
@@ -334,6 +355,36 @@ fn expression_needs_current_allocation_context(
     summaries: &CallableProvenanceSummaries,
 ) -> bool {
     match expression {
+        Expr::TypedSequenceLiteral(literal) => {
+            literal.using.is_none()
+                || literal.elements.iter().any(|element| {
+                    expression_needs_current_allocation_context(
+                        element,
+                        resolved,
+                        environment,
+                        summaries,
+                    )
+                })
+                || literal.using.as_ref().is_some_and(|using| {
+                    expression_needs_current_allocation_context(
+                        &using.allocator,
+                        resolved,
+                        environment,
+                        summaries,
+                    )
+                })
+        }
+        Expr::TypedStringLiteral(literal) => {
+            literal.using.is_none()
+                || literal.using.as_ref().is_some_and(|using| {
+                    expression_needs_current_allocation_context(
+                        &using.allocator,
+                        resolved,
+                        environment,
+                        summaries,
+                    )
+                })
+        }
         Expr::Call(call) => {
             let call_needs = resolved_call_signature(resolved, call, environment)
                 .and_then(|signature| signature.declaration_span)

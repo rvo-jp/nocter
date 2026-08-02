@@ -114,7 +114,7 @@ pub(super) fn check_generic_type_arities(
                     }
                 }
             }
-            Item::Import(_) | Item::FromImport(_) => {}
+            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => {}
         }
     }
 }
@@ -405,6 +405,9 @@ fn check_statement(
             check_expression(sources, &statement.end, resolved, scope, diagnostics);
             check_block(sources, &statement.body, resolved, scope, diagnostics);
         }
+        Stmt::LiteralPackFor(statement) => {
+            check_block(sources, &statement.body, resolved, scope, diagnostics);
+        }
         Stmt::While(statement) => {
             check_expression(sources, &statement.condition, resolved, scope, diagnostics);
             check_block(sources, &statement.body, resolved, scope, diagnostics);
@@ -446,6 +449,25 @@ fn check_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 check_expression(sources, element, resolved, scope, diagnostics);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            if matches!(expression.target, TypeExpr::Generic(_)) {
+                check_type_expr(sources, &expression.target, resolved, scope, diagnostics);
+            }
+            for element in &expression.elements {
+                check_expression(sources, element, resolved, scope, diagnostics);
+            }
+            if let Some(using) = &expression.using {
+                check_expression(sources, &using.allocator, resolved, scope, diagnostics);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if matches!(expression.target, TypeExpr::Generic(_)) {
+                check_type_expr(sources, &expression.target, resolved, scope, diagnostics);
+            }
+            if let Some(using) = &expression.using {
+                check_expression(sources, &using.allocator, resolved, scope, diagnostics);
             }
         }
         Expr::StructLiteral(expression) => {

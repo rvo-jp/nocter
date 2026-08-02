@@ -6,8 +6,8 @@ use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, MethodDecl, Parameter,
-    SwitchArm,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, LiteralDecl,
+    LiteralPackForStmt, MethodDecl, Parameter, SwitchArm, TypeExpr,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
@@ -40,6 +40,42 @@ pub(super) fn environment_for_function(
     );
     define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
     environment
+}
+
+pub(super) fn environment_for_literal(
+    literal: &LiteralDecl,
+    resolved: &ResolveOutput,
+) -> TypeEnvironment {
+    let generic_names = literal_target_generic_names(&literal.target);
+    let substitutions = generic_names
+        .iter()
+        .map(|name| (name.clone(), Type::Parameter(name.clone())))
+        .collect();
+    let self_type =
+        type_expr_to_type_with_substitutions(&literal.target, resolved, None, &substitutions);
+    let mut environment = TypeEnvironment::with_self_type(self_type);
+    environment.define_generic_parameters(generic_names);
+    define_parameters_in_environment(&literal.parameters.parameters, resolved, &mut environment);
+    if let Some(capture) = &literal.capture {
+        let element_type =
+            type_expr_to_type_in_environment(&capture.element_type, resolved, &environment);
+        environment.define_literal_pack(capture.name.clone(), element_type);
+    }
+    environment
+}
+
+fn literal_target_generic_names(target: &TypeExpr) -> Vec<String> {
+    let TypeExpr::Generic(generic) = target else {
+        return Vec::new();
+    };
+    generic
+        .arguments
+        .iter()
+        .filter_map(|argument| match argument {
+            TypeExpr::Reference(reference) => Some(reference.name.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(super) fn function_self_type(
@@ -250,6 +286,19 @@ pub(super) fn environment_for_for_range_binding(
         statement.name.clone(),
         for_range_binding_type(statement, resolved, environment),
     );
+    body_environment
+}
+
+pub(super) fn environment_for_literal_pack_binding(
+    statement: &LiteralPackForStmt,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut body_environment = environment.clone();
+    let element_type = environment
+        .literal_pack_element(&statement.pack_name)
+        .cloned()
+        .unwrap_or(Type::Unknown);
+    body_environment.define(statement.name.clone(), element_type);
     body_environment
 }
 

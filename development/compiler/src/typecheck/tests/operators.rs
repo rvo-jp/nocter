@@ -176,7 +176,7 @@ func add_one_reversed(byte: u8): u8 {
 fn accepts_lossless_integer_type_conversion() {
     let diagnostics = check_text(
         r#"func main(): i32 {
-    let literal = 10 as u8
+    let converted = 10 as u8
     return 0
 }
 

@@ -249,6 +249,29 @@ impl TypecheckFactCollector<'_> {
                     self.collect_expression_facts_in_context(element, environment, return_type);
                 }
             }
+            Expr::TypedSequenceLiteral(expression) => {
+                self.collect_type_expr_references(&expression.target);
+                for element in &expression.elements {
+                    self.collect_expression_facts_in_context(element, environment, return_type);
+                }
+                if let Some(using) = &expression.using {
+                    self.collect_expression_facts_in_context(
+                        &using.allocator,
+                        environment,
+                        return_type,
+                    );
+                }
+            }
+            Expr::TypedStringLiteral(expression) => {
+                self.collect_type_expr_references(&expression.target);
+                if let Some(using) = &expression.using {
+                    self.collect_expression_facts_in_context(
+                        &using.allocator,
+                        environment,
+                        return_type,
+                    );
+                }
+            }
             Expr::StructLiteral(expression) => {
                 self.collect_type_expr_references(&expression.ty);
                 for field in &expression.fields {

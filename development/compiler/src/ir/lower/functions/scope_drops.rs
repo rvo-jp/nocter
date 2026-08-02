@@ -107,6 +107,24 @@ pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_matching
         Expr::ArrayLiteral(literal) => literal.elements.iter().any(|element| {
             expression_contains_explicit_aggregate_move_matching(element, context, matches_move)
         }),
+        Expr::TypedSequenceLiteral(literal) => {
+            literal.elements.iter().any(|element| {
+                expression_contains_explicit_aggregate_move_matching(element, context, matches_move)
+            }) || literal.using.as_ref().is_some_and(|using| {
+                expression_contains_explicit_aggregate_move_matching(
+                    &using.allocator,
+                    context,
+                    matches_move,
+                )
+            })
+        }
+        Expr::TypedStringLiteral(literal) => literal.using.as_ref().is_some_and(|using| {
+            expression_contains_explicit_aggregate_move_matching(
+                &using.allocator,
+                context,
+                matches_move,
+            )
+        }),
         Expr::StructLiteral(literal) => literal.fields.iter().any(|field| {
             expression_contains_explicit_aggregate_move_matching(
                 &field.value,
@@ -347,6 +365,9 @@ pub(in crate::ir::lower) fn statement_contains_explicit_aggregate_move_matching(
                 matches_move,
             )
         }
+        Stmt::LiteralPackFor(statement) => {
+            block_contains_explicit_aggregate_move_matching(&statement.body, context, matches_move)
+        }
         Stmt::While(statement) => {
             expression_contains_explicit_aggregate_move_matching(
                 &statement.condition,
@@ -543,6 +564,7 @@ pub(in crate::ir::lower) fn mark_lowered_statement_aggregate_uses(
         | Stmt::IfIs(_)
         | Stmt::Switch(_)
         | Stmt::ForRange(_)
+        | Stmt::LiteralPackFor(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
         | Stmt::Region(_)
@@ -566,6 +588,19 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
         Expr::ArrayLiteral(literal) => {
             for element in &literal.elements {
                 mark_explicit_moves_in_expression(element, context);
+            }
+        }
+        Expr::TypedSequenceLiteral(literal) => {
+            for element in &literal.elements {
+                mark_explicit_moves_in_expression(element, context);
+            }
+            if let Some(using) = &literal.using {
+                mark_explicit_moves_in_expression(&using.allocator, context);
+            }
+        }
+        Expr::TypedStringLiteral(literal) => {
+            if let Some(using) = &literal.using {
+                mark_explicit_moves_in_expression(&using.allocator, context);
             }
         }
         Expr::StructLiteral(literal) => {

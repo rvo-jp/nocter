@@ -196,6 +196,7 @@ pub(in crate::typecheck::returns) fn collect_statement_fallible_propagation_prov
                 flow,
             );
         }
+        Stmt::LiteralPackFor(_) => {}
         Stmt::Loop(_) => {}
         Stmt::Region(statement) => {
             collect_expression_fallible_propagation_provenance(
@@ -232,6 +233,43 @@ pub(in crate::typecheck::returns) fn collect_expression_fallible_propagation_pro
     flow: &mut ProvenanceFlow,
 ) {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_fallible_propagation_provenance(
+                    element,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_fallible_propagation_provenance(
+                    &using.allocator,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_fallible_propagation_provenance(
+                    &using.allocator,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
         Expr::Propagate(propagation) => {
             if propagated_fallible_error_can_escape(
                 &propagation.expression,
@@ -798,6 +836,20 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
             Stmt::ForRange(statement) => {
                 let mut body_environment =
                     environment_for_for_range_binding(statement, resolved, environment);
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    return_type,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            Stmt::LiteralPackFor(statement) => {
+                let mut body_environment =
+                    environment_for_literal_pack_binding(statement, environment);
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &statement.body,

@@ -11,6 +11,46 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
     summaries: &CallableProvenanceSummaries,
 ) {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_for_nested_returns(
+                    sources,
+                    element,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_for_nested_returns(
+                    sources,
+                    &using.allocator,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_for_nested_returns(
+                    sources,
+                    &using.allocator,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+        }
         Expr::Propagate(expression) => {
             check_propagation(
                 sources,

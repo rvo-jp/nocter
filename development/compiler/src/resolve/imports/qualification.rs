@@ -19,6 +19,10 @@ pub(super) fn filter_importable_symbol_for_access(
             method.is_accessible =
                 method.is_accessible && visibility_is_visible_to(method.visibility, access);
         }
+        for literal in &mut symbol.literals {
+            literal.is_accessible =
+                literal.is_accessible && visibility_is_visible_to(literal.visibility, access);
+        }
     }
 
     imported
@@ -115,6 +119,30 @@ fn qualify_type_symbol(
         );
         qualify_function_signature(
             &mut method.signature,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+    }
+    for literal in &mut symbol.literals {
+        if let Some(capture) = &mut literal.capture {
+            qualify_type_expr(
+                &mut capture.element_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        for parameter in &mut literal.parameters {
+            qualify_parameter_signature(
+                parameter,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        qualify_type_expr(
+            &mut literal.return_type,
             import_path,
             local_type_names,
             imported_type_names,

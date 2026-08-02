@@ -1,7 +1,7 @@
 mod value;
 mod walk;
 
-use super::environments::{function_self_type, impl_self_type};
+use super::environments::{environment_for_literal, function_self_type, impl_self_type};
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
@@ -74,6 +74,39 @@ pub(super) fn check_sized_value_types(
             }
             Item::Impl(impl_) => {
                 check_impl(sources, impl_, resolved, diagnostics);
+            }
+            Item::Literal(literal) => {
+                let environment = environment_for_literal(literal, resolved);
+                let self_type = environment.self_type();
+                for parameter in &literal.parameters.parameters {
+                    check_parameter_type(
+                        sources,
+                        parameter,
+                        "literal parameter",
+                        resolved,
+                        self_type,
+                        diagnostics,
+                    );
+                }
+                if let Some(capture) = &literal.capture {
+                    check_value_type(
+                        sources,
+                        &capture.element_type,
+                        "literal element capture",
+                        resolved,
+                        self_type,
+                        diagnostics,
+                    );
+                }
+                check_value_type(
+                    sources,
+                    &literal.return_type,
+                    "literal return type",
+                    resolved,
+                    self_type,
+                    diagnostics,
+                );
+                check_block(sources, &literal.body, resolved, self_type, diagnostics);
             }
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }

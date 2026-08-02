@@ -38,6 +38,27 @@ impl Formatter {
                 });
                 self.write("]");
             }
+            Expr::TypedSequenceLiteral(expression) => {
+                self.format_type(&expression.target);
+                self.write(" [");
+                self.write_comma_separated(&expression.elements, |formatter, element| {
+                    formatter.format_expr(element, 0);
+                });
+                self.write("]");
+                if let Some(using) = &expression.using {
+                    self.write(" using ");
+                    self.format_expr(&using.allocator, PREC_PREFIX);
+                }
+            }
+            Expr::TypedStringLiteral(expression) => {
+                self.format_type(&expression.target);
+                self.write(" ");
+                self.write(&expression.text.value);
+                if let Some(using) = &expression.using {
+                    self.write(" using ");
+                    self.format_expr(&using.allocator, PREC_PREFIX);
+                }
+            }
             Expr::StructLiteral(expression) => self.format_struct_literal(expression),
             Expr::Propagate(expression) => {
                 self.format_expr(&expression.expression, PREC_POSTFIX);
@@ -156,6 +177,8 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_)
         | Expr::ArrayLiteral(_)
+        | Expr::TypedSequenceLiteral(_)
+        | Expr::TypedStringLiteral(_)
         | Expr::StructLiteral(_)
         | Expr::Group(_) => PREC_PRIMARY,
     }

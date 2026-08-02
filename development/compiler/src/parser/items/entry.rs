@@ -92,6 +92,18 @@ impl Parser<'_> {
             return self.parse_primitive_decl(visibility, target);
         }
 
+        if self.at_keyword(Keyword::Literal) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to literal definitions");
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations in v0");
+                return Err(());
+            }
+            return self.parse_literal_decl(visibility);
+        }
+
         if self.at_keyword(Keyword::Type) {
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");

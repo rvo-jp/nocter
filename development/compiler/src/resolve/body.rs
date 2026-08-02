@@ -20,6 +20,19 @@ impl Resolver<'_> {
                     self.define_parameters(&function.parameters.parameters, &mut scope);
                     self.resolve_block(&function.body, &mut scope);
                 }
+                Item::Literal(literal) => {
+                    let mut scope = Scope::new();
+                    self.define_parameters(&literal.parameters.parameters, &mut scope);
+                    if let Some(capture) = &literal.capture {
+                        self.define_local_name(
+                            capture.name.clone(),
+                            capture.name_span,
+                            LocalSymbolKind::LiteralCapture,
+                            &mut scope,
+                        );
+                    }
+                    self.resolve_block(&literal.body, &mut scope);
+                }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
                 | Item::FromImport(_)
@@ -170,6 +183,29 @@ impl Resolver<'_> {
                 );
                 self.resolve_block(&statement.body, &mut body_scope);
             }
+            Stmt::LiteralPackFor(statement) => {
+                if let Some(local_id) = scope.resolve(&statement.pack_name) {
+                    self.output
+                        .local_identifier_targets
+                        .insert(statement.pack_span, local_id);
+                } else {
+                    self.output
+                        .diagnostics
+                        .push(unresolved_identifier_diagnostic(
+                            self.sources,
+                            &statement.pack_name,
+                            statement.pack_span,
+                        ));
+                }
+                let mut body_scope = scope.clone();
+                self.define_local_name(
+                    statement.name.clone(),
+                    statement.name_span,
+                    LocalSymbolKind::LiteralPackFor,
+                    &mut body_scope,
+                );
+                self.resolve_block(&statement.body, &mut body_scope);
+            }
             Stmt::Loop(statement) => {
                 let mut body_scope = scope.clone();
                 self.resolve_block(&statement.body, &mut body_scope);
@@ -243,6 +279,29 @@ impl Resolver<'_> {
             Expr::ArrayLiteral(expression) => {
                 for element in &expression.elements {
                     self.resolve_expression(element, scope);
+                }
+            }
+            Expr::TypedSequenceLiteral(expression) => {
+                self.resolve_typed_literal(
+                    &expression.target,
+                    crate::ast::LiteralShape::Sequence,
+                    expression.span,
+                );
+                for element in &expression.elements {
+                    self.resolve_expression(element, scope);
+                }
+                if let Some(using) = &expression.using {
+                    self.resolve_expression(&using.allocator, scope);
+                }
+            }
+            Expr::TypedStringLiteral(expression) => {
+                self.resolve_typed_literal(
+                    &expression.target,
+                    crate::ast::LiteralShape::String,
+                    expression.span,
+                );
+                if let Some(using) = &expression.using {
+                    self.resolve_expression(&using.allocator, scope);
                 }
             }
             Expr::StructLiteral(expression) => {

@@ -71,6 +71,14 @@ impl Formatter {
                 self.write(" ");
                 self.format_block(&statement.body);
             }
+            Stmt::LiteralPackFor(statement) => {
+                self.write("for ");
+                self.write(&statement.name);
+                self.write(" in ");
+                self.write(&statement.pack_name);
+                self.write(" ");
+                self.format_block(&statement.body);
+            }
             Stmt::While(statement) => {
                 self.write("while ");
                 self.format_expression(&statement.condition);
@@ -261,6 +269,11 @@ fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
             .elements
             .iter()
             .all(expression_can_be_inline_block_result),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .all(expression_can_be_inline_block_result),
+        Expr::TypedStringLiteral(_) => true,
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

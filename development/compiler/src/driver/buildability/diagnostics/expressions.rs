@@ -68,6 +68,35 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 );
             }
         }
+        Expr::TypedSequenceLiteral(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "typed sequence literals",
+                "wait for v0.3.0 Phase 1 literal lowering",
+            ));
+            for element in &expression.elements {
+                collect_expression_diagnostics(
+                    element,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    resolved_sources,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            expression.span,
+            "typed string literals",
+            "wait for v0.3.0 Phase 1 literal lowering",
+        )),
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {
                 if fixed_array_literal_struct_field_has_fixed_array_type(

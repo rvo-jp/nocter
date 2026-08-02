@@ -457,7 +457,11 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Function(_) | Item::Import(_) | Item::FromImport(_) | Item::Impl(_) => {}
+                Item::Function(_)
+                | Item::Import(_)
+                | Item::FromImport(_)
+                | Item::Impl(_)
+                | Item::Literal(_) => {}
             }
         }
     }

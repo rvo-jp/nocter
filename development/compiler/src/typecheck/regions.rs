@@ -54,6 +54,7 @@ pub(super) fn check_region_statements(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Interface(_) => {}
+            Item::Literal(_) => {}
         }
     }
 }
@@ -136,6 +137,9 @@ fn check_statement(
             check_expression_blocks(sources, &statement.end, parent, tree, diagnostics);
             check_block(sources, &statement.body, parent, tree, diagnostics);
         }
+        Stmt::LiteralPackFor(statement) => {
+            check_block(sources, &statement.body, parent, tree, diagnostics);
+        }
         Stmt::While(statement) => {
             check_expression_blocks(sources, &statement.condition, parent, tree, diagnostics);
             check_block(sources, &statement.body, parent, tree, diagnostics);
@@ -160,6 +164,19 @@ fn check_expression_blocks(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_blocks(sources, element, parent, tree, diagnostics);
+            }
+            if let Some(using) = &expression.using {
+                check_expression_blocks(sources, &using.allocator, parent, tree, diagnostics);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_blocks(sources, &using.allocator, parent, tree, diagnostics);
+            }
+        }
         Expr::Catch(expression) => {
             check_expression_blocks(sources, &expression.expression, parent, tree, diagnostics);
             check_block(sources, &expression.catch_block, parent, tree, diagnostics);

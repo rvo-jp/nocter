@@ -985,6 +985,7 @@ pub(super) fn lower_value_control_leading_statements(
             | Stmt::IfIs(_)
             | Stmt::Switch(_)
             | Stmt::ForRange(_)
+            | Stmt::LiteralPackFor(_)
             | Stmt::While(_)
             | Stmt::Loop(_)
             | Stmt::Region(_)

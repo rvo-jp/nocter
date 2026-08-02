@@ -26,6 +26,7 @@ fn call_in_item_at_offset(
 ) -> Option<&CallExpr> {
     match item {
         Item::Function(function) => call_in_block_at_offset(&function.body, offset, region),
+        Item::Literal(literal) => call_in_block_at_offset(&literal.body, offset, region),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
                 .body
@@ -113,6 +114,7 @@ fn call_in_statement_at_offset(
         Stmt::ForRange(statement) => call_in_expression_at_offset(&statement.start, offset, region)
             .or_else(|| call_in_expression_at_offset(&statement.end, offset, region))
             .or_else(|| call_in_block_at_offset(&statement.body, offset, region)),
+        Stmt::LiteralPackFor(statement) => call_in_block_at_offset(&statement.body, offset, region),
         Stmt::While(statement) => {
             call_in_expression_at_offset(&statement.condition, offset, region)
                 .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
@@ -155,6 +157,19 @@ fn call_in_expression_at_offset(
             .elements
             .iter()
             .find_map(|element| call_in_expression_at_offset(element, offset, region)),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| call_in_expression_at_offset(element, offset, region))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    call_in_expression_at_offset(&using.allocator, offset, region)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| call_in_expression_at_offset(&using.allocator, offset, region)),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

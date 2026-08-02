@@ -19,6 +19,19 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
+            Item::Literal(literal) => {
+                let mut environment = environment_for_literal(literal, self.resolved);
+                let return_type = type_expr_to_type_in_environment(
+                    &literal.return_type,
+                    self.resolved,
+                    &environment,
+                );
+                self.collect_block_facts(
+                    &literal.body,
+                    &mut environment,
+                    Some(return_type.success_type()),
+                );
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

@@ -11,7 +11,12 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
     summaries: &CallableProvenanceSummaries,
 ) {
     let expected = context.success_type();
-    let actual = expression_type(expression, resolved, environment);
+    let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+        expression,
+        Some(expected),
+        resolved,
+        environment,
+    );
 
     if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
         return;
@@ -110,7 +115,12 @@ pub(in crate::typecheck::returns) fn check_return_statement(
         (None, Type::Unknown) | (None, Type::Unresolved(_)) => {}
         (None, _) => diagnostics.push(missing_return_value_diagnostic(sources, statement, context)),
         (Some(expression), Type::Void) => {
-            let actual = expression_type(expression, resolved, environment);
+            let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+                expression,
+                Some(expected),
+                resolved,
+                environment,
+            );
             if actual == Type::Never {
                 return;
             }
@@ -140,7 +150,12 @@ pub(in crate::typecheck::returns) fn check_return_statement(
             ));
         }
         (Some(expression), expected) => {
-            let actual = expression_type(expression, resolved, environment);
+            let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+                expression,
+                Some(expected),
+                resolved,
+                environment,
+            );
             if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
                 return;
             }

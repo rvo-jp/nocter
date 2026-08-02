@@ -57,6 +57,11 @@ fn statement_uses_identifier(
                 || expression_uses_identifier(&statement.end, name, resolved, environment)
                 || block_uses_identifier(&statement.body, name, resolved, &body_environment)
         }
+        Stmt::LiteralPackFor(statement) => {
+            let body_environment = environment_for_literal_pack_binding(statement, environment);
+            statement.pack_name == name
+                || block_uses_identifier(&statement.body, name, resolved, &body_environment)
+        }
         Stmt::While(statement) => {
             expression_uses_identifier(&statement.condition, name, resolved, environment)
                 || block_uses_identifier(&statement.body, name, resolved, environment)
@@ -131,6 +136,18 @@ pub(super) fn expression_uses_identifier(
     environment: &TypeEnvironment,
 ) -> bool {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            expression
+                .elements
+                .iter()
+                .any(|element| expression_uses_identifier(element, name, resolved, environment))
+                || expression.using.as_ref().is_some_and(|using| {
+                    expression_uses_identifier(&using.allocator, name, resolved, environment)
+                })
+        }
+        Expr::TypedStringLiteral(expression) => expression.using.as_ref().is_some_and(|using| {
+            expression_uses_identifier(&using.allocator, name, resolved, environment)
+        }),
         Expr::Identifier(identifier) => identifier.name == name,
         Expr::Propagate(expression) => {
             expression_uses_identifier(&expression.expression, name, resolved, environment)

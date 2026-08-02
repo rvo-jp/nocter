@@ -27,6 +27,7 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
     for item in &file.ast.items {
         match item {
             Item::Function(function) => collect_block(file, &function.body, None, &mut facts),
+            Item::Literal(literal) => collect_block(file, &literal.body, None, &mut facts),
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
@@ -156,6 +157,9 @@ fn collect_statement(
             collect_expression(file, &statement.end, parent, facts);
             collect_block(file, &statement.body, parent, facts);
         }
+        Stmt::LiteralPackFor(statement) => {
+            collect_block(file, &statement.body, parent, facts);
+        }
         Stmt::While(statement) => {
             collect_expression(file, &statement.condition, parent, facts);
             collect_block(file, &statement.body, parent, facts);
@@ -220,6 +224,19 @@ fn collect_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression(file, element, parent, facts);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression(file, element, parent, facts);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression(file, &using.allocator, parent, facts);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression(file, &using.allocator, parent, facts);
             }
         }
         Expr::StructLiteral(expression) => {

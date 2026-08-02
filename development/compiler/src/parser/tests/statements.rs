@@ -983,7 +983,7 @@ fn parses_range_for_statement() {
 }
 
 #[test]
-fn rejects_non_range_for_statement() {
+fn parses_literal_pack_for_statement_for_semantic_validation() {
     let output = parse_text(
         r#"func main(): void {
     for item in items {
@@ -992,8 +992,15 @@ fn rejects_non_range_for_statement() {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1);
-    assert!(output.diagnostics[0].message.contains("..<"));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert!(matches!(
+        function.body.statements[0],
+        Stmt::LiteralPackFor(_)
+    ));
 }
 
 #[test]

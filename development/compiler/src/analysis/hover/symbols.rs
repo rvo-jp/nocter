@@ -96,6 +96,29 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 }
             }
         }
+        Item::Literal(literal) => {
+            push_hover_symbol(
+                text,
+                literal.shape_span,
+                literal.span.start,
+                match literal.shape {
+                    crate::ast::LiteralShape::Sequence => "literal []".to_string(),
+                    crate::ast::LiteralShape::String => "literal \"\"".to_string(),
+                },
+                symbols,
+            );
+            collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
+            if let Some(capture) = &literal.capture {
+                push_hover_symbol(
+                    text,
+                    capture.name_span,
+                    capture.span.start,
+                    format!("literal pack {}", capture.name),
+                    symbols,
+                );
+            }
+            collect_block_hover_symbols(text, &literal.body, symbols);
+        }
     }
 }
 
@@ -348,6 +371,16 @@ pub(in crate::analysis::hover) fn collect_statement_hover_symbols(
             collect_expression_hover_symbols(text, &statement.end, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
+        Stmt::LiteralPackFor(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
         Stmt::While(statement) => {
             collect_expression_hover_symbols(text, &statement.condition, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
@@ -405,6 +438,19 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_hover_symbols(text, element, symbols);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_hover_symbols(text, element, symbols);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_hover_symbols(text, &using.allocator, symbols);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_hover_symbols(text, &using.allocator, symbols);
             }
         }
         Expr::StructLiteral(expression) => {

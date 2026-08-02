@@ -716,6 +716,31 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 diagnostics,
             );
         }
+        Stmt::LiteralPackFor(statement) => {
+            collect_nonterminal_control_block_aggregate_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
+            collect_block_diagnostics(
+                &statement.body,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Stmt::While(statement) => {
             collect_control_condition_move_diagnostics(
                 &statement.condition,

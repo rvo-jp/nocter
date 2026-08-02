@@ -30,6 +30,20 @@ pub(in crate::typecheck) fn check_ownership_states(
             Item::Impl(impl_) => {
                 check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
             }
+            Item::Literal(literal) => {
+                let mut environment = environment_for_literal(literal, resolved);
+                let mut ownership = OwnershipState::default();
+                ownership.define_parameters(&literal.parameters.parameters, &environment, resolved);
+                check_block_ownership(
+                    sources,
+                    &literal.body,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    &mut environment,
+                    &mut ownership,
+                );
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

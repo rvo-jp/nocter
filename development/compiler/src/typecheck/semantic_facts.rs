@@ -105,6 +105,15 @@ pub(crate) fn collect_callable_semantic_facts(
                 | Item::Struct(_)
                 | Item::Enum(_)
                 | Item::Interface(_) => {}
+                Item::Literal(literal) => {
+                    insert_fact(
+                        literal.span,
+                        &literal.return_type,
+                        source.resolved,
+                        &summaries,
+                        &mut facts,
+                    );
+                }
             }
         }
     }

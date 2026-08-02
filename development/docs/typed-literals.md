@@ -41,6 +41,11 @@ nominal declaration identity and shape. There is at most one definition for a ke
 generic arguments, and visibility never form an overload set. Different shapes on one nominal type
 are distinct keys.
 
+Typed literal expressions require whitespace between the target type and its delimiter. Thus
+`Vec [1]` is a sequence literal while `values[1]` is an index expression. The distinction is
+lexical and independent of capitalization or later name resolution. The formatter preserves this
+single canonical spelling.
+
 ## Element Pack
 
 `...items: T` introduces an owned ephemeral element pack. It is not `[T]`, a slice, an allocated

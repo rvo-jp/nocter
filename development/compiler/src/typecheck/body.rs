@@ -18,13 +18,17 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_switch_arm,
+    environment_for_if_is_binding, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{
     check_error_member_expression, collection_builtin_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
+use super::literals::{
+    check_literal_pack_for_statement, check_typed_sequence_literal, check_typed_string_literal,
+    check_unconstrained_literal_initializer, literal_expression_type_with_expected,
+};
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
@@ -66,6 +70,18 @@ pub(super) fn check_body_expressions(
             }
             Item::Impl(impl_) => {
                 check_impl_member_expressions(sources, impl_, resolved, diagnostics);
+            }
+            Item::Literal(literal) => {
+                let mut environment =
+                    super::environments::environment_for_literal(literal, resolved);
+                check_block_expressions(
+                    sources,
+                    &literal.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    0,
+                );
             }
             Item::Import(_)
             | Item::FromImport(_)
@@ -173,7 +189,22 @@ fn check_statement_expressions(
                 environment,
                 loop_depth,
             );
-            let initializer_type = expression_type(&statement.initializer, resolved, environment);
+            let expected = statement.ty.as_ref().map(|ty| {
+                super::type_expr::type_expr_to_type_in_environment(ty, resolved, environment)
+            });
+            check_unconstrained_literal_initializer(
+                sources,
+                &statement.initializer,
+                expected.is_some(),
+                resolved,
+                diagnostics,
+            );
+            let initializer_type = literal_expression_type_with_expected(
+                &statement.initializer,
+                expected.as_ref(),
+                resolved,
+                environment,
+            );
             check_binding_annotation(
                 sources,
                 statement,
@@ -359,6 +390,18 @@ fn check_statement_expressions(
 
             let mut body_environment =
                 environment_for_for_range_binding(statement, resolved, environment);
+            check_block_expressions(
+                sources,
+                &statement.body,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                loop_depth + 1,
+            );
+        }
+        Stmt::LiteralPackFor(statement) => {
+            check_literal_pack_for_statement(sources, statement, environment, diagnostics);
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
             check_block_expressions(
                 sources,
                 &statement.body,
@@ -783,6 +826,42 @@ fn check_expression_tree(
                 );
             }
             check_array_literal_elements(sources, expression, resolved, diagnostics, environment);
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_tree(
+                    sources,
+                    element,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_tree(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            check_typed_sequence_literal(sources, expression, resolved, environment, diagnostics);
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_tree(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            check_typed_string_literal(sources, expression, resolved, environment, diagnostics);
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {

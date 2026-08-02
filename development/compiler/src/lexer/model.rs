@@ -67,6 +67,7 @@ pub enum Keyword {
     Region,
     Using,
     Primitive,
+    Literal,
     Void,
     Never,
 }
@@ -104,6 +105,7 @@ pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
     "region",
     "using",
     "primitive",
+    "literal",
     "void",
     "never",
 ];

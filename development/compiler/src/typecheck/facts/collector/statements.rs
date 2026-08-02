@@ -118,6 +118,16 @@ impl TypecheckFactCollector<'_> {
                 );
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
+            Stmt::LiteralPackFor(statement) => {
+                let mut body_environment =
+                    environment_for_literal_pack_binding(statement, environment);
+                self.record_environment_binding(
+                    statement.name_span,
+                    &statement.name,
+                    &body_environment,
+                );
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
+            }
             Stmt::While(statement) => {
                 self.collect_expression_facts_in_context(
                     &statement.condition,

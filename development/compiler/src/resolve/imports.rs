@@ -4,6 +4,7 @@ use super::diagnostics::{
     builtin_name_reuse_diagnostic, missing_import_diagnostic, restricted_import_diagnostic,
     unloaded_import_diagnostic,
 };
+use super::literals::attach_literal_definitions_to_symbol;
 use super::module_index::is_relative_module_path;
 use super::signatures::{
     alias_type_symbol, attach_inherent_impl_members_to_symbol, enum_type_symbol,

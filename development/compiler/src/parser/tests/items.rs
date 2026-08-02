@@ -859,7 +859,7 @@ fn parses_trait_as_ordinary_function_name() {
 }
 
 #[test]
-fn parses_literal_as_ordinary_function_name() {
+fn reserves_literal_for_literal_definitions() {
     let output = parse_text(
         r#"func literal(): void {
     return
@@ -867,16 +867,16 @@ fn parses_literal_as_ordinary_function_name() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function");
-    };
-    assert_eq!(function.name, "literal");
+    assert!(output.ast.is_none());
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected function name")
+    );
 }
 
 #[test]
-fn diagnoses_literal_definitions_as_deferred() {
+fn rejects_the_obsolete_capture_inside_shape_marker() {
     let output = parse_text(
         r#"literal Vec<T> [...items: [T]]: Self {
     return Self.empty()
@@ -885,11 +885,11 @@ fn diagnoses_literal_definitions_as_deferred() {
     );
 
     assert!(output.ast.is_none());
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(!output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     assert!(
         output.diagnostics[0]
             .message
-            .contains("literal definitions are not part of v0")
+            .contains("sequence shape marker")
     );
 }
 

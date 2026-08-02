@@ -122,6 +122,16 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 .map(impl_member_document_symbol)
                 .collect(),
         )),
+        Item::Literal(literal) => Some(document_symbol(
+            match literal.shape {
+                crate::ast::LiteralShape::Sequence => "literal []".to_string(),
+                crate::ast::LiteralShape::String => "literal \"\"".to_string(),
+            },
+            DocumentSymbolKind::Function,
+            literal.span,
+            literal.shape_span,
+            Vec::new(),
+        )),
     }
 }
 

@@ -6,6 +6,7 @@ mod drop_members;
 mod entry;
 mod fallible;
 mod interfaces;
+mod literals;
 mod methods;
 mod operators;
 mod optional;

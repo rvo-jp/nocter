@@ -173,6 +173,7 @@ impl Resolver<'_> {
                         }
                     }
                 }
+                Item::Literal(_) => {}
             }
         }
 
@@ -189,6 +190,8 @@ impl Resolver<'_> {
                 self.collect_inherent_impl_members(impl_);
             }
         }
+
+        self.collect_literal_definitions(ast);
     }
 
     pub(super) fn define_symbol(

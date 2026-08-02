@@ -102,6 +102,14 @@ impl TypecheckFactCollector<'_> {
                     }
                 }
             }
+            Item::Literal(literal) => {
+                self.collect_type_expr_references(&literal.target);
+                self.collect_parameter_type_references(&literal.parameters.parameters);
+                if let Some(capture) = &literal.capture {
+                    self.collect_type_expr_references(&capture.element_type);
+                }
+                self.collect_type_expr_references(&literal.return_type);
+            }
         }
     }
 

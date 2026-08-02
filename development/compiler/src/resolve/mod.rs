@@ -5,6 +5,7 @@ mod builtins;
 mod collector;
 mod diagnostics;
 mod imports;
+mod literals;
 mod module_index;
 mod regions;
 mod signatures;
@@ -15,10 +16,10 @@ mod tests;
 
 pub use symbols::{
     AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, LocalSymbol,
-    LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap,
-    ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol,
-    TypeSymbolKind,
+    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind,
+    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
+    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;
@@ -76,7 +77,8 @@ fn root_access(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Interface(_)
-            | Item::Impl(_) => continue,
+            | Item::Impl(_)
+            | Item::Literal(_) => continue,
         };
         if let Some(import_source) = import_sources.get(&path_span) {
             return import_source.access;

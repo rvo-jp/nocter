@@ -352,6 +352,20 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 summaries,
             );
         }
+        Stmt::LiteralPackFor(statement) => {
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+        }
         Stmt::Loop(statement) => {
             let mut body_environment = environment.clone();
             let mut body_borrow_provenance = borrow_provenance.clone();

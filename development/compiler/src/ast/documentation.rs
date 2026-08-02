@@ -52,6 +52,10 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 collect_impl_member_targets(text, member, targets);
             }
         }
+        Item::Literal(literal) => {
+            push_target(text, literal.span, targets);
+            collect_block_targets(text, &literal.body, targets);
+        }
     }
 }
 
@@ -127,6 +131,9 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             collect_expression_targets(text, &statement.end, targets);
             collect_block_targets(text, &statement.body, targets);
         }
+        Stmt::LiteralPackFor(statement) => {
+            collect_block_targets(text, &statement.body, targets);
+        }
         Stmt::While(statement) => {
             collect_expression_targets(text, &statement.condition, targets);
             collect_block_targets(text, &statement.body, targets);
@@ -166,6 +173,19 @@ fn collect_expression_targets(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_targets(text, element, targets);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_targets(text, element, targets);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_targets(text, &using.allocator, targets);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_targets(text, &using.allocator, targets);
             }
         }
         Expr::StructLiteral(expression) => {

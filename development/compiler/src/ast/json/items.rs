@@ -127,6 +127,41 @@ impl Item {
                 children.extend(item.members.iter().map(|member| member.to_json(sources)));
                 JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
             }
+            Item::Literal(item) => {
+                let mut parameter_children = item
+                    .parameters
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.to_json(sources))
+                    .collect::<Vec<_>>();
+                if let Some(capture) = &item.capture {
+                    parameter_children.push(JsonAstNode::with_value(
+                        "literal_capture",
+                        capture.name.clone(),
+                        json_span(sources, capture.span),
+                        vec![capture.element_type.to_json(sources)],
+                    ));
+                }
+                JsonAstNode::with_value(
+                    "literal_decl",
+                    match item.shape {
+                        LiteralShape::Sequence => "sequence",
+                        LiteralShape::String => "string",
+                    },
+                    json_span(sources, item.span),
+                    vec![
+                        visibility_json(item.visibility),
+                        item.target.to_json(sources),
+                        JsonAstNode::new(
+                            "literal_parameter_list",
+                            json_span(sources, item.parameters.span),
+                            parameter_children,
+                        ),
+                        item.return_type.to_json(sources),
+                        item.body.to_json(sources),
+                    ],
+                )
+            }
         }
     }
 }

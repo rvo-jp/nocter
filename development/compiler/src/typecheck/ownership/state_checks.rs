@@ -344,6 +344,27 @@ pub(super) fn check_statement_ownership(
             ownership.join_branches(&incoming);
             FlowState::fallthrough()
         }
+        Stmt::LiteralPackFor(statement) => {
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            let mut body_ownership = ownership.clone();
+            let body_flow = check_block_ownership(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+            );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
+        }
         Stmt::Loop(statement) => {
             let mut body_environment = environment.clone();
             let mut body_ownership = ownership.clone();
@@ -457,6 +478,43 @@ pub(super) fn check_expression_ownership(
     ownership: &mut OwnershipState,
 ) {
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_ownership(
+                    sources,
+                    element,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_ownership(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_ownership(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+        }
         Expr::Identifier(identifier) => {
             ownership.require_initialized(sources, identifier, "use", diagnostics);
         }

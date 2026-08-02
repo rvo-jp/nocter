@@ -280,6 +280,15 @@ pub(super) fn is_expression_assignable(
     }
 
     match (expected, expression) {
+        (_, Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)) => {
+            let actual = super::literals::literal_expression_type_with_expected(
+                expression,
+                Some(expected),
+                resolved,
+                environment,
+            );
+            is_assignable(expected, &actual)
+        }
         (Type::Optional(_), Expr::NoneLiteral(_)) => true,
         (Type::Optional(inner), _) => {
             let actual = expression_type(expression, resolved, environment);

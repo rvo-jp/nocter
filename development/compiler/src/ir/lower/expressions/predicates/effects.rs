@@ -150,6 +150,7 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
                 || expression_contains_call(&statement.end)
                 || block_contains_call(&statement.body)
         }
+        crate::ast::Stmt::LiteralPackFor(statement) => block_contains_call(&statement.body),
         crate::ast::Stmt::While(statement) => {
             expression_contains_call(&statement.condition) || block_contains_call(&statement.body)
         }
@@ -293,6 +294,9 @@ fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool 
             expression_contains_interpolated_string(&statement.start)
                 || expression_contains_interpolated_string(&statement.end)
                 || block_contains_interpolated_string(&statement.body)
+        }
+        crate::ast::Stmt::LiteralPackFor(statement) => {
+            block_contains_interpolated_string(&statement.body)
         }
         crate::ast::Stmt::While(statement) => {
             expression_contains_interpolated_string(&statement.condition)

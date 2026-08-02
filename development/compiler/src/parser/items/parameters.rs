@@ -1,7 +1,7 @@
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_parameter_list(&mut self) -> ParseResult<ParameterList> {
+    pub(in crate::parser) fn parse_parameter_list(&mut self) -> ParseResult<ParameterList> {
         let start = self.expect_punctuation("(", "`(`")?;
         let mut parameters = Vec::new();
         self.skip_newlines();

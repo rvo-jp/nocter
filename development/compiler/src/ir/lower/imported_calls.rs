@@ -105,6 +105,9 @@ fn collect_statement(
             collect_expression(&statement.end, root_source, resolved, targets);
             collect_block(&statement.body, root_source, resolved, targets);
         }
+        Stmt::LiteralPackFor(statement) => {
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
         Stmt::While(statement) => collect_while(statement, root_source, resolved, targets),
         Stmt::Loop(statement) => collect_block(&statement.body, root_source, resolved, targets),
         Stmt::Region(statement) => {
@@ -228,6 +231,19 @@ fn collect_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression(element, root_source, resolved, targets);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression(element, root_source, resolved, targets);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression(&using.allocator, root_source, resolved, targets);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression(&using.allocator, root_source, resolved, targets);
             }
         }
         Expr::StructLiteral(expression) => {

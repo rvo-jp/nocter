@@ -70,6 +70,55 @@ impl Expr {
                     .map(|element| element.to_json(sources))
                     .collect(),
             ),
+            Expr::TypedSequenceLiteral(expression) => {
+                let mut children = vec![
+                    expression.target.to_json(sources),
+                    JsonAstNode::new(
+                        "typed_literal_element_list",
+                        json_span(sources, expression.elements_span),
+                        expression
+                            .elements
+                            .iter()
+                            .map(|element| element.to_json(sources))
+                            .collect(),
+                    ),
+                ];
+                if let Some(using) = &expression.using {
+                    children.push(JsonAstNode::new(
+                        "literal_context_override",
+                        json_span(sources, using.span),
+                        vec![using.allocator.to_json(sources)],
+                    ));
+                }
+                JsonAstNode::new(
+                    "typed_sequence_literal",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
+            Expr::TypedStringLiteral(expression) => {
+                let mut children = vec![
+                    expression.target.to_json(sources),
+                    JsonAstNode::with_value(
+                        "string_literal",
+                        expression.text.value.clone(),
+                        json_span(sources, expression.text.span),
+                        Vec::new(),
+                    ),
+                ];
+                if let Some(using) = &expression.using {
+                    children.push(JsonAstNode::new(
+                        "literal_context_override",
+                        json_span(sources, using.span),
+                        vec![using.allocator.to_json(sources)],
+                    ));
+                }
+                JsonAstNode::new(
+                    "typed_string_literal",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
             Expr::StructLiteral(expression) => JsonAstNode::new(
                 "struct_literal",
                 json_span(sources, expression.span),

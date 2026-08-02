@@ -343,6 +343,41 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_expressio
                 None
             }
         }),
+        Expr::TypedSequenceLiteral(literal) => literal
+            .elements
+            .iter()
+            .find_map(|element| {
+                explicit_aggregate_move_span_in_expression(
+                    element,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
+            })
+            .or_else(|| {
+                literal.using.as_ref().and_then(|using| {
+                    explicit_aggregate_move_span_in_expression(
+                        &using.allocator,
+                        resolved,
+                        resolved_sources,
+                        typecheck_facts,
+                        generic_substitutions,
+                        scope,
+                    )
+                })
+            }),
+        Expr::TypedStringLiteral(literal) => literal.using.as_ref().and_then(|using| {
+            explicit_aggregate_move_span_in_expression(
+                &using.allocator,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
+        }),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
@@ -595,6 +630,15 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_statement
                 scope,
             )
         }),
+        Stmt::LiteralPackFor(statement) => explicit_aggregate_move_span_in_payload_block(
+            &statement.body,
+            Some(&statement.name),
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
         Stmt::While(statement) => explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,

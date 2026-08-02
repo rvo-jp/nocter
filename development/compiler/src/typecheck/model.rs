@@ -168,6 +168,7 @@ impl Type {
 #[derive(Debug, Clone, Default)]
 pub(super) struct TypeEnvironment {
     bindings: HashMap<String, TypeBinding>,
+    literal_packs: HashMap<String, Type>,
     self_type: Option<Type>,
     generic_parameters: HashSet<String>,
 }
@@ -176,6 +177,7 @@ impl TypeEnvironment {
     pub(super) fn with_self_type(self_type: Type) -> Self {
         Self {
             bindings: HashMap::new(),
+            literal_packs: HashMap::new(),
             self_type: Some(self_type),
             generic_parameters: HashSet::new(),
         }
@@ -187,6 +189,14 @@ impl TypeEnvironment {
 
     pub(super) fn define_binding(&mut self, name: String, ty: Type, is_mutable: bool) {
         self.bindings.insert(name, TypeBinding { ty, is_mutable });
+    }
+
+    pub(super) fn define_literal_pack(&mut self, name: String, element_type: Type) {
+        self.literal_packs.insert(name, element_type);
+    }
+
+    pub(super) fn literal_pack_element(&self, name: &str) -> Option<&Type> {
+        self.literal_packs.get(name)
     }
 
     pub(super) fn define_generic_parameters(&mut self, names: impl IntoIterator<Item = String>) {
@@ -259,6 +269,7 @@ impl ReturnContext {
             CallableKind::AssociatedFunction(name) => format!("associated function `{name}`"),
             CallableKind::Method(name) => format!("method `{name}`"),
             CallableKind::Drop(name) => format!("drop member `{name}`"),
+            CallableKind::Literal(name) => format!("literal definition for `{name}`"),
         }
     }
 }
@@ -269,6 +280,7 @@ pub(super) enum CallableKind {
     AssociatedFunction(String),
     Method(String),
     Drop(String),
+    Literal(String),
 }
 
 pub(super) fn binding_kind_is_mutable(kind: BindingKind) -> bool {

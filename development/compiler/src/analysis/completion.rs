@@ -706,6 +706,7 @@ fn completion_context_in_item_at_offset(
 ) -> Option<CompletionContext<'_>> {
     match item {
         Item::Function(function) => completion_context_in_block_at_offset(&function.body, offset),
+        Item::Literal(literal) => completion_context_in_block_at_offset(&literal.body, offset),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
                 .body
@@ -785,6 +786,9 @@ fn completion_context_in_statement_at_offset(
                 .or_else(|| completion_context_in_expression_at_offset(&statement.end, offset))
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
         }
+        Stmt::LiteralPackFor(statement) => {
+            completion_context_in_block_at_offset(&statement.body, offset)
+        }
         Stmt::While(statement) => {
             completion_context_in_expression_at_offset(&statement.condition, offset)
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
@@ -830,6 +834,19 @@ fn completion_context_in_expression_at_offset(
             .elements
             .iter()
             .find_map(|element| completion_context_in_expression_at_offset(element, offset)),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| completion_context_in_expression_at_offset(element, offset))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    completion_context_in_expression_at_offset(&using.allocator, offset)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| completion_context_in_expression_at_offset(&using.allocator, offset)),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

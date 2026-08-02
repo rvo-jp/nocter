@@ -348,6 +348,70 @@ impl Parser<'_> {
         self.looks_like_struct_literal_body_at(index)
     }
 
+    pub(super) fn looks_like_typed_sequence_literal_start(&self) -> bool {
+        self.typed_literal_shape_token().is_some_and(|token| {
+            matches!(token.kind, TokenKind::Punctuation("["))
+                && self
+                    .typed_literal_target_end()
+                    .is_some_and(|end| end < token.span.start)
+        })
+    }
+
+    pub(super) fn looks_like_typed_string_literal_start(&self) -> bool {
+        self.typed_literal_shape_token().is_some_and(|token| {
+            token.kind == TokenKind::StringLiteral
+                && self
+                    .typed_literal_target_end()
+                    .is_some_and(|end| end < token.span.start)
+        })
+    }
+
+    fn typed_literal_shape_token(&self) -> Option<&Token> {
+        let index = self.typed_literal_shape_index()?;
+        self.tokens.get(index)
+    }
+
+    fn typed_literal_target_end(&self) -> Option<usize> {
+        let shape_index = self.typed_literal_shape_index()?;
+        shape_index
+            .checked_sub(1)
+            .and_then(|index| self.tokens.get(index))
+            .map(|token| token.span.end)
+    }
+
+    fn typed_literal_shape_index(&self) -> Option<usize> {
+        if self.current().kind != TokenKind::Identifier {
+            return None;
+        }
+        let mut index = self.index + 1;
+        if !matches!(self.tokens.get(index)?.kind, TokenKind::Punctuation("<")) {
+            return Some(index);
+        }
+
+        let mut depth = 0usize;
+        while let Some(token) = self.tokens.get(index) {
+            match token.kind {
+                TokenKind::Punctuation("<") => depth += 1,
+                TokenKind::Punctuation(">") => {
+                    depth = depth.checked_sub(1)?;
+                    if depth == 0 {
+                        return Some(index + 1);
+                    }
+                }
+                TokenKind::Punctuation(">>") => {
+                    if depth <= 2 {
+                        return Some(index + 1);
+                    }
+                    depth -= 2;
+                }
+                TokenKind::Eof => return None,
+                _ => {}
+            }
+            index += 1;
+        }
+        None
+    }
+
     fn looks_like_struct_literal_body_at(&self, start: usize) -> bool {
         if !matches!(
             self.tokens.get(start).map(|token| token.kind),

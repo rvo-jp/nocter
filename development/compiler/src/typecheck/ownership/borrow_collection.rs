@@ -98,6 +98,12 @@ pub(super) fn collect_direct_borrow_expressions_in_statement(
                 borrows,
             );
         }
+        Stmt::LiteralPackFor(statement) => collect_direct_borrow_expressions_in_block(
+            &statement.body,
+            resolved,
+            environment,
+            borrows,
+        ),
         Stmt::While(statement) => {
             collect_direct_borrow_expressions(&statement.condition, resolved, environment, borrows);
             collect_direct_borrow_expressions_in_block(
@@ -154,6 +160,19 @@ pub(super) fn collect_direct_borrow_expressions(
     }
 
     match expression {
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_direct_borrow_expressions(element, resolved, environment, borrows);
+            }
+            if let Some(using) = &expression.using {
+                collect_direct_borrow_expressions(&using.allocator, resolved, environment, borrows);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_direct_borrow_expressions(&using.allocator, resolved, environment, borrows);
+            }
+        }
         Expr::Propagate(expression) => collect_direct_borrow_expressions(
             &expression.expression,
             resolved,

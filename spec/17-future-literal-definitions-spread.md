@@ -213,6 +213,11 @@ Set ["a", "b"]
 Queue [job1, job2]
 ```
 
+A typed literal target and its opening delimiter are separated by whitespace.
+`Vec [1]` is therefore a typed sequence literal, while `values[1]` remains an
+index expression. Parsing does not guess from capitalization or whether a name
+later resolves to a type.
+
 A sequence literal evaluates element expressions from left to right. Each
 element is passed to the literal definition exactly once, preserving normal
 move, borrow, and failure behavior.

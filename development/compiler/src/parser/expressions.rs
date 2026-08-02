@@ -162,7 +162,7 @@ impl Parser<'_> {
         Ok(expression)
     }
 
-    fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {
+    pub(super) fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {
         if let Some(operator) = self.match_punctuation("&+") {
             let expression = self.parse_prefix_expression()?;
             return Ok(Expr::Borrow(BorrowExpr {
@@ -379,6 +379,14 @@ impl Parser<'_> {
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
         match self.current().kind {
             TokenKind::Identifier => {
+                if self.looks_like_typed_sequence_literal_start() {
+                    let target = self.parse_type()?;
+                    return self.finish_typed_sequence_literal(target);
+                }
+                if self.looks_like_typed_string_literal_start() {
+                    let target = self.parse_type()?;
+                    return self.finish_typed_string_literal(target);
+                }
                 let token = self.bump();
                 let name = self.lexeme(&token);
                 if self.looks_like_struct_literal_body() {
@@ -484,7 +492,7 @@ impl Parser<'_> {
         self.at_punctuation("/") && self.current_touches_next_identifier()
     }
 
-    fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
+    pub(super) fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
         let value = self.lexeme(&token);
         let parts = match string_literal_parts(&value) {
             Ok(parts) => parts,

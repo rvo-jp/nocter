@@ -214,6 +214,19 @@ fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
             .elements
             .iter()
             .all(expression_completes_without_source_control_exit),
+        Expr::TypedSequenceLiteral(literal) => {
+            literal
+                .elements
+                .iter()
+                .all(expression_completes_without_source_control_exit)
+                && literal.using.as_ref().is_none_or(|using| {
+                    expression_completes_without_source_control_exit(&using.allocator)
+                })
+        }
+        Expr::TypedStringLiteral(literal) => literal
+            .using
+            .as_ref()
+            .is_none_or(|using| expression_completes_without_source_control_exit(&using.allocator)),
         Expr::StructLiteral(literal) => literal
             .fields
             .iter()

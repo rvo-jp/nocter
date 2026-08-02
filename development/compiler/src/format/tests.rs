@@ -53,6 +53,26 @@ fn formats_lexical_regions_stably() {
 }
 
 #[test]
+fn formats_typed_literal_definitions_and_expressions_stably() {
+    assert_formats_stably(
+        r#"pub literal Vec<T>[](...items:T):Self{for item in items{return move item}}
+func build(arena:Arena):Vec<i32>{return Vec<i32> [1,2,3] using arena}
+"#,
+        concat!(
+            "pub literal Vec<T> [](...items: T): Self {\n",
+            "    for item in items {\n",
+            "        return move item\n",
+            "    }\n",
+            "}\n",
+            "\n",
+            "func build(arena: Arena): Vec<i32> {\n",
+            "    return Vec<i32> [1, 2, 3] using arena\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_type_and_data_declarations() {
     assert_formats_stably(
         r#"pub(nocter) type Path= [u8]
