@@ -1,0 +1,83 @@
+//! Owning iteration for Vec storage.
+//!
+//! VecIntoIter holds the original allocation and the still-initialized range.
+//! Yielding advances the front before transferring an element. Drop destroys
+//! only the unconsumed suffix in reverse order; RawBuffer then releases storage
+//! exactly once through its allocator provenance.
+
+use std/mem.RawBuffer
+use std/ptr.addr
+use std/ptr.drop_value_at_ptr
+use std/ptr.from_addr
+use std/ptr.pointee_size
+use std/ptr.take_value_at_ptr
+
+/// A forward iterator that owns a Vec allocation and its remaining elements.
+pub struct VecIntoIter<T> {
+    ptr: *T
+    storage: RawBuffer
+    next_index: usize
+    end_index: usize
+}
+
+pub(nocter) func vec_into_iter_from_raw_parts<T>(
+    pointer: *T,
+    storage: &+RawBuffer,
+    len: usize,
+): VecIntoIter<T> {
+    let storage_address: usize = addr(storage.ptr)
+    let storage_len: usize = storage.len
+    let storage_align: usize = storage.align
+    let allocator_state: usize = storage.allocator_state
+    let allocator_kind: usize = storage.allocator_kind
+    storage.ptr = from_addr(1)
+    storage.len = 0
+    return VecIntoIter<T> {
+        ptr: from_addr(addr(pointer)),
+        storage: RawBuffer {
+            ptr: from_addr(storage_address),
+            len: storage_len,
+            align: storage_align,
+            allocator_state: allocator_state,
+            allocator_kind: allocator_kind,
+        },
+        next_index: 0,
+        end_index: len,
+    }
+}
+
+pub func remaining<T>(iterator: &VecIntoIter<T>): usize {
+    return iterator.end_index - iterator.next_index
+}
+
+pub func next<T>(iterator: &+VecIntoIter<T>): T? {
+    if iterator.next_index >= iterator.end_index {
+        return none
+    }
+    let index: usize = iterator.next_index
+    iterator.next_index = index + 1
+    let element_size: usize = pointee_size(iterator.ptr)
+    return take_value_at_ptr(iterator.ptr, index * element_size)
+}
+
+impl<T> VecIntoIter<T> {
+    /// Returns the number of owned elements not yet yielded.
+    pub method &self.remaining(): usize {
+        return remaining(self)
+    }
+
+    /// Transfers the next element, or returns `none` at exhaustion.
+    pub method &+self.next(): T? {
+        return next(self) otherwise { return none }
+    }
+
+    drop &+self {
+        let element_size: usize = pointee_size(self.ptr)
+        while self.end_index > self.next_index {
+            let next_end: usize = self.end_index - 1
+            self.end_index = next_end
+            drop_value_at_ptr(self.ptr, next_end * element_size)
+        }
+        return
+    }
+}

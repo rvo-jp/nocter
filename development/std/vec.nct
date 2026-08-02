@@ -23,6 +23,7 @@ use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
+use std/vec_into_iter.{VecIntoIter, vec_into_iter_from_raw_parts}
 
 /// An owning, growable sequence with an initialized prefix of elements.
 pub struct Vec<T> {
@@ -171,6 +172,15 @@ pub func iter<T>(values: &Vec<T>): ViewIter<T> {
     return ViewIter.from_view(view(values))
 }
 
+pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
+    var source = move values
+    let pointer: *T = source.ptr
+    let source_len: usize = source.len
+    source.len = 0
+    source.capacity = 0
+    return vec_into_iter_from_raw_parts(pointer, &+source.storage, source_len)
+}
+
 pub func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if additional == 0 {
         return
@@ -285,6 +295,11 @@ impl<T> Vec<T> {
     /// Returns an allocation-free iterator over readonly element borrows.
     pub method &self.iter(): ViewIter<T> {
         return iter(self)
+    }
+
+    /// Transfers the allocation and every element into an owning iterator.
+    pub method self.into_iter(): VecIntoIter<T> {
+        return into_iter(move self)
     }
 
     /// Ensures capacity for at least `additional` more elements.

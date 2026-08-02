@@ -46,6 +46,7 @@ func main(): i32 {
     let left = iterator.remaining()
     return 0
 }
+
 "#,
     );
 
@@ -63,6 +64,146 @@ func main(): i32 {
         stderr.contains("values") && stderr.contains("iterator"),
         "{stderr}"
     );
+}
+
+#[test]
+fn distributed_std_owned_iterator_surface_passes_check() {
+    let project = TempProject::new("distributed-home-owned-iterator-check");
+    let source = project.write_source(
+        "owned_iterator_shape.nct",
+        r#"use std/vec.{Vec, into_iter}
+use std/vec_into_iter.{VecIntoIter, next, remaining}
+
+func consume(values: Vec<i32>): usize {
+    var first: VecIntoIter<i32> = into_iter(move values)
+    let item: i32 = next(&+first) otherwise { return 0 }
+    var second = Vec [1, 2, 3].into_iter()
+    let other: i32 = second.next() otherwise { return 0 }
+    return remaining(&first) + second.remaining()
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_success(&nocter_check(&project, &source));
+}
+
+#[test]
+fn distributed_std_owned_iterator_consumes_the_source_vec() {
+    let project = TempProject::new("distributed-home-owned-iterator-consumes-source");
+    let source = project.write_source(
+        "owned_iterator_consumes_source.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values = Vec [1, 2, 3]
+    let iterator = (move values).into_iter()
+    return values.view()[0]
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0385]"), "{stderr}");
+    assert!(
+        stderr.contains("values") && stderr.contains("moved"),
+        "{stderr}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_owned_vec_iteration_runs_in_source_order() {
+    let project = TempProject::new("distributed-home-owned-iterator-run");
+    let source = project.write_source(
+        "owned_iterator_run.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values = Vec [4, 11, 27]
+    var iterator = (move values).into_iter()
+    var total: i32 = 0
+    loop {
+        let item = iterator.next() otherwise { break }
+        total = total + item
+    }
+    if iterator.remaining() != 0 {
+        return 1
+    }
+    return total
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_owned_iterator_drops_only_the_remaining_suffix_in_reverse() {
+    let project = TempProject::new("distributed-home-owned-iterator-drop-run");
+    let source = project.write_source(
+        "owned_iterator_drop_run.nct",
+        r#"use std/io.print
+use std/vec.Vec
+
+struct Token {
+    label: &str
+}
+
+impl Token {
+    drop &+self {
+        print(self.label)!
+        return
+    }
+}
+
+func main(): i32 {
+    let values = Vec [
+        Token { label: "A" },
+        Token { label: "B" },
+        Token { label: "C" },
+        Token { label: "D" },
+    ]
+    var iterator = (move values).into_iter()
+    let first = iterator.next() otherwise { return 1 }
+    drop first
+    drop iterator
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"ADCB");
+    assert!(output.stderr.is_empty());
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
