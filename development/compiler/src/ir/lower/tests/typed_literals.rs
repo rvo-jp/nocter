@@ -294,6 +294,39 @@ func main(): i32 {
     )));
 }
 
+#[test]
+fn indexes_imported_generic_literal_specialization_under_expression_target() {
+    let fixture = analyze_text_fixture_with_nocter_home_files(
+        r#"use std/items.Bucket
+
+func main(): i32 {
+    let values = Bucket [1, 2]
+    return 0
+}
+"#,
+        &[(
+            "std/items.nct",
+            r#"pub struct Bucket<T> { length: usize }
+
+pub literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+"#,
+        )],
+    );
+    let root = fixture.analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&fixture.analysis, root.ast.span.source);
+    assert!(
+        index
+            .definitions
+            .keys()
+            .any(|target| call_target_name_is(target, "std/items.Bucket<i32>.$literal.sequence$2")),
+        "indexed targets: {:?}",
+        index.definitions.keys().collect::<Vec<_>>()
+    );
+    lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+}
+
 fn minimal_allocator_std() -> (&'static str, &'static str) {
     (
         "std/mem.nct",

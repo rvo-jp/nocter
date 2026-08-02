@@ -115,6 +115,26 @@ state. Backend instruction snapshots alone do not prove the standard-library con
 ## Phase 0 Boundary
 
 Phase 0 includes the root allocation context, aborting/recoverable policy split, lexical region
-runtime, and storage-origin propagation through existing owning types. Typed literals, per-literal
-`using`, interpolation lowering, environment retrieval, rich path APIs, insert/remove, iterator
-protocols, and general allocator plugins remain later work.
+runtime, and storage-origin propagation through existing owning types. It intentionally left typed
+literals and per-literal `using` to Phase 1.
+
+## Phase 1 Typed Construction
+
+Distributed `std/vec` and `std/string` now declare their construction syntax in ordinary Nocter
+source:
+
+```nct
+pub literal Vec<T> [](...items: T): Self { ... }
+pub literal String ""(text: &str): Self { ... }
+```
+
+`Vec [..]` evaluates and transfers its owned elements from left to right, reserves exactly the
+non-empty element count, and uses the canonical allocation-free empty state for `Vec<T> []`.
+`String ".."` copies the static `&str` payload into owned storage. Both bodies use only public
+collection construction APIs and inherit the current allocation context unless the expression has
+an explicit `using` override.
+
+Packaged-home native tests cover inferred scalar vectors, empty vectors, owned `String` elements,
+lexical-region construction, and explicit root-context construction inside a child region. The
+remaining later work is spread, interpolation lowering, environment retrieval, rich path APIs,
+insert/remove, iterator protocols, and general allocator plugins.

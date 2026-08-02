@@ -8,6 +8,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "distributed_home/typed_literals.rs"]
+mod typed_literals;
+
 #[test]
 fn distributed_nocter_home_passes_doctor() {
     let output = Command::new(NOCTER)

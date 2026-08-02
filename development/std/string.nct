@@ -23,6 +23,11 @@ pub struct String {
     len: usize
 }
 
+/// Copies a static string view into owned storage in the current allocation context.
+pub literal String ""(text: &str): Self {
+    return String.copy(text)
+}
+
 pub func String.empty(): String {
     return String {
         storage: empty_page_buffer(1),

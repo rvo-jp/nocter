@@ -31,6 +31,19 @@ pub struct Vec<T> {
     capacity: usize
 }
 
+/// Constructs a Vec from owned elements evaluated from left to right.
+pub literal Vec<T> [](...items: T): Self {
+    let item_count: usize = items.len()
+    if item_count == 0 {
+        return Vec.empty()
+    }
+    var result: Vec<T> = Vec.with_capacity(item_count)
+    for item in items {
+        result.push(move item)
+    }
+    return move result
+}
+
 pub func Vec.empty<T>(): Vec<T> {
     let pointer: *T = from_addr(1)
     let element_align: usize = pointee_align(pointer)

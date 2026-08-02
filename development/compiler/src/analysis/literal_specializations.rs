@@ -88,7 +88,7 @@ fn specialization_for_expression(
     );
     let generic_parameters = literal_generic_parameters(declaration);
     let mut substitutions = HashMap::new();
-    if !infer_substitutions(
+    if !infer_literal_target_substitutions(
         &declaration.target,
         &result_type,
         &generic_parameters,
@@ -134,6 +134,32 @@ fn specialization_for_expression(
         substitutions,
         shape,
     })
+}
+
+fn infer_literal_target_substitutions(
+    declared_target: &TypeExpr,
+    resolved_target: &TypeExpr,
+    parameters: &HashSet<String>,
+    substitutions: &mut HashMap<String, TypeExpr>,
+) -> bool {
+    // `literal_resolution` has already established nominal identity by declaration span.
+    // Imported type facts use canonical qualified names while declarations use their local
+    // spelling, so repeating a textual constructor-name comparison here would reject the same
+    // nominal type across a module boundary. Only the type arguments remain to be inferred.
+    match (declared_target, resolved_target) {
+        (TypeExpr::Reference(_), TypeExpr::Reference(_)) => true,
+        (TypeExpr::Generic(declared), TypeExpr::Generic(resolved)) => {
+            declared.arguments.len() == resolved.arguments.len()
+                && declared
+                    .arguments
+                    .iter()
+                    .zip(&resolved.arguments)
+                    .all(|(expected, actual)| {
+                        infer_substitutions(expected, actual, parameters, substitutions)
+                    })
+        }
+        _ => false,
+    }
 }
 
 fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<ByteSpan, &LiteralDecl> {
