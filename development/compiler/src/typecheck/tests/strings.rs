@@ -49,6 +49,35 @@ fn check_text(text: &str) -> Vec<crate::diagnostics::Diagnostic> {
     diagnostics
 }
 
+fn check_text_without_runtime(text: &str) -> Vec<crate::diagnostics::Diagnostic> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("app.nct", None, text);
+    let lexed = lex(&sources, source);
+    assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+    let parsed = parse(&sources, source, &lexed.tokens);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    let ast = parsed.ast.unwrap();
+    let resolved = resolve(&sources, &ast);
+    let mut diagnostics = resolved.diagnostics.clone();
+    diagnostics.extend(check(&sources, &ast, &resolved));
+    diagnostics
+}
+
+#[test]
+fn diagnoses_missing_trusted_interpolation_runtime() {
+    let diagnostics = check_text_without_runtime(
+        r#"func main(): i32 {
+    let message = "value ${1}"
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0440");
+    assert!(diagnostics[0].message.contains("active Nocter home"));
+}
+
 #[test]
 fn accepts_supported_string_interpolation_parts() {
     let diagnostics = check_text(

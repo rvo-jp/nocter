@@ -2067,12 +2067,12 @@ func main(): i32! {
 }
 
 #[test]
-fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
+fn build_command_reports_missing_interpolation_runtime_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(
         "string_interpolation_boundary.nct",
-        r#"func main(): i32! {
-    let text = "value ${1}"?
+        r#"func main(): i32 {
+    let text = "value ${1}"
     return 0
 }
 "#,
@@ -2084,15 +2084,15 @@ fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0440]"),
+        "expected interpolation runtime diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("bare string interpolation"),
-        "expected string interpolation diagnostic, got:\n{stderr}"
+        stderr.contains("string interpolation runtime is unavailable"),
+        "expected missing runtime capability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("2 |     let text = \"value ${1}\"?"),
+        stderr.contains("2 |     let text = \"value ${1}\""),
         "expected source line, got:\n{stderr}"
     );
     assert!(

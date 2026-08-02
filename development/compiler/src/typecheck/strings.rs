@@ -1,4 +1,7 @@
-use super::diagnostics::interpolated_string_part_type_unsupported_diagnostic;
+use super::diagnostics::{
+    interpolated_string_part_type_unsupported_diagnostic,
+    interpolation_runtime_unavailable_diagnostic,
+};
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_bool_type;
@@ -18,6 +21,17 @@ pub(super) fn check_interpolated_string_expression(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
+    if resolved
+        .trusted_declarations
+        .interpolation_runtime()
+        .is_none()
+    {
+        diagnostics.push(interpolation_runtime_unavailable_diagnostic(
+            sources, expression,
+        ));
+        return;
+    }
+
     for part in &expression.parts {
         let InterpolatedStringPart::Expression(part) = part else {
             continue;
