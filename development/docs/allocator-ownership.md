@@ -81,6 +81,12 @@ This represents nested partial initialization that a completed-element count alo
 - reserve transfers element ownership to new storage without duplicating elements
 - push increments `len` only after publishing a complete destination-element obligation
 - pop transfers the last element to tracked return storage and decrements vector `len`
+- insert completes every fallible operation first, shifts through one transient hole, fills it, and
+  publishes the new `len` last
+- remove takes the selected owner, shifts the remaining suffix through one transient hole, and
+  publishes the shorter initialized prefix before returning the removed owner
+- consuming iteration transfers the raw buffer and `[0, len)` obligation to `VecIntoIter<T>`;
+  extraction shortens its remaining range and destruction drops only that range in reverse order
 
 Even when non-copy `T` storage moves through raw bytes, the semantic operation is relocation rather
 than copying. Invalidate obligations in the old storage before freeing it so drop glue cannot run
@@ -108,6 +114,5 @@ twice.
 - freeing by logical length instead of allocation size
 - leaving a half-updated state with an old pointer and new capacity after failure
 - letting the backend inspect AST to guess what to drop
-- implementing arbitrary-position removal as an exception to the prefix model
-
-If arbitrary-position removal becomes necessary, design sparse ownership state as a separate model.
+- exposing a transient insertion/removal hole across a function, fallible call, or cleanup edge
+- representing dense arbitrary-position removal as persistent sparse ownership state

@@ -34,7 +34,8 @@ failed growth.
 pointer is a non-owning alias. Empty, with_capacity, from_slice, len/capacity, reserve, push, clear,
 views, and storage release use the common Allocator. Non-copy push transfers ownership into storage;
 clear and drop recursively destroy the initialized prefix in reverse order; pop transfers the final
-obligation into the return value.
+obligation into the return value. Phase 2 adds optional borrowed access, insertion/removal, and
+readonly/consuming iteration while retaining the same initialized-prefix model.
 
 An externally observable test proves that a descriptor number reallocated after
 `Vec<File>.clear()` remains readable after vector drop, fixing close-once behavior. A nested-vector
@@ -137,6 +138,24 @@ an explicit `using` override.
 Packaged-home native tests cover inferred scalar vectors, empty vectors, owned `String` elements,
 reverse-order pack cleanup, stable allocation-abort status, lexical-region construction, explicit
 root-context construction inside a child region, child-origin escape rejection, and OS-observed
-release of `Vec` literal storage. The remaining later work is spread, interpolation lowering,
-environment retrieval, rich path APIs, insert/remove, iterator protocols, and general allocator
-plugins.
+release of `Vec` literal storage.
+
+## Phase 2 Collection Access and Iteration
+
+Distributed `std/iter` and `std/vec_into_iter` provide two deliberately separate cursor modes:
+
+- `ViewIter<T>` borrows a contiguous readonly view, allocates nothing, and returns `(&T)?`
+- `VecIntoIter<T>` consumes `Vec<T>`, returns owned `T?`, drops its unconsumed suffix in reverse
+  order, and releases the transferred raw storage once
+
+`Vec<T>` now exposes `get`, `get_mut`, `insert`, `try_insert`, `remove`, `iter`, and `into_iter`.
+`String.bytes_iter()` yields borrows to exact UTF-8 bytes and makes no Unicode scalar or grapheme
+claim. `try_insert` performs every fallible step before element relocation and publishes `len`
+last. Move-only insertion and removal use one transient uninitialized slot, never a sparse public
+state.
+
+Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
+byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
+escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
+spread, interpolation lowering, environment retrieval, rich path APIs, collection `for`, iterator
+interfaces/adapters, Unicode text APIs, and general allocator plugins.

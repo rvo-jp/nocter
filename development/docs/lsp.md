@@ -102,6 +102,20 @@ The recovery path is validated before it replaces ordinary or region recovery, s
 followed by whitespace cannot become a synthetic literal fact unless resolver and typechecker
 establish a literal definition.
 
+## Completed v0.3.0 Phase 2 Integration
+
+Iteration and collection tooling continues to use ordinary generic method facts. It does not
+recognize `ViewIter`, `VecIntoIter`, `next`, `get`, or any standard-library module name.
+
+- completion specializes readonly and consuming iterator methods from the concrete receiver
+- receiver filtering offers `&+self.next()` only for a writable iterator place
+- hover and signature help distinguish `(&T)?` from `T?` and include callable result provenance
+- optional borrow formatting retains parentheses, avoiding the ambiguous `&T?` presentation
+- incomplete zero-argument member calls try both a closed empty call and an argument-placeholder
+  overlay through the general call recovery pipeline
+- JSON-RPC tests verify that an incomplete `.next(` edit resolves the same compiler-owned method
+  signature as the complete call
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -142,7 +156,9 @@ parent/current-context hover, allocating-call effects, allocator-aware completio
 presentation, source-backed escape diagnostics, and cursor-preserving recovery for incomplete
 region headers. Phase 1 tests cover sequence and string shape suggestions, imported definitions,
 specialized hover and signature help, expected element ranking, delimiter definition, duplicate
-expression facts, and incomplete expression/declaration recovery.
+expression facts, and incomplete expression/declaration recovery. Phase 2 tests cover concrete
+readonly/owned result types, receiver capability, returned-borrow provenance, and complete plus
+incomplete zero-argument iterator calls through direct and JSON-RPC queries.
 
 ## Deferred Features
 

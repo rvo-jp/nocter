@@ -4,6 +4,9 @@ This document owns the compiler and standard-library design for v0.3.0 Phase 2. 
 belong to [Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md), and
 the active completion gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
 
+Phase 2 completed on 2026-08-02. This document records the implemented boundary; it is no longer an
+active checklist.
+
 ## Separate Concepts
 
 | Concept | Meaning |
@@ -93,3 +96,20 @@ requires a writable iterator binding. Provenance detail comes from callable sema
 
 Incomplete `.next(` edits reuse ordinary member and call recovery. Phase 2 does not add an
 iterator-specific recovery parser.
+
+Zero-argument calls and calls waiting for a first argument are syntactically ambiguous while open.
+Generic signature recovery therefore tries both a closed empty call and a typed placeholder
+overlay, then accepts the first compiler analysis that resolves a callable. This also improves
+ordinary non-iterator calls.
+
+## Implemented Foundations
+
+- borrowed local and call ABI values preserve concrete slice-element addresses and callable
+  provenance
+- optional and fallible control-flow wrappers preserve every possible returned borrow source
+- generic `take_value_at_ptr` bindings specialize at the IR binding boundary and reuse ordinary
+  scalar or aggregate drop tracking
+- optional aggregate failure branches mark uninitialized destinations inactive before lowering
+  `break`, `return`, and other fallback control flow
+- distributed `std/iter`, `std/vec_into_iter`, `std/vec`, and `std/string` contain the public API;
+  compiler and backend code contain no iterator-name dispatch

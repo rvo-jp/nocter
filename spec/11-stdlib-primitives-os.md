@@ -362,8 +362,8 @@ Rules:
   elements may own nested values and are destroyed recursively.
 - `push` transfers a non-copy argument into the initialized prefix only after reserve succeeds.
   `pop` transfers the last initialized element to its return value before shrinking that prefix.
-- Payload-enum element storage, arbitrary-position insertion/removal, and iterator helpers are
-  deferred.
+- Payload-enum element storage is deferred. Arbitrary-position insertion/removal and iterator
+  helpers are absent from the released v0.2.0 surface and added by v0.3.0 Phase 2 below.
 - `check` may accept `Vec<T>` APIs outside the runtime-supported element subset
   when they typecheck. `build` and `run` must reject unsupported `Vec<T>` element
   storage paths during v0.2.0 buildability validation.
@@ -382,6 +382,26 @@ explicit recoverable operations:
 
 Normal and recoverable operations share layout calculation, relocation,
 partial-initialization, and drop-obligation code.
+
+v0.3.0 Phase 2 adds checked borrowed access and dense ownership-preserving mutation:
+
+```nct
+impl<T> Vec<T> {
+    pub method &self.get(index: usize): (&T)?
+    pub method &+self.get_mut(index: usize): (&+T)?
+    pub method &+self.insert(index: usize, value: T): void
+    pub method &+self.try_insert(index: usize, value: T): void!
+    pub method &+self.remove(index: usize): T?
+    pub method &self.iter(): ViewIter<T>
+    pub method self.into_iter(): VecIntoIter<T>
+}
+```
+
+`try_insert` validates bounds and completes capacity growth before shifting any element. Failure
+leaves pointer, length, capacity, content, and storage origin unchanged. After growth succeeds,
+insert and remove relocate move-only values through one transient hole with no fallible call or
+externally observable edge. `ViewIter<T>` returns `(&T)?` tied to source storage;
+`VecIntoIter<T>` owns transferred storage and returns `T?` in source order.
 
 ### I/O API
 

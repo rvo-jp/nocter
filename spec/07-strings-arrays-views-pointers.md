@@ -175,11 +175,10 @@ Rules:
 - A fixed array is copyable only when its element type is copyable.
 - A fixed array is move-only when its element type is move-only.
 
-Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
-Future typed collection literals such as `Vec [1, 2, 3]` are specified
-separately in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
-and are not part of v0.2.0. Bare `[1, 2, 3]` remains a fixed-size array literal.
+Owned growable memory is represented by standard-library types such as `Vec<T>`. `Vec<T>` is not a
+compiler builtin. v0.3.0 Phase 1 provides declaration-driven typed literals such as
+`Vec [1, 2, 3]`; [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+specifies the remaining spread direction. Bare `[1, 2, 3]` remains a fixed-size array literal.
 
 ```nct
 var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
@@ -311,10 +310,11 @@ let count = read.len()
 
 Collection operations are ordinary standard-library methods.
 
-Initial collection method direction:
+Collection method direction:
 
 - `len(): usize`
-- `get(index: usize): T?`
+- `Vec<T>.get(index: usize): (&T)?`
+- `Vec<T>.get_mut(index: usize): (&+T)?`
 - `ptr(): *T` for contiguous views
 - `view(): &[T]` for owning collections that can expose readonly contiguous storage
 - `write_view(): &+[T]` for owning collections that can expose readwrite contiguous storage
@@ -324,7 +324,7 @@ The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, 
 
 ### Iteration
 
-The released v0.2.0 standard library does not provide iterator types. v0.3.0 Phase 2 adopts explicit
+The released v0.2.0 standard library does not provide iterator types. v0.3.0 Phase 2 provides explicit
 readonly and owned iteration through ordinary standard-library types. It does not add collection
 `for` syntax.
 
@@ -337,7 +337,7 @@ pub struct ViewIter<T> {
     ...
 }
 
-impl ViewIter<T> {
+impl<T> ViewIter<T> {
     pub method &+self.next(): (&T)?
 }
 ```
@@ -363,6 +363,11 @@ Rules:
 - `&+[T]` mutable element iteration is not part of Phase 2.
 - `VecIntoIter<T>` owns a consumed `Vec<T>` and returns `T?` in source order.
 - Dropping `VecIntoIter<T>` drops unconsumed elements in reverse order and releases its storage once.
+- `Vec<T>.insert` and `remove` preserve dense source order for move-only values. Their implementation
+  may use one transient uninitialized slot, but no fallible call or externally observable edge may
+  cross that state.
+- `Vec<T>.try_insert` performs bounds validation and capacity growth before shifting. Failed growth
+  leaves pointer, length, capacity, content, and storage origin unchanged.
 - Range `for` remains the only `for` syntax through Phase 2.
 
 ## Strings

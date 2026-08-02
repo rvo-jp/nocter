@@ -22,9 +22,9 @@ rewrite them.
 
 ## Recorded Milestone
 
-v0.2.0 is released and complete. v0.3.0 Phase 0 and Phase 1 Typed Literal Core are complete on
-`develop`; Phase 2 Explicit Iteration and Collection Access is active. Do not use `v0` as shorthand
-for a release scope. Use
+v0.2.0 is released and complete. v0.3.0 Phase 0, Phase 1 Typed Literal Core, and Phase 2 Explicit
+Iteration and Collection Access are complete on `develop`; no later phase is active. Do not use
+`v0` as shorthand for a release scope. Use
 [docs/v0.3.0.md](docs/v0.3.0.md) for current milestone status and
 [docs/v0.2.0.md](docs/v0.2.0.md) only for the released baseline.
 
