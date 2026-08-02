@@ -102,42 +102,55 @@ fn signature_info_for_call(
         substitutions.insert("Self".to_string(), specialization.self_ty.clone());
     }
 
-    let (kind, name, parameters, return_type, generic_parameters, receiver) = match declaration {
-        CallableDeclaration::Function(function) => (
-            "func",
-            function.name.as_str(),
-            function.parameters.parameters.as_slice(),
-            &function.return_type,
-            function
-                .generics
-                .parameters
-                .iter()
-                .map(|parameter| parameter.name.as_str())
-                .collect::<Vec<_>>(),
-            None,
-        ),
-        CallableDeclaration::Primitive(primitive) => (
-            "primitive",
-            primitive.name.as_str(),
-            primitive.parameters.parameters.as_slice(),
-            &primitive.return_type,
-            primitive
-                .generics
-                .parameters
-                .iter()
-                .map(|parameter| parameter.name.as_str())
-                .collect::<Vec<_>>(),
-            None,
-        ),
-        CallableDeclaration::Method { method, .. } => (
-            "method",
-            method.name.as_str(),
-            method.parameters.parameters.as_slice(),
-            &method.return_type,
-            Vec::new(),
-            Some(&method.receiver),
-        ),
-    };
+    let (kind, name, parameters, return_type, result_provenance, generic_parameters, receiver) =
+        match declaration {
+            CallableDeclaration::Function(function) => (
+                "func",
+                function.name.as_str(),
+                function.parameters.parameters.as_slice(),
+                &function.return_type,
+                function.result_provenance.as_ref(),
+                function
+                    .generics
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .collect::<Vec<_>>(),
+                None,
+            ),
+            CallableDeclaration::Primitive(primitive) => (
+                "primitive",
+                primitive.name.as_str(),
+                primitive.parameters.parameters.as_slice(),
+                &primitive.return_type,
+                primitive.result_provenance.as_ref(),
+                primitive
+                    .generics
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .collect::<Vec<_>>(),
+                None,
+            ),
+            CallableDeclaration::Method { method, .. } => (
+                "method",
+                method.name.as_str(),
+                method.parameters.parameters.as_slice(),
+                &method.return_type,
+                method.result_provenance.as_ref(),
+                Vec::new(),
+                Some(&method.receiver),
+            ),
+            CallableDeclaration::InterfaceMethod(method) => (
+                "method",
+                method.name.as_str(),
+                method.parameters.parameters.as_slice(),
+                &method.return_type,
+                method.result_provenance.as_ref(),
+                Vec::new(),
+                Some(&method.receiver),
+            ),
+        };
 
     let specialized_parameters = parameters
         .iter()
@@ -158,7 +171,7 @@ fn signature_info_for_call(
         ),
         None => name,
     };
-    let label = format!(
+    let mut label = format!(
         "{kind} {callable}({}): {return_label}",
         specialized_parameters
             .iter()
@@ -166,6 +179,17 @@ fn signature_info_for_call(
             .collect::<Vec<_>>()
             .join(", ")
     );
+    if let Some(clause) = result_provenance {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
 
     Some(SignatureHelpInfo {
         label,
@@ -212,6 +236,7 @@ enum CallableDeclaration<'a> {
         impl_: &'a ImplDecl,
         method: &'a MethodDecl,
     },
+    InterfaceMethod(&'a MethodDecl),
 }
 
 impl CallableDeclaration<'_> {
@@ -220,6 +245,7 @@ impl CallableDeclaration<'_> {
             Self::Function(function) => function.span,
             Self::Primitive(primitive) => primitive.span,
             Self::Method { method, .. } => method.span,
+            Self::InterfaceMethod(method) => method.span,
         }
     }
 }
@@ -244,6 +270,11 @@ fn callable_declaration(
             };
             (method.name_span == target).then_some(CallableDeclaration::Method { impl_, method })
         }),
+        Item::Interface(interface) => interface
+            .methods
+            .iter()
+            .find(|method| method.name_span == target)
+            .map(CallableDeclaration::InterfaceMethod),
         _ => None,
     })
 }
@@ -424,6 +455,30 @@ func main(box: &Box<i32>): i32 {
 
         assert_eq!(signature.label, "method &Box<i32>.replace(value: i32): i32");
         assert_eq!(signature.parameters[0].label, "value: i32");
+    }
+
+    #[test]
+    fn presents_bound_interface_method_with_specialized_contract() {
+        let text = r#"interface Lookup<V> {
+    pub method &self.get(fallback: &V): &V from self | fallback
+}
+
+func read<M: Lookup<i32>>(map: &M, fallback: &i32): &i32 from map | fallback {
+    return map.get(fallback)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("fallback)").expect("expected call argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected bound method signature help");
+
+        assert_eq!(
+            signature.label,
+            "method &M.get(fallback: &i32): &i32 from self | fallback"
+        );
+        assert_eq!(signature.parameters[0].label, "fallback: &i32");
     }
 
     #[test]

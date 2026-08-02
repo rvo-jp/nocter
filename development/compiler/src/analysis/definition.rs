@@ -394,4 +394,25 @@ func main(choice: Choice): i32 {
             text.find("miss(value").expect("expected miss declaration")
         );
     }
+
+    #[test]
+    fn definition_query_resolves_bound_call_to_interface_method() {
+        let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+func read<T: Measure>(value: &T): i32 {
+    return value.measure()
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("measure()").expect("expected bound call");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected interface method definition");
+
+        assert_eq!(&text[span.start..span.end], "measure");
+        assert_eq!(span.start, text.find("measure():").unwrap());
+    }
 }

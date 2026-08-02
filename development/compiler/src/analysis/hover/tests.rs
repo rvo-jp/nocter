@@ -384,3 +384,30 @@ func run(arena: Arena): i32 {
     assert_eq!(reference.label, "region outer: Arena");
     assert_eq!(reference.documentation, declaration.documentation);
 }
+
+#[test]
+fn workspace_hover_presents_bound_method_provenance_contract() {
+    let text = r#"interface Lookup<V> {
+    pub method &self.get(): &V from self
+}
+
+func read<M: Lookup<i32>>(map: &M): &i32 from map {
+    return map.get()
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("get()").expect("expected bound call");
+
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected bound method hover");
+
+    assert_eq!(hover.label, "method &M.get(): &i32 from self");
+    assert!(
+        hover.documentation.as_deref().is_some_and(|documentation| {
+            documentation.contains("Result provenance") && documentation.contains("input `self`")
+        }),
+        "{:?}",
+        hover.documentation
+    );
+}

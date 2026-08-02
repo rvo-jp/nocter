@@ -22,6 +22,8 @@ use crate::typecheck::{type_expr_is_aborting_allocator_capability, type_expr_pre
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
+const CONTEXTUAL_COMPLETION_KEYWORDS: &[&str] = &["from"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
     Constructor,
@@ -73,6 +75,9 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
+    if let Some(items) = result_provenance_completion_items(&file.ast, offset) {
+        return items;
+    }
     if let Some(items) =
         contextual_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
     {
@@ -179,6 +184,10 @@ pub(crate) fn completion_items_for_text_at_offset(
     );
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
+    if let Some(items) = result_provenance_completion_items(&parsed.ast, offset) {
+        return Some(items);
+    }
+
     if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, &facts, offset) {
         return Some(items);
     }
@@ -196,9 +205,105 @@ pub(crate) fn completion_items_for_text_at_offset(
     Some(items)
 }
 
+fn result_provenance_completion_items(
+    ast: &AstFile,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    for item in &ast.items {
+        match item {
+            Item::Function(function) => {
+                if clause_contains_offset(function.result_provenance.as_ref(), offset) {
+                    return Some(provenance_origin_items(
+                        None,
+                        &function.parameters.parameters,
+                    ));
+                }
+            }
+            Item::Primitive(primitive) => {
+                if clause_contains_offset(primitive.result_provenance.as_ref(), offset) {
+                    return Some(provenance_origin_items(
+                        None,
+                        &primitive.parameters.parameters,
+                    ));
+                }
+            }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if clause_contains_offset(method.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            Some(method.receiver.mode),
+                            &method.parameters.parameters,
+                        ));
+                    }
+                }
+            }
+            Item::Impl(impl_) => {
+                for member in &impl_.members {
+                    let ImplMember::Method(method) = member else {
+                        continue;
+                    };
+                    if clause_contains_offset(method.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            Some(method.receiver.mode),
+                            &method.parameters.parameters,
+                        ));
+                    }
+                }
+            }
+            Item::Import(_)
+            | Item::FromImport(_)
+            | Item::TypeAlias(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Literal(_) => {}
+        }
+    }
+    None
+}
+
+fn clause_contains_offset(
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+    offset: usize,
+) -> bool {
+    clause.is_some_and(|clause| clause.span.start <= offset && offset <= clause.span.end)
+}
+
+fn provenance_origin_items(
+    receiver: Option<MethodReceiverMode>,
+    parameters: &[crate::ast::Parameter],
+) -> Vec<CompletionItemInfo> {
+    let mut labels = Vec::new();
+    if receiver.is_some_and(|mode| mode != MethodReceiverMode::Owned) {
+        labels.push(("self".to_string(), CompletionItemKind::Variable));
+    }
+    labels.extend(
+        parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.ty, TypeExpr::Borrow(_) | TypeExpr::View(_)))
+            .map(|parameter| (parameter.name.clone(), CompletionItemKind::Variable)),
+    );
+    labels.extend([
+        ("static".to_string(), CompletionItemKind::Keyword),
+        ("current".to_string(), CompletionItemKind::Keyword),
+    ]);
+    labels
+        .into_iter()
+        .map(|(label, kind)| CompletionItemInfo {
+            insert_text: Some(label.clone()),
+            label,
+            kind,
+            detail: Some("result provenance origin".to_string()),
+            documentation: None,
+            sort_text: None,
+            declaration_span: None,
+        })
+        .collect()
+}
+
 pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
     KEYWORD_LEXEMES
         .iter()
+        .chain(CONTEXTUAL_COMPLETION_KEYWORDS.iter())
         .map(|keyword| CompletionItemInfo {
             label: (*keyword).to_string(),
             kind: CompletionItemKind::Keyword,
@@ -231,6 +336,7 @@ fn completion_items_for_resolved_symbols_excluding(
     let mut items = keyword_completion_items();
     let mut seen = KEYWORD_LEXEMES
         .iter()
+        .chain(CONTEXTUAL_COMPLETION_KEYWORDS.iter())
         .map(|keyword| (*keyword).to_string())
         .collect::<HashSet<_>>();
     seen.extend(excluded_names.iter().cloned());
@@ -408,7 +514,7 @@ fn contextual_completion_items(
             owner_name,
             owner_span,
         } => Some(member_completion_items(
-            resolved, facts, owner_name, owner_span,
+            ast, resolved, facts, owner_name, owner_span, offset,
         )),
         CompletionContext::StructLiteralFields { literal, offset } => Some(
             struct_literal_field_completion_items(resolved, literal, offset),
@@ -545,10 +651,12 @@ fn region_allocator_completion_items(
 }
 
 fn member_completion_items(
+    ast: &AstFile,
     resolved: &ResolveOutput,
     facts: &TypecheckFacts,
     owner_name: &str,
     owner_span: ByteSpan,
+    offset: usize,
 ) -> Vec<CompletionItemInfo> {
     if let Some(symbol) = resolved.type_symbol_by_name(owner_name) {
         return type_member_completion_items(symbol, resolved);
@@ -557,7 +665,9 @@ fn member_completion_items(
     let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
         return Vec::new();
     };
-    let Some(owner) = value_member_owner(resolved, owner_ty) else {
+    let Some(owner) = value_member_owner(resolved, owner_ty)
+        .or_else(|| generic_bound_member_owner(ast, resolved, owner_ty, offset))
+    else {
         return Vec::new();
     };
     let can_readwrite = owner_type_is_readwrite(owner_ty)
@@ -742,34 +852,94 @@ fn method_completion_item(
     let receiver = format!("{}{receiver_owner}", method.receiver.mode.source_prefix());
     let return_type =
         substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
+    let mut detail = format!(
+        "method {}.{}({}): {}",
+        receiver,
+        method.name,
+        method
+            .signature
+            .parameters
+            .iter()
+            .map(|parameter| {
+                let ty = substitute_type_expr_parameters(&parameter.ty, &substitutions);
+                format!(
+                    "{}: {}",
+                    parameter.name,
+                    type_expr_presentation_label(&ty, resolved)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        type_expr_presentation_label(&return_type, resolved)
+    );
+    if let Some(clause) = &method.signature.result_provenance {
+        detail.push_str(" from ");
+        detail.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
     CompletionItemInfo {
         label: method.name.clone(),
         kind: CompletionItemKind::Method,
-        detail: Some(format!(
-            "method {}.{}({}): {}",
-            receiver,
-            method.name,
-            method
-                .signature
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    let ty = substitute_type_expr_parameters(&parameter.ty, &substitutions);
-                    format!(
-                        "{}: {}",
-                        parameter.name,
-                        type_expr_presentation_label(&ty, resolved)
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-            type_expr_presentation_label(&return_type, resolved)
-        )),
+        detail: Some(detail),
         documentation: None,
         insert_text: Some(format!("{}()", method.name)),
         sort_text: None,
         declaration_span: Some(method.name_span),
     }
+}
+
+fn generic_bound_member_owner<'a>(
+    ast: &'a AstFile,
+    resolved: &'a ResolveOutput,
+    ty: &TypeExpr,
+    offset: usize,
+) -> Option<ValueMemberOwner<'a>> {
+    let parameter_name = borrowed_reference_name(ty)?;
+    let bound = generic_bound_at_offset(ast, parameter_name, offset)?;
+    let mut owner = value_member_owner(resolved, bound)?;
+    owner.substitutions.insert(
+        "Self".to_string(),
+        TypeExpr::Reference(crate::ast::TypeReference {
+            span: ty.span(),
+            name: parameter_name.to_string(),
+        }),
+    );
+    Some(owner)
+}
+
+fn borrowed_reference_name(ty: &TypeExpr) -> Option<&str> {
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Borrow(borrow) => borrowed_reference_name(&borrow.inner),
+        _ => None,
+    }
+}
+
+fn generic_bound_at_offset<'a>(
+    ast: &'a AstFile,
+    parameter_name: &str,
+    offset: usize,
+) -> Option<&'a TypeExpr> {
+    ast.items.iter().find_map(|item| {
+        let generics = match item {
+            Item::Function(function) if span_contains(function.body.span, offset) => {
+                &function.generics
+            }
+            Item::Impl(impl_) if span_contains(impl_.span, offset) => &impl_.generics,
+            _ => return None,
+        };
+        generics
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == parameter_name)
+            .and_then(|parameter| parameter.bound.as_ref())
+    })
 }
 
 struct ValueMemberOwner<'a> {

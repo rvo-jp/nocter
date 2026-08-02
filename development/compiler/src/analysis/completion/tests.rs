@@ -710,3 +710,76 @@ func use_boxes(readonly: &Box<i32>, readwrite: &+Box<i32>): void {
         Some("method &+Box<i32>.mutate(value: i32): void")
     );
 }
+
+#[test]
+fn member_completion_uses_generic_interface_bound() {
+    let text = r#"interface Lookup<V> {
+    pub method &self.get(): &V from self
+}
+
+func read<M: Lookup<i32>>(map: &M): &i32 from map {
+    return map.get()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("map.get").expect("expected bound method") + "map.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let get = items
+        .iter()
+        .find(|item| item.label == "get")
+        .expect("bound method should be suggested");
+    assert_eq!(
+        get.detail.as_deref(),
+        Some("method &M.get(): &i32 from self")
+    );
+    let declaration_start = text.find("get(): &V").expect("expected declaration");
+    assert_eq!(
+        get.declaration_span.map(|span| (span.start, span.end)),
+        Some((declaration_start, declaration_start + "get".len()))
+    );
+}
+
+#[test]
+fn completion_recovers_incomplete_result_provenance_clause() {
+    let text = r#"func choose(left: &i32, right: &i32): &i32 from {
+    return left
+}
+"#;
+    let offset = text.find("from ").unwrap() + "from ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered provenance completion");
+    let labels = items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"left"), "{labels:?}");
+    assert!(labels.contains(&"right"), "{labels:?}");
+    assert!(labels.contains(&"static"), "{labels:?}");
+    assert!(labels.contains(&"current"), "{labels:?}");
+}
+
+#[test]
+fn completion_recovers_incomplete_generic_bound() {
+    let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+func read<T: >(value: &T): i32 {
+    return 0
+}
+"#;
+    let offset = text.find("T: ").unwrap() + "T: ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered bound completion");
+
+    assert!(
+        items
+            .iter()
+            .any(|item| { item.label == "Measure" && item.kind == CompletionItemKind::Interface })
+    );
+}

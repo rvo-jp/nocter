@@ -99,12 +99,22 @@ pub(crate) fn collect_callable_semantic_facts(
                         }
                     }
                 }
+                Item::Interface(interface) => {
+                    for method in &interface.methods {
+                        insert_fact(
+                            method.name_span,
+                            &method.return_type,
+                            source.resolved,
+                            &summaries,
+                            &mut facts,
+                        );
+                    }
+                }
                 Item::Import(_)
                 | Item::FromImport(_)
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
-                | Item::Enum(_)
-                | Item::Interface(_) => {}
+                | Item::Enum(_) => {}
                 Item::Literal(literal) => {
                     insert_fact(
                         literal.span,

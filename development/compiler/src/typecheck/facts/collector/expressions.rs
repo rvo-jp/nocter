@@ -111,7 +111,16 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .method_call_receiver_kinds
                         .insert(method.member_span, kind);
-                    if !resolved_method.signature.generic_parameters.is_empty() {
+                    let receiver_is_bounded_parameter = matches!(
+                        method_self_type_for_receiver_in_environment(
+                            &expression_type(&method.object, self.resolved, environment),
+                            environment,
+                        ),
+                        Type::Parameter(_)
+                    );
+                    if !resolved_method.signature.generic_parameters.is_empty()
+                        || receiver_is_bounded_parameter
+                    {
                         self.facts
                             .generic_method_call_spans
                             .insert(method.member_span, resolved_method.name_span);

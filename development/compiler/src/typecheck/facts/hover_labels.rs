@@ -5,7 +5,7 @@ pub(super) fn function_declaration_hover_label(
     resolved: &ResolveOutput,
 ) -> String {
     let self_type = function_self_type(function, resolved);
-    format!(
+    let mut label = format!(
         "func {}{}({}): {}",
         function.name,
         generic_parameters_label(&function.generics, resolved, self_type.as_ref()),
@@ -15,20 +15,24 @@ pub(super) fn function_declaration_hover_label(
             self_type.as_ref()
         ),
         type_label(&function.return_type, resolved, self_type.as_ref())
-    )
+    );
+    append_result_provenance(&mut label, function.result_provenance.as_ref());
+    label
 }
 
 pub(super) fn primitive_declaration_hover_label(
     primitive: &crate::ast::PrimitiveDecl,
     resolved: &ResolveOutput,
 ) -> String {
-    format!(
+    let mut label = format!(
         "primitive {}{}({}): {}",
         primitive.name,
         generic_parameters_label(&primitive.generics, resolved, None),
         parameters_label(&primitive.parameters.parameters, resolved, None),
         type_label(&primitive.return_type, resolved, None)
-    )
+    );
+    append_result_provenance(&mut label, primitive.result_provenance.as_ref());
+    label
 }
 
 pub(super) fn literal_declaration_hover_label(
@@ -143,13 +147,15 @@ pub(super) fn method_declaration_hover_label(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> String {
-    format!(
+    let mut label = format!(
         "method {}.{}({}): {}",
         method_receiver_label(&method.receiver, resolved, self_type),
         method.name,
         parameters_label(&method.parameters.parameters, resolved, self_type),
         type_label(&method.return_type, resolved, self_type)
-    )
+    );
+    append_result_provenance(&mut label, method.result_provenance.as_ref());
+    label
 }
 
 pub(super) fn drop_declaration_hover_label(
@@ -189,13 +195,15 @@ pub(super) fn method_signature_hover_label(
     resolved: &ResolveOutput,
 ) -> String {
     let self_type = Type::Named(owner.canonical_name.clone());
-    format!(
+    let mut label = format!(
         "method {}.{}({}): {}",
         method_receiver_label(&method.receiver, resolved, Some(&self_type)),
         method.name,
         parameter_signatures_label(&method.signature.parameters, resolved, Some(&self_type)),
         type_label(&method.signature.return_type, resolved, Some(&self_type))
-    )
+    );
+    append_result_provenance(&mut label, method.signature.result_provenance.as_ref());
+    label
 }
 
 pub(super) fn method_receiver_label(
@@ -265,11 +273,31 @@ pub(super) fn function_signature_hover_label(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> String {
-    format!(
+    let mut label = format!(
         "{kind} {name}({}): {}",
         parameter_signatures_label(&signature.parameters, resolved, self_type),
         type_label(&signature.return_type, resolved, self_type)
-    )
+    );
+    append_result_provenance(&mut label, signature.result_provenance.as_ref());
+    label
+}
+
+fn append_result_provenance(
+    label: &mut String,
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+) {
+    let Some(clause) = clause else {
+        return;
+    };
+    label.push_str(" from ");
+    label.push_str(
+        &clause
+            .origins
+            .iter()
+            .map(|origin| origin.kind.source_label())
+            .collect::<Vec<_>>()
+            .join(" | "),
+    );
 }
 
 pub(super) fn generic_parameters_label(

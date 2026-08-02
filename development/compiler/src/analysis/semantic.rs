@@ -88,6 +88,8 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_local_symbol_references();
         self.collect_type_references();
         self.collect_member_references();
+        self.collect_generic_parameter_declarations();
+        self.collect_provenance_references();
         self.collect_editor_targets();
     }
 
@@ -216,6 +218,76 @@ impl SemanticIdentifierCollector<'_> {
         }
     }
 
+    fn collect_generic_parameter_declarations(&mut self) {
+        for item in &self.ast.items {
+            let generics = match item {
+                crate::ast::Item::Function(item) => Some(&item.generics),
+                crate::ast::Item::Primitive(item) => Some(&item.generics),
+                crate::ast::Item::TypeAlias(item) => Some(&item.generics),
+                crate::ast::Item::Struct(item) => Some(&item.generics),
+                crate::ast::Item::Enum(item) => Some(&item.generics),
+                crate::ast::Item::Interface(item) => Some(&item.generics),
+                crate::ast::Item::Impl(item) => Some(&item.generics),
+                crate::ast::Item::Import(_)
+                | crate::ast::Item::FromImport(_)
+                | crate::ast::Item::Literal(_) => None,
+            };
+            for parameter in generics.into_iter().flat_map(|list| &list.parameters) {
+                self.push(
+                    ByteSpan::new(
+                        parameter.span.source,
+                        parameter.span.start,
+                        parameter.span.start + parameter.name.len(),
+                    ),
+                    SemanticTokenKind::Type,
+                    true,
+                    0,
+                );
+            }
+        }
+    }
+
+    fn collect_provenance_references(&mut self) {
+        let mut spans = Vec::new();
+        for item in &self.ast.items {
+            match item {
+                crate::ast::Item::Function(item) => {
+                    collect_provenance_parameter_spans(item.result_provenance.as_ref(), &mut spans);
+                }
+                crate::ast::Item::Primitive(item) => {
+                    collect_provenance_parameter_spans(item.result_provenance.as_ref(), &mut spans);
+                }
+                crate::ast::Item::Interface(item) => {
+                    for method in &item.methods {
+                        collect_provenance_parameter_spans(
+                            method.result_provenance.as_ref(),
+                            &mut spans,
+                        );
+                    }
+                }
+                crate::ast::Item::Impl(item) => {
+                    for member in &item.members {
+                        if let crate::ast::ImplMember::Method(method) = member {
+                            collect_provenance_parameter_spans(
+                                method.result_provenance.as_ref(),
+                                &mut spans,
+                            );
+                        }
+                    }
+                }
+                crate::ast::Item::Import(_)
+                | crate::ast::Item::FromImport(_)
+                | crate::ast::Item::TypeAlias(_)
+                | crate::ast::Item::Struct(_)
+                | crate::ast::Item::Enum(_)
+                | crate::ast::Item::Literal(_) => {}
+            }
+        }
+        for span in spans {
+            self.push_parameter(span);
+        }
+    }
+
     fn collect_editor_targets(&mut self) {
         for target in
             crate::analysis::editor_targets::editor_targets_for_ast(self.ast, self.resolved)
@@ -284,6 +356,23 @@ impl SemanticIdentifierCollector<'_> {
             modifiers,
         });
     }
+}
+
+fn collect_provenance_parameter_spans(
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+    spans: &mut Vec<ByteSpan>,
+) {
+    let Some(clause) = clause else {
+        return;
+    };
+    spans.extend(clause.origins.iter().filter_map(|origin| {
+        matches!(
+            origin.kind,
+            crate::ast::ResultProvenanceOriginKind::Receiver
+                | crate::ast::ResultProvenanceOriginKind::Parameter(_)
+        )
+        .then_some(origin.span)
+    }));
 }
 
 fn semantic_kind_for_symbol_kind(kind: &SymbolKind) -> Option<SemanticTokenKind> {
@@ -443,6 +532,7 @@ impl File {
     method &self.read(): i32 {
         return self.fd
     }
+
 }
 "#;
         let identifiers =
@@ -457,6 +547,37 @@ impl File {
             0,
             "method receivers are readonly parameter bindings"
         );
+    }
+
+    #[test]
+    fn analysis_classifies_generic_bounds_and_provenance_origins() {
+        let text = r#"interface Lookup<V> {
+    pub method &self.get(): &V from self
+}
+
+func read<M: Lookup<i32>>(map: &M): &i32 from map {
+    return map.get()
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+
+        let generic_start = text.find("M: Lookup").expect("expected generic parameter");
+        let generic = identifier_starting_at(&identifiers, generic_start)
+            .expect("expected generic parameter token");
+        assert_eq!(generic.kind, SemanticTokenKind::Type);
+        assert_ne!(generic.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+
+        let origin_start = text.find("from map").unwrap() + "from ".len();
+        let origin = identifier_starting_at(&identifiers, origin_start)
+            .expect("expected provenance origin token");
+        assert_eq!(origin.kind, SemanticTokenKind::Parameter);
+        assert_ne!(origin.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
+
+        let call_start = text.rfind("get()").expect("expected bound method call");
+        let call =
+            identifier_starting_at(&identifiers, call_start).expect("expected bound method token");
+        assert_eq!(call.kind, SemanticTokenKind::Method);
     }
 
     #[test]

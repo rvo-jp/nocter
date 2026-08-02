@@ -187,17 +187,22 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
 
 pub(in crate::analysis::hover) fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
     match &symbol.kind {
-        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
-            "{} {}({}): {}",
-            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
-                "primitive"
-            } else {
-                "func"
-            },
-            symbol.name,
-            parameter_signatures_label(text, &signature.parameters),
-            source_fragment(text, signature.return_type.span())
-        ),
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
+            append_signature_provenance(
+                format!(
+                    "{} {}({}): {}",
+                    if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                        "primitive"
+                    } else {
+                        "func"
+                    },
+                    symbol.name,
+                    parameter_signatures_label(text, &signature.parameters),
+                    source_fragment(text, signature.return_type.span())
+                ),
+                signature.result_provenance.as_ref(),
+            )
+        }
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
             TypeSymbolKind::Alias => type_symbol
                 .alias_target
@@ -223,17 +228,22 @@ pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
     symbol: &Symbol,
 ) -> String {
     match &symbol.kind {
-        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
-            "{} {}({}): {}",
-            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
-                "primitive"
-            } else {
-                "func"
-            },
-            symbol.name,
-            parameter_signatures_label_for_sources(sources, &signature.parameters),
-            source_fragment_from_sources(sources, signature.return_type.span())
-        ),
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
+            append_signature_provenance(
+                format!(
+                    "{} {}({}): {}",
+                    if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                        "primitive"
+                    } else {
+                        "func"
+                    },
+                    symbol.name,
+                    parameter_signatures_label_for_sources(sources, &signature.parameters),
+                    source_fragment_from_sources(sources, signature.return_type.span())
+                ),
+                signature.result_provenance.as_ref(),
+            )
+        }
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
             TypeSymbolKind::Alias => type_symbol
                 .alias_target
@@ -252,6 +262,24 @@ pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
         },
         SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
     }
+}
+
+fn append_signature_provenance(
+    mut label: String,
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+) -> String {
+    if let Some(clause) = clause {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+    label
 }
 
 pub(in crate::analysis::hover) fn parameter_signatures_label_for_sources(

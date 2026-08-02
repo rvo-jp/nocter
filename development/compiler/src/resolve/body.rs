@@ -6,7 +6,7 @@ use super::diagnostics::{
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    MemberExpr, Parameter, Stmt,
+    MemberExpr, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -18,7 +18,31 @@ impl Resolver<'_> {
                 Item::Function(function) => {
                     let mut scope = Scope::new();
                     self.define_parameters(&function.parameters.parameters, &mut scope);
+                    self.resolve_result_provenance(function.result_provenance.as_ref(), &scope);
                     self.resolve_block(&function.body, &mut scope);
+                }
+                Item::Primitive(primitive) => {
+                    let mut scope = Scope::new();
+                    self.define_declaration_parameters(
+                        &primitive.parameters.parameters,
+                        &mut scope,
+                    );
+                    self.resolve_result_provenance(primitive.result_provenance.as_ref(), &scope);
+                }
+                Item::Interface(interface) => {
+                    for method in &interface.methods {
+                        let mut scope = Scope::new();
+                        self.define_declaration_parameter_name(
+                            method.receiver.name.clone(),
+                            method.receiver.name_span,
+                            &mut scope,
+                        );
+                        self.define_declaration_parameters(
+                            &method.parameters.parameters,
+                            &mut scope,
+                        );
+                        self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
+                    }
                 }
                 Item::Literal(literal) => {
                     let mut scope = Scope::new();
@@ -36,11 +60,9 @@ impl Resolver<'_> {
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
                 | Item::FromImport(_)
-                | Item::Primitive(_)
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
-                | Item::Enum(_)
-                | Item::Interface(_) => {}
+                | Item::Enum(_) => {}
             }
         }
     }
@@ -49,18 +71,30 @@ impl Resolver<'_> {
         for member in &impl_.members {
             match member {
                 ImplMember::Method(method) => {
-                    let Some(body) = &method.body else {
-                        continue;
-                    };
                     let mut scope = Scope::new();
-                    self.define_local_name(
-                        method.receiver.name.clone(),
-                        method.receiver.name_span,
-                        LocalSymbolKind::Parameter,
-                        &mut scope,
-                    );
-                    self.define_parameters(&method.parameters.parameters, &mut scope);
-                    self.resolve_block(body, &mut scope);
+                    if method.body.is_some() {
+                        self.define_local_name(
+                            method.receiver.name.clone(),
+                            method.receiver.name_span,
+                            LocalSymbolKind::Parameter,
+                            &mut scope,
+                        );
+                        self.define_parameters(&method.parameters.parameters, &mut scope);
+                    } else {
+                        self.define_declaration_parameter_name(
+                            method.receiver.name.clone(),
+                            method.receiver.name_span,
+                            &mut scope,
+                        );
+                        self.define_declaration_parameters(
+                            &method.parameters.parameters,
+                            &mut scope,
+                        );
+                    }
+                    self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
+                    if let Some(body) = &method.body {
+                        self.resolve_block(body, &mut scope);
+                    }
                 }
                 ImplMember::Drop(drop_) => {
                     let mut scope = Scope::new();
@@ -79,6 +113,54 @@ impl Resolver<'_> {
     fn define_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
         for parameter in parameters {
             self.define_parameter_name(parameter.name.clone(), parameter.name_span, scope);
+        }
+    }
+
+    fn define_declaration_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
+        for parameter in parameters {
+            self.define_declaration_parameter_name(
+                parameter.name.clone(),
+                parameter.name_span,
+                scope,
+            );
+        }
+    }
+
+    /// Declaration-only callables have no executable local scope. Their parameter
+    /// names still need symbols for editor navigation, but cannot conflict with
+    /// module names because neither name is visible from the other's scope.
+    fn define_declaration_parameter_name(
+        &mut self,
+        name: String,
+        span: ByteSpan,
+        scope: &mut Scope,
+    ) {
+        let id = self
+            .output
+            .define_local_symbol(name.clone(), span, LocalSymbolKind::Parameter);
+        scope.define(name, span, id);
+    }
+
+    fn resolve_result_provenance(
+        &mut self,
+        clause: Option<&ResultProvenanceClause>,
+        scope: &Scope,
+    ) {
+        let Some(clause) = clause else {
+            return;
+        };
+        for origin in &clause.origins {
+            let name = match &origin.kind {
+                ResultProvenanceOriginKind::Receiver => "self",
+                ResultProvenanceOriginKind::Parameter(name) => name,
+                ResultProvenanceOriginKind::Static
+                | ResultProvenanceOriginKind::CurrentAllocationContext => continue,
+            };
+            if let Some(local_id) = scope.resolve(name) {
+                self.output
+                    .local_identifier_targets
+                    .insert(origin.span, local_id);
+            }
         }
     }
 

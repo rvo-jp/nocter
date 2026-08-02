@@ -9,11 +9,46 @@ pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<Stri
 pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
     super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
         incomplete_member_completion_text(text, offset)
+            .or_else(|| incomplete_result_provenance_completion_text(text, offset))
+            .or_else(|| incomplete_generic_bound_completion_text(text, offset))
             .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
             .or_else(|| incomplete_import_symbol_completion_text(text, offset))
             .map(|text| (text, offset))
             .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
     })
+}
+
+fn incomplete_result_provenance_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    if !(prefix.ends_with(" from") || prefix.ends_with('|')) {
+        return None;
+    }
+    insert_completion_placeholder(text, offset)
+}
+
+fn incomplete_generic_bound_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    let open = prefix.rfind('<')?;
+    if prefix[open..].contains('>') || !prefix.ends_with(':') {
+        return None;
+    }
+    insert_completion_placeholder(text, offset)
+}
+
+fn insert_completion_placeholder(text: &str, offset: usize) -> Option<String> {
+    let mut recovered = String::with_capacity(text.len() + COMPLETION_PLACEHOLDER_IDENT.len());
+    recovered.push_str(text.get(..offset)?);
+    recovered.push_str(COMPLETION_PLACEHOLDER_IDENT);
+    recovered.push_str(text.get(offset..)?);
+    Some(recovered)
 }
 
 fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option<String> {

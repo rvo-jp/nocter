@@ -498,6 +498,61 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_non_generic_interface_bound_method_call_to_concrete_static_target() {
+    let ir = lower_text(
+        r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count {
+    value: i32
+}
+
+impl Count {
+    pub method &self.measure(): i32 {
+        return self.value
+    }
+}
+
+impl Measure for Count
+
+func read<T: Measure>(value: &T): i32 {
+    return value.measure()
+}
+
+func main(): i32 {
+    let count = Count { value: 42 }
+    return read(&count)
+}
+"#,
+    );
+
+    let read_target = CallTarget::same_file("read<Count>");
+    let method_target = CallTarget::same_file("Count.measure");
+    let read = ir
+        .functions
+        .iter()
+        .find(|function| function.target == read_target)
+        .expect("expected specialized bounded function");
+
+    assert!(
+        read.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallI32 { target, .. } if target == &method_target
+            )
+        }),
+        "{read:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == method_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_generic_impl_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {

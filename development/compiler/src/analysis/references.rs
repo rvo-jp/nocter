@@ -497,6 +497,32 @@ func main(choice: Choice): i32 {
         assert_eq!(fragments, vec!["hit", "hit", "hit", "hit"]);
     }
 
+    #[test]
+    fn reference_query_groups_bound_calls_with_interface_method() {
+        let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+func first<T: Measure>(value: &T): i32 {
+    return value.measure()
+}
+
+func second<U: Measure>(value: &U): i32 {
+    return value.measure()
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("measure():").expect("expected declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(
+            span_fragments(text, &spans),
+            vec!["measure", "measure", "measure"]
+        );
+    }
+
     fn span_fragments<'a>(text: &'a str, spans: &[ByteSpan]) -> Vec<&'a str> {
         spans
             .iter()
