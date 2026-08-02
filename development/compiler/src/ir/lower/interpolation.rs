@@ -61,7 +61,7 @@ pub(super) fn lower_interpolated_string_binding(
         layout: value.layout,
     }];
     instructions.extend(lower_interpolated_string_to_slot(
-        &interpolated,
+        interpolated,
         slot_index,
         context,
     )?);
