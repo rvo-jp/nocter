@@ -3,7 +3,7 @@
 This document owns the compiler design for v0.3.0 Phase 1 typed literal definitions, expressions,
 literal element packs, and per-literal allocation-context selection. Public semantics belong to
 [Future Literal Definitions and Spread](../../spec/17-future-literal-definitions-spread.md), and the
-active completion gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+completed gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
 
 ## Separate Concepts
 

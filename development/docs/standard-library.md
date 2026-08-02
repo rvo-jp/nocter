@@ -135,6 +135,8 @@ collection construction APIs and inherit the current allocation context unless t
 an explicit `using` override.
 
 Packaged-home native tests cover inferred scalar vectors, empty vectors, owned `String` elements,
-lexical-region construction, and explicit root-context construction inside a child region. The
-remaining later work is spread, interpolation lowering, environment retrieval, rich path APIs,
-insert/remove, iterator protocols, and general allocator plugins.
+reverse-order pack cleanup, stable allocation-abort status, lexical-region construction, explicit
+root-context construction inside a child region, child-origin escape rejection, and OS-observed
+release of `Vec` literal storage. The remaining later work is spread, interpolation lowering,
+environment retrieval, rich path APIs, insert/remove, iterator protocols, and general allocator
+plugins.

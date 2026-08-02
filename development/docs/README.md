@@ -4,13 +4,14 @@ This directory contains implementation design and completion criteria. The publi
 [specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
 those rules here.
 
-The released baseline is **v0.2.0**. v0.3.0 Phase 0 is complete and **Phase 1: Typed Literal Core** is
-active on `develop`. Do not use `v0` as shorthand for a release name or work scope.
+The released baseline is **v0.2.0**. v0.3.0 Phase 0 and **Phase 1: Typed Literal Core** are complete
+on `develop`; no later v0.3.0 phase is currently defined. Do not use `v0` as shorthand for a
+release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 record and active Phase 1 completion
-  gate; the single entry point for current milestone status
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 and Phase 1 records; the single entry
+  point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,

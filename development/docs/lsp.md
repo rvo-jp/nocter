@@ -82,7 +82,7 @@ The resolved call target and argument index provide:
 The server does not guess overload-like candidates with string matching. Only when resolver or
 typechecker cannot establish a target may recovery analysis return an explicitly incomplete result.
 
-## v0.3.0 Phase 1 Integration
+## Completed v0.3.0 Phase 1 Integration
 
 Typed literal tooling uses `analysis/literals` as its semantic query boundary. The query joins the
 expression's resolver identity, typecheck result, declaration shape, generic substitutions, and

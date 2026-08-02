@@ -4,9 +4,9 @@ This directory contains the Rust bootstrap compiler, the distributed standard li
 packaging inputs, and implementation documentation. See the [repository README](../README.md) for
 the public overview and the [specification](../spec/README.md) for language rules.
 
-The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context** is
-complete on `develop`, and **Phase 1: Typed Literal Core** is active. The completion records and
-dependency order are defined in the
+The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context** and
+**Phase 1: Typed Literal Core** are complete on `develop`. No later v0.3.0 phase is currently
+defined. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 

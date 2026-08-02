@@ -6,9 +6,9 @@ The specification entry point is [README.md](README.md).
 This chapter is the adopted v0.3.0 direction for typed literal and contextual
 many-value syntax. It is not implemented by the v0.2.0 release. v0.3.0 Phase 0
 completed the region, provenance, and allocation-context foundation in
-[Memory, Regions, and Allocators](06-memory-region-allocator.md). Phase 1
-implements the sequence and string literal core described below. Other shapes
-and spread contexts remain later work.
+[Memory, Regions, and Allocators](06-memory-region-allocator.md). The Phase 1
+implementation gate for the sequence and string literal core described below
+is complete on `develop`. Other shapes and spread contexts remain later work.
 
 ## Purpose
 
