@@ -6,6 +6,7 @@ mod control_flow;
 mod drop_members;
 mod entry;
 mod fallible;
+mod generic_bounds;
 mod interfaces;
 mod literals;
 mod methods;

@@ -22,6 +22,17 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
     }
 
     symbol
+        .interface_impls
+        .extend(ast.items.iter().filter_map(|item| {
+            let crate::ast::Item::Impl(impl_) = item else {
+                return None;
+            };
+            (impl_target_type_name(&impl_.target_ty) == Some(type_name))
+                .then(|| impl_.interface_ty.clone())
+                .flatten()
+        }));
+
+    symbol
         .associated_functions
         .extend(top_level_associated_function_signatures(ast, type_name));
 
@@ -200,6 +211,7 @@ pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
         &function.generics,
         &function.parameters.parameters,
         function.return_type.clone(),
+        function.result_provenance.clone(),
     )
 }
 
@@ -208,6 +220,7 @@ pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignatur
         &primitive.generics,
         &primitive.parameters.parameters,
         primitive.return_type.clone(),
+        primitive.result_provenance.clone(),
     )
 }
 
@@ -228,6 +241,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_impls: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -254,6 +268,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .iter()
             .map(|method| method_signature_inner(method, None, &interface.generics))
             .collect(),
+        interface_impls: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -289,6 +304,7 @@ pub(super) fn struct_type_symbol(
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_impls: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -319,6 +335,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .collect(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_impls: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -344,6 +361,7 @@ fn method_signature_inner(
             generics,
             &method.parameters.parameters,
             method.return_type.clone(),
+            method.result_provenance.clone(),
         ),
     }
 }
@@ -352,6 +370,7 @@ fn callable_signature(
     generics: &GenericParamList,
     parameters: &[Parameter],
     return_type: TypeExpr,
+    result_provenance: Option<crate::ast::ResultProvenanceClause>,
 ) -> FunctionSignature {
     FunctionSignature {
         generic_parameters: generics
@@ -359,8 +378,14 @@ fn callable_signature(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bound.clone())
+            .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
+        result_provenance,
     }
 }
 

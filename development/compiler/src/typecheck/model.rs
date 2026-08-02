@@ -1,4 +1,4 @@
-use crate::ast::BindingKind;
+use crate::ast::{BindingKind, TypeExpr};
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
@@ -171,6 +171,7 @@ pub(super) struct TypeEnvironment {
     literal_packs: HashMap<String, Type>,
     self_type: Option<Type>,
     generic_parameters: HashSet<String>,
+    generic_bounds: HashMap<String, TypeExpr>,
 }
 
 impl TypeEnvironment {
@@ -180,6 +181,7 @@ impl TypeEnvironment {
             literal_packs: HashMap::new(),
             self_type: Some(self_type),
             generic_parameters: HashSet::new(),
+            generic_bounds: HashMap::new(),
         }
     }
 
@@ -201,6 +203,23 @@ impl TypeEnvironment {
 
     pub(super) fn define_generic_parameters(&mut self, names: impl IntoIterator<Item = String>) {
         self.generic_parameters.extend(names);
+    }
+
+    pub(super) fn define_generic_parameter_list(
+        &mut self,
+        generics: &crate::ast::GenericParamList,
+    ) {
+        for parameter in &generics.parameters {
+            self.generic_parameters.insert(parameter.name.clone());
+            if let Some(bound) = &parameter.bound {
+                self.generic_bounds
+                    .insert(parameter.name.clone(), bound.clone());
+            }
+        }
+    }
+
+    pub(super) fn generic_bound(&self, name: &str) -> Option<&TypeExpr> {
+        self.generic_bounds.get(name)
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&Type> {

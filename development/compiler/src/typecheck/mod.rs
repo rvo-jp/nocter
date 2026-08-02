@@ -15,6 +15,7 @@ mod expressions;
 mod facts;
 mod fallible;
 mod generics;
+mod interface_bounds;
 mod interfaces;
 mod literals;
 mod model;

@@ -443,6 +443,61 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_interface_bound_method_call_to_concrete_static_target() {
+    let ir = lower_text(
+        r#"interface Extract<T> {
+    pub method self.into_value(): T
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    pub method self.into_value(): U {
+        return self.value
+    }
+}
+
+impl<T> Extract<T> for Box<T>
+
+func forward<B: Extract<T>, T>(box: B): T {
+    return (move box).into_value()
+}
+
+func main(): i32 {
+    let box = Box<i32> { value: 42 }
+    return forward(move box)
+}
+"#,
+    );
+
+    let forward_target = CallTarget::same_file("forward<Box<i32>, i32>");
+    let method_target = CallTarget::same_file("Box<i32>.into_value");
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.target == forward_target)
+        .expect("expected specialized bounded function");
+
+    assert!(
+        forward.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall { target, .. } if target == &method_target
+            )
+        }),
+        "{forward:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == method_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_generic_impl_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {

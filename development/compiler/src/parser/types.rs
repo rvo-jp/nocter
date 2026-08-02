@@ -182,14 +182,14 @@ impl Parser<'_> {
             }
 
             let parameter = self.expect_name_identifier("expected generic parameter name")?;
-            if self.match_punctuation(":").is_some() {
-                self.error_current(
-                    "generic bounds are deferred after v0; use an unbounded type parameter",
-                );
-                return Err(());
-            }
-            let bound = None;
-            let end = parameter.span.end;
+            let bound = if self.match_punctuation(":").is_some() {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let end = bound
+                .as_ref()
+                .map_or(parameter.span.end, |bound| bound.span().end);
             parameters.push(GenericParam {
                 span: self.span(parameter.span.start, end),
                 name: parameter.value,

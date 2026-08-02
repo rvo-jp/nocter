@@ -1,7 +1,9 @@
 use super::diagnostics::{
-    generic_type_argument_count_diagnostic, self_type_outside_context_diagnostic,
-    unresolved_type_reference_diagnostic,
+    generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
+    self_type_outside_context_diagnostic, unresolved_type_reference_diagnostic,
 };
+use super::model::Type;
+use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{
     AstFile, Block, Expr, GenericParamList, ImplMember, InterpolatedStringPart, Item, MethodDecl,
     Parameter, Stmt, TypeExpr,
@@ -25,6 +27,7 @@ pub(super) fn check_generic_type_arities(
                 } else {
                     GenericScope::new(&function.generics)
                 };
+                check_generic_bounds(sources, &function.generics, resolved, &scope, diagnostics);
                 check_parameters(
                     sources,
                     &function.parameters.parameters,
@@ -43,6 +46,7 @@ pub(super) fn check_generic_type_arities(
             }
             Item::Primitive(primitive) => {
                 let scope = GenericScope::new(&primitive.generics);
+                check_generic_bounds(sources, &primitive.generics, resolved, &scope, diagnostics);
                 check_parameters(
                     sources,
                     &primitive.parameters.parameters,
@@ -60,28 +64,33 @@ pub(super) fn check_generic_type_arities(
             }
             Item::TypeAlias(alias) => {
                 let scope = GenericScope::new(&alias.generics);
+                check_generic_bounds(sources, &alias.generics, resolved, &scope, diagnostics);
                 check_type_expr(sources, &alias.target, resolved, &scope, diagnostics);
             }
             Item::Struct(struct_) => {
                 let scope = GenericScope::new(&struct_.generics);
+                check_generic_bounds(sources, &struct_.generics, resolved, &scope, diagnostics);
                 for field in &struct_.fields {
                     check_type_expr(sources, &field.ty, resolved, &scope, diagnostics);
                 }
             }
             Item::Enum(enum_) => {
                 let scope = GenericScope::new(&enum_.generics);
+                check_generic_bounds(sources, &enum_.generics, resolved, &scope, diagnostics);
                 for variant in &enum_.variants {
                     check_parameters(sources, &variant.payload, resolved, &scope, diagnostics);
                 }
             }
             Item::Interface(interface) => {
                 let scope = GenericScope::new(&interface.generics).with_self_type();
+                check_generic_bounds(sources, &interface.generics, resolved, &scope, diagnostics);
                 for method in &interface.methods {
                     check_method_signature(sources, method, resolved, &scope, diagnostics);
                 }
             }
             Item::Impl(impl_) => {
                 let scope = GenericScope::new(&impl_.generics);
+                check_generic_bounds(sources, &impl_.generics, resolved, &scope, diagnostics);
                 if let Some(interface_ty) = &impl_.interface_ty {
                     check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
                 }
@@ -115,6 +124,47 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => {}
+        }
+    }
+}
+
+fn check_generic_bounds(
+    sources: &SourceMap,
+    generics: &GenericParamList,
+    resolved: &ResolveOutput,
+    scope: &GenericScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let substitutions = generics
+        .parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.name.clone(),
+                Type::Parameter(parameter.name.clone()),
+            )
+        })
+        .collect();
+    for parameter in &generics.parameters {
+        let Some(bound) = &parameter.bound else {
+            continue;
+        };
+        check_type_expr(sources, bound, resolved, scope, diagnostics);
+        let bound_type =
+            type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
+        if bound_type.is_unknown_or_unresolved() {
+            continue;
+        }
+        let is_interface = bound_type
+            .nominal_name()
+            .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+            .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
+        if !is_interface {
+            diagnostics.push(generic_bound_not_interface_diagnostic(
+                sources,
+                bound,
+                &bound_type,
+            ));
         }
     }
 }

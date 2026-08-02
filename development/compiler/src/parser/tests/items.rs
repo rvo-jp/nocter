@@ -853,7 +853,7 @@ impl Writer for Counter {
 }
 
 #[test]
-fn rejects_generic_bounds_in_v0() {
+fn parses_single_generic_interface_bounds() {
     let output = parse_text(
         r#"func print<W: Writer>(writer: &+W): void! {
     return
@@ -861,8 +861,17 @@ fn rejects_generic_bounds_in_v0() {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(output.diagnostics[0].message.contains("generic bounds"));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let parameter = &function.generics.parameters[0];
+    assert_eq!(parameter.name, "W");
+    assert!(matches!(
+        &parameter.bound,
+        Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
+    ));
 }
 
 #[test]

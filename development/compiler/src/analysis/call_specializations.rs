@@ -90,6 +90,8 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 );
             }
             PendingCallSpecialization::Method(specialization) => {
+                let specialization =
+                    redirect_interface_method_specialization(analysis, specialization);
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
@@ -137,6 +139,67 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         drops,
         literals,
     }
+}
+
+fn redirect_interface_method_specialization(
+    analysis: &CompileUnitAnalysis,
+    mut specialization: MethodCallSpecialization,
+) -> MethodCallSpecialization {
+    let Some(method_name) =
+        interface_method_name_for_span(analysis, specialization.declaration_span)
+    else {
+        return specialization;
+    };
+    let Some((actual_span, impl_substitutions)) =
+        inherent_method_span_for_self_type(analysis, &specialization.self_ty, method_name)
+    else {
+        return specialization;
+    };
+    specialization.declaration_span = actual_span;
+    specialization.substitutions.extend(impl_substitutions);
+    specialization
+}
+
+fn interface_method_name_for_span(
+    analysis: &CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<&str> {
+    analysis.files.iter().find_map(|file| {
+        file.ast.items.iter().find_map(|item| {
+            let Item::Interface(interface) = item else {
+                return None;
+            };
+            interface
+                .methods
+                .iter()
+                .find(|method| method.name_span == declaration_span)
+                .map(|method| method.name.as_str())
+        })
+    })
+}
+
+fn inherent_method_span_for_self_type(
+    analysis: &CompileUnitAnalysis,
+    self_ty: &TypeExpr,
+    method_name: &str,
+) -> Option<(ByteSpan, HashMap<String, TypeExpr>)> {
+    analysis.files.iter().find_map(|file| {
+        file.ast.items.iter().find_map(|item| {
+            let Item::Impl(impl_) = item else {
+                return None;
+            };
+            if impl_.interface_ty.is_some() {
+                return None;
+            }
+            let substitutions = impl_substitutions_for_self_ty(impl_, self_ty)?;
+            impl_.members.iter().find_map(|member| {
+                let ImplMember::Method(method) = member else {
+                    return None;
+                };
+                (method.name == method_name).then_some((method.name_span, substitutions.clone()))
+            })
+        })
+    })
 }
 
 enum PendingCallSpecialization {

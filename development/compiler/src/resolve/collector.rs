@@ -362,10 +362,6 @@ impl Resolver<'_> {
     }
 
     fn collect_inherent_impl_members(&mut self, impl_: &ImplDecl) {
-        if impl_.interface_ty.is_some() {
-            return;
-        }
-
         let Some(target_name) = impl_target_type_name(&impl_.target_ty) else {
             return;
         };
@@ -386,6 +382,11 @@ impl Resolver<'_> {
             };
 
             if !type_symbol_accepts_inherent_impl(type_symbol) {
+                return;
+            }
+
+            if let Some(interface_ty) = &impl_.interface_ty {
+                type_symbol.interface_impls.push(interface_ty.clone());
                 return;
             }
 

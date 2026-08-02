@@ -957,6 +957,7 @@ fn resolved_function_signature(
 ) -> ResolvedFunctionSignature {
     ResolvedFunctionSignature {
         generic_parameters: Vec::new(),
+        generic_parameter_bounds: Vec::new(),
         parameters: parameters
             .iter()
             .map(|parameter| ParameterSignature {
@@ -966,6 +967,7 @@ fn resolved_function_signature(
             })
             .collect(),
         return_type,
+        result_provenance: None,
     }
 }
 

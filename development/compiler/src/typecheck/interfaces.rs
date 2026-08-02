@@ -117,6 +117,18 @@ fn check_interface_impl(
                 method_shape_label(required, resolved, &self_type, &interface_substitutions),
                 method_shape_label(actual, resolved, &self_type, &actual_substitutions),
             ));
+            continue;
+        }
+        if !result_provenance_contract_is_compatible(required, actual) {
+            diagnostics.push(interface_method_signature_mismatch_diagnostic(
+                sources,
+                interface_symbol,
+                target_symbol,
+                required,
+                actual,
+                method_shape_label(required, resolved, &self_type, &interface_substitutions),
+                method_shape_label(actual, resolved, &self_type, &actual_substitutions),
+            ));
         }
     }
 }
@@ -329,13 +341,72 @@ fn method_shape_label(
         .map(Type::display)
         .collect::<Vec<_>>()
         .join(", ");
-    format!(
+    let mut label = format!(
         "method {}.{}({}): {}",
         method_receiver_shape_label(&shape.receiver),
         method.name,
         parameters,
         shape.return_type.display()
-    )
+    );
+    if let Some(clause) = &method.signature.result_provenance {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+    label
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProvenanceSlot {
+    Receiver,
+    Parameter(usize),
+    Static,
+    Current,
+}
+
+fn result_provenance_contract_is_compatible(
+    required: &MethodSignature,
+    actual: &MethodSignature,
+) -> bool {
+    let Some(required_clause) = &required.signature.result_provenance else {
+        return true;
+    };
+    let Some(actual_clause) = &actual.signature.result_provenance else {
+        return false;
+    };
+    let required_slots = provenance_slots(required, required_clause);
+    provenance_slots(actual, actual_clause)
+        .into_iter()
+        .all(|slot| slot == ProvenanceSlot::Static || required_slots.contains(&slot))
+}
+
+fn provenance_slots(
+    method: &MethodSignature,
+    clause: &crate::ast::ResultProvenanceClause,
+) -> Vec<ProvenanceSlot> {
+    clause
+        .origins
+        .iter()
+        .filter_map(|origin| match &origin.kind {
+            crate::ast::ResultProvenanceOriginKind::Receiver => Some(ProvenanceSlot::Receiver),
+            crate::ast::ResultProvenanceOriginKind::Parameter(name) => method
+                .signature
+                .parameters
+                .iter()
+                .position(|parameter| parameter.name == *name)
+                .map(ProvenanceSlot::Parameter),
+            crate::ast::ResultProvenanceOriginKind::Static => Some(ProvenanceSlot::Static),
+            crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext => {
+                Some(ProvenanceSlot::Current)
+            }
+        })
+        .collect()
 }
 
 fn method_receiver_shape_label(receiver: &Type) -> &'static str {

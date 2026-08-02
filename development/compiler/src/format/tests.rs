@@ -74,6 +74,15 @@ primitive allocated_text():&str from current
 }
 
 #[test]
+fn formats_generic_interface_bounds_stably() {
+    assert_formats_stably(
+        r#"func measure<T:Measure>(value:&T):i32{return value.measure()}
+"#,
+        "func measure<T: Measure>(value: &T): i32 {\n    return value.measure()\n}\n",
+    );
+}
+
+#[test]
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
         r#"pub literal Vec<T>[](...items:T):Self{for item in items{return move item}}

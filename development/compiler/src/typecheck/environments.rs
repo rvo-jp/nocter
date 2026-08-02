@@ -31,13 +31,7 @@ pub(super) fn environment_for_function(
         Some(self_type) => TypeEnvironment::with_self_type(self_type),
         None => TypeEnvironment::default(),
     };
-    environment.define_generic_parameters(
-        function
-            .generics
-            .parameters
-            .iter()
-            .map(|parameter| parameter.name.clone()),
-    );
+    environment.define_generic_parameter_list(&function.generics);
     define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
     environment
 }
@@ -149,13 +143,7 @@ pub(super) fn generic_parameter_substitutions(
 }
 
 fn define_impl_generic_parameters(impl_: &ImplDecl, environment: &mut TypeEnvironment) {
-    environment.define_generic_parameters(
-        impl_
-            .generics
-            .parameters
-            .iter()
-            .map(|parameter| parameter.name.clone()),
-    );
+    environment.define_generic_parameter_list(&impl_.generics);
 }
 
 pub(super) fn environment_for_catch(

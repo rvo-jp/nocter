@@ -1,5 +1,6 @@
 use crate::ast::{
-    BindingKind, CallExpr, Expr, IdentifierExpr, LiteralShape, MethodReceiver, TypeExpr, Visibility,
+    BindingKind, CallExpr, Expr, IdentifierExpr, LiteralShape, MethodReceiver,
+    ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::diagnostics::Diagnostic;
 use crate::semantics::TrustedDeclarationFacts;
@@ -412,8 +413,10 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
+    pub generic_parameter_bounds: Vec<Option<TypeExpr>>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -428,6 +431,7 @@ pub struct TypeSymbol {
     pub variants: Vec<EnumVariantSignature>,
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
+    pub interface_impls: Vec<TypeExpr>,
     pub drop_member: Option<DropSignature>,
     pub literals: Vec<LiteralSignature>,
 }
