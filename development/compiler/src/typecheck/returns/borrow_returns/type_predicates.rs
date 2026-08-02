@@ -4,6 +4,177 @@ pub(in crate::typecheck) fn type_contains_borrow_like(ty: &Type, resolved: &Reso
     type_contains_borrow_like_inner(ty, resolved, &mut HashSet::new())
 }
 
+pub(in crate::typecheck) fn returned_type_contains_readwrite_borrow(
+    ty: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    type_contains_readwrite_borrow_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_contains_readwrite_borrow_inner(
+    ty: &Type,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        Type::View { is_readwrite, .. } => *is_readwrite,
+        Type::Named(name) if name.starts_with("&+") => true,
+        Type::Named(name) if name.starts_with('&') => false,
+        Type::Named(name) => {
+            type_symbol_contains_readwrite_borrow(name, resolved, &HashMap::new(), resolving_names)
+        }
+        Type::Generic { name, arguments } => {
+            let Some(symbol) = resolved.type_symbol_by_canonical_name(name) else {
+                return false;
+            };
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(arguments.iter().cloned())
+                .collect();
+            type_symbol_contains_readwrite_borrow(name, resolved, &substitutions, resolving_names)
+        }
+        Type::Array { element, .. } | Type::Optional(element) | Type::ArrayData { element } => {
+            type_contains_readwrite_borrow_inner(element, resolved, resolving_names)
+        }
+        Type::Fallible { success, error } => {
+            type_contains_readwrite_borrow_inner(success, resolved, resolving_names)
+                || type_contains_readwrite_borrow_inner(error, resolved, resolving_names)
+        }
+        Type::I32
+        | Type::Primitive(_)
+        | Type::Str
+        | Type::StrData
+        | Type::Void
+        | Type::Never
+        | Type::None
+        | Type::Pointer(_)
+        | Type::Parameter(_)
+        | Type::Error
+        | Type::Unresolved(_)
+        | Type::Unknown => false,
+    }
+}
+
+fn type_symbol_contains_readwrite_borrow(
+    canonical_name: &str,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    if !resolving_names.insert(canonical_name.to_string()) {
+        return false;
+    }
+    let result = resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .is_some_and(|symbol| match symbol.kind {
+            TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
+                type_expr_contains_readwrite_borrow(
+                    target,
+                    resolved,
+                    substitutions,
+                    resolving_names,
+                )
+            }),
+            TypeSymbolKind::Struct => symbol.fields.iter().any(|field| {
+                type_expr_contains_readwrite_borrow(
+                    &field.ty,
+                    resolved,
+                    substitutions,
+                    resolving_names,
+                )
+            }),
+            TypeSymbolKind::Enum => symbol.variants.iter().any(|variant| {
+                variant.payload.iter().any(|payload| {
+                    type_expr_contains_readwrite_borrow(
+                        &payload.ty,
+                        resolved,
+                        substitutions,
+                        resolving_names,
+                    )
+                })
+            }),
+            TypeSymbolKind::Interface => false,
+        });
+    resolving_names.remove(canonical_name);
+    result
+}
+
+fn type_expr_contains_readwrite_borrow(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Borrow(borrow) => borrow.is_readwrite,
+        TypeExpr::View(view) => view.is_readwrite,
+        TypeExpr::Array(array) => type_expr_contains_readwrite_borrow(
+            &array.element,
+            resolved,
+            substitutions,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_contains_readwrite_borrow(
+            &optional.inner,
+            resolved,
+            substitutions,
+            resolving_names,
+        ),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_contains_readwrite_borrow(
+                &fallible.success,
+                resolved,
+                substitutions,
+                resolving_names,
+            ) || type_expr_contains_readwrite_borrow(
+                &fallible.error,
+                resolved,
+                substitutions,
+                resolving_names,
+            )
+        }
+        TypeExpr::Pointer(_) => false,
+        TypeExpr::Reference(reference) => {
+            substitutions.get(&reference.name).is_some_and(|ty| {
+                type_contains_readwrite_borrow_inner(ty, resolved, resolving_names)
+            }) || resolved
+                .type_symbol_by_reference_name(&reference.name)
+                .is_some_and(|symbol| {
+                    type_symbol_contains_readwrite_borrow(
+                        &symbol.canonical_name,
+                        resolved,
+                        &HashMap::new(),
+                        resolving_names,
+                    )
+                })
+        }
+        TypeExpr::Generic(generic) => {
+            if let Some(ty) = substitutions.get(&generic.name) {
+                return type_contains_readwrite_borrow_inner(ty, resolved, resolving_names);
+            }
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return false;
+            };
+            let nested_substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().map(|argument| {
+                    type_expr_to_type_with_substitutions(argument, resolved, None, substitutions)
+                }))
+                .collect();
+            type_symbol_contains_readwrite_borrow(
+                &symbol.canonical_name,
+                resolved,
+                &nested_substitutions,
+                resolving_names,
+            )
+        }
+    }
+}
+
 pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
     ty: &Type,
     resolved: &ResolveOutput,

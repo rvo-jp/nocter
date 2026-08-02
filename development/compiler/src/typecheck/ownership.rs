@@ -14,8 +14,9 @@ use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::provenance::{CallableId, CallableProvenanceSummaries, InputId};
 use super::returns::{
-    extend_terminal_lookahead_environment, statement_evaluates_never_before_fallthrough,
-    statement_guarantees_control_exit_or_never, type_contains_borrow_like,
+    extend_terminal_lookahead_environment, returned_type_contains_readwrite_borrow,
+    statement_evaluates_never_before_fallthrough, statement_guarantees_control_exit_or_never,
+    type_contains_borrow_like,
 };
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{

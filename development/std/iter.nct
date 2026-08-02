@@ -1,0 +1,52 @@
+//! Allocation-free readonly iteration over contiguous views.
+//!
+//! ViewIter retains the source view itself so element borrows preserve the
+//! view's storage origin. Iterator names are ordinary standard-library APIs.
+
+/// A forward cursor over readonly borrows into contiguous storage.
+pub struct ViewIter<T> {
+    view: &[T]
+    next_index: usize
+}
+
+/// Creates an allocation-free readonly iterator over `view`.
+pub func ViewIter.from_view<T>(view: &[T]): ViewIter<T> {
+    return ViewIter<T> {
+        view: view,
+        next_index: 0,
+    }
+}
+
+pub func from_view<T>(view: &[T]): ViewIter<T> {
+    return ViewIter.from_view(view)
+}
+
+pub func remaining<T>(iterator: &ViewIter<T>): usize {
+    return iterator.view.len() - iterator.next_index
+}
+
+pub func next<T>(iterator: &+ViewIter<T>): (&T)? {
+    if iterator.next_index >= iterator.view.len() {
+        return none
+    }
+    let index: usize = iterator.next_index
+    iterator.next_index = index + 1
+    return &iterator.view[index]
+}
+
+impl<T> ViewIter<T> {
+    /// Returns the number of elements not yet yielded.
+    pub method &self.remaining(): usize {
+        return remaining(self)
+    }
+
+    /// Advances and returns a readonly borrow, or `none` at exhaustion.
+    pub method &+self.next(): (&T)? {
+        if self.next_index >= self.view.len() {
+            return none
+        }
+        let index: usize = self.next_index
+        self.next_index = index + 1
+        return &self.view[index]
+    }
+}

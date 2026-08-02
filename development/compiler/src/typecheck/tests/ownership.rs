@@ -241,6 +241,83 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_mutation_while_implicitly_borrowed_receiver_result_is_live() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: i32
+}
+
+struct Holder {
+    value: &Text
+}
+
+impl Text {
+    method &self.hold(): Holder {
+        return Holder { value: self }
+    }
+}
+
+func inspect(value: &Text): void {
+    return
+}
+
+func main(): i32 {
+    var text = Text { value: 1 }
+    let holder = text.hold()
+    text = Text { value: 2 }
+    inspect(holder.value)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("holder"));
+}
+
+#[test]
+fn returned_aggregate_preserves_readwrite_borrow_conflicts() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    value: i32
+}
+
+struct Holder {
+    value: &+Text
+}
+
+func hold(value: &+Text): Holder {
+    return Holder { value: value }
+}
+
+func inspect(value: &Text): void {
+    return
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func main(): i32 {
+    var text = Text { value: 1 }
+    let holder = hold(&+text)
+    inspect(&text)
+    touch(holder.value)
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("read"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("holder"));
+}
+
+#[test]
 fn accepts_move_of_non_copy_generic_copy_struct_instantiation() {
     let diagnostics = check_text(
         r#"struct Text {

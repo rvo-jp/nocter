@@ -96,7 +96,7 @@ impl EntryEmitter {
             Type::I32 | Type::U8 | Type::Bool => {
                 self.encoder.emit_mov_w(WReg::W1, WReg::W0);
             }
-            Type::Usize => {
+            Type::Usize | Type::Borrow { .. } => {
                 self.encoder.emit_mov_x(XReg::X1, XReg::X0);
             }
             Type::Str | Type::Slice { .. } => {
@@ -121,7 +121,7 @@ impl EntryEmitter {
                 }
             },
             Type::Void => {}
-            Type::Borrow { .. } | Type::Error | Type::Never | Type::Fallible(_) => {
+            Type::Error | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
                     "invalid fallible success payload type for codegen",

@@ -710,6 +710,33 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
+            Instruction::CallBorrow {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_usize(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallFallibleBorrow {
+                destination,
+                target,
+                arguments,
+                failure_mode,
+            } => {
+                self.emit_call_fallible_usize(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                    failure_mode,
+                    return_type,
+                )?;
+            }
             Instruction::CallBool {
                 destination,
                 target,

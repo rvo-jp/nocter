@@ -231,6 +231,18 @@ where
             resolving_names,
         )
         .map(|success| Type::Fallible(Box::new(success))),
+        TypeExpr::Borrow(borrow) => {
+            scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver).or_else(
+                || {
+                    borrow_inner_type_inner(&borrow.inner, fallback_resolved, resolver).map(
+                        |inner| Type::Borrow {
+                            is_readwrite: borrow.is_readwrite,
+                            inner: Box::new(inner),
+                        },
+                    )
+                },
+            )
+        }
         _ => scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
             .or_else(|| aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)),
     }

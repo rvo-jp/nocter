@@ -382,15 +382,18 @@ pub(super) fn returned_borrow_sources(
         return Vec::new();
     };
 
-    let is_readwrite =
-        returned_type_is_readwrite_borrow(&expression_type(expression, resolved, environment));
+    let is_readwrite = returned_type_contains_readwrite_borrow(
+        &expression_type(expression, resolved, environment),
+        resolved,
+    );
     result
         .input_origins()
         .into_iter()
         .filter_map(|input| call_input_expression(input, call, &signature, resolved, environment))
         .flat_map(|input| {
             borrow_sources_for_input(
-                input,
+                input.expression,
+                input.is_borrowed,
                 is_readwrite,
                 resolved,
                 environment,
@@ -401,18 +404,26 @@ pub(super) fn returned_borrow_sources(
         .collect()
 }
 
+struct CallInput<'a> {
+    expression: &'a Expr,
+    is_borrowed: bool,
+}
+
 fn call_input_expression<'a>(
     input: InputId,
     call: &'a crate::ast::CallExpr,
     signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-) -> Option<&'a Expr> {
+) -> Option<CallInput<'a>> {
     if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
         && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
         && InputId::declared_at(method.receiver.name_span) == input
     {
-        return method_member_for_call(call).map(|member| member.object.as_ref());
+        return method_member_for_call(call).map(|member| CallInput {
+            expression: member.object.as_ref(),
+            is_borrowed: matches!(method.receiver.ty, TypeExpr::Borrow(_)),
+        });
     }
 
     signature
@@ -420,11 +431,20 @@ fn call_input_expression<'a>(
         .parameters
         .iter()
         .position(|parameter| InputId::declared_at(parameter.name_span) == input)
-        .and_then(|index| call.arguments.get(index))
+        .and_then(|index| {
+            call.arguments.get(index).map(|expression| CallInput {
+                expression,
+                is_borrowed: matches!(
+                    signature.signature.parameters[index].ty,
+                    TypeExpr::Borrow(_)
+                ),
+            })
+        })
 }
 
 fn borrow_sources_for_input(
     expression: &Expr,
+    input_is_borrowed: bool,
     result_is_readwrite: bool,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
@@ -437,7 +457,7 @@ fn borrow_sources_for_input(
     }
 
     if let Expr::Identifier(identifier) = unwrap_group(expression) {
-        return active_borrows
+        let aliases = active_borrows
             .iter()
             .filter(|borrow| borrow.borrow_name == identifier.name)
             .map(|borrow| DirectBorrowSource {
@@ -445,22 +465,27 @@ fn borrow_sources_for_input(
                 source_span: identifier.span,
                 is_readwrite: result_is_readwrite,
             })
-            .collect();
+            .collect::<Vec<_>>();
+        if !aliases.is_empty() {
+            return aliases;
+        }
+    }
+
+    if input_is_borrowed
+        && !type_contains_borrow_like(
+            &expression_type(expression, resolved, environment),
+            resolved,
+        )
+        && let Some(source) = expression_place(expression)
+    {
+        return vec![DirectBorrowSource {
+            source,
+            source_span: expression.span(),
+            is_readwrite: result_is_readwrite,
+        }];
     }
 
     returned_borrow_sources(expression, resolved, environment, summaries, active_borrows)
-}
-
-fn returned_type_is_readwrite_borrow(ty: &Type) -> bool {
-    match ty {
-        Type::Named(name) => name.starts_with("&+"),
-        Type::View { is_readwrite, .. } => *is_readwrite,
-        Type::Optional(inner) => returned_type_is_readwrite_borrow(inner),
-        Type::Fallible { success, error } => {
-            returned_type_is_readwrite_borrow(success) || returned_type_is_readwrite_borrow(error)
-        }
-        _ => false,
-    }
 }
 
 fn method_borrow_receiver_source(

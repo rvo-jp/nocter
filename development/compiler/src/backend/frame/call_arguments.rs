@@ -13,6 +13,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBorrow { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
@@ -34,6 +35,11 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             ..
         }
         | Instruction::CallFallibleUsize {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleBorrow {
             arguments,
             failure_mode,
             ..

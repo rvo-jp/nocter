@@ -56,6 +56,26 @@ pub(super) fn lower_usize_local_binding(
     Ok(instructions)
 }
 
+pub(super) fn lower_borrow_local_binding(
+    statement: &BindingStmt,
+    is_readwrite: bool,
+    inner: Type,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination = context.next_usize_local_location()?;
+    let instructions = lower_borrow_expression_to_location(
+        &statement.initializer,
+        destination,
+        &Type::Borrow {
+            is_readwrite,
+            inner: Box::new(inner.clone()),
+        },
+        context,
+    )?;
+    context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
+    Ok(instructions)
+}
+
 pub(super) fn lower_bool_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
@@ -101,7 +121,7 @@ pub(super) fn scalar_binding_kind(
                     "IR v0 cannot lower annotated local bindings without resolved type information",
                 ));
             };
-            match scalar_or_view_type_from_type_expr(ty, resolved) {
+            match parameter_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved)) {
                 Some(Type::I32) => Ok(ScalarBindingKind::I32),
                 Some(Type::U8) => Ok(ScalarBindingKind::U8),
                 Some(Type::Usize) => Ok(ScalarBindingKind::Usize),
@@ -110,8 +130,15 @@ pub(super) fn scalar_binding_kind(
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice(
                     slice_type_info_from_type_expr(ty, context),
                 )),
+                Some(Type::Borrow {
+                    is_readwrite,
+                    inner,
+                }) => Ok(ScalarBindingKind::Borrow {
+                    is_readwrite,
+                    inner: *inner,
+                }),
                 _ => Err(unsupported_binding_diagnostic(
-                    "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, or aliases to those types",
+                    "IR lowering can only represent this annotation as a supported scalar, borrow, or view local",
                 )),
             }
         }
@@ -256,6 +283,13 @@ pub(super) fn scalar_binding_kind_from_type(ty: &Type) -> Option<ScalarBindingKi
         Type::Slice { .. } => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
             TypecheckSliceElementKind::Other,
         ))),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Some(ScalarBindingKind::Borrow {
+            is_readwrite: *is_readwrite,
+            inner: inner.as_ref().clone(),
+        }),
         _ => None,
     }
 }
@@ -333,6 +367,7 @@ pub(super) enum ScalarBindingKind {
     I32,
     U8,
     Usize,
+    Borrow { is_readwrite: bool, inner: Type },
     Bool,
     Str,
     Slice(SliceTypeInfo),
@@ -341,7 +376,7 @@ pub(super) enum ScalarBindingKind {
 impl ScalarBindingKind {
     pub(super) fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
+            Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
         }
     }

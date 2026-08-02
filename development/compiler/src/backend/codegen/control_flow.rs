@@ -489,6 +489,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallFallibleU8 { .. }
             | Instruction::CallUsize { .. }
             | Instruction::CallFallibleUsize { .. }
+            | Instruction::CallBorrow { .. }
+            | Instruction::CallFallibleBorrow { .. }
             | Instruction::CallBool { .. }
             | Instruction::CallFallibleBool { .. }
             | Instruction::CallStr { .. }

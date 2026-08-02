@@ -437,5 +437,6 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_aggregate_return_with_resolver(ty, fallback_resolved, resolver)
 }

@@ -116,6 +116,48 @@ pub(in crate::ir::lower) fn lower_fallible_usize_normal_call(
     Ok(instructions)
 }
 
+pub(in crate::ir::lower::expressions) fn lower_borrow_normal_call(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+    validate_borrow_normal_call_return_type(&target, &callee_name, context)?;
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
+    instructions.push(Instruction::CallBorrow {
+        destination,
+        target,
+        arguments,
+    });
+    Ok(instructions)
+}
+
+pub(in crate::ir::lower) fn lower_fallible_borrow_normal_call(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+    validate_fallible_borrow_normal_call_return_type(&target, &callee_name, context)?;
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
+    instructions.push(Instruction::CallFallibleBorrow {
+        destination,
+        target,
+        arguments,
+        failure_mode,
+    });
+    Ok(instructions)
+}
+
 pub(in crate::ir::lower::expressions) fn lower_u8_normal_call(
     call: &CallExpr,
     destination: U8Location,

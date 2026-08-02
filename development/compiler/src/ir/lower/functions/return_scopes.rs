@@ -116,6 +116,16 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
         (Type::Slice { .. }, Some(expression)) => {
             lower_slice_return_expression(expression, context)
         }
+        (Type::Borrow { .. }, Some(expression)) => {
+            let mut instructions = lower_borrow_expression_to_location(
+                expression,
+                UsizeLocation::Return,
+                &success_type,
+                context,
+            )?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
         (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
             let Some((_root_source, resolved)) = context.resolved_calls() else {
                 return Err(unsupported_return_diagnostic(
@@ -181,7 +191,7 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             &function_name,
             "error",
         )),
-        (Type::Borrow { .. }, _) => Err(unsupported_return_diagnostic(
+        (Type::Borrow { .. }, None) => Err(unsupported_return_diagnostic(
             diagnostic_code,
             &function_name,
             "borrow",

@@ -527,6 +527,10 @@ enum LocalKind {
     I32,
     U8,
     Usize,
+    Borrow {
+        is_readwrite: bool,
+        inner: Type,
+    },
     Bool,
     Str,
     Slice(SliceTypeInfo),
@@ -543,7 +547,7 @@ enum LocalKind {
 impl LocalKind {
     fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
+            Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
             Self::Aggregate { .. } => 0,

@@ -562,7 +562,29 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
+        Instruction::CallBorrow {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
         Instruction::CallFallibleUsize {
+            destination,
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::CallFallibleBorrow {
             destination,
             arguments,
             failure_mode,
@@ -772,6 +794,7 @@ pub(super) fn record_borrow_source(source: BorrowSource, highest_local_index: &m
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
         BorrowSource::BorrowParameter(_) => {}
+        BorrowSource::BorrowLocal(location) => record_usize_location(location, highest_local_index),
         BorrowSource::SliceIndex { source, index, .. } => {
             record_slice_location(source, highest_local_index);
             record_slice_element_index(index, highest_local_index);

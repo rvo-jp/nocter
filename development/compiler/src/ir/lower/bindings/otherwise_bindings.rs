@@ -14,17 +14,26 @@ pub(super) fn optional_success_scalar_binding_kind(
             "IR v0 cannot lower annotated `otherwise` bindings without resolved type information",
         ));
     };
-    Ok(match scalar_or_view_type_from_type_expr(ty, resolved) {
-        Some(Type::I32) => Some(ScalarBindingKind::I32),
-        Some(Type::U8) => Some(ScalarBindingKind::U8),
-        Some(Type::Usize) => Some(ScalarBindingKind::Usize),
-        Some(Type::Bool) => Some(ScalarBindingKind::Bool),
-        Some(Type::Str) => Some(ScalarBindingKind::Str),
-        Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice(slice_type_info_from_type_expr(
-            ty, context,
-        ))),
-        _ => None,
-    })
+    Ok(
+        match parameter_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved)) {
+            Some(Type::I32) => Some(ScalarBindingKind::I32),
+            Some(Type::U8) => Some(ScalarBindingKind::U8),
+            Some(Type::Usize) => Some(ScalarBindingKind::Usize),
+            Some(Type::Bool) => Some(ScalarBindingKind::Bool),
+            Some(Type::Str) => Some(ScalarBindingKind::Str),
+            Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice(
+                slice_type_info_from_type_expr(ty, context),
+            )),
+            Some(Type::Borrow {
+                is_readwrite,
+                inner,
+            }) => Some(ScalarBindingKind::Borrow {
+                is_readwrite,
+                inner: *inner,
+            }),
+            _ => None,
+        },
+    )
 }
 
 pub(super) fn lower_otherwise_terminal_block(
@@ -320,6 +329,38 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 failure_mode,
             )?;
             context.define_usize_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Borrow {
+            is_readwrite,
+            inner,
+        } => {
+            let destination = context.next_usize_local_location()?;
+            let failure_mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_borrow_expression_to_location(
+                        expression,
+                        destination,
+                        &Type::Borrow {
+                            is_readwrite,
+                            inner: Box::new(inner.clone()),
+                        },
+                        context,
+                    )
+                },
+                "IR v0 can only lower borrow `otherwise` fallbacks that produce a matching borrow or exit",
+            )?;
+            let instructions = lower_fallible_borrow_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
             Ok(instructions)
         }
         ScalarBindingKind::Bool => {

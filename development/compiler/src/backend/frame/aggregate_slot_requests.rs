@@ -92,6 +92,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         Instruction::CallFallibleI32 { failure_mode, .. }
         | Instruction::CallFallibleU8 { failure_mode, .. }
         | Instruction::CallFallibleUsize { failure_mode, .. }
+        | Instruction::CallFallibleBorrow { failure_mode, .. }
         | Instruction::CallFallibleBool { failure_mode, .. }
         | Instruction::CallFallibleStr { failure_mode, .. }
         | Instruction::CallFallibleSlice { failure_mode, .. }
@@ -111,6 +112,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::ProcessExit { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CallBorrow { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }

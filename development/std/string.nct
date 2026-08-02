@@ -11,6 +11,7 @@
 //! through restricted runtime pointer primitives.
 
 use std/error.Error
+use std/iter.ViewIter
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
@@ -150,6 +151,10 @@ pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
 
+pub func bytes_iter(text: &String): ViewIter<u8> {
+    return ViewIter.from_view(bytes_from_str(view(text)))
+}
+
 pub func try_push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
@@ -204,6 +209,11 @@ impl String {
 
     pub method &self.bytes(): &[u8] {
         return bytes_from_str(view(self))
+    }
+
+    /// Iterates over the exact UTF-8 encoding bytes without allocation.
+    pub method &self.bytes_iter(): ViewIter<u8> {
+        return bytes_iter(self)
     }
 
     pub method &+self.push_str(value: &str): void {

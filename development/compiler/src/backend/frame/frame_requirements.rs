@@ -18,6 +18,8 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::CallFallibleU8 { .. }
         | Instruction::CallUsize { .. }
         | Instruction::CallFallibleUsize { .. }
+        | Instruction::CallBorrow { .. }
+        | Instruction::CallFallibleBorrow { .. }
         | Instruction::CallBool { .. }
         | Instruction::CallFallibleBool { .. }
         | Instruction::CallStr { .. }
@@ -181,6 +183,8 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleU8 { .. }
         | Instruction::CallUsize { .. }
         | Instruction::CallFallibleUsize { .. }
+        | Instruction::CallBorrow { .. }
+        | Instruction::CallFallibleBorrow { .. }
         | Instruction::CallBool { .. }
         | Instruction::CallFallibleBool { .. }
         | Instruction::CallStr { .. }

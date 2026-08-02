@@ -16,6 +16,7 @@ fn collect_reachable_call_targets(
             Instruction::CallI32 { target, .. }
             | Instruction::CallU8 { target, .. }
             | Instruction::CallUsize { target, .. }
+            | Instruction::CallBorrow { target, .. }
             | Instruction::CallBool { target, .. }
             | Instruction::CallStr { target, .. }
             | Instruction::CallSlice { target, .. }
@@ -46,6 +47,11 @@ fn collect_reachable_call_targets(
                 ..
             }
             | Instruction::CallFallibleUsize {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleBorrow {
                 target,
                 failure_mode,
                 ..

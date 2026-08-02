@@ -242,6 +242,10 @@ pub(super) fn record_borrow_source_parameter_spill_request(
         | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Local(_))
         | BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. } => {}
+        BorrowSource::BorrowLocal(UsizeLocation::Parameter(index)) => {
+            requests.insert(index);
+        }
+        BorrowSource::BorrowLocal(UsizeLocation::Return | UsizeLocation::Local(_)) => {}
     }
 }
 

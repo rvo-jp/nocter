@@ -11,6 +11,7 @@
 //! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
+use std/iter.ViewIter
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.addr
@@ -166,6 +167,10 @@ pub func view_mut<T>(values: &+Vec<T>): &+[T] {
     return slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
+pub func iter<T>(values: &Vec<T>): ViewIter<T> {
+    return ViewIter.from_view(view(values))
+}
+
 pub func try_reserve<T>(values: &+Vec<T>, additional: usize): void! {
     if additional == 0 {
         return
@@ -275,6 +280,11 @@ impl<T> Vec<T> {
 
     pub method &+self.view_mut(): &+[T] {
         return view_mut(self)
+    }
+
+    /// Returns an allocation-free iterator over readonly element borrows.
+    pub method &self.iter(): ViewIter<T> {
+        return iter(self)
     }
 
     /// Ensures capacity for at least `additional` more elements.

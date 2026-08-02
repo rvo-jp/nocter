@@ -40,8 +40,8 @@ use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     PointerTakeDestination, TemporaryAllocator, lower_aggregate_member_field_access,
     lower_bool_expression_to_location, lower_bool_return_expression,
-    lower_call_arguments_to_scalar_arguments, lower_catch_failure_mode,
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
+    lower_catch_failure_mode, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_i32_expression_to_location, lower_i32_return_expression,

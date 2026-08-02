@@ -28,6 +28,7 @@ pub(super) enum ExpectedCallReturnShape {
     I32,
     U8,
     Usize,
+    Borrow,
     Bool,
     Str,
     Slice,
@@ -39,7 +40,7 @@ pub(super) enum ExpectedCallReturnShape {
 impl ExpectedCallReturnShape {
     fn passing(self) -> Option<ReturnPassing> {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => {
+            Self::I32 | Self::U8 | Self::Usize | Self::Borrow | Self::Bool => {
                 Some(ReturnPassing::Direct { words: 1 })
             }
             Self::Str | Self::Slice => Some(ReturnPassing::Direct { words: 2 }),
@@ -54,6 +55,7 @@ impl ExpectedCallReturnShape {
             (Self::I32, Type::I32)
             | (Self::U8, Type::U8)
             | (Self::Usize, Type::Usize)
+            | (Self::Borrow, Type::Borrow { .. })
             | (Self::Bool, Type::Bool)
             | (Self::Str, Type::Str)
             | (Self::Slice, Type::Slice { .. })
@@ -71,6 +73,7 @@ impl ExpectedCallReturnShape {
             Self::I32 => "i32".to_string(),
             Self::U8 => "u8".to_string(),
             Self::Usize => "usize".to_string(),
+            Self::Borrow => "borrow".to_string(),
             Self::Bool => "bool".to_string(),
             Self::Str => "&str".to_string(),
             Self::Slice => "slice".to_string(),
@@ -251,6 +254,30 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 validate_fallible_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Usize,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallBorrow { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Borrow,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleBorrow {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Borrow,
                     return_types,
                     diagnostics,
                 );

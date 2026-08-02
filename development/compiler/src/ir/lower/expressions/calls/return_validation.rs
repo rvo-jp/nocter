@@ -54,6 +54,31 @@ pub(super) fn validate_usize_normal_call_return_type(
     )])
 }
 
+pub(super) fn validate_borrow_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Ok(());
+    };
+    if matches!(callee_return_type, Type::Borrow { .. }) {
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
+    }
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
 pub(super) fn validate_u8_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
@@ -218,6 +243,33 @@ pub(super) fn validate_fallible_void_normal_call_return_type(
         "E8006",
         format!(
             "IR v0 can only lower propagated call statements returning `void!`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+pub(super) fn validate_fallible_borrow_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 can only lower optional borrow calls with known return type, got function `{callee_name}`"
+            ),
+        )]);
+    };
+    if let Type::Fallible(success) = callee_return_type
+        && matches!(success.as_ref(), Type::Borrow { .. })
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
+    }
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower optional borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

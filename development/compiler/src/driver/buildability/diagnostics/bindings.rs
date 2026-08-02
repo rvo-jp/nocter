@@ -166,6 +166,10 @@ pub(in crate::driver::buildability) fn local_binding_type_expr_is_buildable(
 ) -> bool {
     type_expr_is_buildable_scalar_or_view_for_sources(ty, resolved, resolved_sources)
         || type_expr_is_error_parameter_for_sources(ty, resolved, resolved_sources)
+        || {
+            let source_resolver = |source| resolved_sources.get(&source).copied();
+            type_expr_is_supported_borrow_parameter_with_resolver(ty, resolved, &source_resolver)
+        }
         || type_expr_is_supported_aggregate_value_for_sources(ty, resolved, resolved_sources)
 }
 

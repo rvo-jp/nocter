@@ -36,6 +36,7 @@ pub(super) fn record_instruction_parameter_spill_requests(
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBorrow { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
@@ -60,6 +61,11 @@ pub(super) fn record_instruction_parameter_spill_requests(
             ..
         }
         | Instruction::CallFallibleUsize {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleBorrow {
             arguments,
             failure_mode,
             ..

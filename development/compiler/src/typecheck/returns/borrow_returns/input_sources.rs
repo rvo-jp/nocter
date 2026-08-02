@@ -108,6 +108,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_identifier(
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
     expression: &Expr,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
     let Expr::Borrow(borrow) = unwrap_group(expression) else {
         return None;
@@ -116,6 +119,20 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_direct_borrow(
     match unwrap_group(&borrow.expression) {
         Expr::Identifier(identifier) => {
             borrow_return_provenance_for_local_storage(identifier, resolved)
+        }
+        Expr::Index(index)
+            if type_contains_borrow_like(
+                &expression_type(&index.object, resolved, environment),
+                resolved,
+            ) =>
+        {
+            borrow_return_provenance_for_index(
+                index,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            )
         }
         expression => Some(ValueProvenance::scope(
             expression.span(),

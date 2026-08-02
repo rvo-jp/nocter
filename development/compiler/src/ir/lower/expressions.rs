@@ -34,6 +34,7 @@ use super::types::{
 mod aggregate_fields;
 mod aggregate_members;
 mod bool_values;
+mod borrow_values;
 mod byte_collections;
 mod byte_view_values;
 mod call_arguments;
@@ -55,6 +56,7 @@ mod void_effects;
 pub(super) use aggregate_fields::*;
 use aggregate_members::*;
 pub(super) use bool_values::*;
+pub(in crate::ir::lower) use borrow_values::*;
 use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
@@ -87,6 +89,7 @@ use crate::ir::{
 };
 use crate::literals::decode_integer_literal_value;
 pub(in crate::ir::lower) use calls::lower_call_arguments_with_explicit_types;
+pub(in crate::ir::lower) use calls::lower_fallible_borrow_normal_call;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;
@@ -98,9 +101,10 @@ use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
     lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,
     lower_arg_count_raw_primitive_call_to_word, lower_arg_raw_primitive_call_to_value,
-    lower_bool_normal_call, lower_call_arguments, lower_close_fd_raw_primitive_call,
-    lower_copy_ptr_to_ptr_primitive_call, lower_copy_str_to_ptr_primitive_call,
-    lower_direct_tail_call, lower_drop_value_at_ptr_primitive_call, lower_exit_raw_primitive_call,
+    lower_bool_normal_call, lower_borrow_normal_call, lower_borrow_source_from_expression,
+    lower_call_arguments, lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
+    lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call,
+    lower_drop_value_at_ptr_primitive_call, lower_exit_raw_primitive_call,
     lower_fallible_void_normal_call, lower_from_ref_primitive_call_to_location,
     lower_from_ref_primitive_call_to_word, lower_i32_normal_call,
     lower_pointee_layout_primitive_call_to_word,

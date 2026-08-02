@@ -60,14 +60,16 @@ use aggregate_arguments::{
 };
 pub(in crate::ir::lower) use arguments::lower_call_arguments_with_explicit_types;
 pub(super) use arguments::{call_arguments_require_stack, lower_call_arguments};
+pub(in crate::ir::lower) use borrow_arguments::lower_borrow_source_from_expression;
 use borrow_arguments::{
     lower_borrow_argument, lower_implicit_receiver_borrow_argument, materialize_slice_borrow_index,
 };
 use evaluation::CallEvaluationContext;
+pub(in crate::ir::lower) use normal_calls::lower_fallible_borrow_normal_call;
 pub(super) use normal_calls::{
-    lower_bool_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
-    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
-    lower_void_normal_call,
+    lower_bool_normal_call, lower_borrow_normal_call, lower_fallible_void_normal_call,
+    lower_i32_normal_call, lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call,
+    lower_usize_normal_call, lower_void_normal_call,
 };
 pub(in crate::ir::lower) use normal_calls::{
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
@@ -109,10 +111,12 @@ use primitives::{
     lower_write_bytes_raw_primitive_call, lower_write_text_raw_primitive_call,
 };
 use return_validation::{
-    describe_type, validate_bool_normal_call_return_type,
-    validate_fallible_bool_normal_call_return_type, validate_fallible_i32_normal_call_return_type,
-    validate_fallible_slice_normal_call_return_type, validate_fallible_str_normal_call_return_type,
-    validate_fallible_u8_normal_call_return_type, validate_fallible_usize_normal_call_return_type,
+    describe_type, validate_bool_normal_call_return_type, validate_borrow_normal_call_return_type,
+    validate_fallible_bool_normal_call_return_type,
+    validate_fallible_borrow_normal_call_return_type,
+    validate_fallible_i32_normal_call_return_type, validate_fallible_slice_normal_call_return_type,
+    validate_fallible_str_normal_call_return_type, validate_fallible_u8_normal_call_return_type,
+    validate_fallible_usize_normal_call_return_type,
     validate_fallible_void_normal_call_return_type, validate_normal_call_return_type,
     validate_slice_normal_call_return_type, validate_str_normal_call_return_type,
     validate_tail_call_return_type, validate_u8_normal_call_return_type,

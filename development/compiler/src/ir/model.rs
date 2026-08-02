@@ -511,6 +511,17 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         failure_mode: FallibleFailureMode,
     },
+    CallBorrow {
+        destination: UsizeLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
+    CallFallibleBorrow {
+        destination: UsizeLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
+    },
     #[allow(dead_code)]
     CallBool {
         destination: BoolLocation,
@@ -771,6 +782,7 @@ pub(crate) enum BorrowSource {
     Usize(UsizeLocation),
     Bool(BoolLocation),
     BorrowParameter(usize),
+    BorrowLocal(UsizeLocation),
     SliceIndex {
         source: SliceLocation,
         index: SliceElementIndex,
@@ -800,6 +812,7 @@ pub(crate) enum SliceElementAddressKind {
     Usize,
     Bool,
     Str,
+    Aggregate { stride: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -964,7 +977,7 @@ impl Type {
             Self::Void => Some(ReturnPassing::Void),
             Self::Never => Some(ReturnPassing::Never),
             Self::Fallible(success) => success.success_return_passing(),
-            Self::Borrow { .. } => None,
+            Self::Borrow { .. } => Some(ReturnPassing::Direct { words: 1 }),
         }
     }
 }

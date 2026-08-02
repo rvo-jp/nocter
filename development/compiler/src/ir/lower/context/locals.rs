@@ -65,6 +65,21 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Usize);
     }
 
+    pub(in crate::ir::lower) fn define_borrow_local(
+        &mut self,
+        name: String,
+        is_readwrite: bool,
+        inner: Type,
+    ) {
+        self.define_local(
+            name,
+            LocalKind::Borrow {
+                is_readwrite,
+                inner,
+            },
+        );
+    }
+
     pub(in crate::ir::lower) fn reserve_drop_state_usize_local(
         &mut self,
     ) -> Result<UsizeLocation, Vec<Diagnostic>> {
@@ -188,6 +203,26 @@ impl<'a> LoweringContext<'a> {
                     .position(|parameter| parameter.as_deref() == Some(name))
                     .map(UsizeLocation::Parameter)
             })
+    }
+
+    pub(in crate::ir::lower) fn borrow_local(
+        &self,
+        name: &str,
+    ) -> Option<(UsizeLocation, bool, &Type)> {
+        self.locals.iter().find_map(|local| {
+            let LocalKind::Borrow {
+                is_readwrite,
+                inner,
+            } = &local.kind
+            else {
+                return None;
+            };
+            (local.name == name).then_some((
+                UsizeLocation::Local(local.index),
+                *is_readwrite,
+                inner,
+            ))
+        })
     }
 
     pub(in crate::ir::lower) fn u8_location(&self, name: &str) -> Option<U8Location> {

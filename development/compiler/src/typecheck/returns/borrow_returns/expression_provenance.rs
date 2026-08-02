@@ -9,7 +9,13 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
     match unwrap_group(expression) {
-        Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(expression, resolved),
+        Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(
+            expression,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::Identifier(identifier) => borrow_return_provenance_for_identifier(
             identifier,
             resolved,

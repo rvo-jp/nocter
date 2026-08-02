@@ -346,6 +346,10 @@ fn slice_element_address_shift(element: SliceElementAddressKind) -> Option<u32> 
         SliceElementAddressKind::I32 => Some(2),
         SliceElementAddressKind::Usize => Some(3),
         SliceElementAddressKind::Str => Some(4),
+        SliceElementAddressKind::Aggregate { stride } if stride.is_power_of_two() => {
+            Some(stride.trailing_zeros())
+        }
+        SliceElementAddressKind::Aggregate { .. } => None,
     }
 }
 
