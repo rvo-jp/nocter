@@ -814,7 +814,10 @@ pub(super) fn record_u8_location(location: U8Location, highest_local_index: &mut
 
 pub(super) fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize>) {
     match value {
-        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
+        UsizeValue::Const(_)
+        | UsizeValue::ProcessArgCount
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),

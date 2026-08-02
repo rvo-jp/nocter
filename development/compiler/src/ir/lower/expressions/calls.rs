@@ -36,7 +36,7 @@ use crate::ast::{CallExpr, Expr, IndexExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
-    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
+    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location, I32Value,
     Instruction, ScalarArgument, SliceElementAddressKind, SliceElementIndex, SliceLocation,
     SliceValue, StrLocation, StrValue, Type, U8Location, UsizeLocation, UsizeValue,
 };
@@ -92,7 +92,8 @@ pub(super) use primitives::{
     lower_str_bytes_primitive_call_to_value, lower_str_from_raw_parts_primitive_call_to_location,
     primitive_addr_call, primitive_arg_count_raw_call, primitive_arg_raw_call,
     primitive_bytes_from_str_call, primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call,
-    primitive_copy_str_to_ptr_call, primitive_exit_raw_call, primitive_from_ref_call,
+    primitive_copy_str_to_ptr_call, primitive_current_allocation_kind_call,
+    primitive_current_allocation_state_call, primitive_exit_raw_call, primitive_from_ref_call,
     primitive_open_read_raw_call, primitive_pointee_layout_call, primitive_read_bytes_raw_call,
     primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
     primitive_store_value_to_ptr_call, primitive_str_from_raw_parts_call,

@@ -110,6 +110,7 @@ use calls::{
     lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
     primitive_arg_count_raw_call, primitive_arg_raw_call, primitive_bytes_from_str_call,
     primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call, primitive_copy_str_to_ptr_call,
+    primitive_current_allocation_kind_call, primitive_current_allocation_state_call,
     primitive_drop_value_at_ptr_call, primitive_exit_raw_call, primitive_from_ref_call,
     primitive_pointee_layout_call, primitive_slice_from_raw_parts_call,
     primitive_store_u8_to_ptr_call, primitive_store_value_to_ptr_call,

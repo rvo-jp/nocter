@@ -76,7 +76,10 @@ pub(in crate::ir::lower::expressions) fn primitive_exit_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("exit_raw"))
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("exit_raw" | "allocation_abort_raw")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_write_text_raw_call(
@@ -165,6 +168,26 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_count_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(context.primitive_name_for_call(call), Some("arg_count_raw"))
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_current_allocation_state_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("current_allocator_state")
+    )
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_current_allocation_kind_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("current_allocator_kind")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_arg_raw_call(
@@ -797,6 +820,17 @@ pub(in crate::ir::lower::expressions) fn lower_exit_raw_primitive_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if context.primitive_name_for_call(call) == Some("allocation_abort_raw") {
+        if !call.arguments.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "E8006",
+                "IR v0 can only lower primitive `allocation_abort_raw` without arguments",
+            )]);
+        }
+        return Ok(vec![Instruction::ProcessExit {
+            code: I32Value::Const(70),
+        }]);
+    }
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",

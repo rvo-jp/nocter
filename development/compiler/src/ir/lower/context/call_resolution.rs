@@ -300,7 +300,21 @@ impl<'a> LoweringContext<'a> {
         let symbol = resolution.resolved.symbol_for_call(call)?;
         match &symbol.kind {
             SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
-            SymbolKind::Imported(_) if std_os_imported_primitive_name(&symbol.name) => {
+            SymbolKind::Imported(_)
+                if std_os_imported_primitive_name(&symbol.name)
+                    || matches!(
+                        resolution
+                            .resolved
+                            .trusted_declarations
+                            .role(symbol.declaration_span),
+                        Some(
+                            crate::semantics::TrustedDeclarationRole::CurrentAllocationContext
+                                | crate::semantics::TrustedDeclarationRole::RegionEnter
+                                | crate::semantics::TrustedDeclarationRole::RegionRelease
+                                | crate::semantics::TrustedDeclarationRole::AllocationAbort
+                        )
+                    ) =>
+            {
                 Some(symbol.name.as_str())
             }
             SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,

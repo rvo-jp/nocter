@@ -94,6 +94,25 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_never_return_expression_in_void_function() {
+    let diagnostics = check_text(
+        r#"primitive stop(): never
+
+func close(): void {
+    return stop()
+}
+
+func main(): i32 {
+    close()
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_from_never_function() {
     let diagnostics = check_text(
         r#"primitive trap(): never

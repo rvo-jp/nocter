@@ -31,6 +31,7 @@ pub(crate) enum TrustedDeclarationRole {
     },
     RegionEnter,
     RegionRelease,
+    AllocationAbort,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

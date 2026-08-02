@@ -35,8 +35,28 @@ pub struct Allocator {
     kind: usize
 }
 
+pub struct TryAllocator {
+    state: usize
+    kind: usize
+}
+
+pub(nocter) primitive current_allocator_state(): usize
+pub(nocter) primitive current_allocator_kind(): usize
+pub(nocter) primitive allocation_abort_raw(): never
+
+pub(nocter) func current_allocator(): Allocator {
+    return Allocator {
+        state: current_allocator_state(),
+        kind: current_allocator_kind(),
+    }
+}
+
 pub func page_allocator(): Allocator {
     return Allocator { state: 0, kind: 0 }
+}
+
+pub func page_try_allocator(): TryAllocator {
+    return TryAllocator { state: 0, kind: 0 }
 }
 
 pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
@@ -44,8 +64,8 @@ pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
         ptr: from_addr(1),
         len: 0,
         align: align,
-        allocator_state: 0,
-        allocator_kind: 0,
+        allocator_state: current_allocator_state(),
+        allocator_kind: current_allocator_kind(),
     }
 }
 
@@ -83,16 +103,16 @@ pub(nocter) func free_pages(address: usize, size: usize): void {
     return
 }
 
-pub func alloc(
-    allocator: &+Allocator,
+pub func try_alloc(
+    allocator: &+TryAllocator,
     size: usize,
     align: usize,
 ): RawBuffer! {
     let requested = Layout.new(size, align)?
-    return alloc_layout(allocator, requested)?
+    return try_alloc_layout(allocator, requested)?
 }
 
-pub func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer! {
+pub func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuffer! {
     if requested.size == 0 {
         return RawBuffer {
             ptr: from_addr(1),
@@ -113,14 +133,34 @@ pub func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer! {
     }
 }
 
+pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
+    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
+    return try_alloc(&+fallible, size, align) catch allocation_error {
+        return allocation_abort_raw()
+    }
+}
+
+pub func alloc_layout(allocator: &+Allocator, requested: Layout): RawBuffer {
+    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
+    return try_alloc_layout(&+fallible, requested) catch allocation_error {
+        return allocation_abort_raw()
+    }
+}
+
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
     // Consuming `buffer` transfers its one deallocation obligation into this
     // call. RawBuffer.drop performs the provenance-aware release on return.
     return
 }
 
-pub func grow(
-    allocator: &+Allocator,
+pub func try_free(allocator: &+TryAllocator, buffer: RawBuffer): void {
+    // `RawBuffer.drop` owns the backend-aware release. The capability argument
+    // documents and validates the caller's selected recoverable backend.
+    return
+}
+
+pub func try_grow(
+    allocator: &+TryAllocator,
     buffer: &+RawBuffer,
     new_size: usize,
 ): void! {
@@ -137,7 +177,7 @@ pub func grow(
         return invalid_argument()
     }
 
-    var replacement = alloc(allocator, new_size, buffer.align)?
+    var replacement = try_alloc(allocator, new_size, buffer.align)?
     if buffer.len != 0 {
         copy_ptr_to_ptr(replacement.ptr, buffer.ptr, buffer.len)
     }
@@ -161,12 +201,27 @@ pub func grow(
     return
 }
 
-pub(nocter) func grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
-    var allocator = Allocator {
+pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    var allocator = TryAllocator {
         state: buffer.allocator_state,
         kind: buffer.allocator_kind,
     }
-    grow(&+allocator, buffer, new_size)?
+    try_grow(&+allocator, buffer, new_size)?
+    return
+}
+
+pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void {
+    var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
+    try_grow(&+fallible, buffer, new_size) catch allocation_error {
+        return allocation_abort_raw()
+    }
+    return
+}
+
+pub(nocter) func grow_owned(buffer: &+RawBuffer, new_size: usize): void {
+    try_grow_owned(buffer, new_size) catch allocation_error {
+        return allocation_abort_raw()
+    }
     return
 }
 
@@ -193,8 +248,8 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 impl Allocator {
-    pub method &+self.alloc(size: usize, align: usize): RawBuffer! {
-        return alloc(self, size, align)?
+    pub method &+self.alloc(size: usize, align: usize): RawBuffer {
+        return alloc(self, size, align)
     }
 
     pub method &+self.free(buffer: RawBuffer): void {
@@ -202,8 +257,25 @@ impl Allocator {
         return
     }
 
-    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void! {
-        grow(self, buffer, new_size)?
+    pub method &+self.grow(buffer: &+RawBuffer, new_size: usize): void {
+        grow(self, buffer, new_size)
+        return
+    }
+}
+
+impl TryAllocator {
+    pub method &+self.try_alloc(size: usize, align: usize): RawBuffer! {
+        return try_alloc(self, size, align)?
+    }
+
+    pub method &+self.try_grow(buffer: &+RawBuffer, new_size: usize): void! {
+        try_grow(self, buffer, new_size)?
+        return
+    }
+
+
+    pub method &+self.free(buffer: RawBuffer): void {
+        try_free(self, move buffer)
         return
     }
 }
@@ -269,4 +341,10 @@ pub func out_of_memory(): error {
 
 pub func invalid_argument(): error {
     return Error.new("std.mem.invalid_argument", "invalid allocation request")
+}
+
+pub(nocter) func abort_allocation(allocation_error: error): never {
+    // The compiler-owned boundary exits directly without allocating or
+    // unwinding Nocter scopes.
+    allocation_abort_raw()
 }

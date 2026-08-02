@@ -361,7 +361,10 @@ pub(super) fn u8_value_uses_process_arguments(value: &crate::ir::U8Value) -> boo
 pub(super) fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
     match value {
         UsizeValue::ProcessArgCount => true,
-        UsizeValue::Const(_) | UsizeValue::Location(_) => false,
+        UsizeValue::Const(_)
+        | UsizeValue::Location(_)
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => false,
         UsizeValue::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
         UsizeValue::StrLen(_) | UsizeValue::SliceLen(_) => false,
         UsizeValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),

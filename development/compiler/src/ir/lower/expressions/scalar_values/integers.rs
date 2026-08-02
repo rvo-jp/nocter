@@ -487,6 +487,18 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     value,
                 });
             }
+            if primitive_current_allocation_state_call(call, context) {
+                return Ok(LoweredUsizeValue {
+                    instructions: Vec::new(),
+                    value: UsizeValue::CurrentAllocationState,
+                });
+            }
+            if primitive_current_allocation_kind_call(call, context) {
+                return Ok(LoweredUsizeValue {
+                    instructions: Vec::new(),
+                    value: UsizeValue::CurrentAllocationKind,
+                });
+            }
 
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {

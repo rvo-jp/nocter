@@ -274,7 +274,7 @@ fn distributed_std_public_api_passes_check() {
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
 use std/io.{File, open, print, read, stderr, stdout, write, write_text}
-use std/mem.{Allocator, Layout, RawBuffer, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
+use std/mem.{Allocator, Layout, RawBuffer, TryAllocator, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
@@ -300,8 +300,8 @@ func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
     return raw_prefix_mut(buffer, prefix_len)?
 }
 
-func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer! {
-    return allocator.alloc(size, align)?
+func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer {
+    return allocator.alloc(size, align)
 }
 
 func allocator_free(allocator: &+Allocator, buffer: RawBuffer): void {
@@ -320,19 +320,19 @@ func allocator_layout(): Layout! {
     return value
 }
 
-func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void! {
-    grow(allocator, buffer, 8)?
-    allocator.grow(buffer, 16)?
+func allocator_grow(allocator: &+Allocator, buffer: &+RawBuffer): void {
+    grow(allocator, buffer, 8)
+    allocator.grow(buffer, 16)
     return
 }
 
 func allocator_alloc_layout(allocator: &+Allocator): RawBuffer! {
-    return alloc_layout(allocator, Layout.new(8, 8)?)?
+    return alloc_layout(allocator, Layout.new(8, 8)?)
 }
 
 func allocator_methods(): void! {
     var allocator = page_allocator()
-    var buffer = allocator_alloc(&+allocator, 1, 1)?
+    var buffer = allocator_alloc(&+allocator, 1, 1)
     allocator_free(&+allocator, move buffer)
     return
 }
@@ -349,8 +349,8 @@ func string_is_empty(text: &String): bool {
     return is_empty(text)
 }
 
-func string_reserve(text: &+String, additional: usize): void! {
-    reserve(text, additional)?
+func string_reserve(text: &+String, additional: usize): void {
+    reserve(text, additional)
     return
 }
 
@@ -377,7 +377,7 @@ func file_write_text(file: &+File, text: &str): void! {
     return
 }
 
-func process_cwd(allocator: &+Allocator): String! {
+func process_cwd(allocator: &+TryAllocator): String! {
     return cwd(allocator)?
 }
 
@@ -509,8 +509,7 @@ fn distributed_std_vec_contract_shape_passes_check() {
     let project = TempProject::new("distributed-home-vec-contract-shape");
     let source = project.write_source(
         "vec_contract_shape.nct",
-        r#"use std/mem.Allocator
-use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, pop, push, reserve, view, view_mut}
+        r#"use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, pop, push, reserve, view, view_mut}
 
 func inspect(values: &Vec<usize>): usize {
     return len(values) + capacity(values) + view(values).len()
@@ -521,22 +520,22 @@ func empty_check(values: &Vec<usize>): bool {
 }
 
 func mutate(values: &+Vec<usize>, value: usize): usize! {
-    reserve(values, 0)?
-    push(values, value)?
+    reserve(values, 0)
+    push(values, value)
     clear(values)
     return view_mut(values).len()
 }
 
 func pop_shapes(values: &+Vec<usize>): usize? {
     let free_value = pop(values) otherwise { return none }
-    values.push(free_value)!
+    values.push(free_value)
     return values.pop() otherwise { return none }
 }
 
-func method_shape(allocator: &+Allocator, values: &[usize]): usize! {
-    var owned = from_slice(allocator, values)?
-    owned.reserve(0)?
-    owned.push(1)?
+func method_shape(values: &[usize]): usize! {
+    var owned = from_slice(values)
+    owned.reserve(0)
+    owned.push(1)
     owned.clear()
     if owned.is_empty() {
         return 0
@@ -565,7 +564,7 @@ use std/vec.{Vec, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    let values: Vec<u8> = with_capacity(&+allocator, 0)?
+    let values: Vec<u8> = with_capacity(0)
     if values.is_empty() {
         return 42
     }
@@ -652,7 +651,7 @@ func main(): i32! {
     var allocator = page_allocator()
     let source: Vec<usize> = Vec.empty()
     let view = source.view()
-    let copy: Vec<usize> = Vec.from_slice(&+allocator, view)?
+    let copy: Vec<usize> = Vec.from_slice(view)
     if copy.len() != 0 {
         return 1
     }
@@ -690,9 +689,9 @@ func main(): i32! {
     var allocator = page_allocator()
 
     var bytes: Vec<u8> = Vec.empty()
-    bytes.push(3)?
-    bytes.push(9)?
-    let byte_copy: Vec<u8> = Vec.from_slice(&+allocator, bytes.view())?
+    bytes.push(3)
+    bytes.push(9)
+    let byte_copy: Vec<u8> = Vec.from_slice(bytes.view())
     if byte_copy.len() != 2 {
         return 1
     }
@@ -704,9 +703,9 @@ func main(): i32! {
     }
 
     var words: Vec<usize> = Vec.empty()
-    words.push(13)?
-    words.push(21)?
-    let word_copy: Vec<usize> = Vec.from_slice(&+allocator, words.view())?
+    words.push(13)
+    words.push(21)
+    let word_copy: Vec<usize> = Vec.from_slice(words.view())
     if word_copy.len() != 2 {
         return 4
     }
@@ -718,9 +717,9 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    numbers.push(34)?
-    numbers.push(55)?
-    let number_copy: Vec<i32> = Vec.from_slice(&+allocator, numbers.view())?
+    numbers.push(34)
+    numbers.push(55)
+    let number_copy: Vec<i32> = Vec.from_slice(numbers.view())
     if number_copy.len() != 2 {
         return 7
     }
@@ -732,9 +731,9 @@ func main(): i32! {
     }
 
     var flags: Vec<bool> = Vec.empty()
-    flags.push(false)?
-    flags.push(true)?
-    let flag_copy: Vec<bool> = Vec.from_slice(&+allocator, flags.view())?
+    flags.push(false)
+    flags.push(true)
+    let flag_copy: Vec<bool> = Vec.from_slice(flags.view())
     if flag_copy.len() != 2 {
         return 10
     }
@@ -844,8 +843,8 @@ struct Buffer {
 
 func main(): i32! {
     var values: Vec<u8> = Vec.empty()
-    values.push(1)?
-    values.push(2)?
+    values.push(1)
+    values.push(2)
 
     var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] = 9
@@ -890,8 +889,8 @@ struct Buffer {
 
 func main(): i32! {
     var values: Vec<usize> = Vec.empty()
-    values.push(10)?
-    values.push(20)?
+    values.push(10)
+    values.push(20)
 
     var buffer = Buffer { data: values.view_mut() }
     buffer.data[0] += 5
@@ -966,7 +965,7 @@ use std/vec.{Vec, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    let values: Vec<u8> = with_capacity(&+allocator, 1)?
+    let values: Vec<u8> = with_capacity(1)
     if values.len() != 0 {
         return 1
     }
@@ -977,7 +976,7 @@ func main(): i32! {
         return 3
     }
 
-    let words: Vec<usize> = Vec.with_capacity(&+allocator, 2)?
+    let words: Vec<usize> = Vec.with_capacity(2)
     if words.len() != 0 {
         return 4
     }
@@ -985,7 +984,7 @@ func main(): i32! {
         return 5
     }
 
-    let numbers: Vec<i32> = Vec.with_capacity(&+allocator, 3)?
+    let numbers: Vec<i32> = Vec.with_capacity(3)
     if numbers.len() != 0 {
         return 6
     }
@@ -993,7 +992,7 @@ func main(): i32! {
         return 7
     }
 
-    let flags: Vec<bool> = with_capacity(&+allocator, 4)?
+    let flags: Vec<bool> = with_capacity(4)
     if flags.len() != 0 {
         return 8
     }
@@ -1029,7 +1028,7 @@ fn distributed_std_vec_reserve_empty_runs() {
 
 func main(): i32! {
     var values: Vec<u8> = Vec.empty()
-    values.reserve(3)?
+    values.reserve(3)
     if values.len() != 0 {
         return 1
     }
@@ -1042,13 +1041,13 @@ func main(): i32! {
     if values.view().len() != 0 {
         return 4
     }
-    reserve(&+values, 1)?
+    reserve(&+values, 1)
     if values.capacity() != 3 {
         return 5
     }
 
     var words: Vec<usize> = Vec.empty()
-    reserve(&+words, 2)?
+    reserve(&+words, 2)
     if words.len() != 0 {
         return 6
     }
@@ -1057,7 +1056,7 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    reserve(&+numbers, 4)?
+    reserve(&+numbers, 4)
     if numbers.len() != 0 {
         return 8
     }
@@ -1066,7 +1065,7 @@ func main(): i32! {
     }
 
     var flags: Vec<bool> = Vec.empty()
-    flags.reserve(5)?
+    flags.reserve(5)
     if flags.len() != 0 {
         return 10
     }
@@ -1102,7 +1101,7 @@ fn distributed_std_vec_failed_growth_preserves_elements() {
         r#"use std/vec.Vec
 
 func grow_huge(values: &+Vec<u8>): void! {
-    values.reserve(18446744073709551614)?
+    values.try_reserve(18446744073709551614)?
     return
 }
 
@@ -1121,7 +1120,7 @@ func preserved(values: &Vec<u8>): i32 {
 
 func main(): i32! {
     var values: Vec<u8> = Vec.empty()
-    values.push(42)?
+    values.push(42)
     grow_huge(&+values) catch error {
         return preserved(&values)
     }
@@ -1155,10 +1154,10 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     var values: Vec<String> = Vec.empty()
-    let first = String.from_str(&+allocator, "first")?
-    values.push(move first)?
-    let second = String.from_str(&+allocator, " second")?
-    values.push(move second)?
+    let first = String.from_str("first")
+    values.push(move first)
+    let second = String.from_str(" second")
+    values.push(move second)
     values.clear()
     if values.len() != 0 {
         return 1
@@ -1192,12 +1191,12 @@ use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
-    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
-    let text = String.from_str(&+allocator, "nested")?
-    inner.push(move text)?
+    var inner: Vec<String> = Vec.with_capacity(1)
+    let text = String.from_str("nested")
+    inner.push(move text)
 
-    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
-    outer.push(move inner)?
+    var outer: Vec<Vec<String>> = Vec.with_capacity(1)
+    outer.push(move inner)
     outer.clear()
     if outer.len() != 0 {
         return 1
@@ -1239,13 +1238,13 @@ func recover(outer: &+Vec<Vec<String>>): i32! {
 
 func main(): i32! {
     var allocator = page_allocator()
-    var inner: Vec<String> = Vec.with_capacity(&+allocator, 1)?
-    let text = String.from_str(&+allocator, "preserved")?
-    inner.push(move text)?
+    var inner: Vec<String> = Vec.with_capacity(1)
+    let text = String.from_str("preserved")
+    inner.push(move text)
 
-    var outer: Vec<Vec<String>> = Vec.with_capacity(&+allocator, 1)?
-    outer.push(move inner)?
-    outer.reserve(18446744073709551614) catch error {
+    var outer: Vec<Vec<String>> = Vec.with_capacity(1)
+    outer.push(move inner)
+    outer.try_reserve(18446744073709551614) catch error {
         return recover(&+outer)?
     }
     return 4
@@ -1279,7 +1278,7 @@ func main(): i32! {
     var allocator = page_allocator()
     var files: Vec<File> = Vec.empty()
     let first = open("__DATA_PATH__")?
-    files.push(move first)?
+    files.push(move first)
     files.clear()
     if files.len() != 0 {
         return 1
@@ -1287,7 +1286,7 @@ func main(): i32! {
 
     var replacement = open("__DATA_PATH__")?
     drop files
-    var buffer = alloc(&+allocator, 1, 1)?
+    var buffer = alloc(&+allocator, 1, 1)
     let count: usize = replacement.read(buffer.bytes_mut())?
     if count != 1 {
         return 2
@@ -1326,7 +1325,7 @@ fn distributed_std_vec_fixed_array_push_and_pop_runs() {
 func main(): i32! {
     var values: Vec<[i32; 2]> = Vec.empty()
     let pair: [i32; 2] = [20, 22]
-    values.push(pair)?
+    values.push(pair)
     let popped = values.pop() otherwise { return 1 }
     return popped[0] + popped[1]
 }
@@ -1358,9 +1357,9 @@ use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
-    var values: Vec<String> = Vec.with_capacity(&+allocator, 1)?
-    let text = String.from_str(&+allocator, "popped")?
-    values.push(move text)?
+    var values: Vec<String> = Vec.with_capacity(1)
+    let text = String.from_str("popped")
+    values.push(move text)
     let popped = values.pop() otherwise { return 2 }
     drop values
     print(popped.view())?
@@ -1393,8 +1392,8 @@ use std/vec.Vec
 
 func main(): i32! {
     var allocator = page_allocator()
-    var values: Vec<i32> = Vec.with_capacity(&+allocator, 1)?
-    values.push(42)?
+    var values: Vec<i32> = Vec.with_capacity(1)
+    values.push(42)
     let popped = values.pop() otherwise { return 2 }
     return popped
 }
@@ -1429,8 +1428,8 @@ copy struct Pair {
 
 func main(): i32! {
     var allocator = page_allocator()
-    var values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?
-    values.push(Pair { value: 42 })?
+    var values: Vec<Pair> = Vec.with_capacity(1)
+    values.push(Pair { value: 42 })
     let popped = values.pop() otherwise { return 2 }
     return popped.value
 }
@@ -1489,8 +1488,8 @@ fn distributed_std_vec_push_scalar_values_runs() {
 
 func main(): i32! {
     var bytes: Vec<u8> = Vec.empty()
-    bytes.push(1)?
-    bytes.push(7)?
+    bytes.push(1)
+    bytes.push(7)
     if bytes.len() != 2 {
         return 1
     }
@@ -1505,8 +1504,8 @@ func main(): i32! {
     }
 
     var words: Vec<usize> = Vec.empty()
-    words.push(11)?
-    words.push(31)?
+    words.push(11)
+    words.push(31)
     if words.len() != 2 {
         return 5
     }
@@ -1521,8 +1520,8 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    numbers.push(11)?
-    numbers.push(42)?
+    numbers.push(11)
+    numbers.push(42)
     if numbers.len() != 2 {
         return 9
     }
@@ -1537,8 +1536,8 @@ func main(): i32! {
     }
 
     var flags: Vec<bool> = Vec.empty()
-    flags.push(true)?
-    flags.push(false)?
+    flags.push(true)
+    flags.push(false)
     if flags.len() != 2 {
         return 13
     }
@@ -1582,8 +1581,8 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     var values: Vec<&str> = Vec.empty()
-    values.push("first")?
-    values.push("second")?
+    values.push("first")
+    values.push("second")
     if values.len() != 2 {
         return 1
     }
@@ -1599,7 +1598,7 @@ func main(): i32! {
     if values.view()[1] != "second" {
         return 5
     }
-    let copy: Vec<&str> = Vec.from_slice(&+allocator, values.view())?
+    let copy: Vec<&str> = Vec.from_slice(values.view())
     if copy.len() != 2 {
         return 6
     }
@@ -1645,8 +1644,8 @@ func main(): i32! {
     let choice = Choice.no
 
     var bytes: Vec<u8> = Vec.empty()
-    bytes.push(if choice is Choice.no { 5 } else { 1 })?
-    bytes.push(match choice { Choice.no { 7 } _ { 1 } })?
+    bytes.push(if choice is Choice.no { 5 } else { 1 })
+    bytes.push(match choice { Choice.no { 7 } _ { 1 } })
     if bytes.len() != 2 {
         return 1
     }
@@ -1658,7 +1657,7 @@ func main(): i32! {
     }
 
     var words: Vec<usize> = Vec.empty()
-    words.push(match choice { Choice.no { 13 } _ { 1 } })?
+    words.push(match choice { Choice.no { 13 } _ { 1 } })
     if words.len() != 1 {
         return 4
     }
@@ -1667,7 +1666,7 @@ func main(): i32! {
     }
 
     var flags: Vec<bool> = Vec.empty()
-    flags.push(if choice is Choice.no { true } else { false })?
+    flags.push(if choice is Choice.no { true } else { false })
     if flags.len() != 1 {
         return 6
     }
@@ -1676,7 +1675,7 @@ func main(): i32! {
     }
 
     var texts: Vec<&str> = Vec.empty()
-    texts.push(match choice { Choice.no { "Nocter" } _ { "Other" } })?
+    texts.push(match choice { Choice.no { "Nocter" } _ { "Other" } })
     if texts.len() != 1 {
         return 8
     }
@@ -1717,8 +1716,8 @@ func set_first_byte(bytes: &+[u8]): void {
 
 func main(): i32! {
     var bytes: Vec<u8> = Vec.empty()
-    bytes.push(1)?
-    bytes.push(2)?
+    bytes.push(1)
+    bytes.push(2)
     set_first_byte(bytes.view_mut())
     bytes.view_mut()[1] = 5
     if bytes.view()[0] != 4 {
@@ -1729,8 +1728,8 @@ func main(): i32! {
     }
 
     var words: Vec<usize> = Vec.empty()
-    words.push(11)?
-    words.push(12)?
+    words.push(11)
+    words.push(12)
     words.view_mut()[0] = 21
     words.view_mut()[1] = 22
     if words.view()[0] != 21 {
@@ -1741,8 +1740,8 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    numbers.push(31)?
-    numbers.push(32)?
+    numbers.push(31)
+    numbers.push(32)
     numbers.view_mut()[0] = 41
     numbers.view_mut()[1] = 42
     if numbers.view()[0] != 41 {
@@ -1753,8 +1752,8 @@ func main(): i32! {
     }
 
     var flags: Vec<bool> = Vec.empty()
-    flags.push(true)?
-    flags.push(false)?
+    flags.push(true)
+    flags.push(false)
     flags.view_mut()[0] = false
     flags.view_mut()[1] = true
     if flags.view()[0] != false {
@@ -1765,8 +1764,8 @@ func main(): i32! {
     }
 
     var texts: Vec<&str> = Vec.empty()
-    texts.push("before")?
-    texts.push("old")?
+    texts.push("before")
+    texts.push("old")
     texts.view_mut()[0] = "after"
     texts.view_mut()[1] = "new"
     if texts.view()[0] != "after" {
@@ -1808,8 +1807,8 @@ func one(): i32 {
 
 func main(): i32! {
     var words: Vec<usize> = Vec.empty()
-    words.push(40)?
-    words.push(47)?
+    words.push(40)
+    words.push(47)
     words.view_mut()[0] += 2
     words.view_mut()[1] %= 5
     if words.view()[0] != 42 {
@@ -1820,8 +1819,8 @@ func main(): i32! {
     }
 
     var numbers: Vec<i32> = Vec.empty()
-    numbers.push(40)?
-    numbers.push(8)?
+    numbers.push(40)
+    numbers.push(8)
     numbers.view_mut()[0] += one()
     numbers.view_mut()[1] *= 5
     numbers.view_mut()[1] -= 10
@@ -1895,7 +1894,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { value: 1 })?
+    values.push(Pair { value: 1 })
     return 0
 }
 "#,
@@ -1935,7 +1934,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    push(&+values, Pair { value: 1 })?
+    push(&+values, Pair { value: 1 })
     return 0
 }
 "#,
@@ -1981,7 +1980,7 @@ impl Checker {
 
 func main(): void! {
     var values: Vec<i32> = Vec.empty()
-    values.push(1)?
+    values.push(1)
     let checker = Checker { seed: 0 }
     checker.touch(&+values.view_mut()[0])
     return
@@ -2024,7 +2023,7 @@ copy struct Pair {
 
 func main(): i32! {
     var allocator = page_allocator()
-    let values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?
+    let values: Vec<Pair> = Vec.with_capacity(1)
     return 0
 }
 "#,
@@ -2069,7 +2068,7 @@ use std/vec.Vec
 
 pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
-    return Vec.with_capacity(&+allocator, 1)?
+    return Vec.with_capacity(1)
 }
 "#,
     );
@@ -2125,7 +2124,7 @@ use std/vec.Vec
 
 pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
-    return Vec.with_capacity(&+allocator, 1)?
+    return Vec.with_capacity(1)
 }
 "#,
     );
@@ -2181,7 +2180,7 @@ use std/vec.Vec
 
 pub func make<T>(seed: T): Vec<T>! {
     var allocator = page_allocator()
-    return Vec.with_capacity(&+allocator, 1)?
+    return Vec.with_capacity(1)
 }
 "#,
     );
@@ -2228,7 +2227,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.reserve(1)?
+    values.reserve(1)
     return 0
 }
 "#,
@@ -2270,7 +2269,7 @@ copy struct Pair {
 func main(): i32! {
     var allocator = page_allocator()
     let values: Vec<Pair> = Vec.empty()
-    let copy = Vec.from_slice(&+allocator, values.view())?
+    let copy = Vec.from_slice(values.view())
     return 0
 }
 "#,
@@ -2313,8 +2312,8 @@ func main(): i32! {
     var allocator = page_allocator()
     var values: Vec<Text> = Vec.empty()
     let value = Text { value: "owned" }
-    values.push(move value)?
-    let copy = Vec.from_slice(&+allocator, values.view())?
+    values.push(move value)
+    let copy = Vec.from_slice(values.view())
     return 0
 }
 "#,
@@ -2390,7 +2389,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 7, right: 11 })?
+    values.push(Pair { left: 7, right: 11 })
     let first = values.view()[0]
     return first.left + first.right
 }
@@ -2422,7 +2421,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 9, right: 14 })?
+    values.push(Pair { left: 9, right: 14 })
     let view = values.view()
     let first = view[0]
     return first.left + first.right
@@ -2497,7 +2496,7 @@ copy struct Pair {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 1, right: 2 })?
+    values.push(Pair { left: 1, right: 2 })
     values.view_mut()[0] = Pair { left: 13, right: 5 }
     let first = values.view()[0]
     return first.left - first.right
@@ -2540,7 +2539,7 @@ func sum(view: &[Pair]): i32 {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 1, right: 2 })?
+    values.push(Pair { left: 1, right: 2 })
     let mutable_view = values.view_mut()
     replace(mutable_view)
     let view = values.view()
@@ -2578,7 +2577,7 @@ copy struct Holder {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 5, right: 18 })?
+    values.push(Pair { left: 5, right: 18 })
     let holder = Holder { view: values.view() }
     let first = holder.view[0]
     return first.left + first.right
@@ -2615,7 +2614,7 @@ struct Holder {
 
 func main(): i32! {
     var values: Vec<Pair> = Vec.empty()
-    values.push(Pair { left: 1, right: 2 })?
+    values.push(Pair { left: 1, right: 2 })
     var holder = Holder { view: values.view_mut() }
     holder.view[0] = Pair { left: 19, right: 4 }
     let first = values.view()[0]
@@ -2729,21 +2728,21 @@ func main(): i32! {
     if !empty.is_empty() {
         return 1
     }
-    empty.push_str("Grow")?
+    empty.push_str("Grow")
     if empty.len() != 4 {
         return 2
     }
     let empty_view = empty.view()
-    var text = String.with_capacity(&+allocator, 16)?
+    var text = String.with_capacity(16)
     if text.capacity() != 16 {
         return 3
     }
-    text.push_str(empty_view)?
-    let copy = String.from_str(&+allocator, text.view())?
+    text.push_str(empty_view)
+    let copy = String.from_str(text.view())
     if copy.len() != 4 {
         return 4
     }
-    empty.reserve(8)?
+    empty.reserve(8)
     empty.clear()
     if !empty.is_empty() {
         return 5
@@ -2845,7 +2844,7 @@ fn distributed_std_mem_raw_buffer_fields_are_not_public_api() {
 
 func main(): i32! {
     var allocator = page_allocator()
-    let buffer = alloc(&+allocator, 1, 1)?
+    let buffer = alloc(&+allocator, 1, 1)
     let length = buffer.len
     return 0
 }
@@ -2977,7 +2976,7 @@ use std/mem.{RawBuffer, alloc, free, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, 4, 1)?
+    var buffer = alloc(&+allocator, 4, 1)
     var input = File.open("input.txt")?
     let count: usize = input.read(buffer.bytes_mut())?
     var out = stdout()
@@ -3013,7 +3012,7 @@ fn distributed_std_allocator_methods_run() {
 use std/mem.{Allocator, RawBuffer, page_allocator}
 
 func allocate(allocator: &+Allocator): RawBuffer! {
-    return allocator.alloc(2, 1)?
+    return allocator.alloc(2, 1)
 }
 
 func release(allocator: &+Allocator, buffer: RawBuffer): void {
@@ -3072,14 +3071,14 @@ func main(): i32! {
     if empty_layout.align() != 16 {
         return 2
     }
-    var empty = alloc_layout(&+allocator, empty_layout)?
+    var empty = alloc_layout(&+allocator, empty_layout)
     if empty.bytes().len() != 0 {
         return 3
     }
-    allocator.grow(&+empty, 2)?
+    allocator.grow(&+empty, 2)
     empty.bytes_mut()[0] = 20
     empty.bytes_mut()[1] = 22
-    allocator.grow(&+empty, 8)?
+    allocator.grow(&+empty, 8)
     if empty.bytes().len() != 8 {
         return 4
     }
@@ -3114,11 +3113,11 @@ fn distributed_std_allocator_rejects_non_power_of_two_alignment() {
     let project = TempProject::new("distributed-home-allocator-invalid-alignment-run");
     let source = project.write_source(
         "allocator_invalid_alignment.nct",
-        r#"use std/mem.{alloc, page_allocator}
+        r#"use std/mem.{page_try_allocator, try_alloc}
 
 func main(): void! {
-    var allocator = page_allocator()
-    let buffer = alloc(&+allocator, 1, 3)?
+    var allocator = page_try_allocator()
+    let buffer = try_alloc(&+allocator, 1, 3)?
 }
 "#,
     );
@@ -3139,10 +3138,10 @@ fn distributed_std_allocator_failed_grow_preserves_the_old_buffer() {
     let project = TempProject::new("distributed-home-allocator-failed-grow-run");
     let source = project.write_source(
         "allocator_failed_grow.nct",
-        r#"use std/mem.{Allocator, RawBuffer, alloc, page_allocator}
+        r#"use std/mem.{RawBuffer, TryAllocator, page_try_allocator, try_alloc}
 
-func grow_huge(allocator: &+Allocator, buffer: &+RawBuffer): usize! {
-    allocator.grow(buffer, 18446744073709551615)?
+func grow_huge(allocator: &+TryAllocator, buffer: &+RawBuffer): usize! {
+    allocator.try_grow(buffer, 18446744073709551615)?
     return buffer.bytes().len()
 }
 
@@ -3157,8 +3156,8 @@ func preserved(buffer: &RawBuffer): i32 {
 }
 
 func main(): i32! {
-    var allocator = page_allocator()
-    var buffer = alloc(&+allocator, 1, 1)?
+    var allocator = page_try_allocator()
+    var buffer = try_alloc(&+allocator, 1, 1)?
     buffer.bytes_mut()[0] = 42
     let size = grow_huge(&+allocator, &+buffer) catch error {
         return preserved(&buffer)
@@ -3187,11 +3186,11 @@ fn distributed_std_allocator_reports_out_of_memory() {
     let project = TempProject::new("distributed-home-allocator-out-of-memory-run");
     let source = project.write_source(
         "allocator_out_of_memory.nct",
-        r#"use std/mem.{alloc, page_allocator}
+        r#"use std/mem.{page_try_allocator, try_alloc}
 
 func main(): void! {
-    var allocator = page_allocator()
-    let buffer = alloc(&+allocator, 18446744073709551615, 1)?
+    var allocator = page_try_allocator()
+    let buffer = try_alloc(&+allocator, 18446744073709551615, 1)?
 }
 "#,
     );
@@ -3201,6 +3200,28 @@ func main(): void! {
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
     assert_eq!(output.stderr, b"std.mem.out_of_memory: allocation failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_default_allocator_aborts_without_allocating_an_error() {
+    let project = TempProject::new("distributed-home-default-allocator-abort-run");
+    let source = project.write_source(
+        "default_allocator_abort.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values: Vec<u8> = Vec.with_capacity(18446744073709551615)
+    return 1
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(output.status.code(), Some(70));
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -3215,7 +3236,7 @@ use std/mem.{alloc, free, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var buffer = alloc(&+allocator, 4, 1)?
+    var buffer = alloc(&+allocator, 4, 1)
     var input = open("input.txt")?
     let count: usize = read(&+input, buffer.bytes_mut())?
     var out = stdout()
@@ -3869,11 +3890,11 @@ fn distributed_std_process_cwd_returns_current_directory() {
     let source = project.write_source(
         "process_cwd.nct",
         r#"use std/io.print
-use std/mem.page_allocator
+use std/mem.page_try_allocator
 use std/process.cwd
 
 func main(): void! {
-    var allocator = page_allocator()
+    var allocator = page_try_allocator()
     let value = cwd(&+allocator)?
     print(value.view())?
     return
@@ -3906,7 +3927,7 @@ use std/string.with_capacity
 
 func make(): String! {
     var allocator = page_allocator()
-    var out = with_capacity(&+allocator, 8)?
+    var out = with_capacity(8)
     append_str(&+out, "hello")?
     return move out
 }
@@ -3938,7 +3959,7 @@ use std/string.{view, with_capacity}
 
 func make(): String! {
     var allocator = page_allocator()
-    var out = with_capacity(&+allocator, 8)?
+    var out = with_capacity(8)
     append_str(&+out, "hello")?
     append_str(&+out, " runtime")?
     return move out
@@ -4013,7 +4034,7 @@ use std/string.{from_str, view}
 
 func main(): i32! {
     var allocator = page_allocator()
-    let text = from_str(&+allocator, "Hello String")?
+    let text = from_str("Hello String")
     print(view(&text))?
     return 0
 }
@@ -4049,7 +4070,7 @@ use std/string.from_str
 
 func main(): i32! {
     var allocator = page_allocator()
-    let text = from_str(&+allocator, "Owned bytes")?
+    let text = from_str("Owned bytes")
     var out = stdout()
     out.write(text.bytes())?
     return 0
@@ -4086,7 +4107,7 @@ use std/string.{from_str, view}
 
 func make(): String! {
     var allocator = page_allocator()
-    return from_str(&+allocator, "Forwarded String")?
+    return from_str("Forwarded String")
 }
 
 func main(): i32! {
@@ -4126,7 +4147,7 @@ use std/string.view
 
 func main(): i32! {
     var allocator = page_allocator()
-    let text = String.copy(&+allocator, "Copied String")?
+    let text = String.copy("Copied String")
     print(view(&text))?
     return 0
 }
@@ -4161,10 +4182,10 @@ use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = String.with_capacity(&+allocator, 32)?
-    text.push_str("Hello")?
-    let suffix = String.from_str(&+allocator, " Associated")?
-    text.push_str(suffix.view())?
+    var text = String.with_capacity(32)
+    text.push_str("Hello")
+    let suffix = String.from_str(" Associated")
+    text.push_str(suffix.view())
     print(text.view())?
     return 0
 }
@@ -4198,7 +4219,7 @@ fn distributed_std_string_view_equality_runs() {
 
 func main(): i32! {
     var allocator = page_allocator()
-    let text = String.from_str(&+allocator, "Nocter")?
+    let text = String.from_str("Nocter")
     if text.view() == "Nocter" && text.view() != "Other" {
         return 42
     } else {
@@ -4231,20 +4252,20 @@ use std/string.{capacity, clear, is_empty, len, push_str, reserve, view, with_ca
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(&+allocator, 5)?
+    var text = with_capacity(5)
     if !is_empty(&text) {
         return 1
     }
-    reserve(&+text, 5)?
+    reserve(&+text, 5)
     if capacity(&text) != 5 {
         return 2
     }
-    push_str(&+text, "Hello")?
+    push_str(&+text, "Hello")
     if len(&text) != 5 {
         return 3
     }
-    reserve(&+text, 7)?
-    push_str(&+text, " String")?
+    reserve(&+text, 7)
+    push_str(&+text, " String")
     if len(&text) != 12 {
         return 4
     }
@@ -4290,7 +4311,7 @@ fn distributed_std_string_failed_growth_preserves_contents() {
         r#"use std/mem.page_allocator
 
 func grow_huge(text: &+String): void! {
-    text.reserve(18446744073709551611)?
+    text.try_reserve(18446744073709551611)?
     return
 }
 
@@ -4309,7 +4330,7 @@ func preserved(text: &String): i32 {
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = String.from_str(&+allocator, "keep")?
+    var text = String.from_str("keep")
     grow_huge(&+text) catch error {
         return preserved(&text)
     }
@@ -4342,7 +4363,7 @@ use std/string.{empty, push_str, view}
 
 func main(): i32! {
     var text = empty()
-    push_str(&+text, "Grow")?
+    push_str(&+text, "Grow")
     print(view(&text))?
     return 0
 }
@@ -4379,7 +4400,7 @@ use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(&+allocator, 16)?
+    var text = with_capacity(16)
     append_str(&+text, "Hello")?
     append_str(&+text, " Format")?
     print(view(&text))?
@@ -4418,11 +4439,11 @@ use std/string.{from_str, view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(&+allocator, 32)?
+    var text = with_capacity(32)
     append_bool(&+text, true)?
     append_str(&+text, " ")?
     append_bool(&+text, false)?
-    let suffix = from_str(&+allocator, " done")?
+    let suffix = from_str(" done")
     append_string(&+text, &suffix)?
     print(view(&text))?
     return 0
@@ -4460,7 +4481,7 @@ use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(&+allocator, 4)?
+    var text = with_capacity(4)
     append_i32(&+text, 0)?
     append_str(&+text, " ")?
     append_i32(&+text, 42)?
@@ -4504,7 +4525,7 @@ use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var text = with_capacity(&+allocator, 8)?
+    var text = with_capacity(8)
     append_usize(&+text, 0)?
     append_str(&+text, " ")?
     append_usize(&+text, 42)?

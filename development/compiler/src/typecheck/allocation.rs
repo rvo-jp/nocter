@@ -29,7 +29,8 @@ pub(super) fn allocator_capability_kind(
         TrustedDeclarationRole::CurrentAllocationContext
         | TrustedDeclarationRole::AllocationOperation { .. }
         | TrustedDeclarationRole::RegionEnter
-        | TrustedDeclarationRole::RegionRelease => None,
+        | TrustedDeclarationRole::RegionRelease
+        | TrustedDeclarationRole::AllocationAbort => None,
     }
 }
 
@@ -569,7 +570,8 @@ fn trusted_call_needs_current_context(
                 ..
             }
             | TrustedDeclarationRole::RegionEnter
-            | TrustedDeclarationRole::RegionRelease,
+            | TrustedDeclarationRole::RegionRelease
+            | TrustedDeclarationRole::AllocationAbort,
         )
         | None => false,
     }

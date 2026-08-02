@@ -56,6 +56,12 @@ impl EntryEmitter {
             UsizeValue::ProcessArgCount => {
                 self.encoder.emit_ldr_x_imm(destination, XReg::X19, 0);
             }
+            UsizeValue::CurrentAllocationState => {
+                emit_mov_u64_to_x(&mut self.encoder, destination, 0);
+            }
+            UsizeValue::CurrentAllocationKind => {
+                emit_mov_u64_to_x(&mut self.encoder, destination, 0);
+            }
             UsizeValue::Location(location) => {
                 if let UsizeLocation::Parameter(index) = location {
                     self.emit_parameter_word_to_x(*index, destination)?;

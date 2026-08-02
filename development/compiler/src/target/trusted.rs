@@ -34,7 +34,10 @@ pub(crate) fn trusted_declarations_for_module(
             }
             Item::Primitive(primitive) => {
                 let role = match primitive.name.as_str() {
-                    "current_allocator" => TrustedDeclarationRole::CurrentAllocationContext,
+                    "current_allocator_state" | "current_allocator_kind" => {
+                        TrustedDeclarationRole::CurrentAllocationContext
+                    }
+                    "allocation_abort_raw" => TrustedDeclarationRole::AllocationAbort,
                     "alloc_current" => TrustedDeclarationRole::AllocationOperation {
                         source: AllocationSource::CurrentContext,
                         failure_policy: AllocationFailurePolicy::Abort,
@@ -59,6 +62,34 @@ pub(crate) fn trusted_declarations_for_module(
                                 ("size", "usize"),
                                 ("align", "usize"),
                             ],
+                            "RawBuffer",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationOperation {
+                            source: AllocationSource::Input(0),
+                            failure_policy: AllocationFailurePolicy::Abort,
+                        }
+                    }
+                    "alloc_layout"
+                        if function_shape_matches(
+                            function,
+                            &[("allocator", "&+Allocator"), ("requested", "Layout")],
+                            "RawBuffer",
+                        ) =>
+                    {
+                        TrustedDeclarationRole::AllocationOperation {
+                            source: AllocationSource::Input(0),
+                            failure_policy: AllocationFailurePolicy::Abort,
+                        }
+                    }
+                    "try_alloc"
+                        if function_shape_matches(
+                            function,
+                            &[
+                                ("allocator", "&+TryAllocator"),
+                                ("size", "usize"),
+                                ("align", "usize"),
+                            ],
                             "RawBuffer!",
                         ) =>
                     {
@@ -67,10 +98,10 @@ pub(crate) fn trusted_declarations_for_module(
                             failure_policy: AllocationFailurePolicy::Recoverable,
                         }
                     }
-                    "alloc_layout"
+                    "try_alloc_layout"
                         if function_shape_matches(
                             function,
-                            &[("allocator", "&+Allocator"), ("requested", "Layout")],
+                            &[("allocator", "&+TryAllocator"), ("requested", "Layout")],
                             "RawBuffer!",
                         ) =>
                     {

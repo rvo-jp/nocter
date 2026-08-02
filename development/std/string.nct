@@ -11,7 +11,8 @@
 //! through restricted runtime pointer primitives.
 
 use std/error.Error
-use std/mem.{Allocator, RawBuffer, alloc, empty_page_buffer, grow_owned}
+use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
+use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.copy_str_to_ptr
 use std/ptr.str_from_raw_parts
 
@@ -33,31 +34,65 @@ pub func empty(): String {
     return String.empty()
 }
 
-pub func String.with_capacity(allocator: &+Allocator, requested_capacity: usize): String! {
+pub func String.with_capacity(requested_capacity: usize): String {
+    var allocator = current_allocator()
     return String {
-        storage: alloc(allocator, requested_capacity, 1)?,
+        storage: alloc(&+allocator, requested_capacity, 1),
         len: 0,
     }
 }
 
-pub func with_capacity(allocator: &+Allocator, requested_capacity: usize): String! {
-    return String.with_capacity(allocator, requested_capacity)?
+pub func with_capacity(requested_capacity: usize): String {
+    return String.with_capacity(requested_capacity)
 }
 
-pub func String.from_str(allocator: &+Allocator, value: &str): String! {
+pub func String.try_with_capacity(
+    allocator: &+TryAllocator,
+    requested_capacity: usize,
+): String! {
+    return String {
+        storage: try_alloc(allocator, requested_capacity, 1)?,
+        len: 0,
+    }
+}
+
+pub func try_with_capacity(
+    allocator: &+TryAllocator,
+    requested_capacity: usize,
+): String! {
+    return String.try_with_capacity(allocator, requested_capacity)?
+}
+
+pub func String.from_str(value: &str): String {
     let value_len: usize = value.len()
-    var result = String.with_capacity(allocator, value_len)?
+    var result = String.with_capacity(value_len)
     copy_str_to_ptr(result.storage.ptr, 0, value)
     result.len = value_len
     return move result
 }
 
-pub func from_str(allocator: &+Allocator, value: &str): String! {
-    return String.from_str(allocator, value)?
+pub func from_str(value: &str): String {
+    return String.from_str(value)
 }
 
-pub func String.copy(allocator: &+Allocator, value: &str): String! {
-    return String.from_str(allocator, value)?
+pub func String.copy(value: &str): String {
+    return String.from_str(value)
+}
+
+pub func String.try_from_str(allocator: &+TryAllocator, value: &str): String! {
+    let value_len: usize = value.len()
+    var result = String.try_with_capacity(allocator, value_len)?
+    copy_str_to_ptr(result.storage.ptr, 0, value)
+    result.len = value_len
+    return move result
+}
+
+pub func try_from_str(allocator: &+TryAllocator, value: &str): String! {
+    return String.try_from_str(allocator, value)?
+}
+
+pub func String.try_copy(allocator: &+TryAllocator, value: &str): String! {
+    return String.try_from_str(allocator, value)?
 }
 
 pub func view(text: &String): &str {
@@ -79,7 +114,7 @@ pub func is_empty(text: &String): bool {
     return text_len == 0
 }
 
-pub func reserve(text: &+String, additional: usize): void! {
+pub func try_reserve(text: &+String, additional: usize): void! {
     let text_len: usize = text.len
     if additional > 18446744073709551615 - text_len {
         return capacity_overflow()
@@ -90,7 +125,14 @@ pub func reserve(text: &+String, additional: usize): void! {
         return
     }
 
-    grow_owned(&+text.storage, required_capacity)?
+    try_grow_owned(&+text.storage, required_capacity)?
+    return
+}
+
+pub func reserve(text: &+String, additional: usize): void {
+    try_reserve(text, additional) catch allocation_error {
+        return allocation_abort_raw()
+    }
     return
 }
 
@@ -103,12 +145,19 @@ pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
 
-pub func push_str(text: &+String, value: &str): void! {
+pub func try_push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
-    reserve(text, value_len)?
+    try_reserve(text, value_len)?
     copy_str_to_ptr(text.storage.ptr, old_len, value)
     text.len = old_len + value_len
+    return
+}
+
+pub func push_str(text: &+String, value: &str): void {
+    try_push_str(text, value) catch allocation_error {
+        return allocation_abort_raw()
+    }
     return
 }
 
@@ -133,8 +182,13 @@ impl String {
         return is_empty(self)
     }
 
-    pub method &+self.reserve(additional: usize): void! {
-        reserve(self, additional)?
+    pub method &+self.reserve(additional: usize): void {
+        reserve(self, additional)
+        return
+    }
+
+    pub method &+self.try_reserve(additional: usize): void! {
+        try_reserve(self, additional)?
         return
     }
 
@@ -147,8 +201,13 @@ impl String {
         return bytes_from_str(view(self))
     }
 
-    pub method &+self.push_str(value: &str): void! {
-        push_str(self, value)?
+    pub method &+self.push_str(value: &str): void {
+        push_str(self, value)
+        return
+    }
+
+    pub method &+self.try_push_str(value: &str): void! {
+        try_push_str(self, value)?
         return
     }
 

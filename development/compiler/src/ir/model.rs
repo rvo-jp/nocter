@@ -691,6 +691,8 @@ pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
     ProcessArgCount,
+    CurrentAllocationState,
+    CurrentAllocationKind,
     U8ZeroExtend(Box<U8Value>),
     StrLen(StrLocation),
     SliceLen(SliceLocation),

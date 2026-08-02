@@ -49,7 +49,10 @@ pub(super) fn record_usize_value_parameter_spill_requests(
     requests: &mut BTreeSet<usize>,
 ) {
     match value {
-        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
+        UsizeValue::Const(_)
+        | UsizeValue::ProcessArgCount
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(UsizeLocation::Parameter(index)) => {
             requests.insert(*index);
         }
