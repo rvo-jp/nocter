@@ -49,8 +49,9 @@ use sized::*;
 
 pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSliceElementKind, collect_typecheck_facts, type_expr_presentation_label,
+    TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckScalarViewKind, TypecheckSliceElementKind, collect_typecheck_facts,
+    type_expr_presentation_label,
 };
 pub(crate) use semantic_facts::{
     CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,

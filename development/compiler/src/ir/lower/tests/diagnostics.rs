@@ -380,24 +380,6 @@ func main(): i32 {
 }
 
 #[test]
-fn reports_unsupported_interpolated_string_binding_lowering() {
-    let diagnostics = lower_text_diagnostics(
-        r#"struct String {
-    bytes: &[u8]
-}
-
-func main(): i32! {
-    let text = "value ${1}"?
-    return 0
-}
-"#,
-    );
-
-    assert_eq!(diagnostics[0].code, "E8008");
-    assert!(diagnostics[0].message.contains("std/fmt.append_*"));
-}
-
-#[test]
 fn rejects_tail_call_return_type_mismatch_during_lowering() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {

@@ -10,6 +10,8 @@ const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
 #[path = "distributed_home/collection_access.rs"]
 mod collection_access;
+#[path = "distributed_home/interpolation.rs"]
+mod interpolation;
 #[path = "distributed_home/iteration.rs"]
 mod iteration;
 #[path = "distributed_home/iteration_cleanup.rs"]

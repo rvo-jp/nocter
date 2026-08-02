@@ -22,6 +22,40 @@ pub(super) fn lower_aggregate_assignment(
         );
     }
 
+    if let Expr::InterpolatedString(interpolated) = unwrap_group(expression)
+        && let Some(target) = context.aggregate_local_by_slot(slot_index)
+        && let Some(drop_kind) = target.drop_kind
+    {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let replacement_slot = temporaries.next_aggregate_slot();
+        let mut interpolation_context = context.clone();
+        if !interpolation_context.register_or_complete_temporary_aggregate_drop(
+            replacement_slot,
+            layout,
+            drop_kind,
+        ) {
+            return Err(unsupported_assignment_diagnostic());
+        }
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: replacement_slot,
+            layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+                interpolated,
+                replacement_slot,
+                &interpolation_context,
+            )?,
+        );
+        instructions.extend(replacement_drop);
+        instructions.push(Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(slot_index),
+            source: AggregateLocation::Slot(replacement_slot),
+            layout,
+        });
+        return Ok(instructions);
+    }
+
     if payload_enum_constructor_member_and_arguments(expression).is_some()
         && let Some(target) = context.aggregate_local_by_slot(slot_index)
         && let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) = target.drop_kind
@@ -315,6 +349,13 @@ pub(super) fn lower_aggregate_assignment_to_slot(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::InterpolatedString(interpolated) = unwrap_group(expression) {
+        return crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+            interpolated,
+            slot_index,
+            context,
+        );
+    }
     if matches!(
         unwrap_group(expression),
         Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)

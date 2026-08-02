@@ -14,8 +14,7 @@ mod effects;
 mod lowerability;
 
 pub(in crate::ir::lower) use effects::{
-    expression_contains_call, expression_contains_interpolated_string,
-    short_circuit_bool_expression_needs_branch,
+    expression_contains_call, short_circuit_bool_expression_needs_branch,
 };
 pub(in crate::ir::lower) use lowerability::expression_is_lowerable_bool_binding;
 pub(super) use lowerability::{

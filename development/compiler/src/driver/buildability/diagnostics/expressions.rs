@@ -21,12 +21,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
         Expr::InterpolatedString(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                expression.span,
-                "bare string interpolation",
-                "construct `String` explicitly with an allocator and `std/fmt.append_*` calls",
-            ));
+            if let Some(plan) = typecheck_facts.interpolation_plan(expression.span) {
+                queue.push_back(call_target_for_source(
+                    plan.constructor.declaration.source,
+                    root_source,
+                    plan.constructor.target_name.clone(),
+                ));
+                for part in &plan.parts {
+                    queue.push_back(call_target_for_source(
+                        part.formatter.declaration.source,
+                        root_source,
+                        part.formatter.target_name.clone(),
+                    ));
+                }
+            }
             for part in &expression.parts {
                 if let crate::ast::InterpolatedStringPart::Expression(part) = part {
                     collect_expression_diagnostics(

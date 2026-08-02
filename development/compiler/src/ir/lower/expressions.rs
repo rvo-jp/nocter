@@ -135,8 +135,7 @@ use predicates::{
     str_comparison_is_lowerable, u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
-    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    short_circuit_bool_expression_needs_branch,
+    expression_is_lowerable_bool_binding, short_circuit_bool_expression_needs_branch,
 };
 pub(super) use temporaries::TemporaryAllocator;
 use temporaries::{

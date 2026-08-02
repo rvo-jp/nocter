@@ -5,9 +5,11 @@ use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
 use crate::semantics::{
-    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole,
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, InterpolationInputKind,
+    InterpolationRuntime, RuntimeCallable, TrustedDeclarationRole,
 };
 use crate::source::SourceMap;
+use std::collections::HashMap;
 
 fn check_text(text: &str) -> Vec<Diagnostic> {
     check_text_with_trusted_allocator(text, true)
@@ -51,6 +53,33 @@ fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<D
                 _ => {}
             }
         }
+    }
+    if let Some(string_span) = ast.items.iter().find_map(|item| match item {
+        Item::Struct(struct_) if struct_.name == "String" => Some(struct_.span),
+        _ => None,
+    }) {
+        let callable = RuntimeCallable {
+            declaration: string_span,
+            target_name: "test".to_string(),
+        };
+        let formatters = [
+            InterpolationInputKind::Str,
+            InterpolationInputKind::String,
+            InterpolationInputKind::I32,
+            InterpolationInputKind::U8,
+            InterpolationInputKind::Usize,
+            InterpolationInputKind::Bool,
+        ]
+        .into_iter()
+        .map(|kind| (kind, callable.clone()))
+        .collect::<HashMap<_, _>>();
+        resolved
+            .trusted_declarations
+            .set_interpolation_runtime(InterpolationRuntime::new(
+                string_span,
+                callable,
+                formatters,
+            ));
     }
     let mut diagnostics = resolved.diagnostics.clone();
     diagnostics.extend(check(&sources, &ast, &resolved));
@@ -105,6 +134,34 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0436");
     assert!(diagnostics[0].message.contains("region `temp`"));
     assert_eq!(diagnostics[0].notes.len(), 1);
+}
+
+#[test]
+fn diagnoses_region_backed_interpolation_return() {
+    let diagnostics = check_text(
+        r#"copy struct Arena {
+    id: usize
+}
+
+struct String {
+    bytes: &[u8]
+}
+
+func leak(parent: Arena): String {
+    region temp using parent {
+        return "value ${42}"
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+    assert!(diagnostics[0].message.contains("region `temp`"));
 }
 
 #[test]

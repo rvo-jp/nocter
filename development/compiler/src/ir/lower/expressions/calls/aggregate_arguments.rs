@@ -1,5 +1,57 @@
 use super::*;
 
+pub(super) fn lower_tracked_interpolation_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Expr::InterpolatedString(interpolated) = unwrap_group(argument) else {
+        return Ok(None);
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let Some(drop_kind) = evaluation
+        .context()
+        .aggregate_drop_for_type_expr(parameter_type_expr)
+    else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let slot_index = temporaries.next_aggregate_slot();
+    evaluation.sync_temporaries(temporaries)?;
+    if !evaluation.complete_temporary(slot_index, expected_layout, drop_kind) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(
+        crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+            interpolated,
+            slot_index,
+            evaluation.context(),
+        )?,
+    );
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
 pub(super) fn lower_tracked_payload_argument_source(
     argument: &Expr,
     parameter_type: &Type,

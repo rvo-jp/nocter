@@ -7,9 +7,7 @@ use crate::ast::{
     TypeReference, UnaryExpr,
 };
 use crate::lexer::{Keyword, Token, TokenKind, lex_span};
-use crate::literals::{
-    StringLiteralPartSpan, decode_interpolated_text_part, string_literal_parts,
-};
+use crate::literals::{StringLiteralPartSpan, decode_interpolated_text_part, string_literal_parts};
 use crate::source::ByteSpan;
 
 impl Parser<'_> {

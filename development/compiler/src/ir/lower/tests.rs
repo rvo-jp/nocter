@@ -30,6 +30,7 @@ mod diagnostics;
 mod drops;
 mod generics;
 mod imports;
+mod interpolation;
 mod optional_fallible;
 mod payload_enum_fields;
 mod payload_enums;
@@ -50,6 +51,29 @@ fn lower_text(text: &str) -> IrModule {
 
 fn lower_text_with_std_error(text: &str) -> IrModule {
     lower_text_with_nocter_home_files(text, &[std_error_file()])
+}
+
+fn lower_text_with_development_home(text: &str) -> IrModule {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("app.nct", None, text);
+    let nocter_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("compiler crate should live below the development root")
+        .to_path_buf();
+    let unit: CompileUnit = load_compile_unit(
+        &mut sources,
+        source,
+        &FrontendOptions {
+            nocter_home: Some(nocter_home),
+            source_root: None,
+            target: DEFAULT_TARGET.to_string(),
+        },
+    )
+    .unwrap();
+    let analysis = analyze_executable_compile_unit(&sources, &unit);
+    let diagnostics = analysis.diagnostics();
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    lower_executable(&analysis, &sources).unwrap()
 }
 
 fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {

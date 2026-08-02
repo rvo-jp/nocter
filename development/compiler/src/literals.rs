@@ -658,11 +658,11 @@ mod tests {
     #[test]
     fn decodes_interpolated_text_escapes() {
         let source = "\"line\\n${value}\\$\"";
-        assert_eq!(decode_interpolated_text_part(source, 1, 7).unwrap(), "line\n");
         assert_eq!(
-            decode_interpolated_text_part(source, 15, 17).unwrap(),
-            "$"
+            decode_interpolated_text_part(source, 1, 7).unwrap(),
+            "line\n"
         );
+        assert_eq!(decode_interpolated_text_part(source, 15, 17).unwrap(), "$");
     }
 
     #[test]

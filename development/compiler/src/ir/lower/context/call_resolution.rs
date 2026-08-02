@@ -164,6 +164,29 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(in crate::ir::lower) fn interpolation_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckInterpolationPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .interpolation_plan(expression_span)
+            .cloned()
+    }
+
+    pub(in crate::ir::lower) fn runtime_callable_target(
+        &self,
+        callable: &crate::semantics::RuntimeCallable,
+    ) -> Option<CallTarget> {
+        let resolution = self.call_resolution.as_ref()?;
+        Some(call_target_for_source(
+            callable.declaration.source,
+            resolution.root_source,
+            callable.target_name.clone(),
+        ))
+    }
+
     pub(in crate::ir::lower) fn function_call_type_substitution(
         &self,
         call: &CallExpr,

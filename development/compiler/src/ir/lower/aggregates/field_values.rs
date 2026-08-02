@@ -16,6 +16,52 @@ pub(super) fn lower_aggregate_field_to_location(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::InterpolatedString(interpolated) = unwrap_field_value_group(expression) {
+        let expected_layout = layout_of(field_type).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let result_ty = context
+            .expression_type_expr(interpolated.span)
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        let drop_kind = context
+            .aggregate_drop_for_type_expr(&result_ty)
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        let source_slot = temporaries.next_aggregate_slot();
+        let mut interpolation_context = context.clone();
+        if !interpolation_context.register_or_complete_temporary_aggregate_drop(
+            source_slot,
+            expected_layout,
+            drop_kind,
+        ) {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        }
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+                interpolated,
+                source_slot,
+                &interpolation_context,
+            )?,
+        );
+        instructions.push(Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: offset,
+            source: AggregateLocation::Slot(source_slot),
+            source_offset: 0,
+            layout: expected_layout,
+        });
+        return Ok(instructions);
+    }
     if matches!(
         unwrap_field_value_group(expression),
         Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)

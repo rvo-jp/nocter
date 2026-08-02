@@ -8,6 +8,7 @@ mod errors;
 mod expressions;
 mod functions;
 mod imported_calls;
+mod interpolation;
 mod literal_packs;
 mod literals;
 mod reachability;

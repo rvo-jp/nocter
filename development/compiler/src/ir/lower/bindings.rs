@@ -20,11 +20,11 @@ use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContex
 use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
-    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    fixed_array_element_access, fixed_array_element_indexed_access,
-    lower_aggregate_member_field_access, lower_bool_expression_to_location,
-    lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
-    lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
+    expression_is_lowerable_bool_binding, fixed_array_element_access,
+    fixed_array_element_indexed_access, lower_aggregate_member_field_access,
+    lower_bool_expression_to_location, lower_bool_expression_to_value,
+    lower_bool_expression_to_value_with_temporaries, lower_borrow_expression_to_location,
+    lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_fallible_bool_normal_call, lower_fallible_borrow_normal_call,
     lower_fallible_i32_normal_call, lower_fallible_slice_normal_call,
@@ -46,6 +46,7 @@ use super::functions::{
     lower_scope_end_drops_for_locals_since, propagating_failure_mode,
     replacement_drop_for_aggregate_slot,
 };
+use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
@@ -122,8 +123,8 @@ pub(super) fn lower_local_binding_with_loop_control(
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_interpolated_string(&statement.initializer) {
-        return Err(unsupported_interpolated_string_diagnostic());
+    if let Some(instructions) = lower_interpolated_string_binding(statement, context)? {
+        return Ok(instructions);
     }
 
     if let Some(instructions) = lower_otherwise_scalar_binding(statement, context, loop_control)? {
