@@ -465,6 +465,7 @@ impl LspServer {
                 &workspace.sources,
                 &workspace.analysis,
                 file,
+                document,
                 &self.documents,
                 root_offset,
             )

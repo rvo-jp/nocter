@@ -23,7 +23,7 @@ pub(crate) struct HoverInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HoverSymbol {
-    name_span: ByteSpan,
+    target: crate::analysis::editor_targets::SourceTarget,
     attach_start: usize,
     label: String,
 }
@@ -52,8 +52,7 @@ mod targets;
 pub(in crate::analysis::hover) use contents::*;
 #[allow(unused_imports)]
 pub(crate) use entry::hover_for_ast;
-pub(crate) use entry::{definition_span_for_ast, hover_for_file_analysis, hover_for_text};
-pub(crate) use module_paths::module_path_at_offset;
+pub(crate) use entry::{definition_target_for_ast, hover_for_file_analysis, hover_for_text};
 pub(in crate::analysis::hover) use module_paths::*;
 pub(in crate::analysis::hover) use symbols::*;
 pub(crate) use targets::*;

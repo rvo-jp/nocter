@@ -338,9 +338,40 @@ literal Text ""(text: &str): Self {
     assert!(
         response["result"]["contents"]["value"]
             .as_str()
-            .is_some_and(|value| value.contains("literal Text \"\"(text: &str): Self")),
+            .is_some_and(|value| value.contains("literal Text \"\"(text: &str): Text")),
         "expected recovered literal declaration hover: {response:#?}"
     );
+}
+
+#[test]
+fn associated_function_declaration_hover_selects_only_the_member_name() {
+    let text =
+        "struct File { fd: i32 }\n\nfunc File.open(): Self {\n    return File { fd: 1 }\n}\n";
+    let uri = "file:///tmp/nocter-associated-hover.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let response = server.hover_response(
+        json!(6),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 2, "character": 12 }
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!("```nocter\nfunc File.open(): File\n```")
+    );
+    assert_eq!(response["result"]["range"]["start"]["character"], json!(10));
+    assert_eq!(response["result"]["range"]["end"]["character"], json!(14));
 }
 
 #[test]
@@ -358,7 +389,8 @@ fn initializes_with_semantic_token_legend() {
             "variable",
             "parameter",
             "type",
-            "property"
+            "property",
+            "namespace"
         ])
     );
     assert_eq!(legend["tokenModifiers"], json!(["declaration", "readonly"]));
@@ -513,6 +545,41 @@ fn classifies_builtin_types_and_methods_for_semantic_tokens() {
         }),
         "expected method call name to be classified as a method"
     );
+
+    let receiver = classified_identifier_starting_at(
+        &identifiers,
+        text.find("self.read").expect("expected method receiver"),
+    )
+    .expect("expected method receiver token");
+    assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
+}
+
+#[test]
+fn classifies_an_import_module_path_as_one_namespace_token() {
+    let project = TempProject::new("lsp-semantic-import-path");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    std::fs::write(
+        home.join("std/error.nct"),
+        "pub struct Error { code: i32 }\n",
+    )
+    .unwrap();
+    let text = "use std/error.Error\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let documents = HashMap::from([(uri.clone(), document)]);
+    let workspace =
+        workspace_analysis_for_uri(&uri, &documents).expect("expected workspace analysis");
+    let file = workspace.root_file().expect("expected analyzed file");
+    let identifiers = classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
+
+    let path = classified_identifier_with_lexeme(text, &identifiers, "std/error");
+    assert_eq!(path.len(), 1);
+    assert_eq!(path[0].kind, SemanticTokenKind::Namespace);
+    let imported = classified_identifier_with_lexeme(text, &identifiers, "Error");
+    assert_eq!(imported.len(), 1);
+    assert_eq!(imported[0].kind, SemanticTokenKind::Type);
 }
 
 #[test]
@@ -1146,12 +1213,10 @@ func run(arena: Arena): i32 {
             "position": position
         })),
     );
-    assert_eq!(definition["result"]["range"]["start"]["line"], json!(5));
-    assert_eq!(
-        definition["result"]["range"]["start"]["character"],
-        json!(11)
-    );
-    assert_eq!(definition["result"]["range"]["end"]["character"], json!(16));
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(5));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(11));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(16));
 }
 
 #[test]
@@ -1626,6 +1691,73 @@ fn returns_documented_hover_for_imported_type_reference() {
 }
 
 #[test]
+fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
+    let project = TempProject::new("lsp-hover-imported-type-site");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let error_module = home.join("std/error.nct");
+    std::fs::write(
+        &error_module,
+        "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n",
+    )
+    .unwrap();
+    let error_uri = file_uri(&error_module.canonicalize().unwrap());
+    let text = "use std/error.Error\n";
+    let app = project.write_source("app.nct", text);
+    let app_uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            app_uri.clone(),
+            open_document(app_uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let response = server.hover_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 0, "character": 16 }
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!("```nocter\nstruct Error\n```\n\nA recoverable failure.")
+    );
+    assert_eq!(response["result"]["range"]["start"]["character"], json!(14));
+    assert_eq!(response["result"]["range"]["end"]["character"], json!(19));
+
+    let definition = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 0, "character": 16 }
+        })),
+    );
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetUri"], json!(error_uri));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(14)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(19)
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["line"],
+        json!(1)
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        json!(11)
+    );
+}
+
+#[test]
 fn returns_definition_for_resolved_function_reference() {
     let uri = "file:///tmp/nocter-definition-reference.nct".to_string();
     let document = open_document(
@@ -1654,9 +1786,10 @@ fn returns_definition_for_resolved_function_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(4));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(4));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(5));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(11));
 }
 
 #[test]
@@ -1687,9 +1820,10 @@ fn returns_definition_for_local_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(12));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(1));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(8));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(12));
 }
 
 #[test]
@@ -1783,10 +1917,11 @@ fn returns_definition_for_imported_function_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(config_uri));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(config_uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(9));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(15));
 }
 
 #[test]
@@ -1829,10 +1964,11 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(config_uri));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(config_uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(9));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(15));
 }
 
 #[test]
@@ -2061,11 +2197,20 @@ fn returns_definition_for_import_module_path() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&io)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(0));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(4)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(10)
+    );
 }
 
 #[test]
@@ -2105,11 +2250,20 @@ fn returns_definition_for_block_import_module_path() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&io)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(0));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(8)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(14)
+    );
 }
 
 #[test]
@@ -2162,10 +2316,11 @@ fn returns_definition_for_imported_type_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&config)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(17));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&config)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(11));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(17));
 }
 
 #[test]
@@ -2199,9 +2354,10 @@ fn returns_definition_for_method_call() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(20));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(5));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(16));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(20));
 }
 
 #[test]
@@ -3750,7 +3906,7 @@ fn json_rpc_uses_one_open_overlay_for_diagnostics_definition_and_references() {
         .as_array()
         .unwrap();
 
-    assert_eq!(definition["result"]["uri"], json!(library_uri));
+    assert_eq!(definition_link(definition)["targetUri"], json!(library_uri));
     assert!(
         references
             .iter()
@@ -3803,6 +3959,13 @@ fn completion_item_with_label<'a>(items: &'a [Value], label: &str) -> Option<&'a
     items
         .iter()
         .find(|item| item.get("label").and_then(Value::as_str) == Some(label))
+}
+
+fn definition_link(response: &Value) -> &Value {
+    response["result"]
+        .as_array()
+        .and_then(|links| links.first())
+        .expect("expected a definition location link")
 }
 
 fn classified_identifier_with_lexeme<'a>(

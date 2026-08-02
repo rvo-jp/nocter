@@ -12,6 +12,9 @@ impl TypecheckFactCollector<'_> {
                     function.name_span,
                     function_declaration_hover_label(function, self.resolved),
                 );
+                if let Some(owner) = &function.owner {
+                    self.record_type_reference(&owner.name, owner.name_span);
+                }
                 self.collect_generic_param_type_references(&function.generics);
                 self.collect_parameter_type_references(&function.parameters.parameters);
                 self.collect_type_expr_references(&function.return_type);
@@ -95,14 +98,15 @@ impl TypecheckFactCollector<'_> {
                                 drop_.binding.name_span,
                                 drop_declaration_hover_label(drop_, self.resolved, &self_type),
                             );
-                            self.collect_parameter_type_references(std::slice::from_ref(
-                                &drop_.binding,
-                            ));
                         }
                     }
                 }
             }
             Item::Literal(literal) => {
+                self.facts.declaration_hover_labels.insert(
+                    literal.shape_span,
+                    literal_declaration_hover_label(literal, self.resolved),
+                );
                 self.collect_type_expr_references(&literal.target);
                 self.collect_parameter_type_references(&literal.parameters.parameters);
                 if let Some(capture) = &literal.capture {
@@ -117,7 +121,6 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         method: &MethodDecl,
     ) {
-        self.collect_parameter_type_references(std::slice::from_ref(&method.receiver));
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
     }

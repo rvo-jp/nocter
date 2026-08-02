@@ -9,13 +9,14 @@ pub(super) use analysis_semantic::SEMANTIC_DECLARATION_MODIFIER;
 pub(super) use analysis_semantic::SEMANTIC_READONLY_MODIFIER;
 pub(super) use analysis_semantic::{ClassifiedIdentifier, SemanticTokenKind};
 
-pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
+pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 7] = [
     "function",
     "method",
     "variable",
     "parameter",
     "type",
     "property",
+    "namespace",
 ];
 pub(super) const SEMANTIC_TOKEN_MODIFIERS: [&str; 2] = ["declaration", "readonly"];
 
@@ -61,6 +62,7 @@ pub(super) const fn semantic_token_kind_index(kind: SemanticTokenKind) -> u32 {
         SemanticTokenKind::Parameter => 3,
         SemanticTokenKind::Type => 4,
         SemanticTokenKind::Property => 5,
+        SemanticTokenKind::Namespace => 6,
     }
 }
 

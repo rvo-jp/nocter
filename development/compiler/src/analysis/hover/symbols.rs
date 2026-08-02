@@ -26,18 +26,18 @@ pub(in crate::analysis::hover) fn apply_typecheck_hover_facts(
     symbols: &mut [HoverSymbol],
 ) {
     for symbol in symbols {
-        if let Some(label) = facts.declaration_hover_label(symbol.name_span) {
+        if let Some(label) = facts.declaration_hover_label(symbol.target.declaration_span) {
             symbol.label = label.to_string();
             continue;
         }
 
-        let Some(ty) = facts.binding_type_label(symbol.name_span) else {
+        let Some(ty) = facts.binding_type_label(symbol.target.declaration_span) else {
             continue;
         };
         let Some(kind) = binding_hover_label_kind(&symbol.label) else {
             continue;
         };
-        let name = source_fragment(text, symbol.name_span);
+        let name = source_fragment(text, symbol.target.focus_span);
         symbol.label = format!("{kind} {name}: {ty}");
     }
 }
@@ -231,8 +231,9 @@ pub(in crate::analysis::hover) fn push_function_hover_symbol(
     function: &FunctionDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
-    push_hover_symbol(
+    push_hover_symbol_for_declaration(
         text,
+        function.member_name_span,
         function.name_span,
         function.span.start,
         function_like_header(text, function.span, Some(function.body.span.start)),
@@ -279,6 +280,7 @@ pub(in crate::analysis::hover) fn collect_parameter_hover_symbols(
 ) {
     for parameter in parameters {
         push_hover_symbol_with_attach_start(
+            parameter.name_span,
             parameter.name_span,
             parameter.span.start,
             format!(
@@ -561,8 +563,27 @@ pub(in crate::analysis::hover) fn push_hover_symbol(
     label: String,
     symbols: &mut Vec<HoverSymbol>,
 ) {
-    push_hover_symbol_with_attach_start(
+    push_hover_symbol_for_declaration(
+        text,
         name_span,
+        name_span,
+        declaration_start,
+        label,
+        symbols,
+    );
+}
+
+pub(in crate::analysis::hover) fn push_hover_symbol_for_declaration(
+    text: &str,
+    focus_span: ByteSpan,
+    declaration_span: ByteSpan,
+    declaration_start: usize,
+    label: String,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol_with_attach_start(
+        focus_span,
+        declaration_span,
         declaration_line_start(text, declaration_start),
         label,
         symbols,
@@ -570,13 +591,14 @@ pub(in crate::analysis::hover) fn push_hover_symbol(
 }
 
 pub(in crate::analysis::hover) fn push_hover_symbol_with_attach_start(
-    name_span: ByteSpan,
+    focus_span: ByteSpan,
+    declaration_span: ByteSpan,
     attach_start: usize,
     label: String,
     symbols: &mut Vec<HoverSymbol>,
 ) {
     symbols.push(HoverSymbol {
-        name_span,
+        target: crate::analysis::editor_targets::SourceTarget::new(focus_span, declaration_span),
         attach_start,
         label,
     });

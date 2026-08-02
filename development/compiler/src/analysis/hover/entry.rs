@@ -15,6 +15,19 @@ pub(crate) fn hover_for_file_analysis(
         return Some(hover);
     }
 
+    if let Some(target) = crate::analysis::editor_targets::editor_target_at_offset(file, offset)
+        && let crate::analysis::editor_targets::EditorTargetKind::ImportBinding(symbol) =
+            target.kind
+    {
+        let (label, documentation) = resolved_symbol_hover_contents(sources, analysis, symbol)
+            .unwrap_or_else(|| (symbol_hover_label_for_sources(sources, symbol), None));
+        return Some(HoverInfo {
+            span: target.focus_span,
+            label,
+            documentation,
+        });
+    }
+
     if let Some(literal) = crate::analysis::literals::literal_editor_info_at_offset(
         analysis,
         file,
@@ -33,15 +46,16 @@ pub(crate) fn hover_for_file_analysis(
 
     if let Some(symbol) = symbols
         .iter()
-        .find(|symbol| span_contains(symbol.name_span, offset))
+        .find(|symbol| span_contains(symbol.target.focus_span, offset))
     {
         let attached = documentation
-            .get(symbol.name_span.start)
+            .get(symbol.target.focus_span.start)
             .map(str::to_string);
-        let semantic = semantic_documentation(sources, analysis, symbol.name_span);
-        let region = crate::analysis::regions::region_markdown(sources, file, symbol.name_span);
+        let semantic = semantic_documentation(sources, analysis, symbol.target.declaration_span);
+        let region =
+            crate::analysis::regions::region_markdown(sources, file, symbol.target.focus_span);
         return Some(HoverInfo {
-            span: symbol.name_span,
+            span: symbol.target.focus_span,
             label: symbol.label.clone(),
             documentation: combine_documentation(combine_documentation(attached, semantic), region),
         });
@@ -115,13 +129,13 @@ pub(crate) fn hover_for_ast(
 
     if let Some(symbol) = symbols
         .iter()
-        .find(|symbol| span_contains(symbol.name_span, offset))
+        .find(|symbol| span_contains(symbol.target.focus_span, offset))
     {
         return Some(HoverInfo {
-            span: symbol.name_span,
+            span: symbol.target.focus_span,
             label: symbol.label.clone(),
             documentation: documentation
-                .get(symbol.name_span.start)
+                .get(symbol.target.focus_span.start)
                 .map(str::to_string),
         });
     }
@@ -177,20 +191,21 @@ pub(crate) fn hover_for_ast(
     })
 }
 
-pub(crate) fn definition_span_for_ast(
+pub(crate) fn definition_target_for_ast(
     text: &str,
     ast: &AstFile,
     resolved: &ResolveOutput,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<crate::analysis::editor_targets::SourceTarget> {
     let symbols = hover_symbols_for_ast(text, ast);
     if let Some(symbol) = symbols
         .iter()
-        .find(|symbol| span_contains(symbol.name_span, offset))
+        .find(|symbol| span_contains(symbol.target.focus_span, offset))
     {
-        return Some(symbol.name_span);
+        return Some(symbol.target);
     }
 
-    resolved_reference_at_offset(resolved, offset)
-        .map(|(_, reference)| reference.declaration_span())
+    resolved_reference_at_offset(resolved, offset).map(|(origin, reference)| {
+        crate::analysis::editor_targets::SourceTarget::new(origin, reference.declaration_span())
+    })
 }

@@ -2,67 +2,78 @@
 
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::analysis::hover::{
-    definition_span_for_ast as hover_definition_span_for_ast, module_path_at_offset,
-};
+use crate::analysis::editor_targets::SourceTarget;
+use crate::analysis::hover::definition_target_for_ast as hover_definition_target_for_ast;
 use crate::ast::AstFile;
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::collect_typecheck_facts;
 
+#[cfg(test)]
 pub(crate) fn definition_span_for_file_analysis(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<ByteSpan> {
-    module_path_definition_span(analysis, file, offset)
+    definition_target_for_file_analysis(sources, analysis, file, offset)
+        .map(|target| target.declaration_span)
+}
+
+pub(crate) fn definition_target_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<SourceTarget> {
+    crate::analysis::editor_targets::editor_target_at_offset(file, offset)
+        .and_then(|target| target.source_target(analysis))
         .or_else(|| {
-            crate::analysis::literals::literal_definition_span_at_offset(analysis, file, offset)
+            crate::analysis::literals::literal_definition_target_at_offset(analysis, file, offset)
         })
-        .or_else(|| function_call_definition_span_for_file_analysis(file, offset))
-        .or_else(|| method_call_definition_span_for_file_analysis(file, offset))
-        .or_else(|| associated_function_definition_span_for_file_analysis(file, offset))
-        .or_else(|| field_definition_span_for_file_analysis(file, offset))
-        .or_else(|| enum_variant_definition_span_for_file_analysis(file, offset))
-        .or_else(|| type_definition_span_for_file_analysis(analysis, file, offset))
+        .or_else(|| function_call_definition_target_for_file_analysis(file, offset))
+        .or_else(|| method_call_definition_target_for_file_analysis(file, offset))
+        .or_else(|| associated_function_definition_target_for_file_analysis(file, offset))
+        .or_else(|| field_definition_target_for_file_analysis(file, offset))
+        .or_else(|| enum_variant_definition_target_for_file_analysis(file, offset))
+        .or_else(|| type_definition_target_for_file_analysis(analysis, file, offset))
         .or_else(|| {
             let text = sources.get(file.ast.span.source)?.text();
-            definition_span_for_ast(text, &file.ast, &file.resolved, offset)
+            hover_definition_target_for_ast(text, &file.ast, &file.resolved, offset)
         })
 }
 
-pub(crate) fn definition_span_for_ast(
+pub(crate) fn definition_target_for_ast(
     text: &str,
     ast: &AstFile,
     resolved: &ResolveOutput,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     let facts = collect_typecheck_facts(ast, resolved);
-    if let Some((_, target)) = facts.field_target_at_offset(offset) {
-        return Some(target);
+    if let Some((origin, target)) = facts.field_target_at_offset(offset) {
+        return Some(SourceTarget::new(origin, target));
     }
 
-    if let Some((_, target)) = facts.function_call_target_at_offset(offset) {
-        return Some(target);
+    if let Some((origin, target)) = facts.function_call_target_at_offset(offset) {
+        return Some(SourceTarget::new(origin, target));
     }
 
-    if let Some((_, target)) = facts.associated_function_target_at_offset(offset) {
-        return Some(target);
+    if let Some((origin, target)) = facts.associated_function_target_at_offset(offset) {
+        return Some(SourceTarget::new(origin, target));
     }
 
-    if let Some((_, target)) = facts.enum_variant_target_at_offset(offset) {
-        return Some(target);
+    if let Some((origin, target)) = facts.enum_variant_target_at_offset(offset) {
+        return Some(SourceTarget::new(origin, target));
     }
 
-    hover_definition_span_for_ast(text, ast, resolved, offset)
+    hover_definition_target_for_ast(text, ast, resolved, offset)
 }
 
-pub(crate) fn definition_span_for_text(text: &str, offset: usize) -> Option<ByteSpan> {
+pub(crate) fn definition_target_for_text(text: &str, offset: usize) -> Option<SourceTarget> {
     let parsed = parse_single_file_text("definition.nct", text)?;
     let resolved = resolve_single_file_for_definition(text, parsed.source, &parsed.ast);
 
-    definition_span_for_ast(text, &parsed.ast, &resolved, offset)
+    definition_target_for_ast(text, &parsed.ast, &resolved, offset)
 }
 
 pub(crate) fn resolve_single_file_for_definition(
@@ -73,23 +84,11 @@ pub(crate) fn resolve_single_file_for_definition(
     resolve_single_file_ast("definition.nct", text, source, ast)
 }
 
-fn module_path_definition_span(
+fn type_definition_target_for_file_analysis(
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
-) -> Option<ByteSpan> {
-    let path = module_path_at_offset(&file.ast, offset)?;
-    let import_source = analysis.import_sources.get(&path.span)?;
-    let imported_file = analysis.file_by_source(import_source.source)?;
-
-    Some(ByteSpan::new(imported_file.ast.span.source, 0, 0))
-}
-
-fn type_definition_span_for_file_analysis(
-    analysis: &CompileUnitAnalysis,
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     let reference = file.typecheck_facts.type_reference_at_offset(offset)?;
     let declaration_span = reference.symbol_declaration_span?;
 
@@ -109,54 +108,63 @@ fn type_definition_span_for_file_analysis(
                 | SymbolKind::Imported(_) => None,
             })
     {
-        return Some(name_span);
+        return Some(SourceTarget::new(reference.span, name_span));
     }
 
-    reference.symbol_name_span
+    reference
+        .symbol_name_span
+        .map(|target| SourceTarget::new(reference.span, target))
 }
 
-fn method_call_definition_span_for_file_analysis(
+fn method_call_definition_target_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     file.typecheck_facts
         .method_call_spans()
         .filter(|span| span_contains(*span, offset))
         .min_by_key(|span| (span.len(), span.start))
-        .and_then(|span| file.typecheck_facts.method_call_target(span))
+        .and_then(|span| {
+            file.typecheck_facts
+                .method_call_target(span)
+                .map(|target| SourceTarget::new(span, target))
+        })
 }
 
-fn function_call_definition_span_for_file_analysis(
+fn function_call_definition_target_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     file.typecheck_facts
         .function_call_target_at_offset(offset)
-        .map(|(_, target)| target)
+        .map(|(origin, target)| SourceTarget::new(origin, target))
 }
 
-fn field_definition_span_for_file_analysis(file: &FileAnalysis, offset: usize) -> Option<ByteSpan> {
+fn field_definition_target_for_file_analysis(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<SourceTarget> {
     file.typecheck_facts
         .field_target_at_offset(offset)
-        .map(|(_, target)| target)
+        .map(|(origin, target)| SourceTarget::new(origin, target))
 }
 
-fn associated_function_definition_span_for_file_analysis(
+fn associated_function_definition_target_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     file.typecheck_facts
         .associated_function_target_at_offset(offset)
-        .map(|(_, target)| target)
+        .map(|(origin, target)| SourceTarget::new(origin, target))
 }
 
-fn enum_variant_definition_span_for_file_analysis(
+fn enum_variant_definition_target_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
-) -> Option<ByteSpan> {
+) -> Option<SourceTarget> {
     file.typecheck_facts
         .enum_variant_target_at_offset(offset)
-        .map(|(_, target)| target)
+        .map(|(origin, target)| SourceTarget::new(origin, target))
 }
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {
@@ -166,7 +174,51 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
+    use crate::analysis::test_support::{
+        analyze_import_text, analyze_namespace_import_text, analyze_text,
+    };
+
+    #[test]
+    fn definition_query_keeps_the_whole_module_path_as_its_origin() {
+        let root_text = "use lib/math\n";
+        let module_text = "pub func answer(): i32 { return 7 }\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, 5)
+            .expect("expected module target");
+
+        assert_eq!(
+            &root_text[target.focus_span.start..target.focus_span.end],
+            "lib/math"
+        );
+        assert_ne!(target.declaration_span.source, file.ast.span.source);
+    }
+
+    #[test]
+    fn definition_query_resolves_an_imported_name_at_its_import_site() {
+        let root_text = "use lib/math.Error\n";
+        let module_text = "pub struct Error { code: i32 }\n";
+        let (sources, analysis) = analyze_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = root_text.find("Error").expect("expected imported name");
+
+        let target = definition_target_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected imported definition target");
+        let target_text = sources
+            .get(target.declaration_span.source)
+            .expect("expected target source")
+            .text();
+
+        assert_eq!(
+            &root_text[target.focus_span.start..target.focus_span.end],
+            "Error"
+        );
+        assert_eq!(
+            &target_text[target.declaration_span.start..target.declaration_span.end],
+            "Error"
+        );
+    }
 
     #[test]
     fn definition_query_resolves_typed_literal_delimiter_to_shape_declaration() {

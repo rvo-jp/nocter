@@ -1,8 +1,71 @@
 use super::*;
 use crate::analysis::test_support::{
-    analyze_namespace_import_text, analyze_text,
+    analyze_import_text, analyze_namespace_import_text, analyze_text,
     analyze_text_with_trusted_current_allocation_operation,
 };
+
+#[test]
+fn workspace_hover_normalizes_literal_declaration_signatures() {
+    let text = r#"type TextInput = &str
+
+struct Text { value: &str }
+
+literal Text ""(text: TextInput): Self {
+    return Text { value: text }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("\"\"(text").expect("expected literal shape");
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text");
+    assert_eq!(&text[hover.span.start..hover.span.end], "\"\"");
+}
+
+#[test]
+fn associated_function_declaration_has_separate_owner_and_member_hover_targets() {
+    let text = r#"struct File { fd: i32 }
+
+func File.open(): Self {
+    return File { fd: 1 }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let declaration = text.find("File.open").expect("expected declaration");
+
+    let owner = hover_for_file_analysis(&sources, &analysis, file, declaration)
+        .expect("expected owner hover");
+    let member = hover_for_file_analysis(&sources, &analysis, file, declaration + "File.".len())
+        .expect("expected member hover");
+
+    assert_eq!(owner.label, "struct File");
+    assert_eq!(&text[owner.span.start..owner.span.end], "File");
+    assert_eq!(member.label, "func File.open(): File");
+    assert_eq!(&text[member.span.start..member.span.end], "open");
+}
+
+#[test]
+fn workspace_hover_resolves_an_imported_name_at_its_import_site() {
+    let root_text = "use lib/math.Error\n";
+    let module_text = "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n";
+    let (sources, analysis) = analyze_import_text(root_text, module_text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = root_text.find("Error").expect("expected imported name");
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "struct Error");
+    assert_eq!(
+        hover.documentation.as_deref(),
+        Some("A recoverable failure.")
+    );
+    assert_eq!(&root_text[hover.span.start..hover.span.end], "Error");
+}
 
 #[test]
 fn workspace_hover_presents_typed_literal_signature_and_documentation() {

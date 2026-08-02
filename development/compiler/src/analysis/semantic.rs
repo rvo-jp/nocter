@@ -22,6 +22,7 @@ pub(crate) enum SemanticTokenKind {
     Parameter,
     Type,
     Property,
+    Namespace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +60,7 @@ fn classified_identifiers_for_analysis(
     facts: &TypecheckFacts,
 ) -> Vec<ClassifiedIdentifier> {
     let mut collector = SemanticIdentifierCollector {
+        ast,
         source: ast.span.source,
         resolved,
         facts,
@@ -70,6 +72,7 @@ fn classified_identifiers_for_analysis(
 }
 
 struct SemanticIdentifierCollector<'a> {
+    ast: &'a crate::ast::AstFile,
     source: SourceId,
     resolved: &'a ResolveOutput,
     facts: &'a TypecheckFacts,
@@ -85,6 +88,7 @@ impl SemanticIdentifierCollector<'_> {
         self.collect_local_symbol_references();
         self.collect_type_references();
         self.collect_member_references();
+        self.collect_editor_targets();
     }
 
     fn finish(mut self) -> Vec<ClassifiedIdentifier> {
@@ -212,6 +216,31 @@ impl SemanticIdentifierCollector<'_> {
         }
     }
 
+    fn collect_editor_targets(&mut self) {
+        for target in
+            crate::analysis::editor_targets::editor_targets_for_ast(self.ast, self.resolved)
+        {
+            let kind = match target.kind {
+                crate::analysis::editor_targets::EditorTargetKind::Module(_) => {
+                    Some(SemanticTokenKind::Namespace)
+                }
+                crate::analysis::editor_targets::EditorTargetKind::ImportBinding(symbol) => {
+                    semantic_kind_for_symbol_kind(&symbol.kind).or_else(|| {
+                        matches!(
+                            &symbol.kind,
+                            SymbolKind::Imported(imported)
+                                if imported.kind == crate::resolve::ImportedSymbolKind::Namespace
+                        )
+                        .then_some(SemanticTokenKind::Namespace)
+                    })
+                }
+            };
+            if let Some(kind) = kind {
+                self.push(target.focus_span, kind, true, 0);
+            }
+        }
+    }
+
     fn push_parameter(&mut self, span: ByteSpan) {
         self.push(
             span,
@@ -317,6 +346,7 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
         SemanticTokenKind::Type => 2,
         SemanticTokenKind::Parameter => 1,
         SemanticTokenKind::Variable => 0,
+        SemanticTokenKind::Namespace => 6,
     }
 }
 
@@ -389,6 +419,44 @@ mod tests {
 
         assert_eq!(answer.kind, SemanticTokenKind::Function);
         assert_eq!(answer.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+    }
+
+    #[test]
+    fn analysis_classifies_a_whole_module_path_as_one_namespace() {
+        let root_text = "use lib/math\n\nfunc main(): i32 { return 0 }\n";
+        let module_text = "pub func answer(): i32 { return 7 }\n";
+        let (sources, analysis) = analyze_namespace_import_text(root_text, module_text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let namespace = identifiers_for_lexeme(root_text, &identifiers, "lib/math");
+        assert_eq!(namespace.len(), 1);
+        assert_eq!(namespace[0].kind, SemanticTokenKind::Namespace);
+    }
+
+    #[test]
+    fn analysis_classifies_method_self_as_a_parameter_not_a_type() {
+        let text = r#"struct File { fd: i32 }
+
+impl File {
+    method self.read(): i32 {
+        return self.fd
+    }
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+        let receiver_start = text.find("self.read").expect("expected receiver");
+        let receiver = identifier_starting_at(&identifiers, receiver_start)
+            .expect("expected receiver semantic token");
+
+        assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
+        assert_ne!(
+            receiver.modifiers & SEMANTIC_READONLY_MODIFIER,
+            0,
+            "method receivers are readonly parameter bindings"
+        );
     }
 
     #[test]

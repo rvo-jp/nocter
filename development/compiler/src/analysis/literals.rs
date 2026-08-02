@@ -44,13 +44,27 @@ pub(crate) fn literal_editor_info_at_offset(
     Some(editor_info(file, site, declaration, specialization, offset))
 }
 
+#[cfg(test)]
 pub(crate) fn literal_definition_span_at_offset(
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<ByteSpan> {
-    literal_editor_info_at_offset(analysis, file, offset, LiteralCursorRegion::Hover)
-        .map(|info| info.declaration_shape_span)
+    literal_definition_target_at_offset(analysis, file, offset)
+        .map(|target| target.declaration_span)
+}
+
+pub(crate) fn literal_definition_target_at_offset(
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<crate::analysis::editor_targets::SourceTarget> {
+    literal_editor_info_at_offset(analysis, file, offset, LiteralCursorRegion::Hover).map(|info| {
+        crate::analysis::editor_targets::SourceTarget::new(
+            info.focus_span,
+            info.declaration_shape_span,
+        )
+    })
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -6,6 +6,7 @@ pub(crate) mod call_specializations;
 pub(crate) mod completion;
 mod completion_recovery;
 pub(crate) mod definition;
+pub(crate) mod editor_targets;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;

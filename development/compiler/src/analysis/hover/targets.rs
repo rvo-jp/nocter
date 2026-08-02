@@ -160,7 +160,7 @@ pub(in crate::analysis::hover) fn documentation_for_hover_symbols(
 ) -> crate::comments::AttachedDocumentation {
     let targets = symbols
         .iter()
-        .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.name_span.start))
+        .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.target.focus_span.start))
         .collect::<Vec<_>>();
     attach_documentation(source, text, &targets)
 }
@@ -176,8 +176,8 @@ pub(in crate::analysis::hover) fn documentation_for_target_span(
         .or_else(|| {
             symbols
                 .iter()
-                .find(|symbol| span_contains(symbol.name_span, target_span.start))
-                .and_then(|symbol| documentation.get(symbol.name_span.start))
+                .find(|symbol| span_contains(symbol.target.declaration_span, target_span.start))
+                .and_then(|symbol| documentation.get(symbol.target.focus_span.start))
                 .map(str::to_string)
         })
 }

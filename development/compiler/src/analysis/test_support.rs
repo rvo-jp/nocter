@@ -52,6 +52,13 @@ pub(crate) fn analyze_namespace_import_text(
     root_text: &str,
     module_text: &str,
 ) -> (SourceMap, CompileUnitAnalysis) {
+    analyze_import_text(root_text, module_text)
+}
+
+pub(crate) fn analyze_import_text(
+    root_text: &str,
+    module_text: &str,
+) -> (SourceMap, CompileUnitAnalysis) {
     let mut sources = SourceMap::new();
     let root_source = sources.add_source("app.nct", None, root_text.to_string());
     let module_source = sources.add_source("lib/math.nct", None, module_text.to_string());
@@ -59,7 +66,8 @@ pub(crate) fn analyze_namespace_import_text(
     let module_ast = parse_source(&sources, module_source);
     let path_span = match &root_ast.items[0] {
         Item::Import(item) => item.path.span,
-        item => panic!("expected namespace import, got {item:?}"),
+        Item::FromImport(item) => item.path.span,
+        item => panic!("expected import, got {item:?}"),
     };
     let mut import_sources = HashMap::new();
     import_sources.insert(

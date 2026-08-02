@@ -59,12 +59,12 @@ pub(in crate::analysis::hover) fn single_file_symbol_hover_contents(
 ) -> (String, Option<String>) {
     let referenced = symbols
         .iter()
-        .find(|candidate| candidate.name_span == symbol.name_span);
+        .find(|candidate| candidate.target.declaration_span == symbol.name_span);
     let label = referenced
         .map(|symbol| symbol.label.clone())
         .unwrap_or_else(|| symbol_hover_label(text, symbol));
     let docs = referenced
-        .and_then(|symbol| documentation.get(symbol.name_span.start))
+        .and_then(|symbol| documentation.get(symbol.target.focus_span.start))
         .map(str::to_string);
     (label, docs)
 }
@@ -97,12 +97,12 @@ pub(in crate::analysis::hover) fn local_symbol_hover_contents(
 ) -> (String, Option<String>) {
     let referenced = symbols
         .iter()
-        .find(|candidate| candidate.name_span == symbol.name_span);
+        .find(|candidate| candidate.target.declaration_span == symbol.name_span);
     let label = referenced
         .map(|symbol| symbol.label.clone())
         .unwrap_or_else(|| local_symbol_hover_label(symbol));
     let docs = referenced
-        .and_then(|symbol| documentation.get(symbol.name_span.start))
+        .and_then(|symbol| documentation.get(symbol.target.focus_span.start))
         .map(str::to_string);
 
     (label, docs)
@@ -150,17 +150,30 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
     let source_file = sources.get(file.ast.span.source)?;
     let text = source_file.text();
     let symbols = hover_symbols_for_file_analysis(text, file);
+    let target_name_span = file
+        .resolved
+        .symbols
+        .symbols()
+        .find(|candidate| candidate.declaration_span == symbol.declaration_span)
+        .map(|candidate| candidate.name_span);
     let hover_symbol = symbols
         .iter()
-        .find(|candidate| candidate.name_span == symbol.declaration_span)
+        .find(|candidate| candidate.target.declaration_span == symbol.declaration_span)
+        .or_else(|| {
+            target_name_span.and_then(|name_span| {
+                symbols
+                    .iter()
+                    .find(|candidate| candidate.target.declaration_span == name_span)
+            })
+        })
         .or_else(|| {
             symbols
                 .iter()
-                .find(|candidate| candidate.name_span == symbol.name_span)
+                .find(|candidate| candidate.target.declaration_span == symbol.name_span)
         })?;
     let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
     let docs = documentation
-        .get(hover_symbol.name_span.start)
+        .get(hover_symbol.target.focus_span.start)
         .map(str::to_string);
 
     Some((

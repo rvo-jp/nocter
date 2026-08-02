@@ -31,6 +31,34 @@ pub(super) fn primitive_declaration_hover_label(
     )
 }
 
+pub(super) fn literal_declaration_hover_label(
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+) -> String {
+    let environment = environment_for_literal(literal, resolved);
+    let self_type = environment.self_type();
+    let shape = match literal.shape {
+        crate::ast::LiteralShape::Sequence => "[]",
+        crate::ast::LiteralShape::String => "\"\"",
+    };
+    let parameters = literal.capture.as_ref().map_or_else(
+        || parameters_label(&literal.parameters.parameters, resolved, self_type),
+        |capture| {
+            format!(
+                "...{}: {}",
+                capture.name,
+                type_label(&capture.element_type, resolved, self_type)
+            )
+        },
+    );
+
+    format!(
+        "literal {} {shape}({parameters}): {}",
+        type_label(&literal.target, resolved, self_type),
+        type_label(&literal.return_type, resolved, self_type)
+    )
+}
+
 pub(super) fn type_alias_declaration_hover_label(
     alias: &TypeAliasDecl,
     resolved: &ResolveOutput,
