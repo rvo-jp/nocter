@@ -3,6 +3,7 @@ use super::*;
 const DARWIN_MMAP_SYSCALL: u32 = 0x0200_00c5;
 const DARWIN_MUNMAP_SYSCALL: u32 = 0x0200_0049;
 const REGION_STATE_BYTES: u64 = 8;
+const REGION_RELEASE_LOOP_FRAME_BYTES: u32 = 16;
 const REGION_ALLOCATION_ABORT_STATUS: i32 = 70;
 
 impl EntryEmitter {
@@ -67,9 +68,14 @@ impl EntryEmitter {
         self.encoder.emit_ldr_x_imm(XReg::X2, XReg::X8, 0);
         self.encoder.emit_ldr_x_imm(XReg::X1, XReg::X8, 8);
         self.encoder.emit_mov_x(XReg::X0, XReg::X8);
+        self.encoder
+            .emit_sub_sp_imm(REGION_RELEASE_LOOP_FRAME_BYTES);
+        self.encoder.emit_str_x_sp(XReg::X2, 0);
         emit_mov_u32_to_w(&mut self.encoder, WReg::W16, DARWIN_MUNMAP_SYSCALL);
         self.encoder.emit_svc(DARWIN_SYSCALL_TRAP);
-        self.encoder.emit_mov_x(XReg::X8, XReg::X2);
+        self.encoder.emit_ldr_x_sp(XReg::X8, 0);
+        self.encoder
+            .emit_add_sp_imm(REGION_RELEASE_LOOP_FRAME_BYTES);
         let repeat = self.emit_branch_placeholder();
         self.patch_branch_placeholder_to_offset(repeat, loop_start, "region release loop")?;
 

@@ -3334,6 +3334,78 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_region_release_unmaps_owned_storage() {
+    let project = TempProject::new("distributed-home-region-unmap-observation-run");
+    let home = project.root().join(".nocter");
+    copy_tree(&distributed_home(), &home);
+    fs::write(
+        home.join("std/region_probe.nct"),
+        r#"use std/mem.{RawBuffer, alloc, current_allocator}
+use std/os.syscall3
+use std/ptr.addr
+
+pub func buffer_address(buffer: &RawBuffer): usize {
+    return addr(buffer.ptr)
+}
+
+pub func allocate_current(size: usize, align: usize): RawBuffer {
+    var allocator = current_allocator()
+    return alloc(&+allocator, size, align)
+}
+
+pub func is_mapped(address: usize): bool {
+    let result = syscall3(0x0200004a, address, 16384, 3)
+    return result.errno == 0
+}
+"#,
+    )
+    .unwrap();
+    let source = project.write_source(
+        "region_unmap_observation.nct",
+        r#"use std/mem.page_allocator
+use std/region_probe.{allocate_current, buffer_address, is_mapped}
+
+func main(): i32 {
+    if is_mapped(0x0000100000000000) {
+        return 3
+    }
+    var arena = page_allocator()
+    var address: usize = 0
+    region temporary using arena {
+        let buffer = allocate_current(16384, 16384)
+        address = buffer_address(&buffer)
+        if !is_mapped(address) {
+            return 1
+        }
+    }
+    if is_mapped(address) {
+        return 2
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", home)
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_nested_region_and_propagation_cleanup_run() {
     let project = TempProject::new("distributed-home-nested-region-propagation-run");
     let source = project.write_source(
