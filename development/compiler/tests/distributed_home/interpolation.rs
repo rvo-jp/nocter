@@ -153,3 +153,137 @@ func main(): i32 {
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn distributed_lsp_exposes_interpolation_hover_completion_and_signature_recovery() {
+    let project = TempProject::new("distributed-home-interpolation-lsp");
+    let hover_text = r#"func format(value: i32): i32 {
+    return value
+}
+
+func main(count: i32): i32 {
+    let text = "value ${format(count)}"
+    return 0
+}
+"#;
+    let completion_text = r#"func main(count: i32): i32 {
+    let text = "value ${cou
+    return 0
+}
+"#;
+    let signature_text = r#"func format(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    let text = "value ${format(
+    return 0
+}
+"#;
+    let source = project.write_source("interpolation_lsp.nct", hover_text);
+    let uri = file_uri(&source);
+    let hover_offset = hover_text.find("value ${").unwrap();
+    let nested_hover_offset = hover_text.rfind("format(count)").unwrap();
+    let completion_offset = completion_text.find("cou\n").unwrap() + 3;
+    let signature_offset = signature_text.find("format(\n").unwrap() + "format(".len();
+    let output = nocter_lsp(
+        &distributed_home().join("nocter"),
+        project.root(),
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"languageId":"nocter","version":1,"text":hover_text}}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":2,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":position(hover_text, hover_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":6,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":position(hover_text, nested_hover_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didChange",
+                "params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":completion_text}]}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":3,
+                "method":"textDocument/completion",
+                "params":{"textDocument":{"uri":uri},"position":position(completion_text, completion_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didChange",
+                "params":{"textDocument":{"uri":uri,"version":3},"contentChanges":[{"text":signature_text}]}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":4,
+                "method":"textDocument/signatureHelp",
+                "params":{"textDocument":{"uri":uri},"position":position(signature_text, signature_offset)}
+            }),
+            json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+            json!({"jsonrpc":"2.0","method":"exit","params":null}),
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+    let frames = read_frames(&output.stdout);
+    let hover = response_with_id(&frames, 2);
+    let hover_markdown = hover["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected interpolation hover markdown");
+    assert!(hover_markdown.contains("interpolated string: String"));
+    assert!(hover_markdown.contains("Allocation effect"));
+    assert!(hover_markdown.contains("Result provenance"));
+    assert!(hover_markdown.contains("Accepted interpolation input:** `&str`"));
+
+    let nested_hover = response_with_id(&frames, 6);
+    let nested_hover_markdown = nested_hover["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected nested expression hover markdown");
+    assert!(nested_hover_markdown.contains("func format(value: i32): i32"));
+    assert!(!nested_hover_markdown.contains("interpolated string"));
+
+    let completion = response_with_id(&frames, 3);
+    let labels = completion["result"]["items"]
+        .as_array()
+        .expect("expected completion items")
+        .iter()
+        .filter_map(|item| item["label"].as_str())
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"count"), "completion labels: {labels:?}");
+
+    let signature = response_with_id(&frames, 4);
+    assert_eq!(
+        signature["result"]["signatures"][0]["label"],
+        "func format(value: i32): i32"
+    );
+}
+
+fn position(text: &str, offset: usize) -> Value {
+    let line = text[..offset].bytes().filter(|byte| *byte == b'\n').count();
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    json!({"line":line,"character":text[line_start..offset].chars().count()})
+}
+
+fn response_with_id(frames: &[Value], id: u64) -> &Value {
+    frames
+        .iter()
+        .find(|message| message["id"] == id)
+        .unwrap_or_else(|| panic!("missing response {id}: {frames:#?}"))
+}

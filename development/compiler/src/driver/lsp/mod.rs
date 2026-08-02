@@ -423,6 +423,7 @@ impl LspServer {
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
         let source_root = source_root_for_document(document, &self.workspace_roots);
         for recovered in [
+            crate::analysis::interpolation_recovery_text(&document.text, offset),
             crate::analysis::literal_recovery_text(&document.text, offset),
             crate::analysis::region_recovery_text(&document.text, offset),
         ]
@@ -581,6 +582,10 @@ impl LspServer {
         let source_root = source_root_for_document(document, &self.workspace_roots);
         let recoveries = crate::analysis::literal_recovery_text(&document.text, offset)
             .into_iter()
+            .chain(crate::analysis::interpolation_signature_recovery_texts(
+                &document.text,
+                offset,
+            ))
             .chain(crate::analysis::signature_recovery_texts(
                 &document.text,
                 offset,

@@ -9,6 +9,7 @@ pub(crate) mod definition;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
+pub(crate) mod interpolation;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
@@ -25,6 +26,10 @@ pub(crate) mod symbols;
 pub(crate) mod test_support;
 
 pub(crate) use completion_recovery::{completion_recovery_overlay, signature_recovery_texts};
+pub(crate) use interpolation::{
+    interpolation_completion_recovery_overlay, interpolation_recovery_text,
+    interpolation_signature_recovery_texts,
+};
 pub(crate) use literal_recovery::{literal_recovery_overlay, literal_recovery_text};
 pub(crate) use region_recovery::region_recovery_text;
 mod visible_locals;

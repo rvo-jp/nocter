@@ -74,6 +74,16 @@ pub(crate) fn hover_for_file_analysis(
         return Some(hover);
     }
 
+    if let Some(interpolation) =
+        crate::analysis::interpolation::interpolation_editor_info_at_offset(file, offset)
+    {
+        return Some(HoverInfo {
+            span: interpolation.focus_span,
+            label: interpolation.label,
+            documentation: Some(interpolation.documentation),
+        });
+    }
+
     resolved_reference_at_offset(&file.resolved, offset).map(|(span, reference)| {
         let (label, documentation) =
             resolved_reference_hover_contents(sources, analysis, &reference);

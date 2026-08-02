@@ -7,11 +7,13 @@ pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<Stri
 }
 
 pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
-    incomplete_member_completion_text(text, offset)
-        .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
-        .or_else(|| incomplete_import_symbol_completion_text(text, offset))
-        .map(|text| (text, offset))
-        .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
+    super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
+        incomplete_member_completion_text(text, offset)
+            .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
+            .or_else(|| incomplete_import_symbol_completion_text(text, offset))
+            .map(|text| (text, offset))
+            .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
+    })
 }
 
 fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option<String> {
