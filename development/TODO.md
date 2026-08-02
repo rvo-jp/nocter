@@ -1,4 +1,4 @@
-# Nocter v0.3.0 Phase 0 Completion Handoff
+# Nocter v0.3.0 Phase 1 Handoff
 
 終了条件と全体順序は [v0.3.0 Development Contract](docs/v0.3.0.md) にある。
 region/provenance の実装境界は [Region, Provenance, and Allocation Context](docs/region-provenance.md)
@@ -9,6 +9,7 @@ region/provenance の実装境界は [Region, Provenance, and Allocation Context
 - branch: `develop`
 - released baseline: `0.2.0`
 - completed milestone gate: `0.3.0 Phase 0`
+- active milestone gate: `0.3.0 Phase 1 Typed Literal Core`
 - target: `arm64-darwin`
 - compiler responsibilities have been split into focused parser, AST JSON, import resolution, IR
   lowering, buildability, ownership, backend, and analysis modules
@@ -19,7 +20,7 @@ region/provenance の実装境界は [Region, Provenance, and Allocation Context
 - LSP provides diagnostics, semantic tokens, hover, definition, references, document symbols,
   resolved generic signature help, semantic completion contexts, and incomplete-edit recovery
 
-## Completed Gate
+## Phase 0 Foundation
 
 Phase 0 の必須責務は compiler、distributed standard library、native runtime、analysis/LSP に
 接続済み。共有 provenance は scope、input、lexical region、current allocation context を追跡し、
@@ -54,6 +55,9 @@ git diff --check
 - focused and complete verification gates: passed
 - required Phase 0 TODO items: none
 
-Phase 1 は未開始。typed literals、per-literal `using`、spread、iteration を実装する前に、Phase 0 と
-同じ形式で completion definition、非目標、受け入れ matrix をレビューして新しい active gate を
-作る。
+## Current Objective
+
+`literal Type [](...items: T): Self` と `literal Type ""(text: &str): Self` を declaration identity、
+ephemeral element pack、Phase 0 allocation context/provenance へ接続する。sequence spread、一般
+variadic、一般 collection iteration は導入しない。終了条件と順序は v0.3.0 development contract、
+実装境界は typed literal core document が所有する。

@@ -5,8 +5,8 @@ packaging inputs, and implementation documentation. See the [repository README](
 the public overview and the [specification](../spec/README.md) for language rules.
 
 The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context** is
-complete on `develop`; no later v0.3.0 phase is active until a reviewed gate replaces it. The Phase
-0 completion record and dependency order are defined in the
+complete on `develop`, and **Phase 1: Typed Literal Core** is active. The completion records and
+dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 
@@ -46,6 +46,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [v0.2.0 Release Record](docs/v0.2.0.md)
 - [Compiler Architecture](docs/architecture.md)
 - [Region, Provenance, and Allocation Context](docs/region-provenance.md)
+- [Typed Literal Core](docs/typed-literals.md)
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)

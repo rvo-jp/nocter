@@ -4,18 +4,19 @@ This directory contains implementation design and completion criteria. The publi
 [specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
 those rules here.
 
-The released baseline is **v0.2.0**. The v0.3.0 Phase 0 region and allocation-context gate is
-complete on `develop`. No later phase is active until a reviewed gate replaces it. Do not use `v0`
-as shorthand for a release name or work scope.
+The released baseline is **v0.2.0**. v0.3.0 Phase 0 is complete and **Phase 1: Typed Literal Core** is
+active on `develop`. Do not use `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 outcome, non-goals, implementation
-  order, and acceptance gate; the single entry point for current milestone status
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 record and active Phase 1 completion
+  gate; the single entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
   allocation-effect, lexical-region, and lowering design
+- [Typed Literal Core](typed-literals.md): literal shapes, definitions, element packs, context
+  selection, and lowering boundaries
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): released runtime baseline and completed Phase 0
@@ -33,6 +34,7 @@ as shorthand for a release name or work scope.
 | Released v0.2.0 completion record | `v0.2.0.md` |
 | Compiler responsibility boundaries | `architecture.md` |
 | Region, provenance, and allocation-context implementation design | `region-provenance.md` |
+| Typed literal and ephemeral element-pack implementation design | `typed-literals.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

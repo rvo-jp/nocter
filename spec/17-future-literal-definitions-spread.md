@@ -5,9 +5,10 @@ The specification entry point is [README.md](README.md).
 
 This chapter is the adopted v0.3.0 direction for typed literal and contextual
 many-value syntax. It is not implemented by the v0.2.0 release. v0.3.0 Phase 0
-first completes the region, provenance, and allocation-context foundation in
-[Memory, Regions, and Allocators](06-memory-region-allocator.md). Literal and
-spread implementation cannot begin before that gate passes.
+completed the region, provenance, and allocation-context foundation in
+[Memory, Regions, and Allocators](06-memory-region-allocator.md). Phase 1
+implements the sequence and string literal core described below. Other shapes
+and spread contexts remain later work.
 
 ## Purpose
 
@@ -39,40 +40,55 @@ array literal unless another future chapter changes that rule explicitly.
 
 ## Implementation Boundary
 
-The following source forms are not implemented by v0.2.0 or v0.3.0 Phase 0:
+The following source forms belong to v0.3.0 Phase 1 and are not implemented by
+the v0.2.0 release:
 
 ```nct
-literal Vec<T> [...items: [T]]: Self {
+literal Vec<T> [](...items: T): Self {
+    ...
+}
+
+literal String ""(text: &str): Self {
     ...
 }
 
 Vec [1, 2, 3]
+String "hello"
+```
+
+The following forms are later than Phase 1:
+
+```nct
 Vec [
     ...other,
     4,
 ]
 
-func print_all(...values: [String]): void {
+func print_all(...values: String): void {
     ...
 }
 ```
 
-Until the typed-literal phase is promoted, compiler and editor integration must
-reject or recover these forms without pretending they are supported. Ordinary
-named constructors and methods remain the implemented construction API.
+Until a form's phase is promoted, compiler and editor integration must reject
+or recover it without pretending it is supported. Ordinary named constructors
+and methods remain valid construction APIs.
 
 ## Literal Definitions
 
 Adopted future syntax direction:
 
 ```nct
-literal Vec<T> [...items: [T]]: Self {
+literal Vec<T> [](...items: T): Self {
     let result = Self.with_capacity(items.len())
 
     for item in items {
-        result.push(item)
+        result.push(move item)
     }
-    return result
+    return move result
+}
+
+literal String ""(text: &str): Self {
+    return Self.copy(text)
 }
 ```
 
@@ -83,6 +99,8 @@ Rules:
 
 - A literal definition target must be a nominal type.
 - A literal definition must be declared in the same module as the target type.
+- Empty delimiters between the target and parameter list are a shape marker,
+  not a value passed to the body.
 - A literal definition body returns `Self`.
 - `Self` means the target type after substituting generic parameters.
 - A literal definition is private by default. `pub literal` exposes it anywhere
@@ -104,28 +122,33 @@ Nocter must not allow literal overload.
 
 Rules:
 
-- A nominal type may have at most one literal definition.
-- The delimiter, parameter count, parameter labels, generic constraints, and
-  return type do not create overload sets.
+- A nominal type may have at most one literal definition for each literal
+  shape.
+- Parameter count, labels, types, generic constraints, and return type do not
+  create overload sets within one shape.
 - A module must not import two visible literal definitions for the same target
-  type.
+  type and shape.
 - If a type needs multiple construction modes, it should expose named
   associated functions or methods instead.
 
-This preserves Nocter's foolproof design. A typed literal expression should
-have one possible meaning after the target type is known.
+Different shapes are syntactically distinct and may coexist on one nominal
+type. This preserves Nocter's foolproof design: a typed literal expression has
+one possible meaning after the target type and source shape are known.
 
 ## Literal Shapes
 
 User-defined literal definitions may use only literal shapes that already
 belong to the language.
 
-Adopted future shape set:
+Phase 1 shape set:
 
 - sequence shape: `Type [elements...]`
+- existing string literal shape: `Type "text"` or `Type """text"""`
+
+Later shape candidates:
+
 - mapping or named shape: `Type { entries... }`
 - tuple-like shape: `Type (elements...)`
-- existing string literal shape: `Type "text"` or `Type """text"""`
 - existing numeric literal shape: `Type 123`
 - existing byte literal shape: `Type b'x'`
 
@@ -194,32 +217,35 @@ A sequence literal evaluates element expressions from left to right. Each
 element is passed to the literal definition exactly once, preserving normal
 move, borrow, and failure behavior.
 
-The canonical sequence capture parameter is:
+The canonical sequence definition and capture parameter are:
 
 ```nct
-literal Vec<T> [...items: [T]]: Self
+literal Vec<T> [](...items: T): Self
 ```
 
-`...items: [T]` binds a temporary element sequence of `T`. It does not mean a
-first-class `[T]` value is allocated before entering the literal body. The
-spelling deliberately mirrors slice syntax because the author consumes a
-sequence of `T`, but this binding is a special literal-capture form.
+`[]` selects the sequence shape. `...items: T` binds a compiler-owned ephemeral
+element pack of `T`. It does not create a first-class `[T]`, slice, `Vec<T>`,
+heap allocation, or ordinary variadic ABI parameter.
+
+The Phase 1 pack supports `items.len()` and consuming
+`for item in items`. It cannot escape the literal body or be passed to an
+ordinary callable. Each loop binding owns one element. Unconsumed elements are
+dropped exactly once in reverse acquisition order on every body exit.
 
 A non-empty collection can require leading elements before the rest capture:
 
 ```nct
-literal NonEmptyVec<T> [first: T, ...rest: [T]]: Self
+literal NonEmptyVec<T> [](first: T, ...rest: T): Self
 ```
 
 Rules:
 
-- A sequence literal definition may contain at most one rest capture.
-- The rest capture must be the final parameter.
-- Required leading parameters are matched positionally.
-- The compiler must reject a typed sequence literal that provides fewer
-  elements than the required leading parameters.
+- A sequence literal definition may contain at most one capture.
+- The capture must be the final parameter.
+- Required leading parameters are reserved for a later phase. Phase 1 accepts
+  only a sole `...items: T` capture.
 
-## Mapping And Named Literals
+## Later Mapping And Named Literals
 
 Mapping-shaped typed literals are for key-value collections or named
 construction surfaces.
@@ -246,7 +272,7 @@ struct Color {
     b: u8
 }
 
-literal Color { r: u8, g: u8, b: u8 }: Self {
+literal Color {}(r: u8, g: u8, b: u8): Self {
     return Self {
         r: r,
         g: g,
@@ -260,25 +286,25 @@ let red = Color { r: 255, g: 0, b: 0 }
 This is more foolproof than `Color [255, 0, 0]` because it keeps the source
 meaning visible at the call site.
 
-## Existing String, Numeric, And Byte Literals
+## String Literals and Later Scalar Shapes
 
 Existing literal token forms may be used only through a typed literal
 expression.
 
-Examples:
+Phase 1 string example:
 
 ```nct
+literal Path ""(text: &str): Self {
+    ...
+}
+
 let path = Path "README.md"
-let port = Port 8080
-let marker = Marker b'\n'
 ```
 
 Rules:
 
 - A string typed literal receives the decoded string literal value.
-- A numeric typed literal receives a normal integer literal subject to Nocter's
-  existing contextual integer rules.
-- A byte typed literal receives a normal `u8` byte literal.
+- Numeric and byte typed literal definitions remain later work.
 - These forms do not create implicit conversions from `&str`, integer, or `u8`
   values.
 - The bare literal keeps its normal v0.2.0 meaning.
@@ -327,16 +353,16 @@ Embedded initializer or future aggregate composition spread. The expression
 provides multiple initialized members at that source position.
 
 ```nct
-func print_all(...values: [String]): void
+func print_all(...values: String): void
 
-method &+self.push_all(...items: [T]): void
+method &+self.push_all(...items: T): void
 ```
 
 Variadic capture. The callee receives a temporary element sequence without
 requiring callers to allocate an intermediate collection.
 
 ```nct
-literal Vec<T> [...items: [T]]: Self
+literal Vec<T> [](...items: T): Self
 ```
 
 Literal rest capture. The literal body receives the source elements as an
@@ -344,9 +370,9 @@ ephemeral sequence.
 
 ## Allocation And Lowering
 
-`...items: [T]` and `...values: [T]` are not promises that the compiler has
-allocated an owned array or slice value. They describe a temporary element
-sequence available inside a literal body or variadic callee.
+`...items: T` and future `...values: T` captures are not promises that the
+compiler has allocated an owned array or slice value. They describe temporary
+element packs available inside their declared boundary.
 
 Lowering should preserve source order and ownership while avoiding unnecessary
 allocation:
