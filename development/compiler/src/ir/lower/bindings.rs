@@ -82,6 +82,7 @@ mod otherwise_bindings;
 mod payload_field_assignments;
 mod scalar_bindings;
 mod slice_types;
+mod typed_literals;
 mod utility;
 
 use aggregate_bindings::*;
@@ -96,6 +97,7 @@ use otherwise_bindings::*;
 use payload_field_assignments::*;
 use scalar_bindings::*;
 use slice_types::*;
+use typed_literals::*;
 use utility::*;
 
 #[derive(Clone, Copy)]
@@ -126,6 +128,10 @@ pub(super) fn lower_local_binding_with_loop_control(
 
     if let Some(instructions) = lower_otherwise_aggregate_binding(statement, context, loop_control)?
     {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_typed_literal_binding(statement, context)? {
         return Ok(instructions);
     }
 

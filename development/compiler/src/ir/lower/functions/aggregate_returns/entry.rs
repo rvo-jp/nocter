@@ -8,6 +8,17 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_return_expression_to_loca
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if matches!(
+        expression,
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        return crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+            expression,
+            destination,
+            context,
+        )?
+        .ok_or_else(|| unsupported_aggregate_return_diagnostic(function_name));
+    }
     match expression {
         Expr::StructLiteral(literal) => lower_aggregate_struct_literal_return_to_location(
             literal,

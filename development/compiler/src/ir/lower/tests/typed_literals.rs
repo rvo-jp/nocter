@@ -1,0 +1,311 @@
+use super::*;
+
+#[test]
+fn lowers_typed_string_literal_through_hidden_callable() {
+    let module = lower_text(
+        r#"
+struct Text {
+    value: &str
+}
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        module
+            .functions
+            .iter()
+            .any(|function| { function.target == CallTarget::same_file("Text.$literal.string$1") })
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallDirectAggregate { target, arguments, .. }
+            if target == &CallTarget::same_file("Text.$literal.string$1")
+                && arguments == &vec![ScalarArgument::Str(StrValue::StaticBytes(b"hello".to_vec()))]
+    )));
+}
+
+#[test]
+fn lowers_sequence_pack_len_and_consuming_loop() {
+    let module = lower_text(
+        r#"
+struct Numbers {
+    length: usize
+}
+
+func consume(value: i32): void {}
+
+literal Numbers [](...items: i32): Self {
+    let result = Numbers { length: items.len() }
+    for item in items {
+        consume(item)
+    }
+    return move result
+}
+
+func main(): i32 {
+    let values = Numbers [1, 2, 3]
+    return 0
+}
+"#,
+    );
+
+    let target = CallTarget::same_file("Numbers.$literal.sequence$3");
+    let literal = module
+        .functions
+        .iter()
+        .find(|function| function.target == target)
+        .unwrap();
+    assert_eq!(
+        literal
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("consume")
+            ))
+            .count(),
+        3
+    );
+    assert!(literal.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateUsize {
+            value: UsizeValue::Const(3),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn specializes_generic_sequence_literal_body_and_abi() {
+    let module = lower_text(
+        r#"
+struct Bucket<T> {
+    length: usize
+}
+
+literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+
+func main(): i32 {
+    let values = Bucket [1, 2]
+    return 0
+}
+"#,
+    );
+
+    let target = CallTarget::same_file("Bucket<i32>.$literal.sequence$2");
+    let literal = module
+        .functions
+        .iter()
+        .find(|function| function.target == target)
+        .unwrap();
+    assert!(literal.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::StoreAggregateUsize {
+            value: UsizeValue::Const(2),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn explicit_using_installs_and_restores_allocator_context_around_construction() {
+    let module = lower_text_with_nocter_home_files(
+        r#"
+use std/mem.page_allocator
+
+struct Text {
+    value: &str
+}
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let arena = page_allocator()
+    let text = Text "hello" using arena
+    return 0
+}
+"#,
+        &[minimal_allocator_std()],
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .unwrap();
+    let context_sets = main
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            matches!(instruction, Instruction::SetCurrentAllocationContext { .. }).then_some(index)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(context_sets.len(), 2);
+    let literal_call = main
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallDirectAggregate { target, .. }
+                    if call_target_name_is(target, "Text.$literal.string$1")
+            )
+        })
+        .unwrap();
+    assert!(context_sets[0] < literal_call);
+    assert!(literal_call < context_sets[1]);
+}
+
+#[test]
+fn early_literal_body_return_drops_current_and_unconsumed_move_only_elements() {
+    let module = lower_text(
+        r#"
+struct File { fd: i32 }
+
+impl File {
+    drop &+self { return }
+}
+
+struct Holder { count: usize }
+
+literal Holder [](...items: File): Self {
+    for item in items {
+        return Holder { count: 1 }
+    }
+    return Holder { count: 0 }
+}
+
+func main(): i32 {
+    let first = File { fd: 1 }
+    let second = File { fd: 2 }
+    let holder = Holder [move first, move second]
+    return 0
+}
+"#,
+    );
+    let literal = module
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("Holder.$literal.sequence$2"))
+        .unwrap();
+    assert_eq!(
+        literal
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction,
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("File.drop")
+            ))
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn element_failure_restores_explicit_allocator_context_before_propagation() {
+    let module = lower_text_with_nocter_home_files(
+        r#"
+use std/mem.page_allocator
+
+struct Numbers { count: usize }
+
+literal Numbers [](...items: i32): Self {
+    return Numbers { count: items.len() }
+}
+
+func next(): i32! { return 2 }
+
+func main(): i32! {
+    let arena = page_allocator()
+    let values = Numbers [1, next()?] using arena
+    return 0
+}
+"#,
+        &[minimal_allocator_std()],
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallFallibleI32 {
+            target,
+            failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+            ..
+        } if target == &CallTarget::same_file("next")
+            && instructions.iter().any(|instruction| matches!(
+                instruction,
+                Instruction::SetCurrentAllocationContext { .. }
+            ))
+    )));
+}
+
+#[test]
+fn lowers_typed_literal_directly_from_aggregate_return_context() {
+    let module = lower_text(
+        r#"
+struct Text { value: &str }
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func make(): Text {
+    return Text "hello"
+}
+
+func main(): i32 {
+    let text = make()
+    return 0
+}
+"#,
+    );
+    let make = module
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("make"))
+        .unwrap();
+    assert!(make.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallDirectAggregate { target, .. }
+            if target == &CallTarget::same_file("Text.$literal.string$1")
+    )));
+}
+
+fn minimal_allocator_std() -> (&'static str, &'static str) {
+    (
+        "std/mem.nct",
+        r#"
+pub struct Allocator {
+    state: usize
+    kind: usize
+}
+
+pub func page_allocator(): Allocator {
+    return Allocator { state: 7, kind: 1 }
+}
+"#,
+    )
+}

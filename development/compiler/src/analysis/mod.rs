@@ -9,6 +9,7 @@ pub(crate) mod definition;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
+pub(crate) mod literal_specializations;
 pub(crate) mod provenance;
 pub(crate) mod references;
 mod region_recovery;

@@ -86,6 +86,7 @@ use crate::ir::{
     UsizeValue,
 };
 use crate::literals::decode_integer_literal_value;
+pub(in crate::ir::lower) use calls::lower_call_arguments_with_explicit_types;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;

@@ -1,6 +1,28 @@
 use super::*;
 
 impl<'a> LoweringContext<'a> {
+    pub(in crate::ir::lower) fn typed_literal_call_target(
+        &self,
+        expression_span: ByteSpan,
+        shape: crate::ast::LiteralShape,
+        argument_count: usize,
+    ) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let literal = resolution.resolved.literal_resolution(expression_span)?;
+        let result_type = self.expression_type_expr(expression_span)?;
+        let name = crate::analysis::literal_specializations::literal_target_name(
+            &result_type,
+            shape,
+            argument_count,
+        );
+        let target = call_target_for_source(
+            literal.literal_declaration_span.source,
+            resolution.root_source,
+            name.clone(),
+        );
+        Some((target, name))
+    }
+
     pub(in crate::ir::lower) fn function_name(&self) -> &str {
         &self.function_name
     }

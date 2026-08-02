@@ -36,6 +36,7 @@ pub(super) struct LoweringContext<'a> {
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
     generic_substitutions: HashMap<String, TypeExpr>,
+    literal_pack: Option<LiteralPackLowering>,
     i32_parameters: Vec<Option<String>>,
     u8_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
@@ -48,6 +49,8 @@ pub(super) struct LoweringContext<'a> {
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
     temporary_aggregate_drops: Vec<PendingAggregateDrop>,
     pub(in crate::ir::lower) region_cleanups: Vec<super::regions::RegionCleanup>,
+    pub(in crate::ir::lower) allocation_context_restores:
+        Vec<super::allocation_contexts::AllocationContextRestore>,
     borrow_parameters: Vec<BorrowParameter>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
     error_payloads: ErrorPayloads,
@@ -66,6 +69,7 @@ impl<'a> Clone for LoweringContext<'a> {
             call_resolution: self.call_resolution.clone(),
             function_names: self.function_names.clone(),
             generic_substitutions: self.generic_substitutions.clone(),
+            literal_pack: self.literal_pack.clone(),
             i32_parameters: self.i32_parameters.clone(),
             u8_parameters: self.u8_parameters.clone(),
             usize_parameters: self.usize_parameters.clone(),
@@ -78,6 +82,7 @@ impl<'a> Clone for LoweringContext<'a> {
             aggregate_fields: self.aggregate_fields.clone(),
             temporary_aggregate_drops: self.temporary_aggregate_drops.clone(),
             region_cleanups: self.region_cleanups.clone(),
+            allocation_context_restores: self.allocation_context_restores.clone(),
             borrow_parameters: self.borrow_parameters.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
             error_payloads: self.error_payloads.clone(),
@@ -98,6 +103,13 @@ pub(super) struct LoweringParameterSlots {
     pub(super) borrow_parameters: Vec<BorrowParameter>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LiteralPackLowering {
+    pub(super) capture_name: String,
+    pub(super) element_names: Vec<String>,
+    pub(super) element_type: TypeExpr,
 }
 
 impl LoweringParameterSlots {

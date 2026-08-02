@@ -236,6 +236,16 @@ fn check_using_context(
     let Some(using) = using else {
         return;
     };
+    if !super::places::expression_is_established_place(&using.allocator) {
+        diagnostics.push(literal_diagnostic(
+            sources,
+            "E0527",
+            using.allocator.span(),
+            "typed literal `using` requires an established allocator place",
+            "bind the allocator capability first, then pass that binding or one of its fields",
+        ));
+        return;
+    }
     let actual = expression_type(&using.allocator, resolved, environment);
     if actual.is_unknown_or_unresolved() {
         return;
@@ -379,6 +389,7 @@ fn check_pack_uses_in_block(
                     "consume the pack in exactly one `for` loop",
                 ));
             }
+            check_pack_loop_control(sources, &loop_.body, diagnostics);
             check_pack_uses_in_block(sources, &loop_.body, resolved, pack_loops, diagnostics);
             continue;
         }
@@ -460,6 +471,54 @@ fn check_pack_uses_in_block(
     }
     if let Some(result) = &block.result {
         check_pack_expression(sources, result, resolved, diagnostics);
+    }
+}
+
+fn check_pack_loop_control(sources: &SourceMap, block: &Block, diagnostics: &mut Vec<Diagnostic>) {
+    for statement in &block.statements {
+        match statement {
+            Stmt::Break(_) | Stmt::Continue(_) => diagnostics.push(literal_diagnostic(
+                sources,
+                "E0528",
+                statement.span(),
+                "Phase 1 literal pack iteration does not support `break` or `continue`",
+                "use conditional statements in the body, or return from the literal definition",
+            )),
+            Stmt::If(statement) => {
+                check_pack_loop_control(sources, &statement.then_block, diagnostics);
+                if let Some(block) = &statement.else_block {
+                    check_pack_loop_control(sources, block, diagnostics);
+                }
+            }
+            Stmt::IfIs(statement) => {
+                check_pack_loop_control(sources, &statement.then_block, diagnostics);
+                if let Some(block) = &statement.else_block {
+                    check_pack_loop_control(sources, block, diagnostics);
+                }
+            }
+            Stmt::Switch(statement) => {
+                for arm in &statement.arms {
+                    check_pack_loop_control(sources, &arm.body, diagnostics);
+                }
+                if let Some(arm) = &statement.wildcard_arm {
+                    check_pack_loop_control(sources, &arm.body, diagnostics);
+                }
+            }
+            Stmt::Region(statement) => {
+                check_pack_loop_control(sources, &statement.body, diagnostics)
+            }
+            Stmt::ForRange(_)
+            | Stmt::LiteralPackFor(_)
+            | Stmt::While(_)
+            | Stmt::Loop(_)
+            | Stmt::Import(_)
+            | Stmt::FromImport(_)
+            | Stmt::Return(_)
+            | Stmt::Binding(_)
+            | Stmt::Assignment(_)
+            | Stmt::Expression(_)
+            | Stmt::Drop(_) => {}
+        }
     }
 }
 

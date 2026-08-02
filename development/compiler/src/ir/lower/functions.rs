@@ -16,10 +16,10 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource, ArrayDrop,
     ArrayElementDropState, BorrowParameter, DropObligation, ErrorPayloads, FunctionNames,
-    FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
-    PayloadEnumDrop, PayloadEnumDropField, PayloadEnumDropVariant, PayloadFieldDropState,
-    PendingAggregateDrop, ResolvedSources, SliceTypeInfo, StructDrop, StructDropField,
-    StructFieldDropState, aggregate_drop_for_type_expr_with_resolver,
+    FunctionSignatures, LiteralPackLowering, LoweringAggregateParameter, LoweringContext,
+    LoweringParameterSlots, PayloadEnumDrop, PayloadEnumDropField, PayloadEnumDropVariant,
+    PayloadFieldDropState, PendingAggregateDrop, ResolvedSources, SliceTypeInfo, StructDrop,
+    StructDropField, StructFieldDropState, aggregate_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
@@ -63,12 +63,15 @@ use crate::abi::{
     AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr_with_resolver,
     function_parameter_abi_word_count_from_signature_with_resolver, layout_of,
 };
+use crate::analysis::literal_specializations::{
+    LiteralSpecialization, literal_element_parameter_name,
+};
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr,
-    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralExpr, MemberExpr, MethodDecl, Parameter,
-    PayloadEnumPatternTargetShape, ReturnStmt, Stmt, StructLiteralExpr, SwitchArm,
-    SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
-    substitute_type_expr_parameters,
+    FunctionDecl, IdentifierExpr, IfIsStmt, IfStmt, LiteralDecl, LiteralExpr, LiteralShape,
+    MemberExpr, MethodDecl, Parameter, PayloadEnumPatternTargetShape, ReturnStmt, Stmt,
+    StructLiteralExpr, SwitchArm, SwitchPayloadPattern, SwitchStmt, TypeExpr, TypeReference,
+    UnaryOperator, substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

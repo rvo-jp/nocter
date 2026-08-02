@@ -728,11 +728,18 @@ fn lower_nonterminal_loop_block_statements(
                 })?,
             ),
             Stmt::LiteralPackFor(statement) => {
-                return Err(attach_primary_span_if_absent(
-                    unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                    sources,
-                    statement.span,
-                ));
+                instructions.extend(
+                    crate::ir::lower::literal_packs::lower_literal_pack_for_statement(
+                        statement,
+                        context,
+                        diagnostic_code,
+                        subject,
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
             }
             Stmt::Loop(statement) => instructions.extend(
                 lower_nonterminal_loop_statement(

@@ -298,6 +298,27 @@ pub(super) fn lower_aggregate_argument_source(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
     };
+    if matches!(
+        unwrap_group(argument),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        let slot_index = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+                argument,
+                AggregateLocation::Slot(slot_index),
+                context,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_argument_diagnostic(callee_name, parameter_type)
+            })?,
+        );
+        return Ok((instructions, AggregateArgumentSource::Slot(slot_index)));
+    }
     if let Some(source) = lower_payload_enum_constructor_argument_source(
         argument,
         parameter_type,

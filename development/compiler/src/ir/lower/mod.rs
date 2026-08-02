@@ -1,4 +1,5 @@
 mod aggregates;
+mod allocation_contexts;
 mod bindings;
 mod context;
 mod control_flow;
@@ -7,9 +8,11 @@ mod errors;
 mod expressions;
 mod functions;
 mod imported_calls;
+mod literal_packs;
 mod literals;
 mod reachability;
 mod regions;
+mod typed_literals;
 mod types;
 
 #[cfg(test)]
@@ -21,11 +24,13 @@ use crate::abi::{
     function_success_return_passing_from_signature_with_resolver,
 };
 use crate::analysis::{
-    CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
+    CompileUnitAnalysis, FileAnalysis,
+    call_specializations::collect_call_specializations,
+    literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    DropDecl, FunctionDecl, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl, Parameter,
+    Stmt, TypeExpr, TypeReference, substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -206,6 +211,10 @@ enum IndexedDeclaration<'a> {
         substitutions: HashMap<String, TypeExpr>,
         name: String,
     },
+    Literal {
+        declaration: &'a LiteralDecl,
+        specialization: LiteralSpecialization,
+    },
 }
 
 impl<'a> FunctionIndex<'a> {
@@ -356,6 +365,24 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
+                    Item::Literal(literal) => {
+                        for specialization in call_specializations
+                            .literals
+                            .get(&literal.span)
+                            .into_iter()
+                            .flatten()
+                        {
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                specialization.target_name.clone(),
+                            );
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_literal(literal, specialization.clone(), file),
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -476,6 +503,21 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
+    fn new_literal(
+        declaration: &'a LiteralDecl,
+        specialization: LiteralSpecialization,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
     fn imported_call_diagnostics(
         &self,
         sources: &SourceMap,
@@ -505,6 +547,14 @@ impl<'a> IndexedCallable<'a> {
                     )
                 })
                 .unwrap_or_default(),
+            IndexedDeclaration::Literal { declaration, .. } => {
+                imported_calls::imported_call_diagnostics_for_block(
+                    sources,
+                    &declaration.body,
+                    root_source,
+                    self.resolved,
+                )
+            }
         }
     }
 
@@ -596,6 +646,22 @@ impl<'a> IndexedCallable<'a> {
                 self_ty,
                 substitutions,
                 name.clone(),
+                sources,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+                self.typecheck_facts,
+                resolved_sources,
+                error_payloads,
+            ),
+            IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            } => functions::lower_literal_function(
+                declaration,
+                specialization,
                 sources,
                 target,
                 function_signatures,
@@ -731,6 +797,45 @@ impl<'a> IndexedCallable<'a> {
                     },
                 )
             }
+            IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            } => {
+                let parameters = literal_parameters(declaration, specialization);
+                let resolved_signature =
+                    resolved_function_signature(&parameters, specialization.result_type.clone());
+                lower_signature_return_type(
+                    &specialization.result_type,
+                    self.resolved,
+                    resolved_sources,
+                )
+                .map(|return_type| {
+                    let parameter_types = parameters
+                        .iter()
+                        .map(|parameter| {
+                            lower_signature_parameter_type(
+                                &parameter.ty,
+                                self.resolved,
+                                resolved_sources,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>();
+                    FunctionSignature {
+                        return_type,
+                        parameter_types,
+                        parameter_abi_word_count: parameter_abi_word_count(
+                            &resolved_signature,
+                            self.resolved,
+                            resolved_sources,
+                        ),
+                        success_return_passing: success_return_passing(
+                            &resolved_signature,
+                            self.resolved,
+                            resolved_sources,
+                        ),
+                    }
+                })
+            }
         }
     }
 
@@ -756,7 +861,45 @@ impl<'a> IndexedCallable<'a> {
                 ..
             } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Method { .. } => None,
+            IndexedDeclaration::Literal { .. } => None,
         }
+    }
+}
+
+fn literal_parameters(
+    declaration: &LiteralDecl,
+    specialization: &LiteralSpecialization,
+) -> Vec<Parameter> {
+    match specialization.shape {
+        LiteralShape::Sequence => specialization
+            .argument_types
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| Parameter {
+                span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.span),
+                name: literal_element_parameter_name(index),
+                name_span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.name_span),
+                ty: ty.clone(),
+            })
+            .collect(),
+        LiteralShape::String => declaration
+            .parameters
+            .parameters
+            .iter()
+            .zip(&specialization.argument_types)
+            .map(|(parameter, ty)| Parameter {
+                span: parameter.span,
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: ty.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -860,6 +1003,7 @@ impl IndexedDeclaration<'_> {
             IndexedDeclaration::Function { declaration, .. } => declaration.span,
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
             IndexedDeclaration::Method { declaration, .. } => declaration.span,
+            IndexedDeclaration::Literal { declaration, .. } => declaration.span,
         }
     }
 }

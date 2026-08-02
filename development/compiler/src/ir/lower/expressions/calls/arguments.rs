@@ -7,6 +7,17 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    lower_call_arguments_with_explicit_types(call, target, callee_name, context, temporaries, None)
+}
+
+pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
+    call: &CallExpr,
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    explicit_parameter_types: Option<&[TypeExpr]>,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let Some(parameter_types) = context.call_parameter_types(target) else {
         return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
@@ -34,7 +45,9 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             (
                 argument,
                 false,
-                context.call_argument_parameter_type_expr(call, index),
+                explicit_parameter_types
+                    .and_then(|types| types.get(index).cloned())
+                    .or_else(|| context.call_argument_parameter_type_expr(call, index)),
             )
         }));
     for ((argument, is_method_receiver, parameter_type_expr), parameter_type) in

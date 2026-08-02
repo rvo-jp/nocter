@@ -315,6 +315,17 @@ pub(super) fn lower_aggregate_assignment_to_slot(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if matches!(
+        unwrap_group(expression),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        return crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+            expression,
+            AggregateLocation::Slot(slot_index),
+            context,
+        )?
+        .ok_or_else(unsupported_assignment_diagnostic);
+    }
     if let Some(instructions) = lower_payload_enum_constructor_assignment(
         slot_index,
         layout,

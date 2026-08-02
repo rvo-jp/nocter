@@ -35,6 +35,7 @@ mod payload_enum_fields;
 mod payload_enums;
 mod scalars;
 mod slices_strings_pointers;
+mod typed_literals;
 
 fn lower_text(text: &str) -> IrModule {
     let diagnostics = lower_text_diagnostics(text);

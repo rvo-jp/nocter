@@ -1,3 +1,4 @@
+use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, TypeExpr,
@@ -13,6 +14,7 @@ pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
     pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
+    pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +30,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut queue = VecDeque::new();
+    let literals = collect_literal_specializations(analysis);
 
     for file in &analysis.files {
         for specialization in file.typecheck_facts.function_call_specializations() {
@@ -49,6 +52,21 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             {
                 queue.push_back(PendingCallSpecialization::Drop(specialization));
             }
+        }
+    }
+
+    for specializations in literals.values() {
+        for specialization in specializations {
+            let Some(file) = analysis.file_by_source(specialization.declaration_span.source) else {
+                continue;
+            };
+            enqueue_call_specializations_from_span(
+                analysis,
+                file,
+                specialization.declaration_span,
+                &specialization.substitutions,
+                &mut queue,
+            );
         }
     }
 
@@ -117,6 +135,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
         functions,
         methods,
         drops,
+        literals,
     }
 }
 

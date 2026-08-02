@@ -266,6 +266,20 @@ pub(super) fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::LiteralPackFor(statement) => {
+                instructions.extend(
+                    crate::ir::lower::literal_packs::lower_literal_pack_for_statement(
+                        statement,
+                        context,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             Stmt::While(statement) => {
                 instructions.extend(
                     lower_nonterminal_while_statement(

@@ -4,10 +4,12 @@ mod documentation;
 mod json;
 mod literals;
 mod types;
+mod visit;
 
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
+pub(crate) use visit::visit_file_expressions;
 
 use crate::source::ByteSpan;
 

@@ -115,6 +115,14 @@ pub(super) fn lower_builtin_len_call_to_value(
     if member.member != "len" || !call.arguments.is_empty() {
         return None;
     }
+    if let Expr::Identifier(identifier) = member.object.as_ref()
+        && let Some(pack) = context.literal_pack(&identifier.name)
+    {
+        return Some(Ok(LoweredUsizeValue {
+            instructions: Vec::new(),
+            value: UsizeValue::Const(pack.element_names.len() as u64),
+        }));
+    }
     byte_collection_expression_kind(&member.object, context)?;
 
     Some(lower_byte_collection_len_expression_to_value(

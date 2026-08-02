@@ -16,6 +16,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             generic_substitutions: HashMap::new(),
+            literal_pack: None,
             i32_parameters: Vec::new(),
             u8_parameters: Vec::new(),
             usize_parameters: Vec::new(),
@@ -28,6 +29,7 @@ impl<'a> LoweringContext<'a> {
             aggregate_fields: HashMap::new(),
             temporary_aggregate_drops: Vec::new(),
             region_cleanups: Vec::new(),
+            allocation_context_restores: Vec::new(),
             borrow_parameters: Vec::new(),
             aggregate_borrows: Vec::new(),
             error_payloads: ErrorPayloads::default(),
@@ -74,6 +76,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             generic_substitutions: HashMap::new(),
+            literal_pack: None,
             i32_parameters: parameters.i32,
             u8_parameters: parameters.u8,
             usize_parameters: parameters.usize,
@@ -86,6 +89,7 @@ impl<'a> LoweringContext<'a> {
             aggregate_fields,
             temporary_aggregate_drops: Vec::new(),
             region_cleanups: Vec::new(),
+            allocation_context_restores: Vec::new(),
             borrow_parameters: parameters.borrow_parameters,
             aggregate_borrows: parameters.aggregate_borrows,
             error_payloads: ErrorPayloads::default(),
@@ -117,6 +121,20 @@ impl<'a> LoweringContext<'a> {
     ) -> Self {
         self.generic_substitutions = substitutions;
         self
+    }
+
+    pub(in crate::ir::lower) fn with_literal_pack(
+        mut self,
+        literal_pack: LiteralPackLowering,
+    ) -> Self {
+        self.literal_pack = Some(literal_pack);
+        self
+    }
+
+    pub(in crate::ir::lower) fn literal_pack(&self, name: &str) -> Option<&LiteralPackLowering> {
+        self.literal_pack
+            .as_ref()
+            .filter(|pack| pack.capture_name == name)
     }
 
     pub(in crate::ir::lower) fn with_function_return_type(mut self, return_type: Type) -> Self {

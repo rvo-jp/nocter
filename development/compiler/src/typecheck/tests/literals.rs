@@ -97,3 +97,25 @@ func main(): void {}
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn rejects_loop_control_that_would_partially_consume_a_phase_one_pack() {
+    let diagnostics = check_text(
+        r#"struct Vec<T> { marker: i32 }
+literal Vec<T> [](...items: T): Self {
+    for item in items {
+        break
+    }
+    return Self { marker: 0 }
+}
+
+func main(): void {}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0528")
+    );
+}

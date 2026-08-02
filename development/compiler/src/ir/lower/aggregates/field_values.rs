@@ -16,6 +16,37 @@ pub(super) fn lower_aggregate_field_to_location(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if matches!(
+        unwrap_field_value_group(expression),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        let expected_layout = layout_of(field_type).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let source_slot = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+                expression,
+                AggregateLocation::Slot(source_slot),
+                context,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?,
+        );
+        instructions.push(Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: offset,
+            source: AggregateLocation::Slot(source_slot),
+            source_offset: 0,
+            layout: expected_layout,
+        });
+        return Ok(instructions);
+    }
     match field_type {
         AbiType::I64 | AbiType::Isize => {
             let value = lower_i64_literal(expression)? as u64;
