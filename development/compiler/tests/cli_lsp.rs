@@ -586,10 +586,22 @@ fn lsp_command_serves_v0_editor_features() {
     assert!(hover.contains("answer"), "hover:\n{hover}");
     assert!(hover.contains("Returns the answer."), "hover:\n{hover}");
 
-    let definition = &response_with_id(&messages, 4)["result"];
-    assert_eq!(definition["uri"], json!(uri));
-    assert_eq!(definition["range"]["start"]["line"], json!(1));
-    assert_eq!(definition["range"]["start"]["character"], json!(5));
+    let definitions = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    let definition = &definitions[0];
+    assert_eq!(definition["targetUri"], json!(uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(1));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(5));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["line"],
+        json!(10)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(16)
+    );
 
     let references = response_with_id(&messages, 5)["result"]
         .as_array()
