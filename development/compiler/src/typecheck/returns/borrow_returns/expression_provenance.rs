@@ -37,6 +37,24 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             borrow_provenance,
             summaries,
         ),
+        Expr::TypedSequenceLiteral(literal) => borrow_return_provenance_for_typed_literal(
+            literal.span,
+            literal.using.as_ref(),
+            false,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
+        Expr::TypedStringLiteral(literal) => borrow_return_provenance_for_typed_literal(
+            literal.span,
+            literal.using.as_ref(),
+            true,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
         Expr::StringLiteral(_) => Some(ValueProvenance::static_storage()),
         Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
@@ -534,120 +552,24 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
     borrow_provenance: &ProvenanceEnvironment,
     summaries: &CallableProvenanceSummaries,
 ) -> Option<ValueProvenance> {
-    match summary {
-        ValueProvenance::Independent => Some(ValueProvenance::Independent),
-        ValueProvenance::Origins(origins) => {
-            let mut provenance = None;
-            for origin in origins {
-                match origin {
-                    StorageOrigin::Static => {
-                        merge_provenance(&mut provenance, Some(ValueProvenance::static_storage()))
-                    }
-                    StorageOrigin::CurrentAllocationContext => merge_provenance(
-                        &mut provenance,
-                        Some(borrow_provenance.current_allocation_context_provenance()),
-                    ),
-                    StorageOrigin::Input(source) => merge_provenance(
-                        &mut provenance,
-                        borrow_return_provenance_for_call_input(
-                            *source,
-                            call,
-                            signature,
-                            resolved,
-                            environment,
-                            borrow_provenance,
-                            summaries,
-                        ),
-                    ),
-                    StorageOrigin::Scope { .. }
-                    | StorageOrigin::Region { .. }
-                    | StorageOrigin::Unknown => {
-                        return Some(ValueProvenance::unknown());
-                    }
-                }
-            }
-            provenance
+    instantiate_provenance_summary(summary, &mut |origin| match origin {
+        StorageOrigin::Static => Some(ValueProvenance::static_storage()),
+        StorageOrigin::CurrentAllocationContext => {
+            Some(borrow_provenance.current_allocation_context_provenance())
         }
-        ValueProvenance::Fallible { success, error } => {
-            let mapped_success = success.as_deref().and_then(|provenance| {
-                borrow_return_provenance_for_call_summary(
-                    provenance,
-                    call,
-                    signature,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                    summaries,
-                )
-            });
-            let mapped_error = error.as_deref().and_then(|provenance| {
-                borrow_return_provenance_for_call_summary(
-                    provenance,
-                    call,
-                    signature,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                    summaries,
-                )
-            });
-            fallible_provenance(mapped_success, mapped_error)
+        StorageOrigin::Input(source) => borrow_return_provenance_for_call_input(
+            *source,
+            call,
+            signature,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+        ),
+        StorageOrigin::Scope { .. } | StorageOrigin::Region { .. } | StorageOrigin::Unknown => {
+            Some(ValueProvenance::unknown())
         }
-        ValueProvenance::Aggregate {
-            fallback,
-            fields,
-            elements,
-        } => {
-            let mapped_fallback = fallback.as_deref().and_then(|provenance| {
-                borrow_return_provenance_for_call_summary(
-                    provenance,
-                    call,
-                    signature,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                    summaries,
-                )
-            });
-            let mut mapped_fields = BTreeMap::new();
-            for (field, field_provenance) in fields {
-                if let Some(mapped_field) = borrow_return_provenance_for_call_summary(
-                    field_provenance,
-                    call,
-                    signature,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                    summaries,
-                ) {
-                    mapped_fields.insert(field.clone(), mapped_field);
-                }
-            }
-            let mut mapped_elements = BTreeMap::new();
-            for (index, element_provenance) in elements {
-                if let Some(mapped_element) = borrow_return_provenance_for_call_summary(
-                    element_provenance,
-                    call,
-                    signature,
-                    resolved,
-                    environment,
-                    borrow_provenance,
-                    summaries,
-                ) {
-                    mapped_elements.insert(*index, mapped_element);
-                }
-            }
-            if mapped_fallback.is_none() && mapped_fields.is_empty() && mapped_elements.is_empty() {
-                None
-            } else {
-                Some(ValueProvenance::Aggregate {
-                    fallback: mapped_fallback.map(Box::new),
-                    fields: mapped_fields,
-                    elements: mapped_elements,
-                })
-            }
-        }
-    }
+    })
 }
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_input(

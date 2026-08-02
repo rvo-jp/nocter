@@ -181,3 +181,194 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn typed_literal_body_exit_drops_unconsumed_elements_in_reverse_order() {
+    let project = TempProject::new("distributed-home-typed-literal-pack-drop-run");
+    let source = project.write_source(
+        "typed_literal_pack_drop.nct",
+        r#"use std/io.print
+
+struct Token {
+    label: &str
+}
+
+impl Token {
+    drop &+self {
+        print(self.label)!
+        return
+    }
+}
+
+struct Sink {
+    code: i32
+}
+
+literal Sink [](...items: Token): Self {
+    return Sink { code: 0 }
+}
+
+func main(): i32 {
+    let sink = Sink [Token { label: "A" }, Token { label: "B" }, Token { label: "C" }]
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"CBA");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn typed_literal_allocation_failure_uses_stable_aborting_status() {
+    let project = TempProject::new("distributed-home-typed-literal-allocation-abort-run");
+    let source = project.write_source(
+        "typed_literal_allocation_abort.nct",
+        r#"use std/vec.Vec
+
+struct Exhausted {
+    code: i32
+}
+
+literal Exhausted [](...items: i32): Self {
+    let impossible: Vec<u8> = Vec.with_capacity(18446744073709551615)
+    return Exhausted { code: 0 }
+}
+
+func main(): i32 {
+    let exhausted = Exhausted [1]
+    return 1
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(output.status.code(), Some(70));
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[test]
+fn typed_literal_region_origin_cannot_escape_through_an_aggregate() {
+    let project = TempProject::new("distributed-home-typed-literal-region-escape-check");
+    let source = project.write_source(
+        "typed_literal_region_escape.nct",
+        r#"use std/mem.page_allocator
+
+struct Holder {
+    text: String
+}
+
+func leak(): Holder {
+    let arena = page_allocator()
+    region temporary using arena {
+        return Holder { text: String "escape" }
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert_eq!(stderr.matches("error[E0436]").count(), 1, "{stderr}");
+    assert!(
+        stderr.contains("region `temporary`") && stderr.contains("region ends before"),
+        "expected source-backed literal origin details:\n{stderr}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn typed_literal_region_release_unmaps_literal_owned_storage() {
+    let project = TempProject::new("distributed-home-typed-literal-region-unmap-run");
+    let home = project.root().join(".nocter");
+    copy_tree(&distributed_home(), &home);
+    fs::write(
+        home.join("std/literal_region_probe.nct"),
+        r#"use std/mem.{RawBuffer, alloc, current_allocator}
+use std/os.syscall3
+use std/ptr.addr
+
+pub struct LiteralBuffer {
+    storage: RawBuffer
+}
+
+pub literal LiteralBuffer ""(text: &str): Self {
+    var allocator = current_allocator()
+    let storage = alloc(&+allocator, 16384, 16384)
+    return LiteralBuffer { storage: move storage }
+}
+
+pub func buffer_address(buffer: &LiteralBuffer): usize {
+    return addr(buffer.storage.ptr)
+}
+
+pub func is_mapped(address: usize): bool {
+    let result = syscall3(0x0200004a, address, 16384, 3)
+    return result.errno == 0
+}
+"#,
+    )
+    .unwrap();
+    let source = project.write_source(
+        "typed_literal_region_unmap.nct",
+        r#"use std/literal_region_probe.{LiteralBuffer, buffer_address, is_mapped}
+use std/mem.page_allocator
+
+func main(): i32 {
+    var arena = page_allocator()
+    var address: usize = 0
+    region temporary using arena {
+        let buffer = LiteralBuffer "payload"
+        address = buffer_address(&buffer)
+        if !is_mapped(address) {
+            return 1
+        }
+    }
+    if is_mapped(address) {
+        return 2
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", home)
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}

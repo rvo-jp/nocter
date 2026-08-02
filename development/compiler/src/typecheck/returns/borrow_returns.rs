@@ -4,14 +4,18 @@ use super::*;
 mod block_effects;
 mod expression_provenance;
 mod input_sources;
+mod literal_provenance;
 mod propagation_collection;
 mod summaries;
+mod summary_instantiation;
 mod type_predicates;
 
 pub(super) use block_effects::*;
 pub(super) use expression_provenance::*;
 pub(super) use input_sources::*;
+pub(super) use literal_provenance::*;
 pub(super) use propagation_collection::*;
 pub(in crate::typecheck) use summaries::callable_provenance_summaries;
+pub(super) use summary_instantiation::*;
 pub(in crate::typecheck) use type_predicates::type_contains_borrow_like;
 pub(in crate::typecheck) use type_predicates::type_expr_contains_borrow_like;

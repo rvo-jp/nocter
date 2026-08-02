@@ -38,6 +38,7 @@ pub(in crate::typecheck::returns) fn borrow_return_callable_count(
 pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
     match item {
         Item::Function(_) => 1,
+        Item::Literal(_) => 1,
         Item::Impl(impl_) => impl_
             .members
             .iter()
@@ -100,6 +101,23 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         summaries
                             .insert_result(CallableId::declared_at(method.name_span), provenance);
                     }
+                }
+                Item::Literal(literal) => {
+                    let environment = environment_for_literal(literal, source.resolved);
+                    let return_type = type_expr_to_type_in_environment(
+                        &literal.return_type,
+                        source.resolved,
+                        &environment,
+                    );
+                    let provenance = borrow_return_provenance_for_callable_body(
+                        &literal.body,
+                        &return_type,
+                        source.resolved,
+                        &environment,
+                        previous,
+                    )
+                    .unwrap_or(ValueProvenance::Independent);
+                    summaries.insert_result(CallableId::declared_at(literal.span), provenance);
                 }
                 _ => {}
             }

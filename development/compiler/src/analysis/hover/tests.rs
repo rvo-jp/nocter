@@ -28,7 +28,9 @@ func main(): i32 {
     assert_eq!(hover.label, "literal Text \"\"(text: &str): Text");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some("Copies text into owned storage.")
+        Some(
+            "Copies text into owned storage.\n\n**Result provenance:** aggregate (field `value`: input `text`)."
+        )
     );
 }
 
