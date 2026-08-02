@@ -9,9 +9,10 @@ Nocter v0.2.0 implements deterministic ownership and explicit fallible allocatio
 `Vec<T>`, and `RawBuffer`. The lexical `region` syntax is reserved but is not implemented in that
 release.
 
-The design in this chapter is the adopted v0.3.0 direction. Phase 0 implements region, provenance,
-and allocation-context semantics before typed literals, sequence spread, or collection iteration
-are promoted. Development completion criteria live in the
+The design in this chapter is the adopted v0.3.0 direction. Its Phase 0 region, provenance, and
+allocation-context implementation is complete on `develop`, but is not a released language
+version. Typed literals, sequence spread, and collection iteration still require later reviewed
+gates. Development completion criteria live in the
 [v0.3.0 Development Contract](../development/docs/v0.3.0.md).
 
 ## Memory Model

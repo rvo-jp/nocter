@@ -74,12 +74,12 @@ The meaning of duplicating non-copy elements from a borrowed slice is not define
 is limited to copyable `T`. Until the type system can express that constraint, the compiler keeps
 the public boundary narrow and rejects misuse with a source-backed diagnostic.
 
-## Phase 0 Migration Target
+## Phase 0 Allocator and Region Runtime
 
-Phase 0 retains the v0.2.0 buffer, initialized-prefix, recursive-drop, and failure-atomic
-publication invariants while changing how allocation failure is exposed.
+The completed Phase 0 implementation retains the v0.2.0 buffer, initialized-prefix, recursive-drop,
+and failure-atomic publication invariants while changing how allocation failure is exposed.
 
-`std/mem` gains one recoverable core and one aborting adapter:
+`std/mem` provides one recoverable core and one aborting adapter:
 
 - `TryAllocator` and `try_*` operations return stable `std.mem.*` errors
 - `Allocator` and normal operations terminate without unwinding on allocation failure
@@ -87,7 +87,7 @@ publication invariants while changing how allocation failure is exposed.
 - `RawBuffer` keeps backend identity and storage origin independently of failure policy
 - region child allocators derive from an established aborting parent context
 
-`String` and `Vec<T>` gain paired policy surfaces. Normal constructors and growth use the current
+`String` and `Vec<T>` provide paired policy surfaces. Normal constructors and growth use the current
 allocation context and do not return allocation-only `T!`. Explicit `try_*` operations retain
 recoverable failure and the old failure-atomic state guarantees.
 
@@ -105,6 +105,8 @@ fallible core after it has performed checked arithmetic and preserved the old va
 | `Vec<File>.clear()` | initialized handles close once; later vector drop is empty |
 | `Vec<Vec<String>>` early `?` | completed prefixes unwind in reverse order |
 | zero-capacity values | no allocation and no invalid free |
+| lexical region storage | mapping remains live in the body and is released at region exit |
+| region-backed aggregate/error | direct and indirect escape rejected before lowering |
 | packaged-home execution | behavior matches repository-local source |
 
 Tests observe semantic effects such as handle closure, output, error identity, and post-operation

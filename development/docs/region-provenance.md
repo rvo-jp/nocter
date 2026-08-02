@@ -1,8 +1,9 @@
 # Region, Provenance, and Allocation Context
 
-This document owns the implementation design for v0.3.0 region and allocation-context work. Public
+This document owns the implementation design for the v0.3.0 region and allocation-context
+foundation. Public
 semantics belong to [Memory, Regions, and Allocators](../../spec/06-memory-region-allocator.md), and
-the active completion gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+the completed gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
 
 ## Separate Concepts
 
@@ -47,6 +48,7 @@ StorageOrigin
   Scope(ScopeId)
   Input(CallableId, InputId)
   Region(RegionId)
+  CurrentAllocationContext
   Unknown
 
 ValueProvenance
@@ -59,6 +61,10 @@ ValueProvenance
 
 `InputId` is declaration identity, not a parameter name string. A method receiver has its own input
 identity. Renaming a parameter must not change callable-summary behavior.
+
+`CurrentAllocationContext` is a symbolic summary origin. At a call site it is concretized to the
+innermost lexical `RegionId`, or to `Static` in the root context. This lets an allocating helper
+retain storage provenance without baking a caller's region identity into its callable summary.
 
 Origin joins are conservative unions. Escape succeeds only when every possible origin outlives the
 destination. A known static alternative does not erase a shorter alternative.
@@ -162,8 +168,9 @@ Compiler analysis exposes:
 LSP converts these facts to hover, semantic tokens, completion, and diagnostics without maintaining
 a second provenance graph.
 
-## Migration Constraint
+## Completed Migration Boundary
 
-The v0.2.0 explicit fallible APIs remain the implementation baseline while Phase 0 is built. Migrate
-them only after the shared fallible core and abort adapter exist. Do not temporarily implement
-default allocation by calling `page_allocator()` at each use site or by adding a mutable global.
+Phase 0 retains the v0.2.0 explicit fallible behavior through the shared fallible core and exposes
+ordinary allocation through its aborting adapter. Default allocation uses statically propagated
+context facts; it does not call `page_allocator()` at each use site and does not depend on a mutable
+global or thread-local allocator.

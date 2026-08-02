@@ -92,7 +92,7 @@ typechecker cannot establish a target may recovery analysis return an explicitly
 ## v0.3.0 Phase 0 Integration
 
 Region and allocation tooling consumes compiler analysis facts rather than inspecting keywords or
-standard-library names. Phase 0 adds:
+standard-library names. The completed Phase 0 integration provides:
 
 - semantic identity and definition for a lexical region binding
 - hover detail for the region's parent and current allocation context
@@ -114,6 +114,11 @@ The released v0.2.0 integration tests cover:
 4. hover/completion detail for documented standard-library symbols
 5. consecutive didChange operations containing incomplete calls, member access, and imports
 6. definition/reference/diagnostic consistency under a multi-file open-document overlay
+
+Phase 0 integration tests additionally cover region binding definition and semantic tokens,
+parent/current-context hover, allocating-call effects, allocator-aware completion, storage-origin
+presentation, source-backed escape diagnostics, and cursor-preserving recovery for incomplete
+region headers.
 
 ## Deferred Features
 

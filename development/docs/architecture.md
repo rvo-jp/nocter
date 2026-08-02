@@ -2,7 +2,7 @@
 
 This document defines stable responsibility boundaries in the Rust bootstrap compiler. See the
 [specification](../../spec/README.md) for public language rules and the
-[v0.3.0 contract](v0.3.0.md) for the active Phase 0 criteria.
+[v0.3.0 contract](v0.3.0.md) for the completed Phase 0 criteria.
 
 ## Pipeline
 
@@ -94,10 +94,10 @@ provenance separate. See [Allocator and Ownership](allocator-ownership.md).
 The compiler does not special-case public names such as `Allocator`, `String`, or `Vec`. Required
 primitives are confined to the `pub(nocter)` trust boundary and explicit IR operations.
 
-Phase 0 adds a compiler-owned provenance boundary between typecheck and ownership. Callable
-provenance summaries, lexical outlives constraints, and allocation-effect facts are constructed
-once in typecheck. Return checking, NLL, region escape validation, analysis, and IR consume those
-facts instead of maintaining separate origin models. See
+Phase 0 established a compiler-owned provenance boundary between typecheck and ownership. Callable
+provenance summaries, lexical outlives constraints, and allocation-effect facts are derived by the
+same typecheck implementation. Return checking, NLL, region escape validation, analysis, and IR
+consume those facts instead of maintaining separate origin models. See
 [Region, Provenance, and Allocation Context](region-provenance.md).
 
 ## LSP Boundary

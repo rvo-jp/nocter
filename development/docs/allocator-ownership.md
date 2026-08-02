@@ -17,7 +17,7 @@ regions are owned by [Region, Provenance, and Allocation Context](region-provena
 | `std/mem` | allocation layout, growth, deallocation, allocator provenance |
 | `std/string`, `std/vec` | type-specific buffer and initialized-length invariants |
 
-Phase 0 adds storage provenance and allocation failure policy as separate axes. Neither replaces
+Phase 0 added storage provenance and allocation failure policy as separate axes. Neither replaces
 source-place state, drop obligations, or runtime allocator-backend identity.
 
 Do not collapse source-place state and runtime cleanup state into one bitset or ad hoc flag. The
