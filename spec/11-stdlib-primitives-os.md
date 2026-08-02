@@ -573,6 +573,18 @@ errors, but allocation failure terminates. A recoverable-memory variant, if
 needed, takes a `TryAllocator` explicitly and preserves the same OS error
 identity.
 
+v0.3.0 Phase 5 adopts the executable process-context surface below:
+
+```nct
+pub func args(): Vec<&str>! from current | static
+pub func env(name: &str): &str?! from static
+pub func cwd(): String! from current
+pub func try_cwd(allocator: &+TryAllocator): String! from allocator
+```
+
+This direction is not part of the released v0.2.0 runtime until the Phase 5 native and packaged-
+home gates pass.
+
 Example:
 
 ```nct

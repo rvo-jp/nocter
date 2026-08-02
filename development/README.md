@@ -7,8 +7,8 @@ the public overview and the [specification](../spec/README.md) for language rule
 The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context**,
 **Phase 1: Typed Literal Core**, **Phase 2: Explicit Iteration and Collection Access**, and
 **Phase 3: Owned String Interpolation and Formatting**, and **Phase 4: Public Provenance Contracts
-and Generic Interface Bounds** are complete on `develop`. No later v0.3.0 phase is currently
-adopted. The completion records and dependency order are defined in the
+and Generic Interface Bounds** are complete on `develop`. **Phase 5: Nested Outcomes and Executable
+Process Context** is active. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 
@@ -52,6 +52,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Explicit Iteration and Collection Access](docs/iteration.md)
 - [Owned String Interpolation and Formatting](docs/interpolation.md)
 - [Public Provenance Contracts and Generic Interface Bounds](docs/provenance-contracts.md)
+- [Nested Outcomes and Executable Process Context](docs/outcomes-process-context.md)
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)
 - [Language Server](docs/lsp.md)

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Development Documentation</title>
-    <meta name="description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <title>Nested Outcomes and Executable Process Context - Nocter</title>
+    <meta name="description" content="This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5. Public optional, fallible, provenance, and process semantics">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/outcomes-process-context/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Development Documentation">
-    <meta property="og:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
-    <meta property="og:url" content="https://nocter.dev/development/">
+    <meta property="og:title" content="Nested Outcomes and Executable Process Context - Nocter">
+    <meta property="og:description" content="This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5. Public optional, fallible, provenance, and process semantics">
+    <meta property="og:url" content="https://nocter.dev/development/docs/outcomes-process-context/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-02">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Development Documentation">
-    <meta name="twitter:description" content="Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.">
+    <meta name="twitter:title" content="Nested Outcomes and Executable Process Context - Nocter">
+    <meta name="twitter:description" content="This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5. Public optional, fallible, provenance, and process semantics">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Development Documentation","description":"Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow.","url":"https://nocter.dev/development/","mainEntityOfPage":"https://nocter.dev/development/","dateModified":"2026-08-02","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nested Outcomes and Executable Process Context - Nocter","description":"This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5. Public optional, fallible, provenance, and process semantics","url":"https://nocter.dev/development/docs/outcomes-process-context/","mainEntityOfPage":"https://nocter.dev/development/docs/outcomes-process-context/","dateModified":"2026-08-02","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Outcomes Process Context","item":"https://nocter.dev/development/docs/outcomes-process-context/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -124,50 +124,42 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="../index.html#content">repository README</a></li>
-                <li><a href="../spec/index.html#content">specification</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Development Contract</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a></li>
-                <li><a href="./docs/index.html#content">Documentation Index</a></li>
-                <li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Development Contract</a></li>
-                <li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
-                <li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li>
-                <li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li>
-                <li><a href="./docs/lsp/index.html#content">Language Server</a></li>
-                <li><a href="./docs/maintenance/index.html#content">Maintenance</a></li>
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literal Core</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="./index.html#content" aria-current="page">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/README.md</span>
+                <span class="markdown-path-text">/development/docs/outcomes-process-context.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-development">Nocter Development</h1><p>This directory contains the Rust bootstrap compiler, the distributed standard library, release packaging inputs, and implementation documentation. See the <a href="../index.html#content">repository README</a> for the public overview and the <a href="../spec/index.html#content">specification</a> for language rules.</p><p>The released baseline is <strong>Nocter v0.2.0</strong>. <strong>v0.3.0 Phase 0: Region and Allocation Context</strong>, <strong>Phase 1: Typed Literal Core</strong>, <strong>Phase 2: Explicit Iteration and Collection Access</strong>, and <strong>Phase 3: Owned String Interpolation and Formatting</strong>, and <strong>Phase 4: Public Provenance Contracts and Generic Interface Bounds</strong> are complete on <code>develop</code>. <strong>Phase 5: Nested Outcomes and Executable Process Context</strong> is active. The completion records and dependency order are defined in the <a href="./docs/v0.3.0/index.html#content">v0.3.0 Development Contract</a>. The completed v0.2.0 criteria remain available in the <a href="./docs/v0.2.0/index.html#content">v0.2.0 release record</a>.</p><h2 id="quick-start">Quick Start</h2><p>Run the complete verification suite from the repository root:</p><pre><code class="language-sh">./development/compiler/scripts/verify.sh
-</code></pre><p>To verify only the compiler:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml
-</code></pre><p>To build and run a repository-local distribution:</p><pre><code class="language-sh">./development/compiler/scripts/package-local-release.sh
-./dist/.nocter/nocter example.nct
-</code></pre><p>The canonical standard-library source is tracked in <code>development/std/</code>, and release metadata lives in <code>development/packaging/</code>. The packaging script creates a local installation image at <code>dist/.nocter/</code> and an archive named <code>dist/nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code>.</p><p>Rust and Cargo are required only for development. The release archive runs from a single <code>.nocter/</code> home containing the compiler and <code>std/</code>; users do not need LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools.</p><h2 id="documents">Documents</h2><ul><li><a href="./docs/index.html#content">Documentation Index</a></li><li><a href="./docs/v0.3.0/index.html#content">v0.3.0 Development Contract</a></li><li><a href="./docs/v0.2.0/index.html#content">v0.2.0 Release Record</a></li><li><a href="./docs/architecture/index.html#content">Compiler Architecture</a></li><li><a href="./docs/region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li><li><a href="./docs/typed-literals/index.html#content">Typed Literal Core</a></li><li><a href="./docs/iteration/index.html#content">Explicit Iteration and Collection Access</a></li><li><a href="./docs/interpolation/index.html#content">Owned String Interpolation and Formatting</a></li><li><a href="./docs/provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li><li><a href="./docs/outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li><li><a href="./docs/allocator-ownership/index.html#content">Allocator and Ownership</a></li><li><a href="./docs/standard-library/index.html#content">Standard Library Runtime</a></li><li><a href="./docs/lsp/index.html#content">Language Server</a></li><li><a href="./docs/maintenance/index.html#content">Maintenance</a></li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">Internal Handoff</a></li></ul><h2 id="layout">Layout</h2><pre><code class="language-text">development/
-├── AGENTS.md
-├── README.md
-├── TODO.md
-├── compiler/
-│   ├── Cargo.toml
-│   ├── scripts/
-│   ├── src/
-│   └── tests/
-├── docs/
-├── packaging/
-└── std/
-</code></pre><ul><li><code>compiler/src</code>: compiler implementation</li><li><code>compiler/tests</code>: CLI, runtime, distributed-home, LSP, and corpus integration tests</li><li><code>std</code>: canonical source for the packaged standard library</li><li><code>packaging</code>: release metadata copied into generated homes</li><li><code>docs</code>: current design and acceptance documents; Git retains history</li></ul>
+                <h1 id="nested-outcomes-and-executable-process-context">Nested Outcomes and Executable Process Context</h1><p>This document owns the compiler and standard-library implementation design for v0.3.0 Phase 5. Public optional, fallible, provenance, and process semantics belong to the specification. The active completion gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a>.</p><h2 id="boundary">Boundary</h2><p>Nocter already typechecks optional and fallible constructors independently. The pre-Phase 5 IR maps both <code>T?</code> and <code>T!</code> to one fallible-shaped tag. That shortcut works for one outer layer but cannot distinguish the three leaves of <code>T?!</code>: present success, successful absence, and failure. Buildability consequently rejects every reachable composed return and separately recognizes <code>std/process.env</code> by declaration identity as check-only.</p><p>Phase 5 replaces that shortcut at callable boundaries. It does not promote arbitrary stored outcome values. A composed result must be consumed immediately by propagation, fallback, catch, a return boundary, or another supported expression lowering path.</p><h2 id="compiler-owned-outcome-shape">Compiler-Owned Outcome Shape</h2><p>The compiler normalizes a resolved callable return into an ordered shape:</p><pre><code class="language-text">OutcomeShape
+  = Value(payload ABI)
+  | Optional(OutcomeShape)
+  | Fallible(OutcomeShape, error ABI)
+</code></pre><p>Aliases and generic substitutions are resolved before construction. Buildability, IR, backend, analysis, and LSP consume this shape; none reparses type spelling. The initial executable composed surface contains one optional and one fallible layer in either explicit order. Deeper recursion is rejected by shape capability, not by a standard-library name.</p><h2 id="native-abi">Native ABI</h2><p>Each layer owns one tag word and nests its success payload after that word:</p><pre><code class="language-text">Fallible(Optional(T))
+  x0 = fallible tag
+  failure: x1..x4 = error code/message
+  success:
+    x1 = optional tag
+    present: x2.. = T payload
+    absent: no initialized T payload
+</code></pre><p>Tag zero selects success or presence. Tag one selects failure or absence. This keeps existing single-layer ABI behavior and makes composition structural. Indirect aggregate success storage remains caller-provided; tags never claim uninitialized payload storage is live.</p><p>The backend must expose branch operations in terms of layer and tag, not <code>env</code>, <code>none</code>, or a source type spelling. Return lowering writes inner payload and tag before publishing the outer success tag. Call lowering checks outer failure before inspecting inner absence.</p><h2 id="control-flow-and-cleanup">Control Flow and Cleanup</h2><ul><li>Postfix <code>?</code> removes exactly the outer layer selected by typechecking.</li><li><code>otherwise</code> handles exactly an optional layer and never catches an error.</li><li><code>catch</code> handles exactly a fallible layer and never treats absence as failure.</li><li>A direct return may construct presence, absence, or failure according to the declared shape.</li><li>Cleanup obligations belong to initialized payload paths. An absent path does not drop payload
+  storage, and an error path does not drop an unpublished success value.</li><li>Propagation cleanup executes before returning the corresponding tag and payload to the caller.</li></ul><p>Outcome lowering must reuse the scope-drop and region-exit plan. It must not maintain a second list of live owners.</p><h2 id="provenance">Provenance</h2><p>Callable summaries retain channel-specific provenance. For <code>env</code>, the present <code>&amp;str</code> payload is <code>static</code>; absence carries no storage origin; the error payload follows the ordinary error summary. For <code>cwd</code>, the successful <code>String</code> is <code>current</code> on the normal surface and derives from the explicit allocator on the recoverable surface.</p><p>The <code>from</code> clause remains an upper-bound contract. It does not alter outcome ABI layout or decide which branch is selected.</p><h2 id="process-runtime">Process Runtime</h2><p>The low-level entry shim already captures <code>argc</code> and <code>argv</code>. Phase 5 extends the same process- context owner with <code>envp</code> and exposes narrow target primitives for entry count and indexed entry views. <code>std/process</code> performs name matching, separator handling, and UTF-8 validation in ordinary Nocter source. The compiler does not provide an <code>env(name)</code> primitive.</p><p>Process-context views live for the program duration and are never freed by user code. <code>env</code> returns successful absence when no exact name matches. An invalid requested name or invalid host entry returns <code>std.process.invalid_encoding</code>; it must not masquerade as absence.</p><p><code>cwd</code> keeps one recoverable implementation core. <code>try_cwd</code> receives a <code>TryAllocator</code>; normal <code>cwd</code> uses the current aborting allocation context and adapts allocation-only failures through the established abort path. Both surfaces preserve OS and encoding failures.</p><h2 id="editor-boundary">Editor Boundary</h2><p>Analysis exports the resolved nested type and provenance clause already used by hover and signature help. Phase 5 adds channel labels only when the compiler supplies them. Completion and recovery must remain stable inside <code>T?!</code>, an incomplete <code>otherwise</code>, and a call imported under an alias.</p><h2 id="verification">Verification</h2><p>Unit tests own outcome normalization, ABI classification, lowering, branch ordering, and cleanup. CLI tests own source diagnostics. Distributed-home tests own native environment and <code>cwd</code> behavior using only packaged compiler and standard-library inputs. JSON-RPC tests own exact normalized hover and signature ranges.</p>
             </div>
         </main>
     </div>
@@ -183,6 +175,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

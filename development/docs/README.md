@@ -7,12 +7,13 @@ those rules here.
 The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
 **Phase 2: Explicit Iteration and Collection Access**, and **Phase 3: Owned String Interpolation and
 Formatting**, and **Phase 4: Public Provenance Contracts and Generic Interface Bounds** are complete
-on `develop`. No later v0.3.0 phase is currently adopted. Do not use `v0` as shorthand for a release
-name or work scope.
+on `develop`. **Phase 5: Nested Outcomes and Executable Process Context** is active. Do not use
+`v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 4 records; the single
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 4 records and the active
+  Phase 5 gate; the single
   entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
@@ -26,6 +27,8 @@ name or work scope.
   plans, formatting policy, lowering, cleanup, and LSP boundaries
 - [Public Provenance Contracts and Generic Interface Bounds](provenance-contracts.md): explicit
   result origins, generic capability lookup, static specialization, and editor boundaries
+- [Nested Outcomes and Executable Process Context](outcomes-process-context.md): recursive callable
+  result channels, native ABI, process storage, and ambient/recoverable process APIs
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): released runtime baseline and completed v0.3.0 runtime
@@ -47,6 +50,7 @@ name or work scope.
 | Explicit readonly/owned iteration and collection access design | `iteration.md` |
 | Owned interpolation and formatting implementation design | `interpolation.md` |
 | Public provenance contracts and generic interface-bound dispatch | `provenance-contracts.md` |
+| Nested outcome lowering and executable process context | `outcomes-process-context.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

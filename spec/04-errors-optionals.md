@@ -240,6 +240,9 @@ Rules:
 
 Adopted: optional and fallible type constructors may be composed explicitly.
 
+The v0.3.0 Phase 5 implementation direction promotes composed callable returns to native execution.
+Until that gate passes, v0.2.0 remains the released build boundary.
+
 Preferred source spelling:
 
 ```text
