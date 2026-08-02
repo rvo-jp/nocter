@@ -172,6 +172,20 @@ pub func iter<T>(values: &Vec<T>): ViewIter<T> {
     return ViewIter.from_view(view(values))
 }
 
+pub func get<T>(values: &Vec<T>, index: usize): (&T)? {
+    if index >= values.len {
+        return none
+    }
+    return &view(values)[index]
+}
+
+pub func get_mut<T>(values: &+Vec<T>, index: usize): (&+T)? {
+    if index >= values.len {
+        return none
+    }
+    return &+view_mut(values)[index]
+}
+
 pub func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
     var source = move values
     let pointer: *T = source.ptr
@@ -262,12 +276,64 @@ pub func push<T>(values: &+Vec<T>, value: T): void {
     return
 }
 
+pub func try_insert<T>(values: &+Vec<T>, index: usize, value: T): void! {
+    let old_len: usize = values.len
+    if index > old_len {
+        return index_out_of_bounds()
+    }
+
+    // No fallible operation is permitted after this point. The initialized
+    // prefix remains unchanged if capacity growth fails.
+    try_reserve(values, 1)?
+    let element_size: usize = pointee_size(values.ptr)
+    var hole: usize = old_len
+    while hole > index {
+        let source_index: usize = hole - 1
+        let shifted: T = take_value_at_ptr(values.ptr, source_index * element_size)
+        store_value_to_ptr(values.ptr, hole * element_size, move shifted)
+        hole = source_index
+    }
+    store_value_to_ptr(values.ptr, index * element_size, move value)
+    values.len = old_len + 1
+    return
+}
+
+pub func insert<T>(values: &+Vec<T>, index: usize, value: T): void {
+    try_insert(values, index, move value) catch insert_error {
+        return allocation_abort_raw()
+    }
+    return
+}
+
+pub func remove<T>(values: &+Vec<T>, index: usize): T? {
+    let old_len: usize = values.len
+    if index >= old_len {
+        return none
+    }
+
+    let element_size: usize = pointee_size(values.ptr)
+    let removed: T = take_value_at_ptr(values.ptr, index * element_size)
+    var hole: usize = index
+    while hole + 1 < old_len {
+        let source_index: usize = hole + 1
+        let shifted: T = take_value_at_ptr(values.ptr, source_index * element_size)
+        store_value_to_ptr(values.ptr, hole * element_size, move shifted)
+        hole = source_index
+    }
+    values.len = old_len - 1
+    return move removed
+}
+
 func unsupported(): error {
     return Error.new("std.vec.unsupported", "Vec element storage is not supported")
 }
 
 pub func capacity_overflow(): error {
     return Error.new("std.vec.capacity_overflow", "Vec capacity overflow")
+}
+
+pub func index_out_of_bounds(): error {
+    return Error.new("std.vec.index_out_of_bounds", "Vec insertion index is out of bounds")
 }
 
 impl<T> Vec<T> {
@@ -295,6 +361,22 @@ impl<T> Vec<T> {
     /// Returns an allocation-free iterator over readonly element borrows.
     pub method &self.iter(): ViewIter<T> {
         return iter(self)
+    }
+
+    /// Returns a readonly element borrow when `index` is in bounds.
+    pub method &self.get(index: usize): (&T)? {
+        if index >= self.len {
+            return none
+        }
+        return &view(self)[index]
+    }
+
+    /// Returns a readwrite element borrow when `index` is in bounds.
+    pub method &+self.get_mut(index: usize): (&+T)? {
+        if index >= self.len {
+            return none
+        }
+        return &+view_mut(self)[index]
     }
 
     /// Transfers the allocation and every element into an owning iterator.
@@ -328,6 +410,23 @@ impl<T> Vec<T> {
     pub method &+self.try_push(value: T): void! {
         try_push(self, move value)?
         return
+    }
+
+    /// Inserts an owned value and aborts if growth or bounds validation fails.
+    pub method &+self.insert(index: usize, value: T): void {
+        insert(self, index, move value)
+        return
+    }
+
+    /// Inserts an owned value with recoverable allocation and bounds failure.
+    pub method &+self.try_insert(index: usize, value: T): void! {
+        try_insert(self, index, move value)?
+        return
+    }
+
+    /// Removes and transfers an element, or returns `none` out of bounds.
+    pub method &+self.remove(index: usize): T? {
+        return remove(self, index) otherwise { return none }
     }
 
     /// Transfers and returns the last initialized element, or `none` when empty.

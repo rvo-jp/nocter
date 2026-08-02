@@ -369,6 +369,96 @@ pub(super) fn returned_borrow_sources(
         return vec![source];
     }
 
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => {
+            return active_borrows
+                .iter()
+                .filter(|borrow| borrow.borrow_name == identifier.name)
+                .map(|borrow| DirectBorrowSource {
+                    source: borrow.source.clone(),
+                    source_span: identifier.span,
+                    is_readwrite: borrow.is_readwrite,
+                })
+                .collect();
+        }
+        Expr::Otherwise(otherwise) => {
+            let mut sources = returned_borrow_sources(
+                &otherwise.value,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(result) = &otherwise.fallback.result {
+                sources.extend(returned_borrow_sources(
+                    result,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::Propagate(propagation) => {
+            return returned_borrow_sources(
+                &propagation.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+        }
+        Expr::Force(force) => {
+            return returned_borrow_sources(
+                &force.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+        }
+        Expr::Catch(catch) => {
+            let mut sources = returned_borrow_sources(
+                &catch.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(result) = &catch.catch_block.result {
+                sources.extend(returned_borrow_sources(
+                    result,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::If(if_) => {
+            let mut sources = borrow_sources_for_block_result(
+                &if_.then_block,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(else_block) = &if_.else_block {
+                sources.extend(borrow_sources_for_block_result(
+                    else_block,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        _ => {}
+    }
+
     let Expr::Call(call) = unwrap_group(expression) else {
         return Vec::new();
     };
@@ -402,6 +492,18 @@ pub(super) fn returned_borrow_sources(
             )
         })
         .collect()
+}
+
+fn borrow_sources_for_block_result(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    active_borrows: &[ActiveBorrow],
+) -> Vec<DirectBorrowSource> {
+    block.result.as_deref().map_or_else(Vec::new, |result| {
+        returned_borrow_sources(result, resolved, environment, summaries, active_borrows)
+    })
 }
 
 struct CallInput<'a> {

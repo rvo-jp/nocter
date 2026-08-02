@@ -1,5 +1,6 @@
 mod arrays;
 mod bindings;
+mod borrow_wrappers;
 mod calls;
 mod control_flow;
 mod drop_members;

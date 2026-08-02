@@ -476,13 +476,18 @@ pub(super) fn lower_otherwise_aggregate_binding(
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_kind, fields);
+    // The destination becomes initialized only on call success or after a
+    // value-producing fallback. An exiting fallback must not drop stale bytes
+    // left in this reusable slot by an earlier loop iteration.
+    let mut failure_context = context.clone();
+    failure_context.mark_aggregate_local_moved(&statement.name);
     let failure_mode = lower_otherwise_aggregate_failure_mode(
         &otherwise.fallback,
         layout,
         success_abi_value.as_ref().map(|value| &value.ty),
         AggregateLocation::Slot(slot_index),
         resolved,
-        context,
+        &failure_context,
         loop_control,
         &unsupported_assignment_diagnostic,
     )?;

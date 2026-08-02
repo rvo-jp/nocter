@@ -8,8 +8,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
+#[path = "distributed_home/collection_access.rs"]
+mod collection_access;
 #[path = "distributed_home/iteration.rs"]
 mod iteration;
+#[path = "distributed_home/iteration_cleanup.rs"]
+mod iteration_cleanup;
 #[path = "distributed_home/typed_literals.rs"]
 mod typed_literals;
 

@@ -121,14 +121,15 @@ pub(super) fn scalar_binding_kind(
                     "IR v0 cannot lower annotated local bindings without resolved type information",
                 ));
             };
-            match parameter_type_from_type_expr_with_resolver(ty, resolved, |_| Some(resolved)) {
+            let ty = context.specialize_type_expr(ty);
+            match parameter_type_from_type_expr_with_resolver(&ty, resolved, |_| Some(resolved)) {
                 Some(Type::I32) => Ok(ScalarBindingKind::I32),
                 Some(Type::U8) => Ok(ScalarBindingKind::U8),
                 Some(Type::Usize) => Ok(ScalarBindingKind::Usize),
                 Some(Type::Bool) => Ok(ScalarBindingKind::Bool),
                 Some(Type::Str) => Ok(ScalarBindingKind::Str),
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice(
-                    slice_type_info_from_type_expr(ty, context),
+                    slice_type_info_from_type_expr(&ty, context),
                 )),
                 Some(Type::Borrow {
                     is_readwrite,

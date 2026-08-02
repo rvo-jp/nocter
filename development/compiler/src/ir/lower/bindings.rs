@@ -82,6 +82,7 @@ mod index_assignments;
 mod optional_assignments;
 mod otherwise_bindings;
 mod payload_field_assignments;
+mod pointer_take_bindings;
 mod scalar_bindings;
 mod slice_types;
 mod typed_literals;
@@ -97,6 +98,7 @@ use index_assignments::*;
 use optional_assignments::*;
 use otherwise_bindings::*;
 use payload_field_assignments::*;
+use pointer_take_bindings::*;
 use scalar_bindings::*;
 use slice_types::*;
 use typed_literals::*;
@@ -146,6 +148,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_payload_enum_constructor_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_pointer_take_binding(statement, context)? {
         return Ok(instructions);
     }
 

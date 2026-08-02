@@ -7,4 +7,5 @@ mod fallible_scalars;
 mod generic_inference;
 mod optional_aggregates;
 mod optional_borrows;
+mod optional_cleanup;
 mod optional_scalars;
