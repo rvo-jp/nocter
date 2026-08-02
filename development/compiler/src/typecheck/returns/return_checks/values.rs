@@ -42,6 +42,17 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
     }
 
     if return_expression_is_fallible_failure(expression, &actual, context, resolved, environment) {
+        check_borrow_return_provenance(
+            sources,
+            expression,
+            &actual,
+            context,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            diagnostics,
+        );
         return;
     }
 
@@ -110,6 +121,17 @@ pub(in crate::typecheck::returns) fn check_return_statement(
                 resolved,
                 environment,
             ) {
+                check_borrow_return_provenance(
+                    sources,
+                    expression,
+                    &actual,
+                    context,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    diagnostics,
+                );
                 return;
             }
 
@@ -133,6 +155,17 @@ pub(in crate::typecheck::returns) fn check_return_statement(
                 resolved,
                 environment,
             ) {
+                check_borrow_return_provenance(
+                    sources,
+                    expression,
+                    &actual,
+                    context,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    diagnostics,
+                );
                 return;
             }
 

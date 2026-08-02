@@ -833,6 +833,10 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     ),
                 );
                 let mut body_provenance = borrow_provenance.clone();
+                body_provenance.enter_region(
+                    crate::typecheck::regions::region_id(statement),
+                    format!("region `{}`", statement.name),
+                );
                 body_provenance.define_binding(
                     statement.name_span,
                     true,

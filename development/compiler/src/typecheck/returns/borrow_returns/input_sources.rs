@@ -43,7 +43,17 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input
         );
     }
 
-    borrow_return_provenance_for_local_storage(identifier, resolved)
+    let mut provenance = borrow_return_provenance_for_local_storage(identifier, resolved);
+    merge_provenance(
+        &mut provenance,
+        borrow_return_provenance_for_identifier(
+            identifier,
+            resolved,
+            environment,
+            borrow_provenance,
+        ),
+    );
+    provenance
 }
 
 pub(in crate::typecheck::returns) fn value_provenance_for_call_input(

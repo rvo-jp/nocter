@@ -30,6 +30,7 @@ pub(crate) struct CallableSemanticFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StorageOriginFact {
     Static,
+    CurrentAllocationContext,
     Input(ByteSpan),
     Scope(ByteSpan),
     Region(ByteSpan),
@@ -248,6 +249,7 @@ fn value_fact(value: &ValueProvenance) -> ValueProvenanceFact {
 fn origin_fact(origin: &StorageOrigin) -> StorageOriginFact {
     match origin {
         StorageOrigin::Static => StorageOriginFact::Static,
+        StorageOrigin::CurrentAllocationContext => StorageOriginFact::CurrentAllocationContext,
         StorageOrigin::Input(input) => StorageOriginFact::Input(input.declaration_span()),
         StorageOrigin::Scope { binding, .. } => StorageOriginFact::Scope(*binding),
         StorageOrigin::Region { region, .. } => {

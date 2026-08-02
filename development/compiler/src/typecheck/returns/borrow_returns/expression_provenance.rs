@@ -42,6 +42,18 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
         | Expr::ByteLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => Some(ValueProvenance::Independent),
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            let operand_type = expression_type(&unary.operand, resolved, environment);
+            borrow_return_provenance_for_expression(
+                &unary.operand,
+                &operand_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+            )
+        }
+        Expr::Unary(_) => Some(ValueProvenance::Independent),
         Expr::StructLiteral(literal) => {
             let mut fields = BTreeMap::new();
             for field in &literal.fields {
@@ -336,6 +348,17 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
 ) -> Option<ValueProvenance> {
     let signature = resolved_call_signature(resolved, call, environment)?;
     let return_type = call_return_type(call, &signature, resolved, environment);
+    if let Some(provenance) = trusted_call_result_provenance(
+        call,
+        &signature,
+        &return_type,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    ) {
+        return Some(provenance);
+    }
     if let Some(declaration_span) = signature.declaration_span
         && let Some(summary) = summaries.result(CallableId::declared_at(declaration_span))
     {
@@ -371,27 +394,32 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
 
     for (argument, parameter) in call.arguments.iter().zip(&signature.signature.parameters) {
         let argument_type = expression_type(argument, resolved, environment);
-        if !type_contains_borrow_like(&argument_type, resolved)
-            && !type_expr_contains_borrow_like(
-                &parameter.ty,
-                resolved,
-                &HashMap::new(),
-                &mut HashSet::new(),
-            )
-        {
-            continue;
-        }
-
-        merge_provenance(
-            &mut provenance,
-            borrow_return_provenance_for_borrowed_input(
-                argument,
-                resolved,
-                environment,
-                borrow_provenance,
-                summaries,
-            ),
+        let parameter_is_borrow_like = type_expr_contains_borrow_like(
+            &parameter.ty,
+            resolved,
+            &HashMap::new(),
+            &mut HashSet::new(),
         );
+        let argument_provenance =
+            if type_contains_borrow_like(&argument_type, resolved) || parameter_is_borrow_like {
+                borrow_return_provenance_for_borrowed_input(
+                    argument,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            } else {
+                value_provenance_for_call_input(
+                    argument,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                )
+            };
+
+        merge_provenance(&mut provenance, argument_provenance);
     }
 
     match return_type {
@@ -406,6 +434,95 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call(
         }
         _ => provenance,
     }
+}
+
+fn trusted_call_result_provenance(
+    call: &crate::ast::CallExpr,
+    signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
+    let declaration = signature.declaration_span?;
+    let role = resolved.trusted_declarations.role(declaration)?;
+    let provenance = match role {
+        crate::semantics::TrustedDeclarationRole::CurrentAllocationContext => {
+            borrow_provenance.current_allocation_context_provenance()
+        }
+        crate::semantics::TrustedDeclarationRole::AllocationOperation { source, .. } => {
+            match source {
+                crate::semantics::AllocationSource::CurrentContext => {
+                    borrow_provenance.current_allocation_context_provenance()
+                }
+                crate::semantics::AllocationSource::Input(index) => signature
+                    .signature
+                    .parameters
+                    .get(index)
+                    .and_then(|parameter| {
+                        allocation_source_provenance_for_call_input(
+                            InputId::declared_at(parameter.name_span),
+                            call,
+                            signature,
+                            resolved,
+                            environment,
+                            borrow_provenance,
+                            summaries,
+                        )
+                    })
+                    .unwrap_or_else(ValueProvenance::unknown),
+            }
+        }
+        crate::semantics::TrustedDeclarationRole::AllocatorCapability(_)
+        | crate::semantics::TrustedDeclarationRole::RegionEnter
+        | crate::semantics::TrustedDeclarationRole::RegionRelease
+        | crate::semantics::TrustedDeclarationRole::AllocationAbort => return None,
+        crate::semantics::TrustedDeclarationRole::IndependentFallibleError => {
+            return matches!(return_type, Type::Fallible { .. }).then(|| {
+                ValueProvenance::Fallible {
+                    success: None,
+                    error: Some(Box::new(ValueProvenance::Independent)),
+                }
+            });
+        }
+    };
+
+    Some(match return_type {
+        Type::Fallible { .. } => ValueProvenance::Fallible {
+            success: Some(Box::new(provenance)),
+            error: Some(Box::new(ValueProvenance::Independent)),
+        },
+        _ => provenance,
+    })
+}
+
+fn allocation_source_provenance_for_call_input(
+    source: InputId,
+    call: &crate::ast::CallExpr,
+    signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+) -> Option<ValueProvenance> {
+    let index = signature
+        .signature
+        .parameters
+        .iter()
+        .position(|parameter| InputId::declared_at(parameter.name_span) == source)?;
+    let argument = call.arguments.get(index)?;
+    let argument = match unwrap_group(argument) {
+        Expr::Borrow(borrow) => &borrow.expression,
+        argument => argument,
+    };
+    value_provenance_for_call_input(
+        argument,
+        resolved,
+        environment,
+        borrow_provenance,
+        summaries,
+    )
 }
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
@@ -426,6 +543,10 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_call_summary(
                     StorageOrigin::Static => {
                         merge_provenance(&mut provenance, Some(ValueProvenance::static_storage()))
                     }
+                    StorageOrigin::CurrentAllocationContext => merge_provenance(
+                        &mut provenance,
+                        Some(borrow_provenance.current_allocation_context_provenance()),
+                    ),
                     StorageOrigin::Input(source) => merge_provenance(
                         &mut provenance,
                         borrow_return_provenance_for_call_input(

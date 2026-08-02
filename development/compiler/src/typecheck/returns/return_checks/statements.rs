@@ -383,6 +383,10 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 crate::typecheck::regions::region_binding_type(statement, resolved, environment),
             );
             let mut body_borrow_provenance = borrow_provenance.clone();
+            body_borrow_provenance.enter_region(
+                crate::typecheck::regions::region_id(statement),
+                format!("region `{}`", statement.name),
+            );
             body_borrow_provenance.define_binding(
                 statement.name_span,
                 true,

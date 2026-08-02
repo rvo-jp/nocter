@@ -3389,6 +3389,67 @@ func main(): i32 {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
+#[test]
+fn distributed_std_rejects_indirect_region_string_escapes() {
+    let project = TempProject::new("distributed-home-region-string-escape-check");
+    let source = project.write_source(
+        "region_string_escape.nct",
+        r#"use std/mem.page_allocator
+
+struct Holder {
+    text: String
+}
+
+func leak_struct(): Holder {
+    var arena = page_allocator()
+    region temporary using arena {
+        return Holder { text: String.from_str("struct") }
+    }
+}
+
+func leak_optional(): String? {
+    var arena = page_allocator()
+    region temporary using arena {
+        return String.from_str("optional")
+    }
+}
+
+func leak_error_view(): i32! {
+    var arena = page_allocator()
+    region temporary using arena {
+        let text = String.from_str("error")
+        return Error.new("app.region", text.view())
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert_eq!(
+        stderr.matches("error[E0436]").count(),
+        3,
+        "expected one region escape diagnostic per wrapper shape:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("region `temporary`") && stderr.contains("region ends before"),
+        "expected source-backed region origin details:\n{stderr}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_io_top_level_read_write_runs() {

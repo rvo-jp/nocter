@@ -55,6 +55,7 @@ impl Ord for InputId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::typecheck) enum StorageOrigin {
     Static,
+    CurrentAllocationContext,
     Input(InputId),
     Scope {
         binding: ByteSpan,
@@ -109,6 +110,10 @@ impl ValueProvenance {
         Self::Origins(vec![StorageOrigin::Static])
     }
 
+    pub(in crate::typecheck) fn current_allocation_context() -> Self {
+        Self::Origins(vec![StorageOrigin::CurrentAllocationContext])
+    }
+
     pub(in crate::typecheck) fn input(input: InputId) -> Self {
         Self::Origins(vec![StorageOrigin::Input(input)])
     }
@@ -137,7 +142,9 @@ impl ValueProvenance {
                 StorageOrigin::Scope { description, .. } => Some(description.as_str()),
                 StorageOrigin::Region { description, .. } => Some(description.as_str()),
                 StorageOrigin::Unknown => Some("unknown storage"),
-                StorageOrigin::Static | StorageOrigin::Input(_) => None,
+                StorageOrigin::Static
+                | StorageOrigin::CurrentAllocationContext
+                | StorageOrigin::Input(_) => None,
             }),
             Self::Aggregate {
                 fallback,
@@ -401,13 +408,35 @@ impl LexicalRegionTree {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(in crate::typecheck) struct ProvenanceEnvironment {
     bindings: HashMap<ByteSpan, ValueProvenance>,
     known_bindings: HashSet<ByteSpan>,
+    current_region: Option<(RegionId, String)>,
+}
+
+impl Default for ProvenanceEnvironment {
+    fn default() -> Self {
+        Self {
+            bindings: HashMap::new(),
+            known_bindings: HashSet::new(),
+            current_region: None,
+        }
+    }
 }
 
 impl ProvenanceEnvironment {
+    pub(in crate::typecheck) fn enter_region(&mut self, region: RegionId, description: String) {
+        self.current_region = Some((region, description));
+    }
+
+    pub(in crate::typecheck) fn current_allocation_context_provenance(&self) -> ValueProvenance {
+        self.current_region
+            .as_ref()
+            .map(|(region, description)| ValueProvenance::region(*region, description.clone()))
+            .unwrap_or_else(ValueProvenance::current_allocation_context)
+    }
+
     pub(in crate::typecheck) fn get(&self, binding: ByteSpan) -> Option<&ValueProvenance> {
         self.bindings.get(&binding)
     }

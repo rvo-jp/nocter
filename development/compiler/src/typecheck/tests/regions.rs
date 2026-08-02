@@ -4,7 +4,9 @@ use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
-use crate::semantics::{AllocatorCapabilityKind, TrustedDeclarationRole};
+use crate::semantics::{
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole,
+};
 use crate::source::SourceMap;
 
 fn check_text(text: &str) -> Vec<Diagnostic> {
@@ -21,14 +23,33 @@ fn check_text_with_trusted_allocator(text: &str, trust_allocator: bool) -> Vec<D
     let ast = parsed.ast.unwrap();
     let mut resolved = resolve(&sources, &ast);
     for item in &ast.items {
-        if trust_allocator
-            && let Item::Struct(struct_) = item
-            && struct_.name == "Arena"
-        {
-            resolved.trusted_declarations.insert(
-                struct_.span,
-                TrustedDeclarationRole::AllocatorCapability(AllocatorCapabilityKind::Aborting),
-            );
+        if trust_allocator {
+            match item {
+                Item::Struct(struct_) if struct_.name == "Arena" => {
+                    resolved.trusted_declarations.insert(
+                        struct_.span,
+                        TrustedDeclarationRole::AllocatorCapability(
+                            AllocatorCapabilityKind::Aborting,
+                        ),
+                    );
+                }
+                Item::Primitive(primitive) if primitive.name == "current_allocator_state" => {
+                    resolved.trusted_declarations.insert(
+                        primitive.name_span,
+                        TrustedDeclarationRole::CurrentAllocationContext,
+                    );
+                }
+                Item::Function(function) if function.name == "allocate" => {
+                    resolved.trusted_declarations.insert(
+                        function.name_span,
+                        TrustedDeclarationRole::AllocationOperation {
+                            source: AllocationSource::Input(0),
+                            failure_policy: AllocationFailurePolicy::Abort,
+                        },
+                    );
+                }
+                _ => {}
+            }
         }
     }
     let mut diagnostics = resolved.diagnostics.clone();
@@ -270,4 +291,83 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0436");
+}
+
+#[test]
+fn diagnoses_owned_storage_from_transitive_current_allocation_context() {
+    let diagnostics = check_text(
+        r#"copy struct Arena {
+    id: usize
+}
+
+struct Buffer {
+    id: usize
+}
+
+struct Text {
+    buffer: Buffer
+}
+
+primitive current_allocator_state(): usize
+
+func current_allocator(): Arena {
+    return Arena { id: current_allocator_state() }
+}
+
+func allocate(allocator: &+Arena): Buffer {
+    return Buffer { id: allocator.id }
+}
+
+func make_text(): Text {
+    var allocator = current_allocator()
+    var text = Text { buffer: allocate(&+allocator) }
+    return move text
+}
+
+func leak(parent: Arena): Text {
+    region temp using parent {
+        return make_text()
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+    assert!(diagnostics[0].message.contains("region `temp`"));
+}
+
+#[test]
+fn diagnoses_region_storage_in_bare_fallible_error_return() {
+    let diagnostics = check_text(
+        r#"copy struct Arena {
+    id: usize
+}
+
+primitive current_allocator_state(): usize
+primitive error_from_state(state: usize): error
+
+func current_error(): error {
+    return error_from_state(current_allocator_state())
+}
+
+func leak(parent: Arena): i32! {
+    region temp using parent {
+        return current_error()
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+    assert!(diagnostics[0].message.contains("region `temp`"));
 }

@@ -10,6 +10,9 @@ pub(crate) fn trusted_declarations_for_module(
     module_path: &str,
     ast: &AstFile,
 ) -> TrustedDeclarationFacts {
+    if module_path == "std/io" {
+        return super::trusted_io::trusted_io_declarations(ast);
+    }
     let mut facts = TrustedDeclarationFacts::default();
     if module_path != "std/mem" {
         return facts;

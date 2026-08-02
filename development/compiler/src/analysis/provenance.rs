@@ -63,6 +63,7 @@ fn value_label(sources: &SourceMap, value: &ValueProvenanceFact) -> String {
 fn origin_label(sources: &SourceMap, origin: &StorageOriginFact) -> String {
     match origin {
         StorageOriginFact::Static => "static storage".to_string(),
+        StorageOriginFact::CurrentAllocationContext => "the current allocation context".to_string(),
         StorageOriginFact::Input(span) => {
             format!("input `{}`", span_label(sources, *span, "parameter"))
         }
