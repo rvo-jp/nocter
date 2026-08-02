@@ -6,6 +6,10 @@ use crate::source::SourceMap;
 const REGION_ALLOCATOR_PLACEHOLDER: &str = "__nocter_region_allocator_placeholder";
 
 pub(crate) fn region_recovery_text(text: &str, offset: usize) -> Option<String> {
+    region_recovery_overlay(text, offset).map(|(text, _)| text)
+}
+
+pub(crate) fn region_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
     if offset > text.len() || !text.is_char_boundary(offset) {
         return None;
     }
@@ -40,7 +44,7 @@ pub(crate) fn region_recovery_text(text: &str, offset: usize) -> Option<String> 
         let mut recovered = String::with_capacity(text.len() + missing);
         recovered.push_str(text);
         recovered.extend(std::iter::repeat_n('}', missing));
-        return Some(recovered);
+        return Some((recovered, offset));
     }
 
     let allocator_tokens = tokens
@@ -58,6 +62,7 @@ pub(crate) fn region_recovery_text(text: &str, offset: usize) -> Option<String> 
         == Some(b'{');
 
     let mut insertion = String::new();
+    let mut recovered_offset = offset;
     if needs_placeholder {
         if allocator_tokens.is_empty()
             && text
@@ -67,6 +72,7 @@ pub(crate) fn region_recovery_text(text: &str, offset: usize) -> Option<String> 
                 .is_some_and(|byte| !byte.is_ascii_whitespace())
         {
             insertion.push(' ');
+            recovered_offset += 1;
         }
         insertion.push_str(REGION_ALLOCATOR_PLACEHOLDER);
     }
@@ -83,7 +89,7 @@ pub(crate) fn region_recovery_text(text: &str, offset: usize) -> Option<String> 
     recovered.push_str(&insertion);
     recovered.push_str(&text[offset..]);
     recovered.extend(std::iter::repeat_n('}', missing));
-    Some(recovered)
+    Some((recovered, recovered_offset))
 }
 
 fn latest_keyword_before(tokens: &[Token], keyword: Keyword, offset: usize) -> Option<usize> {

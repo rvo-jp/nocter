@@ -3,10 +3,15 @@
 const COMPLETION_PLACEHOLDER_IDENT: &str = "__nocter_completion_placeholder";
 
 pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<String> {
+    completion_recovery_overlay(text, offset).map(|(text, _)| text)
+}
+
+pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
     incomplete_member_completion_text(text, offset)
         .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
         .or_else(|| incomplete_import_symbol_completion_text(text, offset))
-        .or_else(|| super::region_recovery::region_recovery_text(text, offset))
+        .map(|text| (text, offset))
+        .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
 }
 
 fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option<String> {

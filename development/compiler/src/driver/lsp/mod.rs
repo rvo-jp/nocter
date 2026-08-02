@@ -365,8 +365,8 @@ impl LspServer {
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
                 module_completion_items(document, &self.workspace_roots, offset)
-                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
                     .or_else(|| self.workspace_completion_for_recovered_uri(&uri, &position))
+                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
                     .or_else(|| completion_items_for_document_at_offset(document, offset))
             })
             .unwrap_or_else(keyword_completion_items);
@@ -494,7 +494,8 @@ impl LspServer {
     ) -> Option<Vec<Value>> {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let recovered = crate::analysis::completion_recovery_text(&document.text, offset)?;
+        let (recovered, recovered_offset) =
+            crate::analysis::completion_recovery_overlay(&document.text, offset)?;
         let source_root = source_root_for_document(document, &self.workspace_roots);
         let workspace = workspace_analysis_with_recovered_document(
             uri,
@@ -507,7 +508,7 @@ impl LspServer {
             &workspace.sources,
             &workspace.analysis,
             file,
-            offset,
+            recovered_offset,
         ))
     }
 

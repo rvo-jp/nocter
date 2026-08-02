@@ -21,7 +21,7 @@ pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub(crate) use completion_recovery::{completion_recovery_text, signature_recovery_text};
+pub(crate) use completion_recovery::{completion_recovery_overlay, signature_recovery_text};
 pub(crate) use region_recovery::region_recovery_text;
 mod visible_locals;
 
