@@ -578,22 +578,37 @@ impl LspServer {
     ) -> Option<crate::analysis::signature_help::SignatureHelpInfo> {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let recovered = crate::analysis::literal_recovery_text(&document.text, offset)
-            .or_else(|| crate::analysis::signature_recovery_text(&document.text, offset))?;
         let source_root = source_root_for_document(document, &self.workspace_roots);
-        let workspace = workspace_analysis_with_recovered_document(
-            uri,
-            &self.documents,
-            recovered,
-            source_root,
-        )?;
-        let file = workspace.root_file()?;
-        crate::analysis::signature_help::signature_help_for_file_analysis(
-            &workspace.sources,
-            &workspace.analysis,
-            file,
-            offset,
-        )
+        let recoveries = crate::analysis::literal_recovery_text(&document.text, offset)
+            .into_iter()
+            .chain(crate::analysis::signature_recovery_texts(
+                &document.text,
+                offset,
+            ));
+        for recovered in recoveries {
+            let Some(workspace) = workspace_analysis_with_recovered_document(
+                uri,
+                &self.documents,
+                recovered,
+                source_root.clone(),
+            ) else {
+                continue;
+            };
+            let Some(file) = workspace.root_file() else {
+                continue;
+            };
+            if let Some(signature) =
+                crate::analysis::signature_help::signature_help_for_file_analysis(
+                    &workspace.sources,
+                    &workspace.analysis,
+                    file,
+                    offset,
+                )
+            {
+                return Some(signature);
+            }
+        }
+        None
     }
 
     fn with_workspace_file_for_uri<T>(

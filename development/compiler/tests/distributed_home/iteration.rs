@@ -46,7 +46,6 @@ func main(): i32 {
     let left = iterator.remaining()
     return 0
 }
-
 "#,
     );
 
@@ -62,6 +61,39 @@ func main(): i32 {
     assert!(stderr.contains("error[E0434]"), "{stderr}");
     assert!(
         stderr.contains("values") && stderr.contains("iterator"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn distributed_std_iterator_element_borrow_keeps_the_source_loan_active() {
+    let project = TempProject::new("distributed-home-readonly-iterator-element-borrow");
+    let source = project.write_source(
+        "readonly_iterator_element_borrow.nct",
+        r#"use std/vec.Vec
+
+func read(value: &i32): void {
+    return
+}
+
+func main(): i32 {
+    var values: Vec<i32> = Vec [1, 2, 3]
+    var iterator = values.iter()
+    let item = iterator.next() otherwise { return 1 }
+    drop iterator
+    values.push(4)
+    read(item)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0434]"), "{stderr}");
+    assert!(
+        stderr.contains("values") && stderr.contains("item"),
         "{stderr}"
     );
 }
@@ -262,6 +294,76 @@ func main(): i32! {
     );
 
     let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_i32_iteration_preserves_storage_and_source_order() {
+    let project = TempProject::new("distributed-home-readonly-i32-iterator-run");
+    let home = project.root().join(".nocter");
+    copy_tree(&distributed_home(), &home);
+    let vec_module = home.join("std/vec.nct");
+    let vec_source = fs::read_to_string(&vec_module).unwrap();
+    fs::write(
+        &vec_module,
+        format!(
+            "{vec_source}\n\npub func storage_address<T>(values: &Vec<T>): usize {{\n    return addr(values.storage.ptr)\n}}\n"
+        ),
+    )
+    .unwrap();
+    let source = project.write_source(
+        "readonly_i32_iterator_run.nct",
+        r#"use std/ptr.{addr, from_ref}
+use std/vec.{Vec, storage_address}
+
+func main(): i32 {
+    let values: Vec<i32> = Vec [4, 11, 27]
+    let before = storage_address(&values)
+    let observed = values.view()
+    var iterator = values.iter()
+    var index: usize = 0
+    loop {
+        let item = iterator.next() otherwise { break }
+        if index >= observed.len() {
+            return 1
+        }
+        let item_pointer = from_ref(item)
+        let item_address = addr(item_pointer)
+        let expected_address = before + index * 4
+        if item_address != expected_address {
+            return 2
+        }
+        index = index + 1
+    }
+    if index != 3 || iterator.remaining() != 0 {
+        return 3
+    }
+    if storage_address(&values) != before {
+        return 4
+    }
+    if observed[0] != 4 || observed[1] != 11 || observed[2] != 27 {
+        return 5
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", home)
+        .output()
+        .unwrap();
     assert_eq!(
         output.status.code(),
         Some(42),

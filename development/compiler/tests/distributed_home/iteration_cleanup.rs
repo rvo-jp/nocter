@@ -26,6 +26,15 @@ func leak_owned(): VecIntoIter<i32> {
     }
 }
 
+func leak_element(): &i32 {
+    let arena = page_allocator()
+    region temporary using arena {
+        let values = Vec [1, 2, 3]
+        var iterator = values.iter()
+        return iterator.next() otherwise { return &values.view()[0] }
+    }
+}
+
 func main(): i32 {
     return 0
 }
@@ -41,7 +50,7 @@ func main(): i32 {
         text(&output.stderr)
     );
     let stderr = text(&output.stderr);
-    assert_eq!(stderr.matches("error[E0436]").count(), 2, "{stderr}");
+    assert_eq!(stderr.matches("error[E0436]").count(), 3, "{stderr}");
     assert!(stderr.contains("region `temporary`"), "{stderr}");
 }
 

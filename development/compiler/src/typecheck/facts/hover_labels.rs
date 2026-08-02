@@ -344,8 +344,10 @@ pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
             format!("[{}; {}]", type_hover_label(element, resolved), length)
         }
         Type::Pointer(inner) => format!("*{}", type_hover_label(inner, resolved)),
-        Type::Optional(inner) => format!("{}?", type_hover_label(inner, resolved)),
-        Type::Fallible { success, .. } => format!("{}!", type_hover_label(success, resolved)),
+        Type::Optional(inner) => format!("{}?", suffix_operand_hover_label(inner, resolved)),
+        Type::Fallible { success, .. } => {
+            format!("{}!", suffix_operand_hover_label(success, resolved))
+        }
         Type::Named(name) => {
             if let Some(inner) = name.strip_prefix("&+") {
                 format!(
@@ -373,6 +375,17 @@ pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
         Type::Parameter(name) => name.clone(),
         Type::Unresolved(name) => name.clone(),
         Type::Unknown => "<unknown>".to_string(),
+    }
+}
+
+fn suffix_operand_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
+    let label = type_hover_label(ty, resolved);
+    if matches!(ty, Type::Str | Type::View { .. })
+        || matches!(ty, Type::Named(name) if name.starts_with('&'))
+    {
+        format!("({label})")
+    } else {
+        label
     }
 }
 

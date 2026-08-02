@@ -48,31 +48,56 @@ fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option
     Some(recovered)
 }
 
+#[cfg(test)]
 pub(crate) fn signature_recovery_text(text: &str, offset: usize) -> Option<String> {
+    signature_recovery_texts(text, offset).into_iter().next()
+}
+
+/// Returns parseable call overlays in decreasing likelihood order.
+///
+/// An empty active argument is ambiguous: it can be the missing argument of a
+/// non-empty callable or an unfinished zero-parameter call. Trying both keeps
+/// recovery syntax-driven instead of teaching it callable names or arities.
+pub(crate) fn signature_recovery_texts(text: &str, offset: usize) -> Vec<String> {
     if offset > text.len() || !text.is_char_boundary(offset) {
-        return None;
+        return Vec::new();
     }
     let unmatched = unmatched_parentheses_before(text, offset);
-    let call_open = unmatched.last().copied()?;
+    let Some(call_open) = unmatched.last().copied() else {
+        return Vec::new();
+    };
     if !parenthesis_follows_callable(text, call_open) {
-        return None;
+        return Vec::new();
     }
 
     let needs_argument =
         previous_non_whitespace_byte(text, offset).is_some_and(|byte| matches!(byte, b'(' | b','));
-    let mut insertion = String::new();
+    let closing = ")".repeat(unmatched.len());
+    let mut insertions = Vec::new();
     if needs_argument {
-        insertion.push('0');
+        insertions.push(format!("0{closing}"));
     }
-    for _ in 0..unmatched.len() {
-        insertion.push(')');
-    }
+    insertions.push(closing);
 
-    let mut recovered = String::with_capacity(text.len() + insertion.len());
-    recovered.push_str(&text[..offset]);
-    recovered.push_str(&insertion);
-    recovered.push_str(&text[offset..]);
-    Some(recovered)
+    insertions
+        .into_iter()
+        .map(|insertion| {
+            let mut recovered = String::with_capacity(text.len() + insertion.len());
+            recovered.push_str(&text[..offset]);
+            recovered.push_str(&insertion);
+            recovered.push_str(&text[offset..]);
+            recovered
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn signature_recovery_text_without_placeholder(text: &str, offset: usize) -> Option<String> {
+    let recoveries = signature_recovery_texts(text, offset);
+    if recoveries.len() < 2 {
+        return None;
+    }
+    recoveries.into_iter().nth(1)
 }
 
 fn unmatched_parentheses_before(text: &str, offset: usize) -> Vec<usize> {
@@ -231,6 +256,16 @@ mod tests {
         let recovered = signature_recovery_text(text, offset).expect("expected recovery");
 
         assert!(recovered.contains("add(20, 0)\n"), "{recovered}");
+    }
+
+    #[test]
+    fn also_closes_an_empty_zero_parameter_call_without_an_argument() {
+        let text = "func main(): i32 {\n    return iterator.next(\n}\n";
+        let offset = text.find("next(").unwrap() + "next(".len();
+        let recovered = signature_recovery_text_without_placeholder(text, offset)
+            .expect("expected zero-parameter recovery");
+
+        assert!(recovered.contains("iterator.next()\n"), "{recovered}");
     }
 
     #[test]

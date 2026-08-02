@@ -3,6 +3,8 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
+mod iteration;
+
 #[test]
 fn decodes_file_uri_percent_encoding() {
     assert_eq!(
