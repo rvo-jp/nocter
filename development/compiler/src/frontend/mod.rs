@@ -234,6 +234,18 @@ pub(crate) fn load_compile_unit(
         .and_then(|home| home.as_ref().ok())
         .map(|home| canonicalize_existing(home));
 
+    let trusted_modules = files
+        .iter()
+        .filter_map(|ast| {
+            trusted_module_path(sources, ast.span.source, options, &mut resolved_nocter_home)
+                .map(|path| (path, ast))
+        })
+        .collect();
+    crate::target::trusted_interpolation::attach_interpolation_runtime(
+        &trusted_modules,
+        &mut trusted_declarations,
+    );
+
     Ok(CompileUnit::new(
         root_ast,
         files,

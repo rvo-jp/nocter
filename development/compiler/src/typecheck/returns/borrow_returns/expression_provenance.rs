@@ -62,6 +62,9 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_expression(
             summaries,
         ),
         Expr::StringLiteral(_) => Some(ValueProvenance::static_storage()),
+        Expr::InterpolatedString(_) => {
+            Some(borrow_provenance.current_allocation_context_provenance())
+        }
         Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
         | Expr::BoolLiteral(_)

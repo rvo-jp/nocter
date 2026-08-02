@@ -1,7 +1,6 @@
 use super::diagnostics::interpolated_string_part_type_unsupported_diagnostic;
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
-use super::numeric::is_integer_type;
 use super::operations::is_bool_type;
 use crate::ast::{InterpolatedStringExpr, InterpolatedStringPart};
 use crate::diagnostics::Diagnostic;
@@ -9,10 +8,7 @@ use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 
 pub(super) fn interpolated_string_type(resolved: &ResolveOutput) -> Type {
-    Type::Fallible {
-        success: Box::new(string_type(resolved)),
-        error: Box::new(Type::Error),
-    }
+    string_type(resolved)
 }
 
 pub(super) fn check_interpolated_string_expression(
@@ -31,7 +27,7 @@ pub(super) fn check_interpolated_string_expression(
             continue;
         }
 
-        if !is_supported_interpolation_type(&actual, resolved) {
+        if interpolation_input_kind(&actual, resolved).is_none() {
             diagnostics.push(interpolated_string_part_type_unsupported_diagnostic(
                 sources, part, &actual,
             ));
@@ -40,17 +36,33 @@ pub(super) fn check_interpolated_string_expression(
 }
 
 fn string_type(resolved: &ResolveOutput) -> Type {
-    resolved
-        .type_symbol_by_name("String")
+    runtime_string_symbol(resolved)
         .map(|symbol| Type::Named(symbol.canonical_name.clone()))
         .unwrap_or_else(|| Type::Unresolved("String".to_string()))
 }
 
-fn is_supported_interpolation_type(ty: &Type, resolved: &ResolveOutput) -> bool {
-    matches!(ty, Type::Str)
-        || is_integer_type(ty)
-        || is_bool_type(ty)
-        || is_string_type(ty, resolved)
+pub(super) fn interpolation_input_kind(
+    ty: &Type,
+    resolved: &ResolveOutput,
+) -> Option<crate::semantics::InterpolationInputKind> {
+    use crate::semantics::InterpolationInputKind;
+
+    if matches!(ty, Type::Str) {
+        return Some(InterpolationInputKind::Str);
+    }
+    if matches!(ty, Type::I32) {
+        return Some(InterpolationInputKind::I32);
+    }
+    if matches!(ty, Type::Primitive(name) if name == "u8") {
+        return Some(InterpolationInputKind::U8);
+    }
+    if matches!(ty, Type::Primitive(name) if name == "usize") {
+        return Some(InterpolationInputKind::Usize);
+    }
+    if is_bool_type(ty) {
+        return Some(InterpolationInputKind::Bool);
+    }
+    is_string_type(ty, resolved).then_some(InterpolationInputKind::String)
 }
 
 fn is_string_type(ty: &Type, resolved: &ResolveOutput) -> bool {
@@ -58,7 +70,18 @@ fn is_string_type(ty: &Type, resolved: &ResolveOutput) -> bool {
         return false;
     };
 
-    resolved
-        .type_symbol_by_name("String")
-        .is_some_and(|symbol| symbol.canonical_name == canonical_name)
+    runtime_string_symbol(resolved).is_some_and(|symbol| symbol.canonical_name == canonical_name)
+}
+
+fn runtime_string_symbol(resolved: &ResolveOutput) -> Option<&crate::resolve::TypeSymbol> {
+    let declaration = resolved
+        .trusted_declarations
+        .interpolation_runtime()?
+        .string_type_declaration;
+    resolved.symbols.symbols().find_map(|symbol| {
+        let crate::resolve::SymbolKind::Type(type_symbol) = &symbol.kind else {
+            return None;
+        };
+        (symbol.declaration_span == declaration).then_some(type_symbol)
+    })
 }

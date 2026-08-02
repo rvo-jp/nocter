@@ -53,8 +53,9 @@ mod tests;
 pub(crate) use collector::collect_typecheck_facts;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
-    TypeReferenceFact, TypecheckFacts, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSliceElementKind,
+    TypeReferenceFact, TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSliceElementKind,
 };
 
 use hover_labels::*;

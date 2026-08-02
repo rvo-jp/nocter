@@ -1,6 +1,52 @@
 use super::*;
 
 impl TypecheckFactCollector<'_> {
+    pub(in crate::typecheck::facts::collector) fn record_interpolation_plan(
+        &mut self,
+        expression: &crate::ast::InterpolatedStringExpr,
+        environment: &TypeEnvironment,
+    ) {
+        let Some(runtime) = self.resolved.trusted_declarations.interpolation_runtime() else {
+            return;
+        };
+        let mut parts = Vec::with_capacity(expression.parts.len());
+        for part in &expression.parts {
+            let (span, expression_span, input) = match part {
+                crate::ast::InterpolatedStringPart::Text(text) => (
+                    text.span,
+                    None,
+                    crate::semantics::InterpolationInputKind::Str,
+                ),
+                crate::ast::InterpolatedStringPart::Expression(part) => {
+                    let ty = expression_type(&part.expression, self.resolved, environment);
+                    let Some(input) =
+                        crate::typecheck::strings::interpolation_input_kind(&ty, self.resolved)
+                    else {
+                        return;
+                    };
+                    (part.span, Some(part.expression_span), input)
+                }
+            };
+            let Some(formatter) = runtime.formatter(input).cloned() else {
+                return;
+            };
+            parts.push(TypecheckInterpolationPart {
+                span,
+                expression_span,
+                input,
+                formatter,
+            });
+        }
+        self.facts.interpolation_plans.insert(
+            expression.span,
+            TypecheckInterpolationPlan {
+                string_type_declaration: runtime.string_type_declaration,
+                constructor: runtime.constructor.clone(),
+                parts,
+            },
+        );
+    }
+
     pub(in crate::typecheck::facts::collector) fn record_type_reference(
         &mut self,
         name: &str,

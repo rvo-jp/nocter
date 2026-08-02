@@ -12,7 +12,7 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::provenance::{CallableId, CallableProvenanceSummaries};
 use super::regions::region_binding_type;
-use crate::ast::{Block, Expr, ImplMember, InterpolatedStringPart, Item, Stmt};
+use crate::ast::{Block, Expr, ImplMember, Item, Stmt};
 use crate::resolve::ResolveOutput;
 use crate::semantics::{AllocationSource, AllocatorCapabilityKind, TrustedDeclarationRole};
 
@@ -408,17 +408,7 @@ fn expression_needs_current_allocation_context(
                     )
                 })
         }
-        Expr::InterpolatedString(expression) => expression.parts.iter().any(|part| match part {
-            InterpolatedStringPart::Text(_) => false,
-            InterpolatedStringPart::Expression(part) => {
-                expression_needs_current_allocation_context(
-                    &part.expression,
-                    resolved,
-                    environment,
-                    summaries,
-                )
-            }
-        }),
+        Expr::InterpolatedString(_) => true,
         Expr::ArrayLiteral(expression) => expression.elements.iter().any(|element| {
             expression_needs_current_allocation_context(element, resolved, environment, summaries)
         }),

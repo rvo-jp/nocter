@@ -7,7 +7,9 @@ use crate::ast::{
     TypeReference, UnaryExpr,
 };
 use crate::lexer::{Keyword, Token, TokenKind, lex_span};
-use crate::literals::{StringLiteralPartSpan, string_literal_parts};
+use crate::literals::{
+    StringLiteralPartSpan, decode_interpolated_text_part, string_literal_parts,
+};
 use crate::source::ByteSpan;
 
 impl Parser<'_> {
@@ -519,9 +521,19 @@ impl Parser<'_> {
         for part in parts {
             match part {
                 StringLiteralPartSpan::Text { start, end } => {
+                    let decoded = match decode_interpolated_text_part(&value, start, end) {
+                        Ok(decoded) => decoded,
+                        Err(message) => {
+                            self.error_at(
+                                self.span(token.span.start + start, token.span.start + end),
+                                message,
+                            );
+                            return Err(());
+                        }
+                    };
                     ast_parts.push(InterpolatedStringPart::Text(InterpolatedStringText {
                         span: self.span(token.span.start + start, token.span.start + end),
-                        value: value.get(start..end).unwrap_or("").to_string(),
+                        value: decoded,
                     }));
                 }
                 StringLiteralPartSpan::Interpolation {

@@ -291,6 +291,7 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Expr::InterpolatedString(expression) => {
+                self.record_interpolation_plan(expression, environment);
                 for part in &expression.parts {
                     if let InterpolatedStringPart::Expression(part) = part {
                         self.collect_expression_facts_in_context(

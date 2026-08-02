@@ -5,6 +5,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_type_labels: HashMap<ByteSpan, String>,
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
+    pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -41,6 +42,13 @@ impl TypecheckFacts {
 
     pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
         self.expression_type_exprs.get(&expression_span)
+    }
+
+    pub(crate) fn interpolation_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<&TypecheckInterpolationPlan> {
+        self.interpolation_plans.get(&expression_span)
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -271,6 +279,21 @@ impl TypecheckFacts {
             .min_by_key(|(span, _)| (span.len(), span.start))
             .map(|(span, target)| (*span, *target))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckInterpolationPlan {
+    pub(crate) string_type_declaration: ByteSpan,
+    pub(crate) constructor: crate::semantics::RuntimeCallable,
+    pub(crate) parts: Vec<TypecheckInterpolationPart>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckInterpolationPart {
+    pub(crate) span: ByteSpan,
+    pub(crate) expression_span: Option<ByteSpan>,
+    pub(crate) input: crate::semantics::InterpolationInputKind,
+    pub(crate) formatter: crate::semantics::RuntimeCallable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
