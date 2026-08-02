@@ -17,7 +17,7 @@ use super::signatures::{
 use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
     AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, InterfaceDecl, Item,
-    Parameter, PrimitiveDecl, StructDecl,
+    MethodReceiver, Parameter, PrimitiveDecl, StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -526,7 +526,7 @@ fn duplicate_interface_method_name_diagnostics(
 fn duplicate_method_parameter_name_diagnostics(
     sources: &SourceMap,
     subject: &str,
-    receiver: &Parameter,
+    receiver: &MethodReceiver,
     parameters: &[Parameter],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();

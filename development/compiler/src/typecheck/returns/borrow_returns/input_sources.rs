@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::typecheck::returns) fn method_receiver_is_borrow(
     method: &crate::resolve::MethodSignature,
 ) -> bool {
-    matches!(&method.receiver.ty, TypeExpr::Borrow(_))
+    method.receiver.mode != MethodReceiverMode::Owned
 }
 
 pub(in crate::typecheck::returns) fn borrow_return_provenance_for_borrowed_input(

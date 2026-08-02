@@ -284,10 +284,16 @@ impl MethodDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let mut children = vec![
             visibility_json(self.visibility),
-            JsonAstNode::new(
+            JsonAstNode::with_value(
                 "method_receiver",
+                self.receiver.mode.label(),
                 json_span(sources, self.receiver.span),
-                vec![self.receiver.to_json(sources)],
+                vec![JsonAstNode::with_value(
+                    "parameter",
+                    self.receiver.name.clone(),
+                    json_span(sources, self.receiver.name_span),
+                    Vec::new(),
+                )],
             ),
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),

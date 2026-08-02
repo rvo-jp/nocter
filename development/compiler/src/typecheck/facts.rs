@@ -28,9 +28,9 @@ use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
     ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, EnumDecl,
     EnumVariant, Expr, FallibleType, GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember,
-    InterpolatedStringPart, Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType,
-    Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchArm,
-    SwitchPayloadBinding, TypeAliasDecl, TypeExpr, TypeReference, ViewType,
+    InterpolatedStringPart, Item, MemberExpr, MethodDecl, MethodReceiverMode, OptionalType,
+    Parameter, PointerType, Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField,
+    SwitchArm, SwitchPayloadBinding, TypeAliasDecl, TypeExpr, TypeReference, ViewType,
     substitute_type_expr_parameters,
 };
 use crate::resolve::{

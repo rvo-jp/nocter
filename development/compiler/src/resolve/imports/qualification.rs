@@ -111,12 +111,6 @@ fn qualify_type_symbol(
                 imported_type_names,
             );
         }
-        qualify_parameter_signature(
-            &mut method.receiver,
-            import_path,
-            local_type_names,
-            imported_type_names,
-        );
         qualify_function_signature(
             &mut method.signature,
             import_path,

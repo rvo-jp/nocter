@@ -1,4 +1,6 @@
-use crate::ast::{BindingKind, CallExpr, Expr, IdentifierExpr, LiteralShape, TypeExpr, Visibility};
+use crate::ast::{
+    BindingKind, CallExpr, Expr, IdentifierExpr, LiteralShape, MethodReceiver, TypeExpr, Visibility,
+};
 use crate::diagnostics::Diagnostic;
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
@@ -496,7 +498,7 @@ pub struct MethodSignature {
     pub visibility: Visibility,
     pub is_accessible: bool,
     pub impl_target_ty: Option<TypeExpr>,
-    pub receiver: ParameterSignature,
+    pub receiver: MethodReceiver,
     pub signature: FunctionSignature,
 }
 

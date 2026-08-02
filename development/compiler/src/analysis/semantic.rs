@@ -440,7 +440,7 @@ mod tests {
         let text = r#"struct File { fd: i32 }
 
 impl File {
-    method self.read(): i32 {
+    method &self.read(): i32 {
         return self.fd
     }
 }

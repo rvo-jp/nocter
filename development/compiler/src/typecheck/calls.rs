@@ -2,8 +2,8 @@ use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
     associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
-    method_readwrite_receiver_requires_var_diagnostic, method_receiver_unsupported_diagnostic,
-    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
+    method_readwrite_receiver_requires_var_diagnostic, method_unknown_diagnostic,
+    non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
@@ -13,7 +13,7 @@ use super::type_expr::{
     type_expr_to_type_with_substitutions,
 };
 use super::visibility::member_visibility_is_accessible;
-use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
+use crate::ast::{CallExpr, Expr, MemberExpr, MethodReceiverMode, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{
     FunctionSignature, MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind,
@@ -283,9 +283,9 @@ pub(super) fn check_method_receiver_call(
         return;
     };
 
-    match method_receiver_kind(method) {
-        Some(MethodReceiverKind::Owned | MethodReceiverKind::ReadonlyBorrow) => {}
-        Some(MethodReceiverKind::ReadwriteBorrow) => {
+    match method.receiver.mode {
+        MethodReceiverMode::Owned | MethodReceiverMode::ReadonlyBorrow => {}
+        MethodReceiverMode::ReadwriteBorrow => {
             if receiver_is_mutable_binding(member, environment) {
                 return;
             }
@@ -294,9 +294,6 @@ pub(super) fn check_method_receiver_call(
                 sources, member, owner, method,
             ));
         }
-        None => diagnostics.push(method_receiver_unsupported_diagnostic(
-            sources, member, owner, method,
-        )),
     }
 }
 
@@ -354,33 +351,6 @@ pub(super) fn check_unresolved_member_call(
         &receiver_type,
         Some(owner),
     ));
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MethodReceiverKind {
-    Owned,
-    ReadonlyBorrow,
-    ReadwriteBorrow,
-}
-
-fn method_receiver_kind(method: &MethodSignature) -> Option<MethodReceiverKind> {
-    match &method.receiver.ty {
-        TypeExpr::Reference(reference) if reference.name == "Self" => {
-            Some(MethodReceiverKind::Owned)
-        }
-        TypeExpr::Borrow(borrow) if type_expr_is_self_reference(&borrow.inner) => {
-            if borrow.is_readwrite {
-                Some(MethodReceiverKind::ReadwriteBorrow)
-            } else {
-                Some(MethodReceiverKind::ReadonlyBorrow)
-            }
-        }
-        _ => None,
-    }
-}
-
-fn type_expr_is_self_reference(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "Self")
 }
 
 fn receiver_is_mutable_binding(member: &MemberExpr, environment: &TypeEnvironment) -> bool {

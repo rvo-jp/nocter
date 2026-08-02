@@ -226,9 +226,10 @@ fn check_method_with_prefix(
     self_type: Option<&Type>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let receiver = method.receiver.implicit_parameter();
     check_parameter_type(
         sources,
-        &method.receiver,
+        &receiver,
         &format!("{prefix} receiver"),
         resolved,
         self_type,

@@ -2,8 +2,8 @@ use super::Formatter;
 use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
     GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
-    LiteralDecl, LiteralShape, MethodDecl, Parameter, ParameterList, PrimitiveDecl, StructDecl,
-    StructField, TypeAliasDecl, Visibility,
+    LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, Parameter, ParameterList, PrimitiveDecl,
+    StructDecl, StructField, TypeAliasDecl, Visibility,
 };
 
 impl Formatter {
@@ -312,8 +312,9 @@ impl Formatter {
         self.write(")");
     }
 
-    fn format_method_receiver(&mut self, receiver: &Parameter) {
-        self.format_self_receiver(receiver);
+    fn format_method_receiver(&mut self, receiver: &MethodReceiver) {
+        self.write(receiver.mode.source_prefix());
+        self.write(&receiver.name);
     }
 
     fn format_self_receiver(&mut self, receiver: &Parameter) {

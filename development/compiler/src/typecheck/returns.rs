@@ -30,7 +30,8 @@ use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_
 use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
     AstFile, Block, Expr, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding, TypeExpr,
+    MethodReceiverMode, PropagationExpr, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding,
+    TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};

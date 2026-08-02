@@ -915,7 +915,7 @@ fn method_parameters(
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
         ty: substitute_type_expr_parameters(
-            &type_expr_with_self_type(&method.receiver.ty, self_ty),
+            &type_expr_with_self_type(&method.receiver.implicit_parameter().ty, self_ty),
             substitutions,
         ),
     });

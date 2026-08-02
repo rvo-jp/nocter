@@ -6,8 +6,8 @@ use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, LiteralShape, MemberExpr, Stmt,
-    StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
+    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, LiteralShape, MemberExpr, MethodReceiverMode,
+    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
@@ -735,7 +735,11 @@ fn method_completion_item(
         let impl_target = substitute_type_expr_parameters(impl_target, &substitutions);
         substitutions.insert("Self".to_string(), impl_target);
     }
-    let receiver = substitute_type_expr_parameters(&method.receiver.ty, &substitutions);
+    let receiver_owner = substitutions
+        .get("Self")
+        .map(|ty| type_expr_presentation_label(ty, resolved))
+        .unwrap_or_else(|| "Self".to_string());
+    let receiver = format!("{}{receiver_owner}", method.receiver.mode.source_prefix());
     let return_type =
         substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
     CompletionItemInfo {
@@ -743,7 +747,7 @@ fn method_completion_item(
         kind: CompletionItemKind::Method,
         detail: Some(format!(
             "method {}.{}({}): {}",
-            type_expr_presentation_label(&receiver, resolved),
+            receiver,
             method.name,
             method
                 .signature
@@ -817,10 +821,10 @@ fn method_receiver_is_available(
     can_readwrite: bool,
     can_move: bool,
 ) -> bool {
-    match &method.receiver.ty {
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => can_readwrite,
-        TypeExpr::Borrow(_) => true,
-        _ => can_move,
+    match method.receiver.mode {
+        MethodReceiverMode::ReadwriteBorrow => can_readwrite,
+        MethodReceiverMode::ReadonlyBorrow => true,
+        MethodReceiverMode::Owned => can_move,
     }
 }
 

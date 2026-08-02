@@ -4,8 +4,8 @@ use super::call_sites::{CallCursorRegion, call_at_offset};
 use super::call_specializations::impl_substitutions_for_self_ty;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    CallExpr, Expr, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Parameter, PrimitiveDecl,
-    TypeExpr, substitute_type_expr_parameters,
+    CallExpr, Expr, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, MethodReceiver,
+    Parameter, PrimitiveDecl, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::source::{ByteSpan, SourceMap};
@@ -316,21 +316,15 @@ fn specialized_callable_name(
 }
 
 fn receiver_presentation(
-    receiver: &Parameter,
+    receiver: &MethodReceiver,
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &crate::resolve::ResolveOutput,
 ) -> String {
-    let ty = substitute_type_expr_parameters(&receiver.ty, substitutions);
-    match ty {
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => format!(
-            "&+{}",
-            type_expr_presentation_label(&borrow.inner, resolved)
-        ),
-        TypeExpr::Borrow(borrow) => {
-            format!("&{}", type_expr_presentation_label(&borrow.inner, resolved))
-        }
-        ty => type_expr_presentation_label(&ty, resolved),
-    }
+    let owner = substitutions
+        .get("Self")
+        .map(|ty| type_expr_presentation_label(ty, resolved))
+        .unwrap_or_else(|| "Self".to_string());
+    format!("{}{owner}", receiver.mode.source_prefix())
 }
 
 fn active_parameter(call: &CallExpr, offset: usize, parameter_count: usize) -> usize {
@@ -405,6 +399,31 @@ pub func identity<T>(value: T): T {
             signature.documentation.as_deref(),
             Some("Returns its input.")
         );
+    }
+
+    #[test]
+    fn presents_method_receiver_as_mode_and_specialized_owner() {
+        let text = r#"struct Box<T> { value: T }
+
+impl<T> Box<T> {
+    method &self.replace(value: T): T {
+        return value
+    }
+}
+
+func main(box: &Box<i32>): i32 {
+    return box.replace(42)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("42").expect("expected method argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected signature help");
+
+        assert_eq!(signature.label, "method &Box<i32>.replace(value: i32): i32");
+        assert_eq!(signature.parameters[0].label, "value: i32");
     }
 
     #[test]

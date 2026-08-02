@@ -20,7 +20,8 @@ use super::returns::{
 };
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
-    AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
+    AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, MethodReceiverMode, Stmt,
+    TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;

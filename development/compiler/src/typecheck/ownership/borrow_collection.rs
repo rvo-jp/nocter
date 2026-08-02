@@ -524,7 +524,7 @@ fn call_input_expression<'a>(
     {
         return method_member_for_call(call).map(|member| CallInput {
             expression: member.object.as_ref(),
-            is_borrowed: matches!(method.receiver.ty, TypeExpr::Borrow(_)),
+            is_borrowed: method.receiver.mode != MethodReceiverMode::Owned,
         });
     }
 
@@ -597,13 +597,13 @@ fn method_borrow_receiver_source(
 ) -> Option<DirectBorrowSource> {
     let method = method_member_for_call(call)?;
     let (_, signature) = resolved_method_for_call(resolved, call, environment)?;
-    let TypeExpr::Borrow(receiver) = &signature.receiver.ty else {
+    if signature.receiver.mode == MethodReceiverMode::Owned {
         return None;
-    };
+    }
     let source = expression_place(&method.object)?;
     Some(DirectBorrowSource {
         source,
         source_span: method.object.span(),
-        is_readwrite: receiver.is_readwrite,
+        is_readwrite: signature.receiver.mode == MethodReceiverMode::ReadwriteBorrow,
     })
 }

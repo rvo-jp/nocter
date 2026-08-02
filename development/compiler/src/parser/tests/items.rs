@@ -2,7 +2,7 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
+use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
 fn parses_hello_entry_function() {
@@ -434,7 +434,7 @@ func main(): i32 {
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert_eq!(method.receiver.name, "self");
-    assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
+    assert_eq!(method.receiver.mode, MethodReceiverMode::ReadwriteBorrow);
     let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
         panic!("expected drop member");
     };
@@ -631,6 +631,26 @@ impl File {
             .message
             .contains("receiver name must be `self`")
     );
+}
+
+#[test]
+fn ast_json_preserves_method_receiver_mode_without_a_synthetic_type() {
+    let (sources, output) = parse_text_with_sources(
+        r#"interface Writer {
+    pub method &+self.write(text: &str): void!
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap().to_json(&sources);
+    let receiver = find_json_node(&ast, "method_receiver").expect("expected method receiver");
+
+    assert_eq!(receiver.value.as_deref(), Some("readwrite_borrow"));
+    assert_eq!(receiver.items.len(), 1);
+    assert_eq!(receiver.items[0].kind, "parameter");
+    assert_eq!(receiver.items[0].value.as_deref(), Some("self"));
+    assert!(receiver.items[0].items.is_empty());
 }
 
 #[test]

@@ -289,7 +289,7 @@ fn method_shape(
 ) -> MethodShape {
     MethodShape {
         receiver: type_expr_to_type_with_substitutions(
-            &method.receiver.ty,
+            &method.receiver.implicit_parameter().ty,
             resolved,
             Some(self_type),
             substitutions,

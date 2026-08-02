@@ -99,11 +99,18 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
-                    if let Some(kind) = method_receiver_kind(&resolved_method.receiver.ty) {
-                        self.facts
-                            .method_call_receiver_kinds
-                            .insert(method.member_span, kind);
-                    }
+                    let kind = match resolved_method.receiver.mode {
+                        MethodReceiverMode::Owned => TypecheckMethodReceiverKind::Owned,
+                        MethodReceiverMode::ReadonlyBorrow => {
+                            TypecheckMethodReceiverKind::ReadonlyBorrow
+                        }
+                        MethodReceiverMode::ReadwriteBorrow => {
+                            TypecheckMethodReceiverKind::ReadwriteBorrow
+                        }
+                    };
+                    self.facts
+                        .method_call_receiver_kinds
+                        .insert(method.member_span, kind);
                     if !resolved_method.signature.generic_parameters.is_empty() {
                         self.facts
                             .generic_method_call_spans

@@ -162,7 +162,6 @@ fn check_method_signature(
     scope: &GenericScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_type_expr(sources, &method.receiver.ty, resolved, scope, diagnostics);
     check_parameters(
         sources,
         &method.parameters.parameters,

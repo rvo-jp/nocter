@@ -39,8 +39,9 @@ pub(super) fn callable_method_signature_issues(
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Vec<BuildabilityIssue> {
+    let receiver = method.receiver.implicit_parameter();
     let mut issues = callable_parameter_issues(
-        std::slice::from_ref(&method.receiver),
+        std::slice::from_ref(&receiver),
         substitutions,
         resolved,
         resolved_sources,

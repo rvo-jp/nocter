@@ -3,11 +3,13 @@
 mod documentation;
 mod json;
 mod literals;
+mod receivers;
 mod types;
 mod visit;
 
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
+pub use receivers::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
 pub(crate) use visit::visit_file_expressions;
 
@@ -207,7 +209,7 @@ pub struct DropDecl {
 pub struct MethodDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
-    pub receiver: Parameter,
+    pub receiver: MethodReceiver,
     pub name: String,
     pub name_span: ByteSpan,
     pub parameters: ParameterList,

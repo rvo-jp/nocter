@@ -219,7 +219,8 @@ pub(in crate::analysis::hover) fn collect_method_hover_symbols(
         ),
         symbols,
     );
-    collect_parameter_hover_symbols(text, std::slice::from_ref(&method.receiver), symbols);
+    let receiver = method.receiver.implicit_parameter();
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&receiver), symbols);
     collect_parameter_hover_symbols(text, &method.parameters.parameters, symbols);
     if let Some(body) = &method.body {
         collect_block_hover_symbols(text, body, symbols);

@@ -176,7 +176,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_method_receiver(&mut self) -> ParseResult<Parameter> {
+    pub(super) fn parse_method_receiver(&mut self) -> ParseResult<MethodReceiver> {
         self.parse_self_receiver("expected `self`, `&self`, or `&+self` receiver after `method`")
     }
 
@@ -193,27 +193,30 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<Parameter> {
+    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<MethodReceiver> {
         let borrow = self
             .match_punctuation("&+")
             .map(|token| (token, true))
             .or_else(|| self.match_punctuation("&").map(|token| (token, false)));
         let self_span = self.expect_self_identifier(message)?;
-        let ty = if let Some((borrow, is_readwrite)) = borrow {
-            TypeExpr::Borrow(BorrowType {
-                span: self.span(borrow.span.start, self_span.end),
-                is_readwrite,
-                inner: Box::new(self_type(self_span)),
-            })
+        let (span, mode) = if let Some((borrow, is_readwrite)) = borrow {
+            (
+                self.span(borrow.span.start, self_span.end),
+                if is_readwrite {
+                    MethodReceiverMode::ReadwriteBorrow
+                } else {
+                    MethodReceiverMode::ReadonlyBorrow
+                },
+            )
         } else {
-            self_type(self_span)
+            (self_span, MethodReceiverMode::Owned)
         };
 
-        Ok(Parameter {
-            span: ty.span(),
+        Ok(MethodReceiver {
+            span,
             name: "self".to_string(),
             name_span: self_span,
-            ty,
+            mode,
         })
     }
 

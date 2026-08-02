@@ -159,7 +159,7 @@ pub(super) fn drop_declaration_hover_label(
 ) -> String {
     format!(
         "drop {}",
-        method_receiver_label(&drop_.binding, resolved, Some(self_type))
+        parameter_receiver_label(&drop_.binding, resolved, Some(self_type))
     )
 }
 
@@ -191,7 +191,7 @@ pub(super) fn method_signature_hover_label(
     let self_type = Type::Named(owner.canonical_name.clone());
     format!(
         "method {}.{}({}): {}",
-        method_signature_receiver_label(&method.receiver, resolved, Some(&self_type)),
+        method_receiver_label(&method.receiver, resolved, Some(&self_type)),
         method.name,
         parameter_signatures_label(&method.signature.parameters, resolved, Some(&self_type)),
         type_label(&method.signature.return_type, resolved, Some(&self_type))
@@ -199,6 +199,18 @@ pub(super) fn method_signature_hover_label(
 }
 
 pub(super) fn method_receiver_label(
+    receiver: &crate::ast::MethodReceiver,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    format!(
+        "{}{}",
+        receiver.mode.source_prefix(),
+        receiver_owner_label(resolved, self_type)
+    )
+}
+
+pub(super) fn parameter_receiver_label(
     receiver: &Parameter,
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
@@ -213,19 +225,10 @@ pub(super) fn method_receiver_label(
     }
 }
 
-pub(super) fn method_signature_receiver_label(
-    receiver: &ParameterSignature,
-    resolved: &ResolveOutput,
-    self_type: Option<&Type>,
-) -> String {
-    if let Some(prefix) = self_receiver_prefix(&receiver.ty) {
-        return format!("{prefix}{}", receiver.name);
-    }
-    format!(
-        "{}: {}",
-        receiver.name,
-        parameter_signature_type_label(receiver, resolved, self_type)
-    )
+fn receiver_owner_label(resolved: &ResolveOutput, self_type: Option<&Type>) -> String {
+    self_type
+        .map(|self_type| type_hover_label(self_type, resolved))
+        .unwrap_or_else(|| "Self".to_string())
 }
 
 pub(super) fn self_receiver_prefix(ty: &TypeExpr) -> Option<&'static str> {

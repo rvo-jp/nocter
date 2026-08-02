@@ -28,7 +28,7 @@ pub(super) fn method_parameters(
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
         ty: type_expr_with_impl_substitutions(
-            &type_expr_with_self_type(&method.receiver.ty, self_ty),
+            &type_expr_with_self_type(&method.receiver.implicit_parameter().ty, self_ty),
             substitutions,
         ),
     });

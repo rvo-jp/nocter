@@ -339,7 +339,7 @@ fn method_signature_inner(
         visibility: method.visibility,
         is_accessible: true,
         impl_target_ty,
-        receiver: parameter_signature(&method.receiver),
+        receiver: method.receiver.clone(),
         signature: callable_signature(
             generics,
             &method.parameters.parameters,

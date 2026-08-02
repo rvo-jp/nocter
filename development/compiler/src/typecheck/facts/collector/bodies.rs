@@ -53,10 +53,8 @@ impl TypecheckFactCollector<'_> {
                         continue;
                     };
                     let mut environment = environment_for_method(method, self.resolved, impl_);
-                    self.record_parameter_bindings(
-                        std::slice::from_ref(&method.receiver),
-                        &environment,
-                    );
+                    let receiver = method.receiver.implicit_parameter();
+                    self.record_parameter_bindings(std::slice::from_ref(&receiver), &environment);
                     self.record_parameter_bindings(&method.parameters.parameters, &environment);
                     let return_type = type_expr_to_type_in_environment(
                         &method.return_type,

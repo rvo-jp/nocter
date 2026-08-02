@@ -162,7 +162,7 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
 
 #[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
-    let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
+    let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method &self.read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.read(1)\n}\n";
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
     let offset = text.find("read(1)").expect("expected method call");
@@ -170,8 +170,29 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "method self.read(amount: i32): i32");
+    assert_eq!(hover.label, "method &File.read(amount: i32): i32");
     assert_eq!(hover.documentation.as_deref(), Some("Reads a count."));
+}
+
+#[test]
+fn method_receiver_hover_uses_binding_name_and_semantic_owner_type() {
+    let text = r#"struct File { fd: i32 }
+
+impl File {
+    method &self.read(): i32 {
+        return self.fd
+    }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("self.read").expect("expected receiver binding");
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "parameter self: &File");
+    assert_eq!(&text[hover.span.start..hover.span.end], "self");
 }
 
 #[test]
