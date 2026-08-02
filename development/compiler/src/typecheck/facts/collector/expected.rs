@@ -20,6 +20,15 @@ impl TypecheckFactCollector<'_> {
         return_type: Option<&Type>,
     ) {
         match expression {
+            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                let ty = crate::typecheck::literals::literal_expression_type_with_expected(
+                    expression,
+                    Some(expected),
+                    self.resolved,
+                    environment,
+                );
+                self.record_expression_type(expression.span(), &ty);
+            }
             Expr::Group(expression) => {
                 self.collect_expected_expression_facts(
                     &expression.expression,
