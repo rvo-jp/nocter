@@ -857,6 +857,54 @@ fn returns_inferred_hover_for_integer_binding() {
 }
 
 #[test]
+fn returns_region_context_in_workspace_hover() {
+    let project = TempProject::new("lsp-hover-region-context");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"copy struct Arena {
+    id: usize
+}
+
+func run(arena: Arena): i32 {
+    region outer using arena {
+        region inner using outer {
+            return 1
+        }
+    }
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        text,
+        text.rfind("outer").expect("expected region reference"),
+    );
+
+    let response = server.hover_response(
+        json!(7),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nregion outer: Arena\n```\n\n**Allocation context:** lexical region `outer` using `arena` (Arena); parent is the root allocation context. Its owned allocations are released when the region exits."
+        )
+    );
+}
+
+#[test]
 fn returns_short_visible_type_names_for_hover() {
     let project = TempProject::new("lsp-hover-short-type-names");
     let home = project.write_nocter_home();

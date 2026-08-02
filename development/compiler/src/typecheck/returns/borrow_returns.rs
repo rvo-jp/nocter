@@ -14,4 +14,4 @@ pub(super) use input_sources::*;
 pub(super) use propagation_collection::*;
 pub(in crate::typecheck) use summaries::callable_provenance_summaries;
 pub(in crate::typecheck) use type_predicates::type_contains_borrow_like;
-pub(super) use type_predicates::type_expr_contains_borrow_like;
+pub(in crate::typecheck) use type_predicates::type_expr_contains_borrow_like;

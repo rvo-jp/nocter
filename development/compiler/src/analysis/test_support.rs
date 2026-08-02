@@ -3,6 +3,9 @@ use crate::ast::{AstFile, Item};
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{ImportAccess, ImportSource};
+use crate::semantics::{
+    AllocationFailurePolicy, AllocationSource, TrustedDeclarationFacts, TrustedDeclarationRole,
+};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::HashMap;
 
@@ -44,6 +47,38 @@ pub(crate) fn analyze_namespace_import_text(
         HashMap::new(),
         None,
     );
+    let analysis = analyze_module_compile_unit(&sources, &unit);
+
+    (sources, analysis)
+}
+
+pub(crate) fn analyze_text_with_trusted_current_allocation_operation(
+    text: &str,
+    primitive_name: &str,
+) -> (SourceMap, CompileUnitAnalysis) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("test.nct", None, text.to_string());
+    let ast = parse_source(&sources, source);
+    let declaration = ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Primitive(primitive) if primitive.name == primitive_name => {
+                Some(primitive.name_span)
+            }
+            _ => None,
+        })
+        .expect("expected trusted allocation primitive");
+    let mut trusted = TrustedDeclarationFacts::default();
+    trusted.insert(
+        declaration,
+        TrustedDeclarationRole::AllocationOperation {
+            source: AllocationSource::CurrentContext,
+            failure_policy: AllocationFailurePolicy::Abort,
+        },
+    );
+    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None)
+        .with_trusted_declarations(trusted);
     let analysis = analyze_module_compile_unit(&sources, &unit);
 
     (sources, analysis)

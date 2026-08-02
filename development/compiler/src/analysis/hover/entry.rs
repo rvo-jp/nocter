@@ -19,12 +19,15 @@ pub(crate) fn hover_for_file_analysis(
         .iter()
         .find(|symbol| span_contains(symbol.name_span, offset))
     {
+        let attached = documentation
+            .get(symbol.name_span.start)
+            .map(str::to_string);
+        let semantic = semantic_documentation(sources, analysis, symbol.name_span);
+        let region = crate::analysis::regions::region_markdown(sources, file, symbol.name_span);
         return Some(HoverInfo {
             span: symbol.name_span,
             label: symbol.label.clone(),
-            documentation: documentation
-                .get(symbol.name_span.start)
-                .map(str::to_string),
+            documentation: combine_documentation(combine_documentation(attached, semantic), region),
         });
     }
 

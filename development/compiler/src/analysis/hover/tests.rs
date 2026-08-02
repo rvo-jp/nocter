@@ -1,5 +1,8 @@
 use super::*;
-use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
+use crate::analysis::test_support::{
+    analyze_namespace_import_text, analyze_text,
+    analyze_text_with_trusted_current_allocation_operation,
+};
 
 #[test]
 fn workspace_hover_uses_typecheck_facts_and_documentation() {
@@ -58,7 +61,10 @@ fn workspace_hover_presents_imported_generic_call_specialization() {
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
     assert_eq!(hover.label, "func identity<i32>(value: i32): i32");
-    assert_eq!(hover.documentation.as_deref(), Some("Returns its input."));
+    assert_eq!(
+        hover.documentation.as_deref(),
+        Some("Returns its input.\n\n**Result provenance:** input `value`.")
+    );
 }
 
 #[test]
@@ -198,4 +204,69 @@ fn workspace_hover_uses_typecheck_facts_for_type_reference() {
 
     assert_eq!(hover.label, "struct Header");
     assert_eq!(hover.documentation.as_deref(), Some("Request header."));
+}
+
+#[test]
+fn workspace_hover_reports_transitive_allocation_effects() {
+    let text = r#"primitive allocate(): usize
+
+/// Builds a value.
+func build(): usize {
+    return allocate()
+}
+
+func main(): i32 {
+    let value = build()
+    return 0
+}
+"#;
+    let (sources, analysis) =
+        analyze_text_with_trusted_current_allocation_operation(text, "allocate");
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("build()").expect("expected call");
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "func build(): usize");
+    assert_eq!(
+        hover.documentation.as_deref(),
+        Some("Builds a value.\n\n**Allocation effect:** uses the current allocation context.")
+    );
+}
+
+#[test]
+fn workspace_hover_reports_lexical_region_context_for_declarations_and_references() {
+    let text = r#"copy struct Arena {
+    id: usize
+}
+
+func run(arena: Arena): i32 {
+    region outer using arena {
+        region inner using outer {
+            return 1
+        }
+    }
+    return 0
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let declaration_offset = text.find("outer using").expect("expected declaration");
+    let declaration = hover_for_file_analysis(&sources, &analysis, file, declaration_offset)
+        .expect("expected declaration hover");
+    assert_eq!(declaration.label, "region outer: Arena");
+    assert_eq!(
+        declaration.documentation.as_deref(),
+        Some(
+            "**Allocation context:** lexical region `outer` using `arena` (Arena); parent is the root allocation context. Its owned allocations are released when the region exits."
+        )
+    );
+
+    let reference_offset = text.rfind("outer").expect("expected reference");
+    let reference = hover_for_file_analysis(&sources, &analysis, file, reference_offset)
+        .expect("expected reference hover");
+    assert_eq!(reference.label, "region outer: Arena");
+    assert_eq!(reference.documentation, declaration.documentation);
 }

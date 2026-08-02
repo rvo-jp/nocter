@@ -24,6 +24,7 @@ mod places;
 mod provenance;
 mod regions;
 mod returns;
+mod semantic_facts;
 mod sized;
 mod strings;
 mod structs;
@@ -49,6 +50,9 @@ pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
     TypecheckSliceElementKind, collect_typecheck_facts, type_expr_presentation_label,
+};
+pub(crate) use semantic_facts::{
+    CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,
 };
 
 pub(crate) fn type_expr_is_assignable(

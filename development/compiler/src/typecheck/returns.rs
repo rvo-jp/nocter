@@ -41,8 +41,9 @@ mod return_checks;
 mod terminal;
 mod utility;
 
-pub(super) use borrow_returns::callable_provenance_summaries;
+pub(in crate::typecheck) use borrow_returns::callable_provenance_summaries;
 pub(in crate::typecheck) use borrow_returns::type_contains_borrow_like;
+pub(in crate::typecheck) use borrow_returns::type_expr_contains_borrow_like;
 use borrow_returns::*;
 use return_checks::*;
 use utility::*;

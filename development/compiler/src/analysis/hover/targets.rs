@@ -11,10 +11,14 @@ pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
         crate::analysis::signature_help::call_signature_at_offset(sources, analysis, file, offset)
         && signature.is_specialized
     {
+        let target = call_target(file, span);
         return Some(HoverInfo {
             span,
             label: signature.label,
-            documentation: signature.documentation,
+            documentation: combine_documentation(
+                signature.documentation,
+                target.and_then(|target| semantic_documentation(sources, analysis, target)),
+            ),
         });
     }
     Some(HoverInfo {
@@ -30,12 +34,43 @@ pub(in crate::analysis::hover) fn call_documentation(
     file: &FileAnalysis,
     call_span: ByteSpan,
 ) -> Option<String> {
-    let target_span = file
-        .typecheck_facts
+    let target_span = call_target(file, call_span)?;
+    combine_documentation(
+        target_documentation(sources, analysis, target_span),
+        semantic_documentation(sources, analysis, target_span),
+    )
+}
+
+pub(in crate::analysis::hover) fn call_target(
+    file: &FileAnalysis,
+    call_span: ByteSpan,
+) -> Option<ByteSpan> {
+    file.typecheck_facts
         .function_call_target(call_span)
         .or_else(|| file.typecheck_facts.method_call_target(call_span))
-        .or_else(|| file.typecheck_facts.associated_function_target(call_span))?;
-    target_documentation(sources, analysis, target_span)
+        .or_else(|| file.typecheck_facts.associated_function_target(call_span))
+}
+
+pub(in crate::analysis::hover) fn semantic_documentation(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    target_span: ByteSpan,
+) -> Option<String> {
+    combine_documentation(
+        crate::analysis::allocation::allocation_effect_markdown(analysis, target_span),
+        crate::analysis::provenance::result_provenance_markdown(sources, analysis, target_span),
+    )
+}
+
+pub(in crate::analysis::hover) fn combine_documentation(
+    first: Option<String>,
+    second: Option<String>,
+) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n\n{second}")),
+        (Some(documentation), None) | (None, Some(documentation)) => Some(documentation),
+        (None, None) => None,
+    }
 }
 
 pub(in crate::analysis::hover) fn target_documentation(

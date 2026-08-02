@@ -119,11 +119,12 @@ pub(in crate::analysis::hover) fn resolved_local_symbol_hover_contents(
     let symbols = hover_symbols_for_file_analysis(text, file);
     let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
 
-    Some(local_symbol_hover_contents(
-        &symbols,
-        &documentation,
-        symbol,
-    ))
+    let (label, documentation) = local_symbol_hover_contents(&symbols, &documentation, symbol);
+    let region = matches!(symbol.kind, LocalSymbolKind::Region)
+        .then(|| crate::analysis::regions::region_markdown(sources, file, symbol.name_span))
+        .flatten();
+
+    Some((label, combine_documentation(documentation, region)))
 }
 
 pub(in crate::analysis::hover) fn local_symbol_hover_label(symbol: &LocalSymbol) -> String {
@@ -159,7 +160,13 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
         .get(hover_symbol.name_span.start)
         .map(str::to_string);
 
-    Some((hover_symbol.label.clone(), docs))
+    Some((
+        hover_symbol.label.clone(),
+        combine_documentation(
+            docs,
+            semantic_documentation(sources, analysis, symbol.declaration_span),
+        ),
+    ))
 }
 
 pub(in crate::analysis::hover) fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {

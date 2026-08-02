@@ -1,5 +1,6 @@
 //! Whole-compile-unit semantic analysis.
 
+pub(crate) mod allocation;
 mod call_sites;
 pub(crate) mod call_specializations;
 pub(crate) mod completion;
@@ -8,7 +9,9 @@ pub(crate) mod definition;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
+pub(crate) mod provenance;
 pub(crate) mod references;
+pub(crate) mod regions;
 mod scoped_imports;
 pub(crate) mod semantic;
 pub(crate) mod signature_help;
@@ -26,8 +29,8 @@ use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_c
 use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::typecheck::{
-    TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
-    collect_typecheck_facts,
+    CallableSemanticFacts, TypecheckFacts, TypecheckSource, check_module_with_summary_sources,
+    check_with_summary_sources, collect_callable_semantic_facts, collect_typecheck_facts,
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -74,6 +77,7 @@ pub(crate) struct CompileUnitAnalysis {
     pub(crate) files: Vec<FileAnalysis>,
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
+    pub(crate) callable_semantic_facts: CallableSemanticFacts,
 }
 
 impl CompileUnitAnalysis {
@@ -204,10 +208,13 @@ fn analyze_compile_unit_with_root_policy(
         })
         .collect();
 
+    let callable_semantic_facts = collect_callable_semantic_facts(&typecheck_sources);
+
     CompileUnitAnalysis {
         files,
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
+        callable_semantic_facts,
     }
 }
 

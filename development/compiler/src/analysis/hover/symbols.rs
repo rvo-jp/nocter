@@ -49,6 +49,8 @@ pub(in crate::analysis::hover) fn binding_hover_label_kind(label: &str) -> Optio
         Some("var")
     } else if label.starts_with("parameter ") {
         Some("parameter")
+    } else if label.starts_with("region ") {
+        Some("region")
     } else {
         None
     }

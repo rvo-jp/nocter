@@ -87,7 +87,7 @@ pub(in crate::typecheck::returns) fn type_symbol_contains_borrow_like(
     result
 }
 
-pub(in crate::typecheck::returns) fn type_expr_contains_borrow_like(
+pub(in crate::typecheck) fn type_expr_contains_borrow_like(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
     substitutions: &HashMap<String, Type>,
