@@ -108,6 +108,240 @@ pub func identity<T>(value: T): T {
 }
 
 #[test]
+fn typed_literal_signature_help_reports_the_specialized_element_pack() {
+    let project = TempProject::new("lsp-typed-literal-signature-help");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Bucket<T> { length: usize }
+
+literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+
+func main(): i32 {
+    let values = Bucket [20, 22]
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
+
+    let response = server.signature_help_response(
+        json!(2),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("literal Bucket<i32> [](...items: i32): Bucket<i32>")
+    );
+    assert_eq!(
+        response["result"]["signatures"][0]["parameters"][0]["label"],
+        json!("...items: i32")
+    );
+}
+
+#[test]
+fn typed_literal_hover_reports_the_resolved_definition() {
+    let project = TempProject::new("lsp-typed-literal-hover");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Text { value: &str }
+
+/// Copies text into an owned value.
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
+
+    let response = server.hover_response(
+        json!(3),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let markdown = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover markdown");
+
+    assert!(markdown.contains("literal Text \"\"(text: &str): Text"));
+    assert!(markdown.contains("Copies text into an owned value."));
+}
+
+#[test]
+fn typed_literal_shape_completion_recovers_a_missing_delimiter() {
+    let project = TempProject::new("lsp-typed-literal-shape-completion");
+    let home = project.write_nocter_home();
+    std::fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> { length: usize }
+
+pub literal Vec<T> [](...items: T): Self {
+    return Vec<T> { length: items.len() }
+}
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let text = concat!(
+        "use std/vec.Vec\n\nfunc main(): i32 {\n    let values: Vec<i32> = Vec",
+        " \n",
+        "    return 0\n}\n"
+    );
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(4),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let shape = completion_item_with_label(items, "[]").expect("expected sequence shape");
+
+    assert_eq!(shape["kind"], json!(LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR));
+    assert_eq!(shape["insertText"], json!("[]"));
+    assert_eq!(
+        shape["detail"],
+        json!("literal Vec<T> [](...items: T): Vec<T>")
+    );
+}
+
+#[test]
+fn incomplete_typed_literal_keeps_expected_element_completion_ranking() {
+    let project = TempProject::new("lsp-incomplete-typed-literal-element-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Bucket<T> { length: usize }
+
+literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+
+func main(candidate: i32, text: &str): i32 {
+    let values: Bucket<i32> = Bucket [
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(5),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let candidate = completion_item_with_label(items, "candidate").expect("expected i32 local");
+    let text_item = completion_item_with_label(items, "text").expect("expected str local");
+
+    assert!(
+        candidate["sortText"].as_str() < text_item["sortText"].as_str(),
+        "expected the compatible element candidate to rank first: {items:#?}"
+    );
+}
+
+#[test]
+fn hover_recovers_an_unclosed_typed_literal_declaration_body() {
+    let project = TempProject::new("lsp-incomplete-typed-literal-declaration-hover");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
+
+    let response = server.hover_response(
+        json!(6),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert!(
+        response["result"]["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| value.contains("literal Text \"\"(text: &str): Self")),
+        "expected recovered literal declaration hover: {response:#?}"
+    );
+}
+
+#[test]
 fn initializes_with_semantic_token_legend() {
     let response = initialize_response(json!(1));
     let legend = response["result"]["capabilities"]["semanticTokensProvider"]["legend"]

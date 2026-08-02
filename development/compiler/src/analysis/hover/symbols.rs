@@ -101,10 +101,7 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 text,
                 literal.shape_span,
                 literal.span.start,
-                match literal.shape {
-                    crate::ast::LiteralShape::Sequence => "literal []".to_string(),
-                    crate::ast::LiteralShape::String => "literal \"\"".to_string(),
-                },
+                function_like_header(text, literal.span, Some(literal.body.span.start)),
                 symbols,
             );
             collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
@@ -113,7 +110,11 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                     text,
                     capture.name_span,
                     capture.span.start,
-                    format!("literal pack {}", capture.name),
+                    format!(
+                        "literal pack {}: {}",
+                        capture.name,
+                        source_fragment(text, capture.element_type.span())
+                    ),
                     symbols,
                 );
             }

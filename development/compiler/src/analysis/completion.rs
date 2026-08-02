@@ -6,8 +6,8 @@ use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, StructLiteralExpr,
-    SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
+    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, LiteralShape, MemberExpr, Stmt,
+    StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
+    Constructor,
     Function,
     Method,
     Class,
@@ -50,6 +51,7 @@ pub(crate) struct CompletionItemInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionContext<'a> {
+    LiteralShape(&'a TypeExpr),
     RegionAllocator,
     EnumPatternMembers(&'a str),
     MemberAccess {
@@ -88,6 +90,18 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
         &local_names,
     ));
     items
+}
+
+pub(crate) fn literal_shape_completion_items_for_file_analysis_at_offset(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    let CompletionContext::LiteralShape(target) = completion_context_at_offset(&file.ast, offset)?
+    else {
+        return None;
+    };
+    let items = literal_shape_completion_items(&file.resolved, target);
+    (!items.is_empty()).then_some(items)
 }
 
 pub(crate) fn completion_items_for_compile_unit_at_offset(
@@ -377,6 +391,10 @@ fn contextual_completion_items(
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     match completion_context_at_offset(ast, offset)? {
+        CompletionContext::LiteralShape(target) => {
+            let items = literal_shape_completion_items(resolved, target);
+            (!items.is_empty()).then_some(items)
+        }
         CompletionContext::RegionAllocator => Some(region_allocator_completion_items(
             ast, resolved, facts, offset,
         )),
@@ -395,6 +413,118 @@ fn contextual_completion_items(
         CompletionContext::StructLiteralFields { literal, offset } => Some(
             struct_literal_field_completion_items(resolved, literal, offset),
         ),
+    }
+}
+
+fn literal_shape_completion_items(
+    resolved: &ResolveOutput,
+    target: &TypeExpr,
+) -> Vec<CompletionItemInfo> {
+    let Some(owner) = literal_owner(resolved, target) else {
+        return Vec::new();
+    };
+    let target_label = match target {
+        TypeExpr::Reference(reference) if !owner.symbol.generic_parameters.is_empty() => format!(
+            "{}<{}>",
+            reference.name,
+            owner.symbol.generic_parameters.join(", ")
+        ),
+        _ => type_expr_presentation_label(target, resolved),
+    };
+
+    owner
+        .symbol
+        .literals
+        .iter()
+        .filter(|literal| literal.is_accessible)
+        .map(|literal| {
+            let (label, parameters) = match literal.shape {
+                LiteralShape::Sequence => (
+                    "[]",
+                    literal
+                        .capture
+                        .as_ref()
+                        .map(|capture| {
+                            let ty = substitute_type_expr_parameters(
+                                &capture.element_type,
+                                &owner.substitutions,
+                            );
+                            format!(
+                                "...{}: {}",
+                                capture.name,
+                                type_expr_presentation_label(&ty, resolved)
+                            )
+                        })
+                        .into_iter()
+                        .collect::<Vec<_>>(),
+                ),
+                LiteralShape::String => (
+                    "\"\"",
+                    literal
+                        .parameters
+                        .iter()
+                        .map(|parameter| {
+                            let ty = substitute_type_expr_parameters(
+                                &parameter.ty,
+                                &owner.substitutions,
+                            );
+                            format!(
+                                "{}: {}",
+                                parameter.name,
+                                type_expr_presentation_label(&ty, resolved)
+                            )
+                        })
+                        .collect(),
+                ),
+            };
+            CompletionItemInfo {
+                label: label.to_string(),
+                kind: CompletionItemKind::Constructor,
+                detail: Some(format!(
+                    "literal {target_label} {label}({}): {target_label}",
+                    parameters.join(", ")
+                )),
+                documentation: None,
+                insert_text: Some(label.to_string()),
+                sort_text: None,
+                declaration_span: Some(literal.shape_span),
+            }
+        })
+        .collect()
+}
+
+fn literal_owner<'a>(
+    resolved: &'a ResolveOutput,
+    target: &TypeExpr,
+) -> Option<ValueMemberOwner<'a>> {
+    match target {
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions: HashMap::from([("Self".to_string(), target.clone())]),
+            })
+        }
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            let mut substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect::<HashMap<_, _>>();
+            substitutions.insert("Self".to_string(), target.clone());
+            Some(ValueMemberOwner {
+                symbol,
+                substitutions,
+            })
+        }
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
     }
 }
 
@@ -834,19 +964,28 @@ fn completion_context_in_expression_at_offset(
             .elements
             .iter()
             .find_map(|element| completion_context_in_expression_at_offset(element, offset)),
-        Expr::TypedSequenceLiteral(expression) => expression
-            .elements
-            .iter()
-            .find_map(|element| completion_context_in_expression_at_offset(element, offset))
+        Expr::TypedSequenceLiteral(expression) => (expression.target.span().end <= offset)
+            .then_some(CompletionContext::LiteralShape(&expression.target))
+            .filter(|_| offset <= expression.elements_span.start)
+            .or_else(|| {
+                expression
+                    .elements
+                    .iter()
+                    .find_map(|element| completion_context_in_expression_at_offset(element, offset))
+            })
             .or_else(|| {
                 expression.using.as_ref().and_then(|using| {
                     completion_context_in_expression_at_offset(&using.allocator, offset)
                 })
             }),
-        Expr::TypedStringLiteral(expression) => expression
-            .using
-            .as_ref()
-            .and_then(|using| completion_context_in_expression_at_offset(&using.allocator, offset)),
+        Expr::TypedStringLiteral(expression) => (expression.target.span().end <= offset
+            && offset <= expression.text.span.start)
+            .then_some(CompletionContext::LiteralShape(&expression.target))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    completion_context_in_expression_at_offset(&using.allocator, offset)
+                })
+            }),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

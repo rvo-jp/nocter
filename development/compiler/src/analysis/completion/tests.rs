@@ -31,6 +31,69 @@ fn completion_candidates_include_keywords_and_symbols() {
 }
 
 #[test]
+fn completion_candidates_offer_declared_literal_shapes_after_target() {
+    let text = r#"struct Bucket<T> { length: usize }
+
+literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+
+func main(): i32 {
+    let values: Bucket<i32> = Bucket []
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Bucket []").unwrap() + "Bucket ".len();
+
+    let items = literal_shape_completion_items_for_file_analysis_at_offset(file, offset)
+        .expect("expected literal shape completion");
+    let sequence = items
+        .iter()
+        .find(|item| item.label == "[]")
+        .expect("expected sequence shape");
+
+    assert_eq!(sequence.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        sequence.detail.as_deref(),
+        Some("literal Bucket<T> [](...items: T): Bucket<T>")
+    );
+    assert_eq!(sequence.insert_text.as_deref(), Some("[]"));
+}
+
+#[test]
+fn completion_candidates_offer_string_literal_shape() {
+    let text = r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Text \"hello\"").unwrap() + "Text ".len();
+
+    let items = literal_shape_completion_items_for_file_analysis_at_offset(file, offset)
+        .expect("expected literal shape completion");
+    let string = items
+        .iter()
+        .find(|item| item.label == "\"\"")
+        .expect("expected string shape");
+
+    assert_eq!(string.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        string.detail.as_deref(),
+        Some("literal Text \"\"(text: &str): Text")
+    );
+}
+
+#[test]
 fn completion_candidates_hide_namespace_import_members() {
     let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
     let module_text = "pub func answer(): i32 {\n    return 7\n}\n";

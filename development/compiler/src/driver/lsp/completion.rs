@@ -4,6 +4,7 @@ use crate::analysis::completion::{
     completion_items_for_compile_unit_at_offset as analysis_completion_items_for_compile_unit,
     completion_items_for_text_at_offset,
     keyword_completion_items as analysis_keyword_completion_items,
+    literal_shape_completion_items_for_file_analysis_at_offset as analysis_literal_shape_completion_items,
 };
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::source::SourceMap;
@@ -11,6 +12,7 @@ use serde_json::{Value, json};
 
 pub(super) const LSP_COMPLETION_ITEM_KIND_METHOD: u8 = 2;
 pub(super) const LSP_COMPLETION_ITEM_KIND_FUNCTION: u8 = 3;
+pub(super) const LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR: u8 = 4;
 pub(super) const LSP_COMPLETION_ITEM_KIND_FIELD: u8 = 5;
 const LSP_COMPLETION_ITEM_KIND_VARIABLE: u8 = 6;
 const LSP_COMPLETION_ITEM_KIND_CLASS: u8 = 7;
@@ -28,6 +30,18 @@ pub(super) fn completion_items_for_file_analysis_at_offset(
     offset: usize,
 ) -> Vec<Value> {
     completion_values(analysis_completion_items_for_compile_unit(
+        sources, analysis, file, offset,
+    ))
+}
+
+pub(super) fn literal_shape_completion_items_for_file_analysis_at_offset(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Vec<Value>> {
+    analysis_literal_shape_completion_items(file, offset)?;
+    Some(completion_items_for_file_analysis_at_offset(
         sources, analysis, file, offset,
     ))
 }
@@ -85,6 +99,7 @@ fn completion_item(item: &CompletionItemInfo) -> Value {
 
 const fn lsp_completion_kind(kind: CompletionItemKind) -> u8 {
     match kind {
+        CompletionItemKind::Constructor => LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR,
         CompletionItemKind::Function => LSP_COMPLETION_ITEM_KIND_FUNCTION,
         CompletionItemKind::Method => LSP_COMPLETION_ITEM_KIND_METHOD,
         CompletionItemKind::Class => LSP_COMPLETION_ITEM_KIND_CLASS,

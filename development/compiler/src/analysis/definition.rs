@@ -17,6 +17,9 @@ pub(crate) fn definition_span_for_file_analysis(
     offset: usize,
 ) -> Option<ByteSpan> {
     module_path_definition_span(analysis, file, offset)
+        .or_else(|| {
+            crate::analysis::literals::literal_definition_span_at_offset(analysis, file, offset)
+        })
         .or_else(|| function_call_definition_span_for_file_analysis(file, offset))
         .or_else(|| method_call_definition_span_for_file_analysis(file, offset))
         .or_else(|| associated_function_definition_span_for_file_analysis(file, offset))
@@ -164,6 +167,30 @@ fn span_contains(span: ByteSpan, offset: usize) -> bool {
 mod tests {
     use super::*;
     use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
+
+    #[test]
+    fn definition_query_resolves_typed_literal_delimiter_to_shape_declaration() {
+        let text = r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("\"hello\"").unwrap();
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected literal definition span");
+
+        assert_eq!(&text[span.start..span.end], "\"\"");
+        assert_eq!(span.start, text.find("\"\"(text").unwrap());
+    }
 
     #[test]
     fn definition_query_resolves_local_references() {

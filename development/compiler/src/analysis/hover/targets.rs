@@ -73,7 +73,7 @@ pub(in crate::analysis::hover) fn combine_documentation(
     }
 }
 
-pub(in crate::analysis::hover) fn target_documentation(
+pub(crate) fn target_documentation(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     target_span: ByteSpan,

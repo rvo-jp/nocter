@@ -56,7 +56,7 @@ pub(crate) use entry::{definition_span_for_ast, hover_for_file_analysis, hover_f
 pub(crate) use module_paths::module_path_at_offset;
 pub(in crate::analysis::hover) use module_paths::*;
 pub(in crate::analysis::hover) use symbols::*;
-pub(in crate::analysis::hover) use targets::*;
+pub(crate) use targets::*;
 
 #[cfg(test)]
 mod tests;

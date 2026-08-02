@@ -15,6 +15,22 @@ pub(crate) fn hover_for_file_analysis(
         return Some(hover);
     }
 
+    if let Some(literal) = crate::analysis::literals::literal_editor_info_at_offset(
+        analysis,
+        file,
+        offset,
+        crate::analysis::literals::LiteralCursorRegion::Hover,
+    ) {
+        return Some(HoverInfo {
+            span: literal.focus_span,
+            label: literal.label,
+            documentation: combine_documentation(
+                target_documentation(sources, analysis, literal.declaration_shape_span),
+                semantic_documentation(sources, analysis, literal.declaration_span),
+            ),
+        });
+    }
+
     if let Some(symbol) = symbols
         .iter()
         .find(|symbol| span_contains(symbol.name_span, offset))

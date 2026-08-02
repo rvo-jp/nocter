@@ -28,9 +28,13 @@ pub(crate) fn collect_literal_specializations(
 
     for file in &analysis.files {
         visit_file_expressions(&file.ast, &mut |expression| {
-            let Some(specialization) =
-                specialization_for_expression(file, expression, &declarations, &HashMap::new())
-            else {
+            let Some(specialization) = specialization_for_expression(
+                file,
+                expression,
+                &declarations,
+                &HashMap::new(),
+                true,
+            ) else {
                 return;
             };
             let entries = by_declaration
@@ -46,6 +50,23 @@ pub(crate) fn collect_literal_specializations(
     }
 
     by_declaration
+}
+
+pub(crate) fn literal_specialization_for_expression_span(
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    expression_span: ByteSpan,
+) -> Option<LiteralSpecialization> {
+    let declarations = literal_declarations(analysis);
+    let mut result = None;
+    visit_file_expressions(&file.ast, &mut |expression| {
+        if result.is_some() || expression.span() != expression_span {
+            return;
+        }
+        result =
+            specialization_for_expression(file, expression, &declarations, &HashMap::new(), false);
+    });
+    result
 }
 
 pub(crate) fn literal_target_name(
@@ -72,6 +93,7 @@ fn specialization_for_expression(
     expression: &Expr,
     declarations: &HashMap<ByteSpan, &LiteralDecl>,
     context_substitutions: &HashMap<String, TypeExpr>,
+    require_concrete: bool,
 ) -> Option<LiteralSpecialization> {
     let (span, shape, argument_count) = match expression {
         Expr::TypedSequenceLiteral(literal) => {
@@ -96,9 +118,10 @@ fn specialization_for_expression(
     ) {
         return None;
     }
-    if substitutions
-        .values()
-        .any(|ty| type_contains_parameter(ty, &generic_parameters))
+    if require_concrete
+        && substitutions
+            .values()
+            .any(|ty| type_contains_parameter(ty, &generic_parameters))
     {
         return None;
     }

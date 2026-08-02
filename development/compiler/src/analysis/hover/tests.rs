@@ -5,6 +5,34 @@ use crate::analysis::test_support::{
 };
 
 #[test]
+fn workspace_hover_presents_typed_literal_signature_and_documentation() {
+    let text = r#"struct Text { value: &str }
+
+/// Copies text into owned storage.
+literal Text ""(text: &str): Self {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Text \"hello\"").unwrap();
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text");
+    assert_eq!(
+        hover.documentation.as_deref(),
+        Some("Copies text into owned storage.")
+    );
+}
+
+#[test]
 fn workspace_hover_uses_typecheck_facts_and_documentation() {
     let text = "func main(): i32 {\n    /// Exit code.\n    var code = 0\n    return code\n}\n";
     let (sources, analysis) = analyze_text(text);

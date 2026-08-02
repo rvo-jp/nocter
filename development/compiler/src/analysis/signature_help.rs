@@ -34,6 +34,32 @@ pub(crate) fn signature_help_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<SignatureHelpInfo> {
+    if let Some(literal) = crate::analysis::literals::literal_editor_info_at_offset(
+        analysis,
+        file,
+        offset,
+        crate::analysis::literals::LiteralCursorRegion::Arguments,
+    ) {
+        return Some(SignatureHelpInfo {
+            label: literal.label,
+            parameters: literal
+                .parameters
+                .into_iter()
+                .map(|parameter| SignatureParameterInfo {
+                    label: parameter.label,
+                    documentation: None,
+                    ty: parameter.ty,
+                })
+                .collect(),
+            active_parameter: 0,
+            documentation: crate::analysis::hover::target_documentation(
+                sources,
+                analysis,
+                literal.declaration_shape_span,
+            ),
+            is_specialized: literal.is_specialized,
+        });
+    }
     let call = call_at_offset(&file.ast, offset, CallCursorRegion::Arguments)?;
     signature_info_for_call(sources, analysis, file, call, offset)
 }
@@ -323,6 +349,35 @@ fn active_parameter(call: &CallExpr, offset: usize, parameter_count: usize) -> u
 mod tests {
     use super::*;
     use crate::analysis::test_support::analyze_namespace_import_text;
+    use crate::analysis::test_support::analyze_text;
+
+    #[test]
+    fn presents_sequence_literal_element_pack_signature() {
+        let text = r#"struct Bucket<T> { length: usize }
+
+literal Bucket<T> [](...items: T): Self {
+    return Bucket<T> { length: items.len() }
+}
+
+func main(): i32 {
+    let values = Bucket [20, 22]
+    return 0
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("22]").unwrap();
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected signature help");
+
+        assert_eq!(
+            signature.label,
+            "literal Bucket<i32> [](...items: i32): Bucket<i32>"
+        );
+        assert_eq!(signature.parameters[0].label, "...items: i32");
+        assert_eq!(signature.active_parameter, 0);
+    }
 
     #[test]
     fn presents_imported_generic_call_with_specialized_types() {

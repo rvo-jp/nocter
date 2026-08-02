@@ -56,6 +56,8 @@ The pack supports only the operations needed by the Phase 1 literal body:
 - `items.len()` reads the number of elements
 - `for item in items` consumes elements once from left to right
 - each loop binding is an ordinary owned `T`
+- Phase 1 rejects `break` or `continue` that directly targets this consuming loop; nested ordinary
+  loops retain their normal control flow
 - an unconsumed element retains its drop obligation
 - the pack itself cannot be returned, assigned outside the body, stored in an aggregate, borrowed
   beyond the body, or passed to an ordinary callable
@@ -112,7 +114,8 @@ literal body carries the selected context's Phase 0 provenance.
 | declaration and shape identity | `resolve/literals` |
 | specialization, pack rules, context validation | `typecheck/literals` |
 | element ownership and escape checks | ownership consuming typed literal facts |
-| pack and context operations | `ir/lower/literals` |
+| pack lowering and cleanup | `ir/lower/literal_packs` and `ir/lower/typed_literals` |
+| per-expression context override | `ir/lower/allocation_contexts` |
 | editor-facing literal facts | `analysis/literals`; protocol conversion in `driver/lsp` |
 
 AST consumers must handle literal nodes explicitly. They must not desugar them into calls before
