@@ -68,10 +68,13 @@ extension methods and never falls back to inherent methods for an unconstrained 
 ## Internal Ownership
 
 - `ast/provenance` owns source clauses and source spans.
-- `resolve/provenance` binds origin names to `InputId` values.
-- `typecheck/provenance/contracts` builds and validates semantic provenance values.
-- `resolve/bounds` owns canonical interface-bound identities.
-- `typecheck/bound_calls` owns generic-receiver lookup and specialization facts.
+- `resolve/body` binds origin spans to receiver and parameter symbols for navigation.
+- `typecheck/provenance/contracts` converts eligible declarations into semantic storage origins.
+- `resolve/signatures` and `resolve/imports/qualification` preserve bound and conformance identities
+  across module boundaries.
+- `typecheck/interface_bounds` owns generic-receiver lookup and conformance substitution.
+- `typecheck/facts` records bound-call targets and specializations; `analysis/call_specializations`
+  redirects reachable concrete calls to inherent implementations.
 - `analysis` presents compiler facts; protocol code only converts source ranges and labels.
 
 Contract validation is covariant in safety: an implementation may return storage that outlives the
@@ -99,3 +102,16 @@ There is no Phase 4 allocation-effect annotation. Source bodies infer their effe
 trusted bodyless declarations retain compiler metadata. `from current` necessarily seeds the
 current-context effect. Result-independent temporary allocation remains inferred and visible in
 hover without becoming source syntax.
+
+## Completion Status
+
+Phase 4 completed on 2026-08-03. The parser, formatter, AST JSON, resolver, type checker, ownership
+checker, allocation propagation, buildability validation, IR, analysis, and LSP consume the shared
+models described here. The distributed `std/sequence.Sequence<T>` interface and generic `first`
+helper verify exact receiver-to-result provenance through `Vec<T>` across source modules. Import
+qualification retains both generic bounds and explicit conformance contracts, and IR selects a
+concrete method target only when the reachable callable index proves it unique.
+
+Repository-home and packaged-home checks retain the source loan, packaged native execution observes
+the specialized element result, and protocol tests verify bound hover/completion plus definition
+ranges. No Phase 4 work remains active.

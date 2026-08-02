@@ -76,6 +76,8 @@ Rules:
 - `from` and `import` are not reserved keywords in v0.2.0. They are emitted as
   identifier tokens; top-level legacy import syntax is diagnosed as removed
   syntax by the parser.
+- Nocter v0.3.0 Phase 4 retains `from` as an identifier token and recognizes it contextually after
+  a callable return type. This does not reserve `from` as a general identifier.
 - `trait` is not a reserved keyword in v0.2.0. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.
 - `Self` has identifier spelling but is reserved as contextual type syntax in

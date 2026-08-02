@@ -85,6 +85,12 @@ Summary construction must:
 Return checking rejects local, owned-parameter, temporary, region, and unknown escapes. NLL maps
 returned origins back to source places and keeps those loans active through the result's last use.
 
+Phase 4 exposes the inferred relationship as an optional identity-resolved `from` contract at API
+boundaries. A concrete body is still inferred and then checked against that upper bound. A
+bodyless interface method seeds its callable summary from the contract. Call sites substitute
+receiver and parameter identities exactly as they do for inferred summaries; source syntax never
+introduces lifetime arithmetic or a parallel provenance graph.
+
 ## Allocation Effects
 
 An allocating source callable receives the current allocation context as a hidden capability. The

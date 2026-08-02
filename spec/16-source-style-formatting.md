@@ -105,6 +105,10 @@ Rules:
 - Commas have no preceding space and one following space on a single line.
 - Multi-line parameter lists put one parameter per line and keep a trailing comma.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
+- A v0.3.0 Phase 4 generic bound uses no space before `:` and one space after it:
+  `T: Interface<U>`.
+- A result provenance clause follows the return type on the same line with one space before
+  `from`. Union origins use one space around `|`.
 
 Examples:
 
@@ -119,6 +123,9 @@ func read_all(
 ): String! {
     ...
 }
+
+pub method &self.get(index: usize): (&T)? from self
+func choose<T>(left: &T, right: &T): &T from left | right
 ```
 
 ## Expressions

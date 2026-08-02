@@ -155,6 +155,19 @@ Semantic token rules:
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
 
+Nocter v0.3.0 Phase 4 editor rules:
+
+- Hover and signature help show normalized result provenance clauses such as `from self` and
+  `from left | right`.
+- Completion after `from` offers only eligible receiver and borrow-like parameter declarations,
+  plus `static` and `current`.
+- Member completion on a bounded generic receiver lists only methods from its declared interface.
+- Definition and references for a generic bound call target the interface method declaration.
+- Generic parameter names use type semantic tokens. Receiver and parameter names referenced by a
+  provenance clause use readonly parameter tokens.
+- Recovery may complete missing delimiters or insert a temporary placeholder, but a response is
+  valid only when the recovered compiler run resolves every bound and origin identity.
+
 Later editor features:
 
 - rename

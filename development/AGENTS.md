@@ -23,9 +23,9 @@ rewrite them.
 ## Recorded Milestone
 
 v0.2.0 is released and complete. v0.3.0 Phase 0, Phase 1 Typed Literal Core, Phase 2 Explicit
-Iteration and Collection Access, and Phase 3 Owned String Interpolation and Formatting are complete
-on `develop`; no later v0.3.0 phase is currently adopted. Do not use `v0` as shorthand for a release
-scope. Use
+Iteration and Collection Access, Phase 3 Owned String Interpolation and Formatting, and Phase 4
+Public Provenance Contracts and Generic Interface Bounds are complete on `develop`; no later
+v0.3.0 phase is currently adopted. Do not use `v0` as shorthand for a release scope. Use
 [docs/v0.3.0.md](docs/v0.3.0.md) for current milestone status and
 [docs/v0.2.0.md](docs/v0.2.0.md) only for the released baseline.
 
@@ -76,6 +76,8 @@ Update only the owner of the changed fact:
   design
 - `docs/interpolation.md`: interpolation runtime binding, formatting, evaluation, cleanup, or LSP
   design
+- `docs/provenance-contracts.md`: explicit result-origin contracts, interface bounds, static bound
+  dispatch, or their editor integration
 - `docs/allocator-ownership.md`: allocator, ownership, drop, String/Vec invariants
 - `docs/standard-library.md`: distributed std runtime behavior
 - `docs/lsp.md`: editor capability or compiler-analysis contract

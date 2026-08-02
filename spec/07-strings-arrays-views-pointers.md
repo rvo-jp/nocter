@@ -313,7 +313,7 @@ Collection operations are ordinary standard-library methods.
 Collection method direction:
 
 - `len(): usize`
-- `Vec<T>.get(index: usize): (&T)?`
+- `Vec<T>.get(index: usize): (&T)? from self`
 - `Vec<T>.get_mut(index: usize): (&+T)?`
 - `ptr(): *T` for contiguous views
 - `view(): &[T]` for owning collections that can expose readonly contiguous storage

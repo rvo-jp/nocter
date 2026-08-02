@@ -131,6 +131,20 @@ than recognizing string syntax or standard-library names in protocol code.
 - unresolved capabilities or expression types produce no invented interpolation fact
 - JSON-RPC tests cover complete hover plus incomplete completion and nested-call signature help
 
+## Completed v0.3.0 Phase 4 Integration
+
+Provenance and generic-bound tooling reads resolved callable signatures and typecheck facts. The
+protocol layer does not parse `from`, inspect interface names, or repeat conformance lookup.
+
+- hover and signature help append normalized `from` origins to callable signatures
+- completion after `from` offers only eligible receiver, parameter, `static`, and `current` origins
+- completion on a bounded generic receiver lists only methods declared by its canonical interface
+- definition and references group a bounded call with the interface method declaration
+- semantic tokens classify generic parameters as types and provenance inputs as readonly parameters
+- recovery for incomplete `T: ` and `from ... |` edits preserves the cursor while requiring the
+  recovered compiler run to establish every identity
+- JSON-RPC tests verify exact hover and definition ranges for a bound method call
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -175,7 +189,9 @@ expression facts, and incomplete expression/declaration recovery. Phase 2 tests 
 readonly/owned result types, receiver capability, returned-borrow provenance, and complete plus
 incomplete zero-argument iterator calls through direct and JSON-RPC queries. Phase 3 tests cover
 owned result/effect/origin hover, interpolation-part types, and cursor-preserving completion and
-signature recovery through direct and JSON-RPC queries.
+signature recovery through direct and JSON-RPC queries. Phase 4 tests cover normalized provenance
+labels, eligible-origin and bound-method completion, specialized signature help, interface-targeted
+definition/references, semantic classification, recovery, and protocol source ranges.
 
 ## Deferred Features
 

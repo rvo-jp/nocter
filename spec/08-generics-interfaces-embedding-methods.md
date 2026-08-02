@@ -210,10 +210,21 @@ Lookup on `S` searches only the canonical `Source<i32>` contract. Each concrete 
 requires explicit conformance and statically resolves to the matching public inherent method.
 Phase 4 does not add runtime interface objects, multiple bounds, or `where` clauses.
 
-Lookup order:
+Concrete-receiver lookup order remains:
 
 1. inherent method on a concrete nominal receiver type
 2. no candidate, producing a compile error
+
+Bounded generic-receiver lookup in v0.3.0 Phase 4 is separate:
+
+1. resolve the generic parameter's single canonical interface bound
+2. search only accessible methods declared by that interface
+3. typecheck against the specialized interface signature
+4. require explicit conformance for every reachable concrete specialization
+5. lower directly to the matching public inherent method
+
+The compiler never falls back to an inherent method merely because it has the same name as a
+missing bound method.
 
 The compiler does not search visible interface conformance declarations to resolve
 `value.method(args)` in v0.2.0. This avoids import-dependent method lookup and keeps
@@ -257,6 +268,9 @@ Rules:
   same name and signature for every interface method.
 - Method parameter names do not participate in conformance. Receiver type,
   parameter types, and return type do.
+- A Phase 4 result provenance clause participates in conformance. An implementation may promise a
+  narrower, longer-lived origin set, but it cannot omit the explicit relationship required by the
+  interface contract.
 - Conformance is explicit. A type with matching methods does not satisfy an
   interface unless source contains `impl Interface for Type`.
 
@@ -326,8 +340,23 @@ GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
 GenericParameter  = Name
 ```
 
-Generic bounds are deferred after v0.2.0. The parser must diagnose a generic
-parameter colon such as `T: Printable` as a deferred feature.
+Generic bounds are not part of v0.2.0. Nocter v0.3.0 Phase 4 adds one interface bound to a generic
+parameter:
+
+```text
+GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
+GenericParameter  = Name [":" Type]
+```
+
+```nct
+func inspect<T: Readable<i32>>(value: &T): i32 {
+    return value.read()
+}
+```
+
+The bound must resolve to an interface with the declared type arity and visibility. One generic
+parameter has at most one bound. Multiple bounds, `where` clauses, interface inheritance, and
+runtime interface values remain unavailable.
 
 Generic implementation uses monomorphization. Each concrete instantiation is
 compiled as concrete code.
@@ -347,9 +376,8 @@ Initial generic scope:
 - type parameters on `impl` blocks where needed
 - compile-time monomorphization
 
-Deferred generic features:
+Deferred generic features after v0.3.0 Phase 4:
 
-- inline bounds such as `T: Printable`
 - multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types

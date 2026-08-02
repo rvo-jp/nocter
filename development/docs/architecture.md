@@ -105,6 +105,12 @@ plan containing declaration identities, result type, allocation effect, provenan
 evaluation mode. Dedicated IR lowering consumes that plan; it does not resolve standard-library
 names or repeat type dispatch. See [Owned String Interpolation and Formatting](interpolation.md).
 
+Phase 4 keeps public result-origin contracts and generic dispatch in separate layers. Resolver
+preserves origin, bound, conformance, and source-module identities; typecheck validates contracts
+and records bound calls; analysis expands only reachable concrete specializations; IR selects a
+target from that callable index without searching interface or method spellings. See
+[Public Provenance Contracts and Generic Interface Bounds](provenance-contracts.md).
+
 ## LSP Boundary
 
 `driver/lsp` owns transport, document state, and protocol conversion. `analysis` derives semantic

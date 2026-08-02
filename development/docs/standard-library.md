@@ -172,3 +172,26 @@ Interpolation starts from a zero-capacity `String` retaining the current allocat
 calls only the normal surface through validated declaration identities. Packaged-home tests cover
 decoded and multiline text, integer boundaries, existing and temporary strings, left-to-right side
 effects, deterministic allocation abort, lexical-region allocation, and indirect escape rejection.
+
+## Phase 4 Readonly Sequence Contract
+
+Distributed `std/sequence` defines the first cross-type collection capability used by ordinary
+generic code:
+
+```nct
+pub interface Sequence<T> {
+    pub method &self.len(): usize
+    pub method &self.get(index: usize): (&T)? from self
+}
+
+pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
+```
+
+`Vec<T>` explicitly conforms to `Sequence<T>` and its inherent `get` method declares `from self`.
+`first` is allocation-free: it forwards the element borrow and keeps the original sequence loan
+active until the result's last use. Generic checking uses the interface signature, while each
+buildable concrete instantiation statically calls the public inherent method.
+
+Repository-home and packaged-home tests reject mutation while the returned element is live. A
+packaged native test observes the concrete element and subsequent ordinary vector cleanup, proving
+that the abstraction is not check-only and introduces no runtime interface representation.

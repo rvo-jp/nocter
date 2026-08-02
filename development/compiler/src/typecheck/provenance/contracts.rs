@@ -108,10 +108,12 @@ fn eligible_input_origins(
         .map(|method| StorageOrigin::Input(InputId::declared_at(method.receiver.name_span)));
     receiver
         .into_iter()
-        .chain(parameters.iter().filter_map(|parameter| {
-            type_expression_is_borrow_like(&parameter.ty, resolved)
-                .then(|| StorageOrigin::Input(InputId::declared_at(parameter.name_span)))
-        }))
+        .chain(
+            parameters
+                .iter()
+                .filter(|parameter| type_expression_is_borrow_like(&parameter.ty, resolved))
+                .map(|parameter| StorageOrigin::Input(InputId::declared_at(parameter.name_span))),
+        )
         .collect()
 }
 
