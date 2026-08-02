@@ -154,6 +154,78 @@ func main(): i32 {
     assert!(output.stderr.is_empty());
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_interpolation_allocation_failure_aborts_without_unwinding() {
+    let project = TempProject::new("distributed-home-interpolation-allocation-abort");
+    let home = project.root().join(".nocter");
+    copy_tree(&distributed_home(), &home);
+    let mem_module = home.join("std/mem.nct");
+    let mem_source = fs::read_to_string(&mem_module).unwrap();
+    let original = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    var allocator = TryAllocator {
+        state: buffer.allocator_state,
+        kind: buffer.allocator_kind,
+    }
+    try_grow(&+allocator, buffer, new_size)?
+    return
+}"#;
+    let failing = r#"pub(nocter) func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
+    return Error.new("test.out_of_memory", "deterministic interpolation failure")
+}"#;
+    assert!(mem_source.contains(original));
+    fs::write(&mem_module, mem_source.replace(original, failing)).unwrap();
+    let source = project.write_source(
+        "interpolation_allocation_abort.nct",
+        r#"func main(): i32 {
+    let text = "must allocate ${1}"
+    return 1
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", home)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(70));
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn distributed_std_region_backed_interpolation_cannot_escape_through_an_aggregate() {
+    let project = TempProject::new("distributed-home-region-interpolation-escape");
+    let source = project.write_source(
+        "region_interpolation_escape.nct",
+        r#"use std/mem.page_allocator
+
+struct Holder {
+    text: String
+}
+
+func leak(): Holder {
+    let arena = page_allocator()
+    region temporary using arena {
+        return Holder { text: "escape ${42}" }
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("E0436"), "{stderr}");
+    assert!(stderr.contains("region `temporary`"), "{stderr}");
+}
+
 #[test]
 fn distributed_lsp_exposes_interpolation_hover_completion_and_signature_recovery() {
     let project = TempProject::new("distributed-home-interpolation-lsp");
