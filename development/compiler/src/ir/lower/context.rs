@@ -242,6 +242,7 @@ pub(super) struct BorrowParameter {
 }
 
 mod call_resolution;
+mod call_targets;
 mod construction;
 mod drop_glue;
 mod drop_obligation;
@@ -250,6 +251,7 @@ mod enum_variants;
 mod locals;
 mod type_queries;
 
+use call_targets::UniqueCallTargets;
 pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
     drop_glue_for_type_expr_with_resolver,
@@ -291,17 +293,26 @@ struct CallResolution<'a> {
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
     by_declaration_span: HashMap<ByteSpan, String>,
+    unique_targets: UniqueCallTargets,
 }
 
 impl FunctionNames {
-    pub(super) fn from_declarations(functions: Vec<(ByteSpan, String)>) -> Self {
+    pub(super) fn from_index(
+        functions: Vec<(ByteSpan, String)>,
+        targets: Vec<(String, CallTarget)>,
+    ) -> Self {
         Self {
             by_declaration_span: functions.into_iter().collect(),
+            unique_targets: UniqueCallTargets::new(targets),
         }
     }
 
     fn name_for_declaration(&self, span: ByteSpan) -> Option<&String> {
         self.by_declaration_span.get(&span)
+    }
+
+    fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {
+        self.unique_targets.get(name)
     }
 }
 

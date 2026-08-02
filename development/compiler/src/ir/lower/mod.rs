@@ -416,10 +416,14 @@ impl<'a> FunctionIndex<'a> {
     }
 
     fn names(&self) -> FunctionNames {
-        FunctionNames::from_declarations(
+        FunctionNames::from_index(
             self.definitions
                 .values()
                 .filter_map(|function| function.name_declaration())
+                .collect(),
+            self.definitions
+                .keys()
+                .map(|target| (call_target_name(target).to_string(), target.clone()))
                 .collect(),
         )
     }
@@ -1016,6 +1020,12 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
         CallTarget::same_file(name)
     } else {
         CallTarget::imported(source, name)
+    }
+}
+
+fn call_target_name(target: &CallTarget) -> &str {
+    match target {
+        CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => name,
     }
 }
 

@@ -23,6 +23,7 @@ use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 use std/ptr.store_value_to_ptr
 use std/ptr.take_value_at_ptr
+use std/sequence.Sequence
 use std/vec_into_iter.{VecIntoIter, vec_into_iter_from_raw_parts}
 
 /// An owning, growable sequence with an initialized prefix of elements.
@@ -364,7 +365,7 @@ impl<T> Vec<T> {
     }
 
     /// Returns a readonly element borrow when `index` is in bounds.
-    pub method &self.get(index: usize): (&T)? {
+    pub method &self.get(index: usize): (&T)? from self {
         if index >= self.len {
             return none
         }
@@ -440,3 +441,5 @@ impl<T> Vec<T> {
         return
     }
 }
+
+impl<T> Sequence<T> for Vec<T>

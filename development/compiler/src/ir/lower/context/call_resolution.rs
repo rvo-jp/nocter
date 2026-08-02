@@ -420,11 +420,17 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
-            let target = call_target_for_source(
-                method_name_span.source,
-                resolution.root_source,
-                specialization.target_name.clone(),
-            );
+            let target = self
+                .function_names
+                .unique_target_for_name(&specialization.target_name)
+                .cloned()
+                .unwrap_or_else(|| {
+                    call_target_for_source(
+                        method_name_span.source,
+                        resolution.root_source,
+                        specialization.target_name.clone(),
+                    )
+                });
             return Some((target, specialization.target_name.clone()));
         }
         if resolution

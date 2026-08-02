@@ -633,6 +633,153 @@ fn lsp_command_serves_v0_editor_features() {
 }
 
 #[test]
+fn lsp_command_exposes_generic_bound_and_provenance_source_ranges() {
+    let project = TempProject::new("cli-lsp-bound-provenance-ranges");
+    let source_text = r#"interface Read<T> {
+    pub method &self.read(): &T from self
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    pub method &self.read(): &U from self {
+        return &self.value
+    }
+}
+
+impl<T> Read<T> for Box<T>
+
+func borrow<B: Read<T>, T>(value: &B): &T from value {
+    return value.read()
+}
+"#;
+    let source = project.write_source("bounds.nct", source_text);
+    let uri = file_uri(&source);
+    let call_start = source_text.rfind("read()").unwrap();
+    let declaration_start = source_text.find("read():").unwrap();
+    let (call_line, call_character) = lsp_position_for_ascii_byte_offset(source_text, call_start);
+    let (declaration_line, declaration_character) =
+        lsp_position_for_ascii_byte_offset(source_text, declaration_start);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+
+    let hover = &response_with_id(&messages, 2)["result"];
+    let hover_text = hover["contents"]["value"]
+        .as_str()
+        .expect("expected hover contents");
+    assert!(hover_text.contains("method") && hover_text.contains("from self"));
+    assert_eq!(hover["range"]["start"]["line"], json!(call_line));
+    assert_eq!(hover["range"]["start"]["character"], json!(call_character));
+    assert_eq!(
+        hover["range"]["end"]["character"],
+        json!(call_character + "read".len())
+    );
+
+    let definitions = response_with_id(&messages, 3)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["targetUri"], json!(uri));
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["line"],
+        json!(declaration_line)
+    );
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["character"],
+        json!(declaration_character)
+    );
+    assert_eq!(
+        definitions[0]["originSelectionRange"]["start"]["line"],
+        json!(call_line)
+    );
+    assert_eq!(
+        definitions[0]["originSelectionRange"]["start"]["character"],
+        json!(call_character)
+    );
+
+    let completion_items = response_with_id(&messages, 4)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let read = completion_item_with_label(completion_items, "read")
+        .expect("expected bound method completion");
+    assert!(
+        read["detail"]
+            .as_str()
+            .is_some_and(|detail| { detail.contains("method") && detail.contains("from self") })
+    );
+}
+
+#[test]
 fn lsp_command_exits_with_failure_without_shutdown() {
     let project = TempProject::new("cli-lsp-exit-without-shutdown");
 
