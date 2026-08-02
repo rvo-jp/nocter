@@ -324,19 +324,17 @@ The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, 
 
 ### Iteration
 
-Adopted: v0.2.0 collection iteration is explicit readonly borrow iteration through standard-library iterator types.
+The released v0.2.0 standard library does not provide iterator types. v0.3.0 Phase 2 adopts explicit
+readonly and owned iteration through ordinary standard-library types. It does not add collection
+`for` syntax.
 
 The compiler does not lower `for item in collection` into calls to `iter` or `next`. The names `iter`, `next`, `ViewIter`, and `into_iter` are not special to the compiler.
 
-Future iterator surface:
+Phase 2 readonly iterator surface:
 
 ```nct
 pub struct ViewIter<T> {
     ...
-}
-
-impl &[T] {
-    pub method self.iter(): ViewIter<T>
 }
 
 impl ViewIter<T> {
@@ -344,7 +342,10 @@ impl ViewIter<T> {
 }
 ```
 
-`&[T].iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
+`ViewIter.from_view(values)` returns an iterator over readonly borrows into the viewed storage.
+`Vec<T>.iter()` and `String.bytes_iter()` are forwarding conveniences. `ViewIter<T>.next()` advances
+the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean
+"optional borrow"; it is not a borrow of an optional value.
 
 ```nct
 for i in 0..<bytes.len() {
@@ -359,9 +360,10 @@ Rules:
 - `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
 - The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `&+[T]` mutable element iteration is not part of v0.2.0.
-- Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.2.0.
-- Range `for` remains the only `for` syntax in v0.2.0.
+- `&+[T]` mutable element iteration is not part of Phase 2.
+- `VecIntoIter<T>` owns a consumed `Vec<T>` and returns `T?` in source order.
+- Dropping `VecIntoIter<T>` drops unconsumed elements in reverse order and releases its storage once.
+- Range `for` remains the only `for` syntax through Phase 2.
 
 ## Strings
 

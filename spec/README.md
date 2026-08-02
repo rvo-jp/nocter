@@ -45,8 +45,9 @@ It also treats AI readability and writability as a tooling goal: the language ke
 The implemented and released language baseline is v0.2.0. Adopted v0.3.0
 directions are marked by version and implementation phase in their owning
 chapters. The [v0.3.0 Phase 0 and Phase 1](../development/docs/v0.3.0.md) implementation gates are
-complete on `develop`; this does not make v0.3.0 a released language version. A later v0.3.0 design
-is not buildable until its own stated gate passes.
+complete and Phase 2 Explicit Iteration and Collection Access is active on `develop`; this does not
+make v0.3.0 a released language version. A later v0.3.0 design is not buildable until its own stated
+gate passes.
 
 ## Editing Policy
 
