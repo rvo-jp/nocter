@@ -198,6 +198,18 @@ If the receiver is a generic type parameter, v0.2.0 has no interface-bound metho
 A method call through an unconstrained generic receiver is invalid unless a
 future feature supplies a bound and lookup rule.
 
+Nocter v0.3.0 Phase 4 supplies that rule for one explicit interface bound:
+
+```nct
+func read<S: Source<i32>>(source: &S): i32 {
+    return source.read()
+}
+```
+
+Lookup on `S` searches only the canonical `Source<i32>` contract. Each concrete specialization
+requires explicit conformance and statically resolves to the matching public inherent method.
+Phase 4 does not add runtime interface objects, multiple bounds, or `where` clauses.
+
 Lookup order:
 
 1. inherent method on a concrete nominal receiver type

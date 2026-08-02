@@ -12,7 +12,7 @@ implementation history.
 - completed milestone gates: `v0.3.0 Phase 0`, `v0.3.0 Phase 1 Typed Literal Core`,
   `v0.3.0 Phase 2 Explicit Iteration and Collection Access`, and
   `v0.3.0 Phase 3 Owned String Interpolation and Formatting`
-- active milestone gate: none
+- active milestone gate: `v0.3.0 Phase 4 Public Provenance Contracts and Generic Interface Bounds`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -25,7 +25,7 @@ typechecked semantic plan, explicit IR cleanup, and compiler-backed editor facts
 
 ## Current Objective
 
-No implementation objective is active. Phase 3 is complete; stop here until a subsequent phase or
-release objective is explicitly adopted. Sequence spread, variadic calls, custom formatting,
-collection `for`, Unicode character semantics, and broad LSP refactoring remain outside the
-completed Phase 3 scope.
+Complete Phase 4 as specified by the development contract and
+[Public Provenance Contracts and Generic Interface Bounds](docs/provenance-contracts.md). The gate
+adds identity-resolved `from` clauses, generic interface bounds, deterministic bound-method lookup,
+static specialization, and compiler-backed editor behavior. Allocation effects remain inferred.

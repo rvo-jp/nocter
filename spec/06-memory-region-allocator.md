@@ -255,6 +255,23 @@ Source-level lifetime syntax may be reconsidered only when public APIs need rela
 cannot be expressed by these rules, such as multiple independently named regions in bodyless APIs,
 higher-order functions, or separately compiled region-parameterized types.
 
+### Explicit result provenance
+
+Nocter v0.3.0 Phase 4 adds an identity-based `from` clause for public abstraction boundaries without
+adding lifetime names:
+
+```nct
+pub method &self.get(key: &K): (&V)? from self
+func choose<T>(left: &T, right: &T, first: bool): &T from left | right
+```
+
+An identifier after `from` names a receiver or borrow-like parameter declaration. `static` denotes
+program-lifetime storage. `current` denotes the current allocation context and implies the inferred
+allocation effect. Concrete bodies are checked against the declared origin set; bodyless interface
+methods use the clause as their callable provenance summary.
+
+Allocation effects otherwise remain inferred and have no source annotation in Phase 4.
+
 ## Typed Literal Allocation
 
 Typed literals are a later v0.3.0 phase, but their allocation boundary is fixed by Phase 0:
