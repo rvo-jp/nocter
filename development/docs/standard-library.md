@@ -157,14 +157,18 @@ state.
 Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
 byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
 escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
-spread, interpolation lowering, environment retrieval, rich path APIs, collection `for`, iterator
-interfaces/adapters, Unicode text APIs, and general allocator plugins.
+spread, environment retrieval, rich path APIs, collection `for`, iterator interfaces/adapters,
+Unicode text APIs, and general allocator plugins.
 
-## Active Phase 3 Formatting Work
+## Phase 3 Formatting and Interpolation
 
-Phase 3 rebuilds `std/fmt` around paired `append_*` and `try_append_*` operations. The recoverable
-surface owns checked formatting and failure propagation; the normal surface converts allocation
-failure into the established non-allocating abort path. Text, owned string, boolean, `i32`, `u8`,
-and `usize` are required. Interpolation starts from a zero-capacity `String` retaining
-the current allocation context, then calls only the normal surface through validated declaration
-identities.
+The completed Phase 3 implementation rebuilds `std/fmt` around paired `append_*` and
+`try_append_*` operations. The recoverable surface owns checked formatting and failure
+propagation; the normal surface converts allocation failure into the established non-allocating
+abort path. Both surfaces share the same checked implementation core for text, owned string,
+boolean, `i32`, `u8`, and `usize`.
+
+Interpolation starts from a zero-capacity `String` retaining the current allocation context, then
+calls only the normal surface through validated declaration identities. Packaged-home tests cover
+decoded and multiline text, integer boundaries, existing and temporary strings, left-to-right side
+effects, deterministic allocation abort, lexical-region allocation, and indirect escape rejection.

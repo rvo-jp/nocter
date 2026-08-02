@@ -499,7 +499,8 @@ The value is equivalent to:
 
 ## String Interpolation
 
-The v0.3.0 Phase 3 implementation gate for `${expr}` inside a string source form is active.
+The v0.3.0 Phase 3 implementation gate for `${expr}` inside a string source form is complete on
+`develop`. v0.2.0 remains the released language baseline.
 
 ```nct
 let message = "hello ${name}"
@@ -543,9 +544,9 @@ Allocator and lowering rules:
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
 - The lowering uses the compiler-propagated current allocation context. It must
   not read a mutable process-global allocator.
-- Before the Phase 3 gate passes, `check` may accept the syntax while `build` and `run` reject it at
-  buildability. Passing Phase 3 requires the complete current-context lowering and packaged-home
-  runtime behavior.
+- A Phase 3 implementation must support interpolation in `build` and `run` through complete
+  current-context lowering and packaged-home runtime behavior. Check-only acceptance does not
+  satisfy the Phase 3 gate.
 
 The intended lowering is equivalent to constructing a `String` through ordinary
 standard-library operations in the current context, appending decoded text

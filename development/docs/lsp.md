@@ -116,6 +116,21 @@ recognize `ViewIter`, `VecIntoIter`, `next`, `get`, or any standard-library modu
 - JSON-RPC tests verify that an incomplete `.next(` edit resolves the same compiler-owned method
   signature as the complete call
 
+## Completed v0.3.0 Phase 3 Integration
+
+Interpolation tooling uses `analysis/interpolation`, which reads the typecheck semantic plan rather
+than recognizing string syntax or standard-library names in protocol code.
+
+- hover on a complete interpolation reports owned `String`, the current-allocation effect, and the
+  result origin
+- hover on an interpolation part reports its accepted concrete input type while nested expressions
+  retain ordinary declaration and expression hover
+- completion and signature help inside incomplete `${...` expressions use a cursor-preserving
+  syntax overlay and then run the ordinary compiler query
+- the recovery scanner respects escapes, comments, nested delimiters, and nested string forms
+- unresolved capabilities or expression types produce no invented interpolation fact
+- JSON-RPC tests cover complete hover plus incomplete completion and nested-call signature help
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -158,7 +173,9 @@ region headers. Phase 1 tests cover sequence and string shape suggestions, impor
 specialized hover and signature help, expected element ranking, delimiter definition, duplicate
 expression facts, and incomplete expression/declaration recovery. Phase 2 tests cover concrete
 readonly/owned result types, receiver capability, returned-borrow provenance, and complete plus
-incomplete zero-argument iterator calls through direct and JSON-RPC queries.
+incomplete zero-argument iterator calls through direct and JSON-RPC queries. Phase 3 tests cover
+owned result/effect/origin hover, interpolation-part types, and cursor-preserving completion and
+signature recovery through direct and JSON-RPC queries.
 
 ## Deferred Features
 

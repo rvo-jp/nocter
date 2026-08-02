@@ -5,9 +5,9 @@ packaging inputs, and implementation documentation. See the [repository README](
 the public overview and the [specification](../spec/README.md) for language rules.
 
 The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context**,
-**Phase 1: Typed Literal Core**, and **Phase 2: Explicit Iteration and Collection Access** are
-complete on `develop`; **Phase 3: Owned String Interpolation and Formatting** is active. The
-completion records and dependency order are defined in the
+**Phase 1: Typed Literal Core**, **Phase 2: Explicit Iteration and Collection Access**, and
+**Phase 3: Owned String Interpolation and Formatting** are complete on `develop`. No later v0.3.0
+phase is currently adopted. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 

@@ -292,8 +292,10 @@ Required v0.2.0 diagnostic families:
   supported.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
-- Check-only construct used with `build` or `run`, such as string interpolation
-  before interpolation lowering is implemented, `std/process.env(name)` before
+- Interpolation expression whose value type is not supported by the adopted formatting surface.
+- Interpolation used when the active Nocter home does not provide the complete trusted string and
+  formatting runtime capability required by the compiler. This must be reported before IR lowering.
+- Check-only construct used with `build` or `run`, such as `std/process.env(name)` before
   environment runtime support is promoted, a fixed-array element type containing
   a payload enum, or move-only payload binding with an unsupported recursive drop
   tree and broader payload enum pattern target expressions before those lowering

@@ -4,15 +4,15 @@ This directory contains implementation design and completion criteria. The publi
 [specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
 those rules here.
 
-The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**, and
-**Phase 2: Explicit Iteration and Collection Access** are complete on `develop`;
-**Phase 3: Owned String Interpolation and Formatting** is active. Do not use `v0` as shorthand for
-a release name or work scope.
+The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
+**Phase 2: Explicit Iteration and Collection Access**, and **Phase 3: Owned String Interpolation and
+Formatting** are complete on `develop`. No later v0.3.0 phase is currently adopted. Do not use `v0`
+as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 2 records and the active
-  Phase 3 gate; the single entry point for current milestone status
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 3 records; the single
+  entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
@@ -25,9 +25,9 @@ a release name or work scope.
   plans, formatting policy, lowering, cleanup, and LSP boundaries
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
-- [Standard Library](standard-library.md): released runtime baseline and completed Phase 0
-  allocator-policy integration
-- [LSP](lsp.md): released compiler-backed capabilities and completed Phase 0 region integration
+- [Standard Library](standard-library.md): released runtime baseline and completed v0.3.0 runtime
+  integrations
+- [LSP](lsp.md): released compiler-backed capabilities and completed v0.3.0 editor integrations
 - [Maintenance](maintenance.md): update ownership, verification, and commit policy
 - [TODO](../TODO.md): internal short-term handoff state
 

@@ -2,7 +2,7 @@
 
 This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and
 formatting semantics belong to [Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md)
-and [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md). The active gate
+and [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md). The completed gate
 belongs to the [v0.3.0 Development Contract](v0.3.0.md).
 
 ## Boundary
@@ -107,6 +107,16 @@ show:
 Completion, hover, and nested call signature help inside `${...}` reuse ordinary expression
 analysis. Incomplete `${...` recovery must preserve cursor identity and must not invent a result
 when the trusted runtime capability or expression type is unresolved.
+
+## Completion Record
+
+Phase 3 is complete on `develop`. `target/trusted_interpolation` validates the atomic runtime
+capability, typecheck records one semantic plan per expression, `ir/lower/interpolation` lowers the
+owned result and cleanup state, and `analysis/interpolation` owns editor-facing facts and recovery.
+Distributed-home tests exercise exact native output, scalar boundaries, evaluation order, existing
+and temporary owned strings, allocation abort, lexical-region allocation and escape rejection, and
+JSON-RPC hover, completion, and signature help. The packaged-home gate verifies the same behavior
+against the distributed standard library rather than repository-relative compiler inputs.
 
 ## Non-goals
 
