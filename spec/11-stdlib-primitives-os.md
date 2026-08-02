@@ -183,21 +183,14 @@ Initial `std/fmt` public surface:
 ```nct
 pub func append_str(out: &+String, value: &str): void
 pub func append_string(out: &+String, value: &String): void
-pub func append_i8(out: &+String, value: i8): void
-pub func append_i16(out: &+String, value: i16): void
 pub func append_i32(out: &+String, value: i32): void
-pub func append_i64(out: &+String, value: i64): void
-pub func append_isize(out: &+String, value: isize): void
 pub func append_u8(out: &+String, value: u8): void
-pub func append_u16(out: &+String, value: u16): void
-pub func append_u32(out: &+String, value: u32): void
-pub func append_u64(out: &+String, value: u64): void
 pub func append_usize(out: &+String, value: usize): void
 pub func append_bool(out: &+String, value: bool): void
 
 pub func try_append_str(out: &+String, value: &str): void!
 pub func try_append_string(out: &+String, value: &String): void!
-// `try_append_*` also covers every integer type and `bool` above.
+// `try_append_*` also covers `i32`, `u8`, `usize`, and `bool` above.
 ```
 
 Rules:

@@ -28,7 +28,7 @@ The capability records declaration identities for:
 - zero-capacity construction in the current allocation context
 - text and owned-string append operations
 - boolean append
-- every supported signed and unsigned integer append operation
+- every executable scalar integer append operation (`i32`, `u8`, and `usize` in Phase 3)
 
 Validation checks module identity and the complete declaration signature. A missing or mismatched
 member rejects interpolation before IR lowering. User declarations with the same names have no
@@ -65,10 +65,10 @@ append_*      -> void, allocation failure aborts without unwinding
 try_append_*  -> void!, allocation failure is returned
 ```
 
-Both surfaces share the fallible implementation core. Signed formatting is centralized around an
-`i64` digit implementation and unsigned formatting around `u64`; narrower types use lossless
-widening. `isize` and `usize` use their target-width signed or unsigned implementation. Minimum
-signed values are handled without overflowing negation.
+Both surfaces share the fallible implementation core. Phase 3 provides independent digit cores for
+the executable scalar integer types `i32`, `u8`, and `usize`. Minimum signed values are handled
+without overflowing negation. The semantic capability uses a type-to-declaration map so later
+scalar ABI expansion can add types without changing interpolation lowering.
 
 Interpolation uses only the aborting surface. Explicit recoverable builders may call the
 `try_append_*` surface directly.

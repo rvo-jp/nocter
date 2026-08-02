@@ -164,7 +164,7 @@ interfaces/adapters, Unicode text APIs, and general allocator plugins.
 
 Phase 3 rebuilds `std/fmt` around paired `append_*` and `try_append_*` operations. The recoverable
 surface owns checked formatting and failure propagation; the normal surface converts allocation
-failure into the established non-allocating abort path. Text, owned string, boolean, and every
-language integer type are required. Interpolation starts from a zero-capacity `String` retaining
+failure into the established non-allocating abort path. Text, owned string, boolean, `i32`, `u8`,
+and `usize` are required. Interpolation starts from a zero-capacity `String` retaining
 the current allocation context, then calls only the normal surface through validated declaration
 identities.

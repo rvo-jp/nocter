@@ -281,7 +281,8 @@ fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
         "std_smoke.nct",
-        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
+        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_u8, append_usize}
+use std/fmt.{try_append_bool, try_append_i32, try_append_str, try_append_string, try_append_u8, try_append_usize}
 use std/io.{File, open, print, read, stderr, stdout, write, write_text}
 use std/mem.{Allocator, Layout, RawBuffer, TryAllocator, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
@@ -4232,15 +4233,15 @@ fn distributed_std_explicit_string_construction_builds_to_macho() {
 use std/mem.page_allocator
 use std/string.with_capacity
 
-func make(): String! {
+func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
-    append_str(&+out, "hello")?
+    append_str(&+out, "hello")
     return move out
 }
 
 func main(): i32! {
-    var text = make()?
+    var text = make()
     return 0
 }
 "#,
@@ -4264,16 +4265,16 @@ use std/io.print
 use std/mem.page_allocator
 use std/string.{view, with_capacity}
 
-func make(): String! {
+func make(): String {
     var allocator = page_allocator()
     var out = with_capacity(8)
-    append_str(&+out, "hello")?
-    append_str(&+out, " runtime")?
+    append_str(&+out, "hello")
+    append_str(&+out, " runtime")
     return move out
 }
 
 func main(): i32! {
-    var text = make()?
+    var text = make()
     print(view(&text))?
     return 0
 }
@@ -4708,8 +4709,8 @@ use std/string.{view, with_capacity}
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(16)
-    append_str(&+text, "Hello")?
-    append_str(&+text, " Format")?
+    append_str(&+text, "Hello")
+    append_str(&+text, " Format")
     print(view(&text))?
     return 0
 }
@@ -4747,11 +4748,11 @@ use std/string.{from_str, view, with_capacity}
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(32)
-    append_bool(&+text, true)?
-    append_str(&+text, " ")?
-    append_bool(&+text, false)?
+    append_bool(&+text, true)
+    append_str(&+text, " ")
+    append_bool(&+text, false)
     let suffix = from_str(" done")
-    append_string(&+text, &suffix)?
+    append_string(&+text, &suffix)
     print(view(&text))?
     return 0
 }
@@ -4789,13 +4790,13 @@ use std/string.{view, with_capacity}
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(4)
-    append_i32(&+text, 0)?
-    append_str(&+text, " ")?
-    append_i32(&+text, 42)?
-    append_str(&+text, " ")?
-    append_i32(&+text, -17)?
-    append_str(&+text, " ")?
-    append_i32(&+text, -2147483648)?
+    append_i32(&+text, 0)
+    append_str(&+text, " ")
+    append_i32(&+text, 42)
+    append_str(&+text, " ")
+    append_i32(&+text, -17)
+    append_str(&+text, " ")
+    append_i32(&+text, -2147483648)
     print(view(&text))?
     return 0
 }
@@ -4821,6 +4822,40 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_fmt_append_u8_runs() {
+    let project = TempProject::new("distributed-home-fmt-append-u8-run");
+    let source = project.write_source(
+        "fmt_append_u8.nct",
+        r#"use std/fmt.{append_str, append_u8}
+use std/io.print
+use std/string.{view, with_capacity}
+
+func main(): i32! {
+    var text = with_capacity(4)
+    append_u8(&+text, 0)
+    append_str(&+text, " ")
+    append_u8(&+text, 255)
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"0 255");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_fmt_append_usize_runs() {
     let project = TempProject::new("distributed-home-fmt-append-usize-run");
     let source = project.write_source(
@@ -4833,11 +4868,11 @@ use std/string.{view, with_capacity}
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(8)
-    append_usize(&+text, 0)?
-    append_str(&+text, " ")?
-    append_usize(&+text, 42)?
-    append_str(&+text, " ")?
-    append_usize(&+text, 18446744073709551615)?
+    append_usize(&+text, 0)
+    append_str(&+text, " ")
+    append_usize(&+text, 42)
+    append_str(&+text, " ")
+    append_usize(&+text, 18446744073709551615)
     print(view(&text))?
     return 0
 }
