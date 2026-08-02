@@ -100,6 +100,11 @@ same typecheck implementation. Return checking, NLL, region escape validation, a
 consume those facts instead of maintaining separate origin models. See
 [Region, Provenance, and Allocation Context](region-provenance.md).
 
+Phase 3 interpolation uses a validated runtime-capability bundle. Typecheck produces a semantic
+plan containing declaration identities, result type, allocation effect, provenance, and per-part
+evaluation mode. Dedicated IR lowering consumes that plan; it does not resolve standard-library
+names or repeat type dispatch. See [Owned String Interpolation and Formatting](interpolation.md).
+
 ## LSP Boundary
 
 `driver/lsp` owns transport, document state, and protocol conversion. `analysis` derives semantic

@@ -1,9 +1,9 @@
-# Nocter v0.3.0 Phase 2 Completion Handoff
+# Nocter v0.3.0 Phase 3 Handoff
 
 The completion criteria and implementation boundaries are owned by the
 [v0.3.0 Development Contract](docs/v0.3.0.md) and
-[Explicit Iteration and Collection Access](docs/iteration.md). Git owns chronological implementation
-history.
+[Owned String Interpolation and Formatting](docs/interpolation.md). Git owns chronological
+implementation history.
 
 ## Current Baseline
 
@@ -11,22 +11,21 @@ history.
 - released baseline: `v0.2.0`
 - completed milestone gates: `v0.3.0 Phase 0`, `v0.3.0 Phase 1 Typed Literal Core`, and
   `v0.3.0 Phase 2 Explicit Iteration and Collection Access`
-- active milestone gate: none
+- active milestone gate: `v0.3.0 Phase 3 Owned String Interpolation and Formatting`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
 - required Phase 2 items: none
 
-Phase 2 adds allocation-free `ViewIter<T>`, consuming `VecIntoIter<T>`, provenance-safe `get` and
-`get_mut`, failure-atomic insertion, ownership-safe removal, exact remaining-range cleanup, and
-specialized LSP queries. Packaged-home tests observe native scalar, byte, and move-only order,
-source-loan retention, mutation visibility, deterministic failed-growth state, lexical-region
-escape rejection, and cleanup across exhaustion, `break`, and `?`.
+Phase 3 promotes interpolation from check-only syntax to a current-context owned `String`. It uses
+validated trusted declaration identities, paired aborting/recoverable formatting operations, a
+typechecked semantic plan, explicit IR cleanup, and compiler-backed editor facts.
 
 ## Current Objective
 
-No implementation objective is active. Define the next v0.3.0 phase in `docs/v0.3.0.md` before
-starting work that expands the language or standard-library contract.
+Implement the Phase 3 work order in `docs/v0.3.0.md`. The first required item is the atomic trusted
+interpolation runtime capability and the paired `std/fmt` formatting surface.
 
-Collection `for`, sequence spread, general iterator interfaces, Unicode character semantics,
-interpolation, and broad LSP refactoring remain outside the completed Phase 2 contract.
+Required Phase 3 items remain open until the full acceptance matrix passes. Sequence spread,
+variadic calls, custom formatting, collection `for`, Unicode character semantics, and broad LSP
+refactoring remain outside Phase 3.

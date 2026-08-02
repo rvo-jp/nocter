@@ -181,17 +181,30 @@ impl String {
 Initial `std/fmt` public surface:
 
 ```nct
-pub func append_str(out: &+String, value: &str): void!
-pub func append_string(out: &+String, value: &String): void!
-pub func append_i32(out: &+String, value: i32): void!
-pub func append_usize(out: &+String, value: usize): void!
-pub func append_bool(out: &+String, value: bool): void!
+pub func append_str(out: &+String, value: &str): void
+pub func append_string(out: &+String, value: &String): void
+pub func append_i8(out: &+String, value: i8): void
+pub func append_i16(out: &+String, value: i16): void
+pub func append_i32(out: &+String, value: i32): void
+pub func append_i64(out: &+String, value: i64): void
+pub func append_isize(out: &+String, value: isize): void
+pub func append_u8(out: &+String, value: u8): void
+pub func append_u16(out: &+String, value: u16): void
+pub func append_u32(out: &+String, value: u32): void
+pub func append_u64(out: &+String, value: u64): void
+pub func append_usize(out: &+String, value: usize): void
+pub func append_bool(out: &+String, value: bool): void
+
+pub func try_append_str(out: &+String, value: &str): void!
+pub func try_append_string(out: &+String, value: &String): void!
+// `try_append_*` also covers every integer type and `bool` above.
 ```
 
 Rules:
 
 - These functions are ordinary standard-library APIs, not compiler built-ins.
-- Fallible functions fail with the built-in `error` payload. `std/string` and `std/fmt` must not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
+- `try_append_*` functions fail with the built-in `error` payload. `std/string` and `std/fmt` must
+  not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
 - `std/string.with_capacity` and `std/string.from_str` take an explicit `&+Allocator`.
 - Every `String` stores its allocator provenance in a private `RawBuffer`. `String.empty()` binds a
   canonical zero-sized buffer to the page allocator; `with_capacity(allocator, 0)` retains the
@@ -200,7 +213,9 @@ Rules:
   pointer, contents, length, and capacity unchanged.
 - `String` storage is released by recursive deterministic drop of its private `RawBuffer`; string
   code does not call target page allocation or release primitives directly.
-- The formatting append functions operate on an already-created `String`; they do not choose an allocator.
+- The formatting append functions operate on an already-created `String`; they do not choose an
+  allocator. Normal `append_*` operations adapt the shared `try_append_*` core and terminate on
+  allocation failure.
 - v0.3.0 interpolation lowering uses ordinary `String` and `std/fmt`
   operations with the statically propagated current allocation context. It must
   not read a mutable process-global allocator.

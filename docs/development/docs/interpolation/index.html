@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Language Specification</title>
-    <meta name="description" content="Language specification for Nocter, covering syntax, types, modules, interfaces, diagnostics, the released v0.2.0 contract, and adopted v0.3.0 directions.">
+    <title>Owned String Interpolation and Formatting - Nocter</title>
+    <meta name="description" content="This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and formatting semantics belong to Strings, Arrays, Views, an">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/spec/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/docs/interpolation/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Language Specification">
-    <meta property="og:description" content="Language specification for Nocter, covering syntax, types, modules, interfaces, diagnostics, the released v0.2.0 contract, and adopted v0.3.0 directions.">
-    <meta property="og:url" content="https://nocter.dev/spec/">
+    <meta property="og:title" content="Owned String Interpolation and Formatting - Nocter">
+    <meta property="og:description" content="This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and formatting semantics belong to Strings, Arrays, Views, an">
+    <meta property="og:url" content="https://nocter.dev/development/docs/interpolation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-02">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Language Specification">
-    <meta name="twitter:description" content="Language specification for Nocter, covering syntax, types, modules, interfaces, diagnostics, the released v0.2.0 contract, and adopted v0.3.0 directions.">
+    <meta name="twitter:title" content="Owned String Interpolation and Formatting - Nocter">
+    <meta name="twitter:description" content="This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and formatting semantics belong to Strings, Arrays, Views, an">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Language Specification","description":"Language specification for Nocter, covering syntax, types, modules, interfaces, diagnostics, the released v0.2.0 contract, and adopted v0.3.0 directions.","url":"https://nocter.dev/spec/","mainEntityOfPage":"https://nocter.dev/spec/","dateModified":"2026-08-02","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Owned String Interpolation and Formatting - Nocter","description":"This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and formatting semantics belong to Strings, Arrays, Views, an","url":"https://nocter.dev/development/docs/interpolation/","mainEntityOfPage":"https://nocter.dev/development/docs/interpolation/","dateModified":"2026-08-02","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Interpolation","item":"https://nocter.dev/development/docs/interpolation/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="./index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -124,40 +124,31 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">spec/</p>
+            <p class="directory-toc-title">development/docs/</p>
             <ul class="directory-toc-list">
-                <li><a href="./00-design-principles/index.html#content">Design Principles</a></li>
-                <li><a href="./00-overview/index.html#content">Overview</a></li>
-                <li><a href="./00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li>
-                <li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li>
-                <li><a href="./02-values-types/index.html#content">Values and Types</a></li>
-                <li><a href="./03-control-flow/index.html#content">Control Flow</a></li>
-                <li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li>
-                <li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
-                <li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
-                <li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li>
-                <li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li>
-                <li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li>
-                <li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
-                <li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li>
-                <li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
-                <li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
-                <li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li>
-                <li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
-                <li><a href="./17-future-literal-definitions-spread/index.html#content">Future Literal Definitions and Spread</a></li>
-                <li><a href="./guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../development/docs/v0.3.0/index.html#content">v0.3.0 Phase 0, Phase 1, and Phase 2</a></li>
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literal Core</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="./index.html#content" aria-current="page">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/spec/README.md</span>
+                <span class="markdown-path-text">/development/docs/interpolation.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-language-specification">Nocter Language Specification</h1><p>This directory is the authoritative source for Nocter language behavior. It is written for Nocter users, standard-library authors, editor/tool authors, and AI assistants that need to generate or analyze Nocter source.</p><p>The detailed specification is split by topic so each design area can evolve without turning this file into a monolith.</p><p>Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language. Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users. Nocter values simplicity, encapsulation, and foolproof design. It also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.</p><h2 id="chapters">Chapters</h2><ul><li><a href="./00-design-principles/index.html#content">Design Principles</a></li><li><a href="./00-overview/index.html#content">Overview</a></li><li><a href="./00-v0.2.0-contract/index.html#content">Nocter v0.2.0 Language Contract</a></li><li><a href="./01-modules-use/index.html#content">Modules and Use Declarations</a></li><li><a href="./02-values-types/index.html#content">Values and Types</a></li><li><a href="./03-control-flow/index.html#content">Control Flow</a></li><li><a href="./04-errors-optionals/index.html#content">Errors and Optionals</a></li><li><a href="./05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li><li><a href="./06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li><li><a href="./07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li><li><a href="./08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, Embedding, and Methods</a></li><li><a href="./09-abi-layout/index.html#content">ABI and Layout</a></li><li><a href="./10-targets-distribution/index.html#content">Targets and Distribution</a></li><li><a href="./11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li><li><a href="./12-diagnostics/index.html#content">Diagnostics</a></li><li><a href="./13-lexical-grammar/index.html#content">Lexical Grammar</a></li><li><a href="./14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li><li><a href="./15-command-line-interface/index.html#content">Command Line Interface</a></li><li><a href="./16-source-style-formatting/index.html#content">Source Style and Formatting</a></li><li><a href="./17-future-literal-definitions-spread/index.html#content">Future Literal Definitions and Spread</a></li></ul><h2 id="supporting-material">Supporting Material</h2><ul><li><a href="./guides/ai/index.html#content">AI Guide</a></li><li><a href="./examples/index.html#content">Example Corpus</a></li></ul><h2 id="version-status">Version Status</h2><p>The implemented and released language baseline is v0.2.0. Adopted v0.3.0 directions are marked by version and implementation phase in their owning chapters. The <a href="../development/docs/v0.3.0/index.html#content">v0.3.0 Phase 0, Phase 1, and Phase 2</a> implementation gates are complete on <code>develop</code>; <strong>Phase 3: Owned String Interpolation and Formatting</strong> is active. This does not make v0.3.0 a released language version. A future design is not buildable until its own stated gate passes.</p><h2 id="editing-policy">Editing Policy</h2><ul><li>Keep this file as the table of contents and high-level specification entry point.</li><li>Put normative language and public standard-library rules in the relevant
-  <code>spec/*.md</code> chapter.</li><li>Keep examples close to the rule they explain.</li><li>Keep <code>guides/ai.md</code> compact and example-oriented; do not let it replace normative specification chapters.</li><li>When a design is still provisional, mark it explicitly in that chapter instead of hiding uncertainty in broad wording.</li><li>Keep compiler implementation status, backend work plans, and handoff notes in
-  <code>../development/</code>.</li></ul>
+                <h1 id="owned-string-interpolation-and-formatting">Owned String Interpolation and Formatting</h1><p>This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and formatting semantics belong to <a href="../../../spec/07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a> and <a href="../../../spec/11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a>. The active gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Development Contract</a>.</p><h2 id="boundary">Boundary</h2><p>Phase 3 promotes an interpolated string from a check-only expression to an ordinary buildable owned <code>String</code>:</p><pre><code class="language-nct"><span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"hello ${name}, count = ${count}"</span>
+</code></pre><p>A non-interpolated string literal remains a static <code>&amp;str</code>. Interpolation allocates through the current aborting allocation context and returns <code>String</code>, not <code>String!</code>. Recoverable formatting is available only through explicit <code>try_*</code> standard-library operations.</p><h2 id="runtime-capability">Runtime Capability</h2><p>Lowering must not search for <code>String</code>, <code>with_capacity</code>, <code>append</code>, or <code>std/fmt</code> by source spelling. The frontend validates an atomic interpolation runtime capability from the trusted Nocter home. The capability records declaration identities for:</p><ul><li>the owned string type</li><li>zero-capacity construction in the current allocation context</li><li>text and owned-string append operations</li><li>boolean append</li><li>every supported signed and unsigned integer append operation</li></ul><p>Validation checks module identity and the complete declaration signature. A missing or mismatched member rejects interpolation before IR lowering. User declarations with the same names have no compiler-defined behavior.</p><p>The capability is compiler input, not a public source symbol. Typecheck uses it to select the result type and formatting operation. IR uses the same declaration identities to emit ordinary calls. Analysis exposes the resulting facts without reconstructing the capability from names.</p><h2 id="semantic-plan">Semantic Plan</h2><p>Typecheck produces one interpolation plan per expression. It contains:</p><ul><li>the owned result type and current-allocation effect</li><li>current-context result provenance</li><li>the selected append declaration for each decoded text or expression part</li><li>the concrete input type and evaluation mode for each expression part</li><li>source spans used by diagnostics and editor queries</li></ul><p><code>&amp;str</code> is copied as a view. An existing <code>String</code> place is borrowed for the append and remains owned by the caller. A temporary <code>String</code> remains live through its append and is then dropped. Scalars are copied. Unsupported optional, fallible, aggregate, pointer, enum, and nominal values are rejected before lowering.</p><p>The plan is the only semantic input to interpolation lowering. IR does not repeat type dispatch or resolve standard-library declarations.</p><h2 id="standard-library-formatting">Standard-Library Formatting</h2><p><code>std/fmt</code> has paired policy surfaces:</p><pre><code class="language-text">append_*      -&gt; void, allocation failure aborts without unwinding
+try_append_*  -&gt; void!, allocation failure is returned
+</code></pre><p>Both surfaces share the fallible implementation core. Signed formatting is centralized around an <code>i64</code> digit implementation and unsigned formatting around <code>u64</code>; narrower types use lossless widening. <code>isize</code> and <code>usize</code> use their target-width signed or unsigned implementation. Minimum signed values are handled without overflowing negation.</p><p>Interpolation uses only the aborting surface. Explicit recoverable builders may call the <code>try_append_*</code> surface directly.</p><h2 id="allocation-and-provenance">Allocation and Provenance</h2><p>The result starts with a zero-capacity <code>String</code> that retains the current allocator identity without allocating. It must not start from a canonical root-owned empty buffer, because a later append must still grow through the lexical region selected at the interpolation site.</p><p>The interpolation expression therefore always has a current-allocation effect, including when all rendered parts are empty. Its owned result carries the current allocation origin. A result created inside a child region cannot escape that region directly or through an aggregate, optional, or fallible channel.</p><h2 id="evaluation-and-cleanup">Evaluation and Cleanup</h2><p>Decoded text and expression parts are processed in source order. Each expression is evaluated exactly once. A part is appended before the next expression is evaluated.</p><p>The partially initialized result is an ordinary owned temporary. Normal completion publishes it. <code>return</code>, propagation, and other exiting edges before publication drop the partial result and any live expression temporary according to the existing scope-drop model. Allocation abort does not unwind Nocter scopes.</p><h2 id="lsp-boundary">LSP Boundary</h2><p><code>analysis/interpolation</code> exposes owned results derived from the semantic plan. LSP presentation may show:</p><ul><li>the concrete <code>String</code> result type</li><li>current allocation effect and result origin</li><li>the accepted type of an interpolation part</li><li>the same diagnostics as command-line checking</li></ul><p>Completion, hover, and nested call signature help inside <code>${...}</code> reuse ordinary expression analysis. Incomplete <code>${...</code> recovery must preserve cursor identity and must not invent a result when the trusted runtime capability or expression type is unresolved.</p><h2 id="non-goals">Non-goals</h2><ul><li>user-defined formatting interfaces or implicit <code>to_string</code> lookup</li><li>formatting options, width, precision, radix, locale, or debug representations</li><li>optional, fallible, collection, pointer, enum, or arbitrary nominal formatting</li><li>recoverable interpolation syntax or ambient <code>TryAllocator</code></li><li>sequence spread, variadic calls, collection <code>for</code>, or iterator adapters</li><li>Unicode scalar or grapheme APIs</li><li>native targets other than <code>arm64-darwin</code></li></ul>
             </div>
         </main>
     </div>
@@ -173,6 +164,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

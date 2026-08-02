@@ -159,3 +159,12 @@ byte order, source-loan retention, mutation visibility, failed-growth state pres
 escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
 spread, interpolation lowering, environment retrieval, rich path APIs, collection `for`, iterator
 interfaces/adapters, Unicode text APIs, and general allocator plugins.
+
+## Active Phase 3 Formatting Work
+
+Phase 3 rebuilds `std/fmt` around paired `append_*` and `try_append_*` operations. The recoverable
+surface owns checked formatting and failure propagation; the normal surface converts allocation
+failure into the established non-allocating abort path. Text, owned string, boolean, and every
+language integer type are required. Interpolation starts from a zero-capacity `String` retaining
+the current allocation context, then calls only the normal surface through validated declaration
+identities.
