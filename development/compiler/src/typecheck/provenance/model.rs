@@ -408,21 +408,11 @@ impl LexicalRegionTree {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(in crate::typecheck) struct ProvenanceEnvironment {
     bindings: HashMap<ByteSpan, ValueProvenance>,
     known_bindings: HashSet<ByteSpan>,
     current_region: Option<(RegionId, String)>,
-}
-
-impl Default for ProvenanceEnvironment {
-    fn default() -> Self {
-        Self {
-            bindings: HashMap::new(),
-            known_bindings: HashSet::new(),
-            current_region: None,
-        }
-    }
 }
 
 impl ProvenanceEnvironment {
