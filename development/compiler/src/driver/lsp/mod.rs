@@ -590,7 +590,7 @@ impl LspServer {
                 uri,
                 &self.documents,
                 recovered,
-                source_root.clone(),
+                source_root,
             ) else {
                 continue;
             };
