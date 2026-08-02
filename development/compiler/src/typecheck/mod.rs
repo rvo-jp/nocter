@@ -66,6 +66,16 @@ pub(crate) fn type_expr_is_assignable(
     )
 }
 
+pub(crate) fn type_expr_is_aborting_allocator_capability(
+    ty: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    allocation::type_is_aborting_allocator_capability(
+        &type_expr::type_expr_to_type(ty, resolved),
+        resolved,
+    )
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TypecheckSource<'a> {
     ast: &'a AstFile,

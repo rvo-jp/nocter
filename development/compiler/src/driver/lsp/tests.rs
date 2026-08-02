@@ -902,6 +902,101 @@ func run(arena: Arena): i32 {
             "```nocter\nregion outer: Arena\n```\n\n**Allocation context:** lexical region `outer` using `arena` (Arena); parent is the root allocation context. Its owned allocations are released when the region exits."
         )
     );
+
+    let definition = server.definition_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    assert_eq!(definition["result"]["range"]["start"]["line"], json!(5));
+    assert_eq!(
+        definition["result"]["range"]["start"]["character"],
+        json!(11)
+    );
+    assert_eq!(definition["result"]["range"]["end"]["character"], json!(16));
+}
+
+#[test]
+fn region_using_completion_recovers_header_and_filters_allocator_policy() {
+    let project = TempProject::new("lsp-region-using-completion");
+    let home = project.write_nocter_home();
+    write_allocator_capability_std(&home);
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/mem.{Allocator, TryAllocator}
+
+func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
+    region temp using
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("using\n").expect("expected using") + "using".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let labels = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items")
+        .iter()
+        .filter_map(|item| item["label"].as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(labels, vec!["parent"]);
+}
+
+#[test]
+fn region_hover_recovers_unclosed_body_without_losing_binding_facts() {
+    let project = TempProject::new("lsp-region-unclosed-hover");
+    let home = project.write_nocter_home();
+    write_allocator_capability_std(&home);
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/mem.Allocator
+
+func run(parent: Allocator): void {
+    region temp using parent {
+        let value = 1
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("temp using").expect("expected region binding");
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.hover_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nregion temp: Allocator\n```\n\n**Allocation context:** lexical region `temp` using `parent` (Allocator); parent is the root allocation context. Its owned allocations are released when the region exits."
+        )
+    );
 }
 
 #[test]
@@ -3565,6 +3660,23 @@ impl TempProject {
         std::fs::write(home.join("std/prelude.nct"), "").unwrap();
         home
     }
+}
+
+fn write_allocator_capability_std(home: &Path) {
+    std::fs::write(
+        home.join("std/mem.nct"),
+        r#"pub struct Allocator {
+    state: usize
+    kind: usize
+}
+
+pub struct TryAllocator {
+    state: usize
+    kind: usize
+}
+"#,
+    )
+    .unwrap();
 }
 
 impl Drop for TempProject {

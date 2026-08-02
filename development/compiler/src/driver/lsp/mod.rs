@@ -314,11 +314,13 @@ impl LspServer {
 
     fn hover_response(&self, id: Value, params: Option<&Value>) -> Value {
         let hover = document_uri_from_params(params).and_then(|uri| {
-            self.workspace_hover_for_uri(&uri, params).or_else(|| {
-                self.documents
-                    .get(&uri)
-                    .and_then(|document| hover_for_document(document, params))
-            })
+            self.workspace_hover_for_uri(&uri, params)
+                .or_else(|| self.workspace_hover_for_recovered_uri(&uri, params))
+                .or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .and_then(|document| hover_for_document(document, params))
+                })
         });
         response(id, hover.unwrap_or(Value::Null))
     }
@@ -405,6 +407,26 @@ impl LspServer {
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
             hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
         })
+    }
+
+    fn workspace_hover_for_recovered_uri(
+        &self,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Value> {
+        let position = position_from_params(params)?;
+        let document = self.documents.get(uri)?;
+        let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let recovered = crate::analysis::region_recovery_text(&document.text, offset)?;
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        let workspace = workspace_analysis_with_recovered_document(
+            uri,
+            &self.documents,
+            recovered,
+            source_root,
+        )?;
+        let file = workspace.root_file()?;
+        hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, offset)
     }
 
     fn workspace_semantic_tokens_for_uri(&self, uri: &str) -> Option<Vec<usize>> {

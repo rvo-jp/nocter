@@ -11,6 +11,7 @@ pub(crate) mod hover;
 mod import_completion;
 pub(crate) mod provenance;
 pub(crate) mod references;
+mod region_recovery;
 pub(crate) mod regions;
 mod scoped_imports;
 pub(crate) mod semantic;
@@ -21,6 +22,7 @@ pub(crate) mod symbols;
 pub(crate) mod test_support;
 
 pub(crate) use completion_recovery::{completion_recovery_text, signature_recovery_text};
+pub(crate) use region_recovery::region_recovery_text;
 mod visible_locals;
 
 use crate::ast::AstFile;

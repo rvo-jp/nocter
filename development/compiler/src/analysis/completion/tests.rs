@@ -1,5 +1,7 @@
 use super::*;
-use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
+use crate::analysis::test_support::{
+    analyze_namespace_import_text, analyze_text, analyze_text_with_trusted_allocator_capabilities,
+};
 
 #[test]
 fn completion_candidates_include_keywords_and_symbols() {
@@ -79,7 +81,6 @@ fn completion_candidates_follow_lexical_local_scope() {
     let later = 3
     return outer
 }
-
 func other(hidden: i32): i32 {
     return hidden
 }
@@ -106,6 +107,41 @@ func other(hidden: i32): i32 {
     }
     assert!(!outer_items.iter().any(|item| item.label == "inner"));
     assert!(!outer_items.iter().any(|item| item.label == "hidden"));
+}
+
+#[test]
+fn region_allocator_completion_keeps_only_aborting_capabilities() {
+    let text = r#"struct Allocator {
+    state: usize
+}
+
+struct TryAllocator {
+    state: usize
+}
+
+func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
+    region temp using parent {
+        return
+    }
+}
+"#;
+    let (_, analysis) = analyze_text_with_trusted_allocator_capabilities(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("using parent").expect("expected allocator") + "using ".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["parent"]
+    );
+    assert_eq!(
+        items[0].detail.as_deref(),
+        Some("parameter parent: Allocator")
+    );
 }
 
 #[test]

@@ -17,8 +17,8 @@ use crate::resolve::{
 };
 use crate::source::ByteSpan;
 use crate::source::SourceMap;
-use crate::typecheck::type_expr_presentation_label;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use crate::typecheck::{type_expr_is_aborting_allocator_capability, type_expr_presentation_label};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
@@ -50,6 +50,7 @@ pub(crate) struct CompletionItemInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionContext<'a> {
+    RegionAllocator,
     EnumPatternMembers(&'a str),
     MemberAccess {
         owner_name: &'a str,
@@ -376,6 +377,9 @@ fn contextual_completion_items(
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     match completion_context_at_offset(ast, offset)? {
+        CompletionContext::RegionAllocator => Some(region_allocator_completion_items(
+            ast, resolved, facts, offset,
+        )),
         CompletionContext::EnumPatternMembers(enum_name) => Some(
             resolved
                 .type_symbol_by_name(enum_name)
@@ -392,6 +396,22 @@ fn contextual_completion_items(
             struct_literal_field_completion_items(resolved, literal, offset),
         ),
     }
+}
+
+fn region_allocator_completion_items(
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
+    offset: usize,
+) -> Vec<CompletionItemInfo> {
+    local_completion_items(ast, facts, offset)
+        .into_iter()
+        .filter(|item| {
+            item.declaration_span
+                .and_then(|span| facts.binding_type_expr(span))
+                .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, resolved))
+        })
+        .collect()
 }
 
 fn member_completion_items(
@@ -772,6 +792,10 @@ fn completion_context_in_statement_at_offset(
         Stmt::Loop(statement) => completion_context_in_block_at_offset(&statement.body, offset),
         Stmt::Region(statement) => {
             completion_context_in_expression_at_offset(&statement.allocator, offset)
+                .or_else(|| {
+                    cursor_touches_span(statement.allocator.span(), offset)
+                        .then_some(CompletionContext::RegionAllocator)
+                })
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
         }
         Stmt::Expression(statement) => {
@@ -783,6 +807,10 @@ fn completion_context_in_statement_at_offset(
         | Stmt::Continue(_)
         | Stmt::Drop(_) => None,
     }
+}
+
+fn cursor_touches_span(span: ByteSpan, offset: usize) -> bool {
+    span.start <= offset && offset <= span.end
 }
 
 fn completion_context_in_expression_at_offset(

@@ -4,7 +4,8 @@ use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{ImportAccess, ImportSource};
 use crate::semantics::{
-    AllocationFailurePolicy, AllocationSource, TrustedDeclarationFacts, TrustedDeclarationRole,
+    AllocationFailurePolicy, AllocationSource, AllocatorCapabilityKind, TrustedDeclarationFacts,
+    TrustedDeclarationRole,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::HashMap;
@@ -14,6 +15,34 @@ pub(crate) fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {
     let source = sources.add_source("test.nct", None, text.to_string());
     let ast = parse_source(&sources, source);
     let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
+    let analysis = analyze_module_compile_unit(&sources, &unit);
+
+    (sources, analysis)
+}
+
+pub(crate) fn analyze_text_with_trusted_allocator_capabilities(
+    text: &str,
+) -> (SourceMap, CompileUnitAnalysis) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("test.nct", None, text.to_string());
+    let ast = parse_source(&sources, source);
+    let mut trusted = TrustedDeclarationFacts::default();
+    for item in &ast.items {
+        let Item::Struct(struct_) = item else {
+            continue;
+        };
+        let kind = match struct_.name.as_str() {
+            "Allocator" => AllocatorCapabilityKind::Aborting,
+            "TryAllocator" => AllocatorCapabilityKind::Recoverable,
+            _ => continue,
+        };
+        trusted.insert(
+            struct_.span,
+            TrustedDeclarationRole::AllocatorCapability(kind),
+        );
+    }
+    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None)
+        .with_trusted_declarations(trusted);
     let analysis = analyze_module_compile_unit(&sources, &unit);
 
     (sources, analysis)
