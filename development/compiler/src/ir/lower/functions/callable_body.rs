@@ -209,6 +209,23 @@ pub(super) fn lower_callable_body(
             );
             Ok(instructions)
         }
+        Stmt::Region(statement) => {
+            instructions.extend(
+                lower_nonterminal_region_statement(
+                    statement,
+                    context,
+                    None,
+                    &[],
+                    "E8007",
+                    "functions",
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            );
+            Ok(instructions)
+        }
         _ => Err(attach_primary_span_if_absent(
             unsupported_function_body_diagnostic(function_name),
             sources,

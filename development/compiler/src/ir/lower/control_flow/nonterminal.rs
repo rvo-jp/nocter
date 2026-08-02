@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::ir::lower) fn lower_nonterminal_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -27,7 +27,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_if_statement_with_branch_prologues
     context: &LoweringContext,
     then_prologue: &BranchPrologue,
     else_prologue: &BranchPrologue,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -79,7 +79,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_if_statement_with_branch_prologues
 pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_statement(
     statement: &SwitchStmt,
     context: &mut LoweringContext,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -108,7 +108,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_statement(
 pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_body(
     body: LoweredPayloadlessSwitchBody,
     context: &LoweringContext,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -140,7 +140,7 @@ pub(in crate::ir::lower) fn lower_nonterminal_payloadless_switch_body(
 fn lower_nonterminal_switch_condition(
     condition: LoweredSwitchCondition,
     context: &LoweringContext,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -391,12 +391,16 @@ fn lower_nonterminal_for_range_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut body_context = context.clone();
     let local_mark = body_context.local_mark();
+    let region_mark = body_context.region_cleanup_mark();
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
         block.result.as_deref(),
         &mut body_context,
         local_mark,
-        Some(local_mark),
+        Some(CleanupScopeMark {
+            locals: local_mark,
+            regions: region_mark,
+        }),
         increment_instructions,
         diagnostic_code,
         subject,
@@ -429,12 +433,16 @@ fn lower_nonterminal_while_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut body_context = context.clone();
     let local_mark = body_context.local_mark();
+    let region_mark = body_context.region_cleanup_mark();
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
         block.result.as_deref(),
         &mut body_context,
         local_mark,
-        Some(local_mark),
+        Some(CleanupScopeMark {
+            locals: local_mark,
+            regions: region_mark,
+        }),
         &[],
         diagnostic_code,
         subject,
@@ -454,7 +462,7 @@ fn lower_nonterminal_if_block_with_prologue(
     block: &Block,
     context: &LoweringContext,
     prologue: &BranchPrologue,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -489,7 +497,7 @@ fn lower_nonterminal_loop_block_statements(
     result: Option<&Expr>,
     context: &mut LoweringContext,
     local_mark: usize,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -514,8 +522,8 @@ fn lower_nonterminal_loop_block_statements(
                         statement.initializer.span(),
                     ));
                 }
-                let loop_control = loop_scope_mark.map(|loop_scope_mark| LoopControlContext {
-                    loop_scope_mark,
+                let loop_control = loop_scope_mark.map(|scope_mark| LoopControlContext {
+                    scope_mark,
                     continue_instructions,
                 });
                 instructions.extend(
@@ -731,12 +739,18 @@ fn lower_nonterminal_loop_block_statements(
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?,
             ),
-            Stmt::Region(_) => {
-                return Err(attach_primary_span_if_absent(
-                    unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+            Stmt::Region(statement) => {
+                let lowered = lower_nonterminal_region_statement(
+                    statement,
+                    context,
+                    loop_scope_mark,
+                    continue_instructions,
+                    diagnostic_code,
+                    subject,
                     sources,
-                    statement.span(),
-                ));
+                )?;
+                ends_execution = instruction_list_ends_execution(&lowered);
+                instructions.extend(lowered);
             }
             Stmt::Break(_) => {
                 instructions.extend(
@@ -793,6 +807,29 @@ fn lower_nonterminal_loop_block_statements(
         instructions,
         ends_execution,
     })
+}
+
+pub(in crate::ir::lower) fn lower_nonterminal_region_body(
+    block: &Block,
+    context: &mut LoweringContext,
+    local_mark: usize,
+    loop_scope_mark: Option<CleanupScopeMark>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<LoweredNonterminalBlock, Vec<Diagnostic>> {
+    lower_nonterminal_loop_block_statements(
+        &block.statements,
+        block.result.as_deref(),
+        context,
+        local_mark,
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )
 }
 
 fn lower_nonterminal_block_result(

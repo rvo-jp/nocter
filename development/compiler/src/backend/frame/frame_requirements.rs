@@ -37,6 +37,8 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::CloseFd { .. }
         | Instruction::ProcessExit { .. }
         | Instruction::DarwinSyscall { .. }
+        | Instruction::RegionEnter { .. }
+        | Instruction::RegionRelease { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
@@ -107,6 +109,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::SetCurrentAllocationContext { .. }
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
@@ -197,6 +200,8 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::OpenRead { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
+        | Instruction::RegionEnter { .. }
+        | Instruction::RegionRelease { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::CopyPointerBytes { .. }
         | Instruction::CopyAggregateToPointer { .. }
@@ -261,6 +266,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::SetCurrentAllocationContext { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }

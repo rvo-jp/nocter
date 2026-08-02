@@ -49,6 +49,7 @@ use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
 };
+use super::regions::CleanupScopeMark;
 use super::types::{
     return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr,
     top_level_optional_success_abi_value_with_resolver, view_element_type_from_type_expr,
@@ -99,7 +100,7 @@ use utility::*;
 
 #[derive(Clone, Copy)]
 pub(super) struct LoopControlContext<'a> {
-    pub(super) loop_scope_mark: usize,
+    pub(super) scope_mark: CleanupScopeMark,
     pub(super) continue_instructions: &'a [Instruction],
 }
 

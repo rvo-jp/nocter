@@ -3226,6 +3226,171 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_lexical_region_uses_and_restores_ambient_allocator() {
+    let project = TempProject::new("distributed-home-lexical-region-run");
+    let source = project.write_source(
+        "lexical_region.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32 {
+    var arena = page_allocator()
+    region temp using arena {
+        var values: Vec<u8> = Vec.with_capacity(2)
+        values.push(20)
+        values.push(22)
+        let text = String.from_str("temporary")
+        if values.view()[0] != 20 {
+            return 1
+        }
+        if values.view()[1] != 22 {
+            return 2
+        }
+        if text.len() != 9 {
+            return 3
+        }
+    }
+
+    let root = String.from_str("restored")
+    if root.len() != 8 {
+        return 4
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_region_cleans_up_early_and_loop_exits() {
+    let project = TempProject::new("distributed-home-region-exit-cleanup-run");
+    let source = project.write_source(
+        "region_exit_cleanup.nct",
+        r#"use std/mem.page_allocator
+
+func leave_early(): i32 {
+    var arena = page_allocator()
+    region temporary using arena {
+        let text = String.from_str("return")
+        return 7
+    }
+}
+
+func main(): i32 {
+    var arena = page_allocator()
+    if leave_early() != 7 {
+        return 1
+    }
+
+    var iteration: i32 = 0
+    loop {
+        iteration += 1
+        region pass using arena {
+            let text = String.from_str("loop")
+            if iteration == 1 {
+                continue
+            }
+            break
+        }
+    }
+    if iteration != 2 {
+        return 2
+    }
+
+    let root = String.from_str("alive")
+    if root.len() != 5 {
+        return 3
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_nested_region_and_propagation_cleanup_run() {
+    let project = TempProject::new("distributed-home-nested-region-propagation-run");
+    let source = project.write_source(
+        "nested_region_propagation.nct",
+        r#"use std/mem.page_allocator
+
+func fail(): void! {
+    return Error.new("app.expected", "expected failure")
+}
+
+func propagate(): void! {
+    var arena = page_allocator()
+    region temporary using arena {
+        let text = String.from_str("propagate")
+        fail()?
+    }
+    return
+}
+
+func main(): i32 {
+    var arena = page_allocator()
+    region outer using arena {
+        let outer_text = String.from_str("outer")
+        region inner using outer {
+            let inner_text = String.from_str("inner")
+            if inner_text.len() != 5 {
+                return 1
+            }
+        }
+        if outer_text.len() != 5 {
+            return 2
+        }
+    }
+
+    propagate() catch expected {
+        return 42
+    }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_io_top_level_read_write_runs() {
     let project = TempProject::new("distributed-home-io-top-level-read-write-run");
     fs::write(project.root().join("input.txt"), b"IO").unwrap();

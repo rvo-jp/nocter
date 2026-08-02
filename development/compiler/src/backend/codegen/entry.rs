@@ -35,7 +35,11 @@ impl EntryEmitter {
         };
         validate_module_call_return_shapes(module)?;
 
-        self.emit_process_entry(entry, module_uses_process_arguments(module))?;
+        self.emit_process_entry(
+            entry,
+            module_uses_process_arguments(module),
+            module_uses_allocation_context(module),
+        )?;
 
         for function in &module.functions {
             self.emit_function(function)?;
@@ -48,9 +52,14 @@ impl EntryEmitter {
         &mut self,
         entry: &Function,
         capture_process_stack: bool,
+        initialize_allocation_context: bool,
     ) -> Result<(), Vec<Diagnostic>> {
         if capture_process_stack {
             self.encoder.emit_add_x_sp_imm(XReg::X19, 0);
+        }
+        if initialize_allocation_context {
+            emit_mov_u64_to_x(&mut self.encoder, XReg::X20, 0);
+            emit_mov_u64_to_x(&mut self.encoder, XReg::X21, 0);
         }
         self.emit_call(FunctionSymbol::from_function(entry));
 

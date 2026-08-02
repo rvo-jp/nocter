@@ -153,6 +153,9 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::RegionEnter { .. }
+        | Instruction::SetCurrentAllocationContext { .. }
+        | Instruction::RegionRelease { .. }
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }

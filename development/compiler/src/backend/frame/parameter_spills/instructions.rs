@@ -709,6 +709,24 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::RegionEnter { .. } => {}
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(state, requests);
+                record_usize_value_parameter_spill_requests(kind, requests);
+            }
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(state, requests);
+                record_usize_value_parameter_spill_requests(parent_state, requests);
+                record_usize_value_parameter_spill_requests(parent_kind, requests);
+            }
+        }
         Instruction::SetUsizeFromBorrow { source, .. } => {
             record_borrow_source_parameter_spill_request(*source, requests);
         }

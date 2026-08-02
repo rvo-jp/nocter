@@ -153,6 +153,9 @@ fn collect_reachable_call_targets(
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
+            | Instruction::RegionEnter { .. }
+            | Instruction::SetCurrentAllocationContext { .. }
+            | Instruction::RegionRelease { .. }
             | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }

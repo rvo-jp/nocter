@@ -41,6 +41,19 @@ impl EntryEmitter {
             Instruction::SetUsize { destination, value } => {
                 self.emit_set_usize(*destination, value)?;
             }
+            Instruction::RegionEnter { destination } => {
+                self.emit_region_enter(*destination, frame)?;
+            }
+            Instruction::SetCurrentAllocationContext { state, kind } => {
+                self.emit_set_current_allocation_context(state, kind)?;
+            }
+            Instruction::RegionRelease {
+                state,
+                parent_state,
+                parent_kind,
+            } => {
+                self.emit_region_release(state, parent_state, parent_kind, frame)?;
+            }
             Instruction::SetUsizeFromBorrow {
                 destination,
                 source,

@@ -5,7 +5,7 @@ use crate::parser::parse;
 use std::collections::HashMap;
 
 #[test]
-fn reports_region_runtime_boundary_before_ir_lowering() {
+fn accepts_region_statements_at_the_buildability_boundary() {
     let (sources, analysis) = analyze_text(
         r#"struct Allocator {
     state: usize
@@ -27,14 +27,7 @@ func main(): i32 {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("lexical `region` statements")
-    );
-    assert!(diagnostics[0].primary_span.is_some());
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

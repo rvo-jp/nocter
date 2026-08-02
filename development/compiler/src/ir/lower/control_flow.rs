@@ -22,6 +22,8 @@ use super::functions::{
     payloadless_switch_is_exhaustive, tag_only_if_is_as_control_flow,
     tag_only_switch_as_control_flow,
 };
+use super::regions::CleanupScopeMark;
+pub(super) use super::regions::lower_nonterminal_region_statement;
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
     ReturnStmt, Stmt, SwitchStmt, UnaryOperator, WhileStmt,
@@ -42,7 +44,7 @@ mod diagnostics;
 mod exit_analysis;
 mod loop_control;
 mod model;
-mod nonterminal;
+pub(in crate::ir::lower) mod nonterminal;
 mod return_blocks;
 mod terminal;
 mod terminal_branches;

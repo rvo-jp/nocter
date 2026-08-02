@@ -16,6 +16,8 @@ use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
 use std/ptr.slice_from_raw_parts
 use std/ptr.slice_from_raw_parts_mut
+use std/ptr.slice_from_raw_parts_value
+use std/ptr.store_value_to_ptr
 
 pub copy struct Layout {
     pub(nocter) size: usize
@@ -103,6 +105,37 @@ pub(nocter) func free_pages(address: usize, size: usize): void {
     return
 }
 
+pub(nocter) func region_alloc_pages(
+    state: usize,
+    size: usize,
+    align: usize,
+): usize! {
+    // Every mapping begins with a release-list header. The payload is aligned
+    // within the mapping, so region release can walk mappings without storing
+    // metadata beside or inside user-visible bytes.
+    let header_size: usize = 16
+    if size > 18446744073709551615 - header_size - align {
+        return invalid_argument()
+    }
+    let mapping_size = size + header_size + align
+    let mapping = alloc_pages(mapping_size)?
+    let payload_start = mapping + header_size
+    let remainder = payload_start % align
+    var padding: usize = 0
+    if remainder != 0 {
+        padding = align - remainder
+    }
+
+    let state_pointer: *usize = from_addr(state)
+    let state_words: &[usize] = slice_from_raw_parts_value(state_pointer, 1)
+    let previous: usize = state_words[0]
+    let header: *usize = from_addr(mapping)
+    store_value_to_ptr(header, 0, previous)
+    store_value_to_ptr(header, 8, mapping_size)
+    store_value_to_ptr(state_pointer, 0, mapping)
+    return payload_start + padding
+}
+
 pub func try_alloc(
     allocator: &+TryAllocator,
     size: usize,
@@ -123,7 +156,14 @@ pub func try_alloc_layout(allocator: &+TryAllocator, requested: Layout): RawBuff
         }
     }
 
-    let address: usize = alloc_pages(requested.size)?
+    var address: usize = 0
+    if allocator.kind == 0 {
+        address = alloc_pages(requested.size)?
+    } else if allocator.kind == 1 {
+        address = region_alloc_pages(allocator.state, requested.size, requested.align)?
+    } else {
+        return invalid_argument()
+    }
     return RawBuffer {
         ptr: from_addr(address),
         len: requested.size,
@@ -299,7 +339,11 @@ impl RawBuffer {
 
     drop &+self {
         if self.len != 0 {
-            free_pages(addr(self.ptr), self.len)
+            if self.allocator_kind == 0 {
+                free_pages(addr(self.ptr), self.len)
+            } else if self.allocator_kind != 1 {
+                return allocation_abort_raw()
+            }
             self.ptr = from_addr(1)
             self.len = 0
         }

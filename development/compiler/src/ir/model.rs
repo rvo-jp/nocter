@@ -75,6 +75,18 @@ pub(crate) enum Instruction {
         destination: UsizeLocation,
         value: UsizeValue,
     },
+    RegionEnter {
+        destination: UsizeLocation,
+    },
+    SetCurrentAllocationContext {
+        state: UsizeValue,
+        kind: UsizeValue,
+    },
+    RegionRelease {
+        state: UsizeValue,
+        parent_state: UsizeValue,
+        parent_kind: UsizeValue,
+    },
     SetUsizeFromBorrow {
         destination: UsizeLocation,
         source: BorrowSource,

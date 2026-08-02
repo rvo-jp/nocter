@@ -294,6 +294,22 @@ pub(super) fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::Region(statement) => {
+                instructions.extend(
+                    lower_nonterminal_region_statement(
+                        statement,
+                        context,
+                        None,
+                        &[],
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             _ => {
                 return Err(attach_primary_span_if_absent(
                     vec![Diagnostic::error(

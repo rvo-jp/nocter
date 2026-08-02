@@ -338,6 +338,22 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_location(*destination, highest_local_index);
             record_usize_value(value, highest_local_index);
         }
+        Instruction::RegionEnter { destination } => {
+            record_usize_location(*destination, highest_local_index);
+        }
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            record_usize_value(state, highest_local_index);
+            record_usize_value(kind, highest_local_index);
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            record_usize_value(state, highest_local_index);
+            record_usize_value(parent_state, highest_local_index);
+            record_usize_value(parent_kind, highest_local_index);
+        }
         Instruction::SetUsizeFromBorrow {
             destination,
             source,

@@ -6,10 +6,11 @@ use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
     lower_nonterminal_if_statement_with_branch_prologues, lower_nonterminal_loop_statement,
     lower_nonterminal_payloadless_switch_body, lower_nonterminal_payloadless_switch_statement,
-    lower_nonterminal_while_statement, lower_terminal_condition,
-    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_i32_switch_block,
-    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_usize_switch_block,
-    lower_terminal_void_if_statement_with_branch_prologues, lower_terminal_void_switch_block,
+    lower_nonterminal_region_statement, lower_nonterminal_while_statement,
+    lower_terminal_condition, lower_terminal_i32_if_statement_with_branch_prologues,
+    lower_terminal_i32_switch_block, lower_terminal_usize_if_statement_with_branch_prologues,
+    lower_terminal_usize_switch_block, lower_terminal_void_if_statement_with_branch_prologues,
+    lower_terminal_void_switch_block,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
@@ -327,6 +328,23 @@ fn lower_entry_body(
                 lower_nonterminal_loop_statement(
                     statement,
                     &mut context,
+                    "E8002",
+                    "entry functions",
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            );
+            Ok(instructions)
+        }
+        Stmt::Region(statement) => {
+            instructions.extend(
+                lower_nonterminal_region_statement(
+                    statement,
+                    &context,
+                    None,
+                    &[],
                     "E8002",
                     "entry functions",
                     sources,
@@ -953,6 +971,22 @@ fn lower_leading_bindings(
                     lower_nonterminal_loop_statement(
                         statement,
                         context,
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::Region(statement) => {
+                instructions.extend(
+                    lower_nonterminal_region_statement(
+                        statement,
+                        context,
+                        None,
+                        &[],
                         "E8002",
                         "entry functions",
                         sources,

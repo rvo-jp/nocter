@@ -8,6 +8,7 @@ pub(in crate::ir::lower) fn lower_scope_end_drop_instructions(
     for drop_ in &pending {
         instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
     }
+    instructions.extend(context.all_region_cleanup_instructions());
     Ok(instructions)
 }
 

@@ -147,7 +147,8 @@ pub(super) fn lower_otherwise_loop_control_statement(
     };
 
     let mut instructions =
-        lower_scope_end_drops_for_locals_since(context, loop_control.loop_scope_mark)?;
+        lower_scope_end_drops_for_locals_since(context, loop_control.scope_mark.locals)?;
+    instructions.extend(context.region_cleanup_instructions_since(loop_control.scope_mark.regions));
     if matches!(instruction, Instruction::Continue) {
         instructions.extend(loop_control.continue_instructions.iter().cloned());
     }

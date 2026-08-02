@@ -41,6 +41,19 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         Instruction::SetI32 { value, .. } => i32_value_uses_process_arguments(value),
         Instruction::SetU8 { value, .. } => u8_value_uses_process_arguments(value),
         Instruction::SetUsize { value, .. } => usize_value_uses_process_arguments(value),
+        Instruction::RegionEnter { .. } => false,
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            usize_value_uses_process_arguments(state) || usize_value_uses_process_arguments(kind)
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            usize_value_uses_process_arguments(state)
+                || usize_value_uses_process_arguments(parent_state)
+                || usize_value_uses_process_arguments(parent_kind)
+        }
         Instruction::SetUsizeFromBorrow { .. } => false,
         Instruction::SetBool { value, .. } => bool_value_uses_process_arguments(value),
         Instruction::SetStr { value, .. } => str_value_uses_process_arguments(value),

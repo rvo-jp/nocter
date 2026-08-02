@@ -126,6 +126,8 @@ pub(crate) enum XReg {
     X16,
     X17,
     X19,
+    X20,
+    X21,
     #[allow(dead_code)]
     X30,
 }
@@ -179,6 +181,8 @@ impl XReg {
             Self::X16 => 16,
             Self::X17 => 17,
             Self::X19 => 19,
+            Self::X20 => 20,
+            Self::X21 => 21,
             Self::X30 => 30,
         }
     }

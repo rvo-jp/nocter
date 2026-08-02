@@ -9,6 +9,7 @@ mod functions;
 mod imported_calls;
 mod literals;
 mod reachability;
+mod regions;
 mod types;
 
 #[cfg(test)]
