@@ -1,0 +1,40 @@
+use super::*;
+
+impl Parser<'_> {
+    pub(super) fn parse_result_provenance_clause(
+        &mut self,
+    ) -> ParseResult<Option<ResultProvenanceClause>> {
+        let Some(from) = self.match_identifier_text("from") else {
+            return Ok(None);
+        };
+        let mut origins = Vec::new();
+
+        loop {
+            let origin = self.expect_identifier("expected result origin after `from`")?;
+            let kind = match origin.value.as_str() {
+                "self" => ResultProvenanceOriginKind::Receiver,
+                "static" => ResultProvenanceOriginKind::Static,
+                "current" => ResultProvenanceOriginKind::CurrentAllocationContext,
+                _ => ResultProvenanceOriginKind::Parameter(origin.value),
+            };
+            origins.push(ResultProvenanceOrigin {
+                span: origin.span,
+                kind,
+            });
+
+            if self.match_punctuation("|").is_none() {
+                break;
+            }
+        }
+
+        let end = origins
+            .last()
+            .expect("a parsed provenance clause has an origin")
+            .span
+            .end;
+        Ok(Some(ResultProvenanceClause {
+            span: self.span(from.span.start, end),
+            origins,
+        }))
+    }
+}

@@ -15,7 +15,9 @@ pub(super) use expression_provenance::*;
 pub(super) use input_sources::*;
 pub(super) use literal_provenance::*;
 pub(super) use propagation_collection::*;
-pub(in crate::typecheck) use summaries::callable_provenance_summaries;
+pub(in crate::typecheck) use summaries::{
+    borrow_return_provenance_for_callable_body, callable_provenance_summaries,
+};
 pub(super) use summary_instantiation::*;
 pub(in crate::typecheck) use type_predicates::returned_type_contains_readwrite_borrow;
 pub(in crate::typecheck) use type_predicates::type_contains_borrow_like;

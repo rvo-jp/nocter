@@ -23,6 +23,7 @@ mod operations;
 mod ownership;
 mod places;
 mod provenance;
+mod provenance_contracts;
 mod regions;
 mod returns;
 mod semantic_facts;
@@ -139,6 +140,13 @@ pub(crate) fn check_module_with_summary_sources(
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_region_statements(sources, ast, &mut diagnostics);
     let provenance_summaries = callable_provenance_summaries(summary_sources);
+    provenance_contracts::check_result_provenance_contracts(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
     check_ownership_states(
         sources,
         ast,

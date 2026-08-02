@@ -12,6 +12,7 @@ mod methods;
 mod operators;
 mod optional;
 mod ownership;
+mod provenance_contracts;
 mod regions;
 mod returns;
 mod strings;

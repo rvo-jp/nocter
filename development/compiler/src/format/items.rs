@@ -3,7 +3,7 @@ use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
     GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
     LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, Parameter, ParameterList, PrimitiveDecl,
-    StructDecl, StructField, TypeAliasDecl, Visibility,
+    ResultProvenanceClause, StructDecl, StructField, TypeAliasDecl, Visibility,
 };
 
 impl Formatter {
@@ -88,6 +88,7 @@ impl Formatter {
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
         self.write(" ");
         self.format_block(&item.body);
     }
@@ -101,6 +102,7 @@ impl Formatter {
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
     }
 
     fn format_type_alias_decl(&mut self, item: &TypeAliasDecl) {
@@ -249,6 +251,7 @@ impl Formatter {
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
 
         if let Some(body) = &item.body {
             self.write(" ");
@@ -261,6 +264,19 @@ impl Formatter {
             Visibility::Private => {}
             Visibility::Public => self.write("pub "),
             Visibility::Nocter => self.write("pub(nocter) "),
+        }
+    }
+
+    fn format_result_provenance(&mut self, clause: Option<&ResultProvenanceClause>) {
+        let Some(clause) = clause else {
+            return;
+        };
+        self.write(" from ");
+        for (index, origin) in clause.origins.iter().enumerate() {
+            if index > 0 {
+                self.write(" | ");
+            }
+            self.write(origin.kind.source_label());
         }
     }
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::{ResultProvenanceClause, ResultProvenanceOriginKind};
 
 pub(in crate::typecheck) fn callable_provenance_summaries(
     summary_sources: &[TypecheckSource<'_>],
@@ -38,6 +39,8 @@ pub(in crate::typecheck::returns) fn borrow_return_callable_count(
 pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
     match item {
         Item::Function(_) => 1,
+        Item::Primitive(_) => 1,
+        Item::Interface(interface) => interface.methods.len(),
         Item::Literal(_) => 1,
         Item::Impl(impl_) => impl_
             .members
@@ -71,10 +74,78 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         previous,
                     )
                     .unwrap_or(ValueProvenance::Independent);
-                    summaries.insert_result(
-                        CallableId::declared_at(function_summary_key(function)),
-                        provenance,
+                    let declared = function.result_provenance.as_ref().and_then(|clause| {
+                        result_provenance_contract(
+                            clause,
+                            None,
+                            &function.parameters.parameters,
+                            source.resolved,
+                        )
+                        .ok()
+                    });
+                    let callable = CallableId::declared_at(function_summary_key(function));
+                    summaries.insert_result(callable, declared.unwrap_or(provenance));
+                    seed_declared_allocation_effect(
+                        &mut summaries,
+                        callable,
+                        function.result_provenance.as_ref(),
                     );
+                }
+                Item::Primitive(primitive) => {
+                    let Some(provenance) =
+                        primitive.result_provenance.as_ref().and_then(|clause| {
+                            result_provenance_contract(
+                                clause,
+                                None,
+                                &primitive.parameters.parameters,
+                                source.resolved,
+                            )
+                            .ok()
+                        })
+                    else {
+                        continue;
+                    };
+                    let callable = CallableId::declared_at(primitive.name_span);
+                    summaries.insert_result(callable, provenance);
+                    seed_declared_allocation_effect(
+                        &mut summaries,
+                        callable,
+                        primitive.result_provenance.as_ref(),
+                    );
+                }
+                Item::Interface(interface) => {
+                    for method in &interface.methods {
+                        let provenance = method
+                            .result_provenance
+                            .as_ref()
+                            .and_then(|clause| {
+                                result_provenance_contract(
+                                    clause,
+                                    Some(method),
+                                    &method.parameters.parameters,
+                                    source.resolved,
+                                )
+                                .ok()
+                            })
+                            .or_else(|| {
+                                elided_result_provenance_contract(
+                                    Some(method),
+                                    &method.parameters.parameters,
+                                    &method.return_type,
+                                    source.resolved,
+                                )
+                            });
+                        let Some(provenance) = provenance else {
+                            continue;
+                        };
+                        let callable = CallableId::declared_at(method.name_span);
+                        summaries.insert_result(callable, provenance);
+                        seed_declared_allocation_effect(
+                            &mut summaries,
+                            callable,
+                            method.result_provenance.as_ref(),
+                        );
+                    }
                 }
                 Item::Impl(impl_) => {
                     for member in &impl_.members {
@@ -98,8 +169,22 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             previous,
                         )
                         .unwrap_or(ValueProvenance::Independent);
-                        summaries
-                            .insert_result(CallableId::declared_at(method.name_span), provenance);
+                        let declared = method.result_provenance.as_ref().and_then(|clause| {
+                            result_provenance_contract(
+                                clause,
+                                Some(method),
+                                &method.parameters.parameters,
+                                source.resolved,
+                            )
+                            .ok()
+                        });
+                        let callable = CallableId::declared_at(method.name_span);
+                        summaries.insert_result(callable, declared.unwrap_or(provenance));
+                        seed_declared_allocation_effect(
+                            &mut summaries,
+                            callable,
+                            method.result_provenance.as_ref(),
+                        );
                     }
                 }
                 Item::Literal(literal) => {
@@ -126,9 +211,24 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
     summaries
 }
 
-pub(in crate::typecheck::returns) fn function_summary_key(
-    function: &crate::ast::FunctionDecl,
-) -> ByteSpan {
+fn seed_declared_allocation_effect(
+    summaries: &mut CallableProvenanceSummaries,
+    callable: CallableId,
+    clause: Option<&ResultProvenanceClause>,
+) {
+    if clause.is_some_and(|clause| {
+        clause.origins.iter().any(|origin| {
+            matches!(
+                origin.kind,
+                ResultProvenanceOriginKind::CurrentAllocationContext
+            )
+        })
+    }) {
+        summaries.set_needs_current_allocation_context(callable);
+    }
+}
+
+pub(in crate::typecheck) fn function_summary_key(function: &crate::ast::FunctionDecl) -> ByteSpan {
     if function.owner.is_some() {
         function.member_name_span
     } else {
@@ -136,7 +236,7 @@ pub(in crate::typecheck::returns) fn function_summary_key(
     }
 }
 
-pub(in crate::typecheck::returns) fn borrow_return_provenance_for_callable_body(
+pub(in crate::typecheck) fn borrow_return_provenance_for_callable_body(
     block: &Block,
     return_type: &Type,
     resolved: &ResolveOutput,

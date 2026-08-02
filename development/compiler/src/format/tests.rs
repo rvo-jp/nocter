@@ -53,6 +53,27 @@ fn formats_lexical_regions_stably() {
 }
 
 #[test]
+fn formats_result_provenance_contracts_stably() {
+    assert_formats_stably(
+        r#"interface Lookup<T>{pub method &self.get(fallback:&T):&T from self|fallback}
+func greeting():&str from static{return "hello"}
+primitive allocated_text():&str from current
+"#,
+        concat!(
+            "interface Lookup<T> {\n",
+            "    pub method &self.get(fallback: &T): &T from self | fallback\n",
+            "}\n",
+            "\n",
+            "func greeting(): &str from static {\n",
+            "    return \"hello\"\n",
+            "}\n",
+            "\n",
+            "primitive allocated_text(): &str from current\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
         r#"pub literal Vec<T>[](...items:T):Self{for item in items{return move item}}

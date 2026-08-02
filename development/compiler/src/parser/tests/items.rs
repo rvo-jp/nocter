@@ -634,6 +634,63 @@ impl File {
 }
 
 #[test]
+fn parses_result_provenance_contracts_on_callable_signatures() {
+    let (sources, output) = parse_text_with_sources(
+        r#"interface Lookup<T> {
+    pub method &self.get(fallback: &T): &T from self | fallback
+}
+
+func greeting(): &str from static {
+    return "hello"
+}
+
+primitive allocated_text(): &str from current
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface");
+    };
+    let method = &interface.methods[0];
+    let method_contract = method
+        .result_provenance
+        .as_ref()
+        .expect("expected method contract");
+    assert!(matches!(
+        method_contract.origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::Receiver
+    ));
+    assert!(matches!(
+        &method_contract.origins[1].kind,
+        crate::ast::ResultProvenanceOriginKind::Parameter(name) if name == "fallback"
+    ));
+
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function");
+    };
+    assert!(matches!(
+        function.result_provenance.as_ref().unwrap().origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::Static
+    ));
+    let Item::Primitive(primitive) = &ast.items[2] else {
+        panic!("expected primitive");
+    };
+    assert!(matches!(
+        primitive.result_provenance.as_ref().unwrap().origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext
+    ));
+
+    let json = ast.to_json(&sources);
+    let provenance =
+        find_json_node(&json, "result_provenance").expect("expected result provenance JSON node");
+    assert_eq!(provenance.items.len(), 2);
+    assert_eq!(provenance.items[0].value.as_deref(), Some("self"));
+    assert_eq!(provenance.items[1].value.as_deref(), Some("fallback"));
+}
+
+#[test]
 fn ast_json_preserves_method_receiver_mode_without_a_synthetic_type() {
     let (sources, output) = parse_text_with_sources(
         r#"interface Writer {

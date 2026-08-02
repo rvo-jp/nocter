@@ -152,6 +152,7 @@ impl Parser<'_> {
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
+        let result_provenance = self.parse_result_provenance_clause()?;
         let body = if require_body {
             Some(self.parse_block()?)
         } else if self.at_punctuation("{") {
@@ -160,9 +161,14 @@ impl Parser<'_> {
         } else {
             None
         };
-        let end = body
-            .as_ref()
-            .map_or(return_type.span().end, |body| body.span.end);
+        let end = body.as_ref().map_or_else(
+            || {
+                result_provenance
+                    .as_ref()
+                    .map_or(return_type.span().end, |clause| clause.span.end)
+            },
+            |body| body.span.end,
+        );
 
         Ok(MethodDecl {
             span: self.span(start.span.start, end),
@@ -172,6 +178,7 @@ impl Parser<'_> {
             name_span: name.span,
             parameters,
             return_type,
+            result_provenance,
             body,
         })
     }

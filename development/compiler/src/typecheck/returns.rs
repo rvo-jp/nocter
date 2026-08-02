@@ -43,6 +43,7 @@ mod return_checks;
 mod terminal;
 mod utility;
 
+pub(in crate::typecheck) use borrow_returns::borrow_return_provenance_for_callable_body;
 pub(in crate::typecheck) use borrow_returns::callable_provenance_summaries;
 pub(in crate::typecheck) use borrow_returns::returned_type_contains_readwrite_borrow;
 pub(in crate::typecheck) use borrow_returns::type_contains_borrow_like;

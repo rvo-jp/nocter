@@ -3,12 +3,14 @@
 mod documentation;
 mod json;
 mod literals;
+mod provenance;
 mod receivers;
 mod types;
 mod visit;
 
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
+pub use provenance::*;
 pub use receivers::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
 pub(crate) use visit::visit_file_expressions;
@@ -93,6 +95,7 @@ pub struct FunctionDecl {
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
     pub body: Block,
 }
 
@@ -112,6 +115,7 @@ pub struct PrimitiveDecl {
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +218,7 @@ pub struct MethodDecl {
     pub name_span: ByteSpan,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
     pub body: Option<Block>,
 }
 

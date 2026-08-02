@@ -29,8 +29,11 @@ impl Item {
                     item.generics.to_json(sources),
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
-                    item.body.to_json(sources),
                 ]);
+                if let Some(provenance) = &item.result_provenance {
+                    children.push(provenance.to_json(sources));
+                }
+                children.push(item.body.to_json(sources));
                 JsonAstNode::with_value(
                     "function_decl",
                     item.name.clone(),
@@ -46,6 +49,9 @@ impl Item {
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
                 ]);
+                if let Some(provenance) = &item.result_provenance {
+                    children.push(provenance.to_json(sources));
+                }
                 JsonAstNode::with_value(
                     "primitive_decl",
                     item.name.clone(),
@@ -298,6 +304,9 @@ impl MethodDecl {
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),
         ];
+        if let Some(provenance) = &self.result_provenance {
+            children.push(provenance.to_json(sources));
+        }
         if let Some(body) = &self.body {
             children.push(body.to_json(sources));
         }
@@ -311,6 +320,26 @@ impl MethodDecl {
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl ResultProvenanceClause {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::new(
+            "result_provenance",
+            json_span(sources, self.span),
+            self.origins
+                .iter()
+                .map(|origin| {
+                    JsonAstNode::with_value(
+                        "result_provenance_origin",
+                        origin.kind.source_label(),
+                        json_span(sources, origin.span),
+                        Vec::new(),
+                    )
+                })
+                .collect(),
         )
     }
 }
