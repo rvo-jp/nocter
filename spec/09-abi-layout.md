@@ -189,6 +189,21 @@ Rules:
   order.
 - No niche optimization is part of ABI v0.2.0.
 
+### Stored Optional and Fallible Layout
+
+The adopted v0.3.0 Phase 6 stored representation is recursive and distinct from callable register
+passing. Each optional or fallible layer begins with one `usize` tag. The active branch begins at
+the next offset satisfying the maximum branch alignment, and the layer ends after the largest
+branch rounded up to that alignment.
+
+Tag `0` denotes presence or success. Tag `1` denotes absence or failure. Optional absence has no
+initialized payload. Fallible failure initializes the built-in `error` branch instead of the
+success branch. Nested supported outcomes apply the same rule recursively.
+
+Inactive union bytes and padding have unspecified contents. Copy, move, drop, equality, and control
+flow may inspect the tag but must not read or destroy an inactive payload. Callable entry and return
+lowering explicitly bridge this stored layout and the target-specific register ABI.
+
 ### Built-In Error Layout
 
 The built-in `error` payload is represented as two borrowed string slices:

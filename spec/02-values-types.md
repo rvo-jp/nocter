@@ -293,6 +293,15 @@ Self
 
 `T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. `T?!` means a fallible value whose success payload is optional.
 
+In the adopted v0.3.0 Phase 6 model, supported optional and fallible compositions are ordinary sized
+values. They may be stored in bindings and sized aggregates, moved, copied when every possible
+payload is copyable, assigned, passed as arguments, returned, and consumed later. Only the selected
+tag branch is initialized. Absence never initializes a success payload, and failure initializes the
+`error` payload instead of the success payload.
+
+Phase 6 supports one optional layer, one fallible layer, or one of each in either order. Repeated
+equal layers and deeper recursive outcome types remain later work.
+
 Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value.
 
 ### Self Type Syntax
