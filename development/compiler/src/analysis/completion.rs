@@ -250,12 +250,19 @@ fn result_provenance_completion_items(
                     }
                 }
             }
+            Item::Literal(literal) => {
+                if clause_contains_offset(literal.result_provenance.as_ref(), offset) {
+                    return Some(provenance_origin_items(
+                        None,
+                        &literal.parameters.parameters,
+                    ));
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Literal(_) => {}
+            | Item::Enum(_) => {}
         }
     }
     None

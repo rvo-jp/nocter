@@ -49,6 +49,7 @@ impl Parser<'_> {
 
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
+        let result_provenance = self.parse_result_provenance_clause()?;
         let body = self.parse_block()?;
         Ok(crate::ast::Item::Literal(LiteralDecl {
             span: self.span(keyword.span.start, body.span.end),
@@ -60,6 +61,7 @@ impl Parser<'_> {
             parameters,
             capture,
             return_type,
+            result_provenance,
             body,
         }))
     }

@@ -1,4 +1,6 @@
-use super::{Block, Expr, LiteralExpr, ParameterList, TypeExpr, Visibility};
+use super::{
+    Block, Expr, LiteralExpr, ParameterList, ResultProvenanceClause, TypeExpr, Visibility,
+};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -18,6 +20,7 @@ pub struct LiteralDecl {
     pub parameters: ParameterList,
     pub capture: Option<LiteralCapture>,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
     pub body: Block,
 }
 

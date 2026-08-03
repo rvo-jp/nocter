@@ -10,7 +10,7 @@ fn workspace_hover_normalizes_literal_declaration_signatures() {
 
 struct Text { value: &str }
 
-literal Text ""(text: TextInput): Self {
+literal Text ""(text: TextInput): Self from text {
     return Text { value: text }
 }
 "#;
@@ -21,7 +21,7 @@ literal Text ""(text: TextInput): Self {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text");
+    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text from text");
     assert_eq!(&text[hover.span.start..hover.span.end], "\"\"");
 }
 
@@ -72,7 +72,7 @@ fn workspace_hover_presents_typed_literal_signature_and_documentation() {
     let text = r#"struct Text { value: &str }
 
 /// Copies text into owned storage.
-literal Text ""(text: &str): Self {
+literal Text ""(text: &str): Self from text {
     return Text { value: text }
 }
 
@@ -88,12 +88,10 @@ func main(): i32 {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text");
+    assert_eq!(hover.label, "literal Text \"\"(text: &str): Text from text");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some(
-            "Copies text into owned storage.\n\n**Result provenance:** aggregate (field `value`: input `text`)."
-        )
+        Some("Copies text into owned storage.\n\n**Result provenance:** input `text`.")
     );
 }
 

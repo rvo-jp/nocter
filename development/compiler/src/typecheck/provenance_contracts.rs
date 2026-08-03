@@ -2,11 +2,13 @@ use super::diagnostics::{
     independent_result_contract_diagnostic, invalid_provenance_origin_diagnostic,
     missing_result_contract_diagnostic, result_contract_violation_diagnostic,
 };
-use super::environments::{environment_for_function, environment_for_method};
+use super::environments::{
+    environment_for_function, environment_for_literal, environment_for_method,
+};
 use super::model::TypeEnvironment;
 use super::provenance::{
     CallableProvenanceSummaries, eligible_input_origin_count, provenance_satisfies_contract,
-    result_provenance_contract,
+    result_provenance_contract, type_may_carry_result_provenance,
 };
 use super::returns::{borrow_return_provenance_for_callable_body, type_expr_contains_borrow_like};
 use super::type_expr::type_expr_to_type_in_environment;
@@ -34,6 +36,7 @@ pub(super) fn check_result_provenance_contracts(
                     None,
                     &function.parameters.parameters,
                     &function.return_type,
+                    Some(&environment),
                     resolved,
                     diagnostics,
                 );
@@ -58,9 +61,37 @@ pub(super) fn check_result_provenance_contracts(
                 None,
                 &primitive.parameters.parameters,
                 &primitive.return_type,
+                None,
                 resolved,
                 diagnostics,
             ),
+            Item::Literal(literal) => {
+                let environment = environment_for_literal(literal, resolved);
+                check_clause(
+                    sources,
+                    literal.result_provenance.as_ref(),
+                    None,
+                    &literal.parameters.parameters,
+                    &literal.return_type,
+                    Some(&environment),
+                    resolved,
+                    diagnostics,
+                );
+                if let Some(clause) = &literal.result_provenance {
+                    check_body_contract(
+                        sources,
+                        &literal.body,
+                        clause,
+                        None,
+                        &literal.parameters.parameters,
+                        &literal.return_type,
+                        resolved,
+                        &environment,
+                        summaries,
+                        diagnostics,
+                    );
+                }
+            }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     check_clause(
@@ -69,12 +100,13 @@ pub(super) fn check_result_provenance_contracts(
                         Some(method),
                         &method.parameters.parameters,
                         &method.return_type,
+                        None,
                         resolved,
                         diagnostics,
                     );
                     if method.body.is_none()
                         && method.result_provenance.is_none()
-                        && return_type_carries_storage(&method.return_type, resolved)
+                        && return_type_carries_storage(&method.return_type, None, resolved)
                     {
                         let eligible = eligible_input_origin_count(
                             Some(method),
@@ -116,6 +148,7 @@ fn check_impl_methods(
             Some(method),
             &method.parameters.parameters,
             &method.return_type,
+            Some(&environment_for_method(method, resolved, impl_)),
             resolved,
             diagnostics,
         );
@@ -144,13 +177,14 @@ fn check_clause(
     method: Option<&MethodDecl>,
     parameters: &[Parameter],
     return_type: &TypeExpr,
+    environment: Option<&TypeEnvironment>,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(clause) = clause else {
         return;
     };
-    if !return_type_carries_storage(return_type, resolved) {
+    if !return_type_carries_storage(return_type, environment, resolved) {
         diagnostics.push(independent_result_contract_diagnostic(
             sources,
             clause,
@@ -200,11 +234,23 @@ fn check_body_contract(
     }
 }
 
-fn return_type_carries_storage(return_type: &TypeExpr, resolved: &ResolveOutput) -> bool {
+fn return_type_carries_storage(
+    return_type: &TypeExpr,
+    environment: Option<&TypeEnvironment>,
+    resolved: &ResolveOutput,
+) -> bool {
+    if let Some(environment) = environment {
+        let return_type = type_expr_to_type_in_environment(return_type, resolved, environment);
+        return type_may_carry_result_provenance(&return_type, resolved);
+    }
     type_expr_contains_borrow_like(
         return_type,
         resolved,
         &std::collections::HashMap::new(),
         &mut std::collections::HashSet::new(),
-    )
+    ) || {
+        let return_type =
+            type_expr_to_type_in_environment(return_type, resolved, &TypeEnvironment::default());
+        type_may_carry_result_provenance(&return_type, resolved)
+    }
 }

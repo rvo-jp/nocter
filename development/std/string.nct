@@ -25,7 +25,7 @@ pub struct String {
 }
 
 /// Copies a static string view into owned storage in the current allocation context.
-pub literal String ""(text: &str): Self {
+pub literal String ""(text: &str): Self from current {
     return String.copy(text)
 }
 

@@ -55,6 +55,7 @@ impl Resolver<'_> {
                             &mut scope,
                         );
                     }
+                    self.resolve_result_provenance(literal.result_provenance.as_ref(), &scope);
                     self.resolve_block(&literal.body, &mut scope);
                 }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),

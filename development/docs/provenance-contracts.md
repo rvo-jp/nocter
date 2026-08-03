@@ -37,7 +37,8 @@ Neither layer searches for standard-library names.
 
 ## Surface Grammar
 
-A callable may append one result provenance clause after its return type:
+A callable, including a typed literal definition, may append one result provenance clause after
+its return type:
 
 ```nct
 from self
@@ -52,9 +53,17 @@ from current
 implies the existing allocation effect. Duplicate origins are invalid. Source order is retained for
 formatting and diagnostics; semantic comparison uses declaration identities.
 
+A Phase 1 sequence literal pack is a set of owned element values rather than one borrow-like input
+identity, so its capture name is not an eligible origin. Literal definitions that allocate their
+result use `from current`; a string literal definition may use its `&str` parameter as an origin.
+
 The clause describes an upper bound on possible result storage. A concrete result may be
 storage-independent or static when the contract permits a shorter input origin. It may not contain
 an input, region, scope, or current-context origin absent from the contract.
+
+Tracked result storage includes source-level borrows and pointer-backed owned aggregates. The
+distinction is intentional: raw pointers do not participate in borrow checking, but an owning value
+such as `String` or `Vec<T>` must still retain the allocation context that owns its buffer.
 
 Generic parameters accept one interface bound:
 

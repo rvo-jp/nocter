@@ -148,6 +148,20 @@ impl Item {
                         vec![capture.element_type.to_json(sources)],
                     ));
                 }
+                let mut children = vec![
+                    visibility_json(item.visibility),
+                    item.target.to_json(sources),
+                    JsonAstNode::new(
+                        "literal_parameter_list",
+                        json_span(sources, item.parameters.span),
+                        parameter_children,
+                    ),
+                    item.return_type.to_json(sources),
+                ];
+                if let Some(provenance) = &item.result_provenance {
+                    children.push(provenance.to_json(sources));
+                }
+                children.push(item.body.to_json(sources));
                 JsonAstNode::with_value(
                     "literal_decl",
                     match item.shape {
@@ -155,17 +169,7 @@ impl Item {
                         LiteralShape::String => "string",
                     },
                     json_span(sources, item.span),
-                    vec![
-                        visibility_json(item.visibility),
-                        item.target.to_json(sources),
-                        JsonAstNode::new(
-                            "literal_parameter_list",
-                            json_span(sources, item.parameters.span),
-                            parameter_children,
-                        ),
-                        item.return_type.to_json(sources),
-                        item.body.to_json(sources),
-                    ],
+                    children,
                 )
             }
         }

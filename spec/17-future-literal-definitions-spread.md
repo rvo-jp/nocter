@@ -44,11 +44,11 @@ The following source forms belong to v0.3.0 Phase 1 and are not implemented by
 the v0.2.0 release:
 
 ```nct
-literal Vec<T> [](...items: T): Self {
+literal Vec<T> [](...items: T): Self from current {
     ...
 }
 
-literal String ""(text: &str): Self {
+literal String ""(text: &str): Self from current {
     ...
 }
 
@@ -78,7 +78,7 @@ and methods remain valid construction APIs.
 Adopted future syntax direction:
 
 ```nct
-literal Vec<T> [](...items: T): Self {
+literal Vec<T> [](...items: T): Self from current {
     let result = Self.with_capacity(items.len())
 
     for item in items {
@@ -87,7 +87,7 @@ literal Vec<T> [](...items: T): Self {
     return move result
 }
 
-literal String ""(text: &str): Self {
+literal String ""(text: &str): Self from current {
     return Self.copy(text)
 }
 ```
@@ -108,6 +108,10 @@ Rules:
 - Literal construction never bypasses the literal definition body.
 - A literal definition uses the current aborting allocation context when its
   body performs allocation.
+- A literal definition accepts the ordinary result-provenance clause after its
+  return type. `from current` exposes allocation-context storage; a borrow-like
+  string parameter may be named as an input origin. The sequence element pack
+  is not one input identity and cannot be named as an origin in Phase 1.
 - Allocation failure in the ordinary literal path terminates according to the
   standard allocator policy; it does not change the literal result to `Self!`.
 - A literal definition must not expose or require access to the target type's

@@ -35,7 +35,7 @@ pub struct Vec<T> {
 }
 
 /// Constructs a Vec from owned elements evaluated from left to right.
-pub literal Vec<T> [](...items: T): Self {
+pub literal Vec<T> [](...items: T): Self from current {
     let item_count: usize = items.len()
     if item_count == 0 {
         return Vec.empty()

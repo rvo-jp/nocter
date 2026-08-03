@@ -53,7 +53,7 @@ pub(in crate::typecheck) fn independent_result_contract_diagnostic(
     diagnostic.primary_span = sources.span_to_json(clause.span).ok().map(Box::new);
     if let Ok(span) = sources.span_to_json(return_type.span()) {
         diagnostic.notes.push(DiagnosticNote {
-            message: "this return type carries no borrowed storage".to_string(),
+            message: "this return type carries no tracked storage".to_string(),
             span: Some(span),
         });
     }

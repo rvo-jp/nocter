@@ -126,6 +126,7 @@ func read_all(
 
 pub method &self.get(index: usize): (&T)? from self
 func choose<T>(left: &T, right: &T): &T from left | right
+literal String ""(text: &str): Self from current
 ```
 
 ## Expressions

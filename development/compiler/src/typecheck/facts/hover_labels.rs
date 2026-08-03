@@ -56,11 +56,13 @@ pub(super) fn literal_declaration_hover_label(
         },
     );
 
-    format!(
+    let mut label = format!(
         "literal {} {shape}({parameters}): {}",
         type_label(&literal.target, resolved, self_type),
         type_label(&literal.return_type, resolved, self_type)
-    )
+    );
+    append_result_provenance(&mut label, literal.result_provenance.as_ref());
+    label
 }
 
 pub(super) fn type_alias_declaration_hover_label(

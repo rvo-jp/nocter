@@ -4,7 +4,7 @@ use crate::ast::{Expr, Item, LiteralShape, Stmt, TypeExpr};
 #[test]
 fn parses_sequence_literal_definition_and_pack_loop() {
     let (sources, output) = parse_text_with_sources(
-        r#"pub literal Vec<T> [](...items: T): Self {
+        r#"pub literal Vec<T> [](...items: T): Self from current {
     for item in items {
         consume(move item)
     }
@@ -23,6 +23,12 @@ fn parses_sequence_literal_definition_and_pack_loop() {
     let capture = literal.capture.as_ref().expect("expected element capture");
     assert_eq!(capture.name, "items");
     assert!(literal.parameters.parameters.is_empty());
+    assert_eq!(
+        literal.result_provenance.as_ref().unwrap().origins[0]
+            .kind
+            .source_label(),
+        "current"
+    );
     let Stmt::LiteralPackFor(loop_) = &literal.body.statements[0] else {
         panic!("expected literal-pack loop");
     };
@@ -31,6 +37,7 @@ fn parses_sequence_literal_definition_and_pack_loop() {
 
     let json = ast.to_json(&sources);
     assert!(find_json_node(&json, "literal_decl").is_some());
+    assert!(find_json_node(&json, "result_provenance").is_some());
     assert!(find_json_node(&json, "literal_pack_for_statement").is_some());
 }
 

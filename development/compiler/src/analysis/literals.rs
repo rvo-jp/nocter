@@ -197,7 +197,7 @@ fn editor_info(
         LiteralShape::Sequence => "[]",
         LiteralShape::String => "\"\"",
     };
-    let label = format!(
+    let mut label = format!(
         "literal {result} {shape}({}): {result}",
         parameters
             .iter()
@@ -205,6 +205,17 @@ fn editor_info(
             .collect::<Vec<_>>()
             .join(", ")
     );
+    if let Some(provenance) = &declaration.result_provenance {
+        label.push_str(" from ");
+        label.push_str(
+            &provenance
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
     LiteralEditorInfo {
         expression_span: site.expression_span,
         focus_span: if span_contains(site.target_span, offset) {

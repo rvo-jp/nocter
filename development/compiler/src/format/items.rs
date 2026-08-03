@@ -52,6 +52,7 @@ impl Formatter {
         }
         self.write("): ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
         self.write(" ");
         self.format_block(&item.body);
     }

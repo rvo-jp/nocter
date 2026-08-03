@@ -164,7 +164,7 @@ fn typed_literal_hover_reports_the_resolved_definition() {
     let text = r#"struct Text { value: &str }
 
 /// Copies text into an owned value.
-literal Text ""(text: &str): Self {
+literal Text ""(text: &str): Self from text {
     return Text { value: text }
 }
 
@@ -197,7 +197,7 @@ func main(): i32 {
         .as_str()
         .expect("expected hover markdown");
 
-    assert!(markdown.contains("literal Text \"\"(text: &str): Text"));
+    assert!(markdown.contains("literal Text \"\"(text: &str): Text from text"));
     assert!(markdown.contains("Copies text into an owned value."));
 }
 

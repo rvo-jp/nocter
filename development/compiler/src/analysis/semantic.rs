@@ -275,12 +275,14 @@ impl SemanticIdentifierCollector<'_> {
                         }
                     }
                 }
+                crate::ast::Item::Literal(item) => {
+                    collect_provenance_parameter_spans(item.result_provenance.as_ref(), &mut spans);
+                }
                 crate::ast::Item::Import(_)
                 | crate::ast::Item::FromImport(_)
                 | crate::ast::Item::TypeAlias(_)
                 | crate::ast::Item::Struct(_)
-                | crate::ast::Item::Enum(_)
-                | crate::ast::Item::Literal(_) => {}
+                | crate::ast::Item::Enum(_) => {}
             }
         }
         for span in spans {
@@ -558,6 +560,12 @@ impl File {
 func read<M: Lookup<i32>>(map: &M): &i32 from map {
     return map.get()
 }
+
+struct Text { value: &str }
+
+literal Text ""(text: &str): Self from text {
+    return Text { value: text }
+}
 "#;
         let identifiers =
             classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
@@ -573,6 +581,12 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
             .expect("expected provenance origin token");
         assert_eq!(origin.kind, SemanticTokenKind::Parameter);
         assert_ne!(origin.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
+
+        let literal_origin_start = text.rfind("from text").unwrap() + "from ".len();
+        let literal_origin = identifier_starting_at(&identifiers, literal_origin_start)
+            .expect("expected literal provenance origin token");
+        assert_eq!(literal_origin.kind, SemanticTokenKind::Parameter);
+        assert_ne!(literal_origin.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
 
         let call_start = text.rfind("get()").expect("expected bound method call");
         let call =

@@ -23,7 +23,7 @@ names, private representation, or delimiter-adjacent text rewriting.
 Phase 1 implements only sequence and string shapes:
 
 ```nct
-pub literal Vec<T> [](...items: T): Self {
+pub literal Vec<T> [](...items: T): Self from current {
     let result = Self.with_capacity(items.len())
     for item in items {
         result.push(move item)
@@ -31,7 +31,7 @@ pub literal Vec<T> [](...items: T): Self {
     return move result
 }
 
-pub literal String ""(text: &str): Self {
+pub literal String ""(text: &str): Self from current {
     return Self.copy(text)
 }
 ```
@@ -95,6 +95,12 @@ compiler-owned stack/runtime state and never causes an implicit heap allocation.
 - A string expression passes its decoded static `&str` value to the single declared parameter.
 - Sequence capture is final and unique. Phase 1 does not implement required leading parameters.
 - Result provenance and allocation effect use the ordinary callable-summary model.
+- A literal declaration accepts the same `from` result-provenance clause after its return type as
+  functions and methods. The clause is checked against the body, drives typed-literal call-site
+  provenance, and appears in formatter and editor signatures.
+- A string literal parameter may be an input origin, such as `from text`. A Phase 1 sequence
+  element pack is not one borrow-like input identity and therefore is not an eligible named
+  origin; an allocating collection normally declares `from current`.
 
 ## Allocation Context
 

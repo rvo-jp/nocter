@@ -1,7 +1,7 @@
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_result_provenance_clause(
+    pub(crate) fn parse_result_provenance_clause(
         &mut self,
     ) -> ParseResult<Option<ResultProvenanceClause>> {
         let Some(from) = self.match_identifier_text("from") else {

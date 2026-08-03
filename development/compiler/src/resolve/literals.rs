@@ -204,6 +204,7 @@ fn literal_signature(literal: &LiteralDecl) -> LiteralSignature {
             })
             .collect(),
         return_type: literal.return_type.clone(),
+        result_provenance: literal.result_provenance.clone(),
     }
 }
 

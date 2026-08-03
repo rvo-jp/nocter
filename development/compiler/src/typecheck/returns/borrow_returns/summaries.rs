@@ -202,7 +202,22 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                         previous,
                     )
                     .unwrap_or(ValueProvenance::Independent);
-                    summaries.insert_result(CallableId::declared_at(literal.span), provenance);
+                    let declared = literal.result_provenance.as_ref().and_then(|clause| {
+                        result_provenance_contract(
+                            clause,
+                            None,
+                            &literal.parameters.parameters,
+                            source.resolved,
+                        )
+                        .ok()
+                    });
+                    let callable = CallableId::declared_at(literal.span);
+                    summaries.insert_result(callable, declared.unwrap_or(provenance));
+                    seed_declared_allocation_effect(
+                        &mut summaries,
+                        callable,
+                        literal.result_provenance.as_ref(),
+                    );
                 }
                 _ => {}
             }

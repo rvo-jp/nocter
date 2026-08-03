@@ -446,6 +446,7 @@ pub struct LiteralSignature {
     pub capture: Option<LiteralCaptureSignature>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

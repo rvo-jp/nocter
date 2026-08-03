@@ -763,6 +763,29 @@ fn completion_recovers_incomplete_result_provenance_clause() {
 }
 
 #[test]
+fn completion_recovers_incomplete_literal_result_provenance_clause() {
+    let text = r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self from {
+    return Text { value: text }
+}
+"#;
+    let offset = text.find("from ").unwrap() + "from ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered literal provenance completion");
+    let labels = items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"text"), "{labels:?}");
+    assert!(labels.contains(&"static"), "{labels:?}");
+    assert!(labels.contains(&"current"), "{labels:?}");
+    assert!(!labels.contains(&"self"), "{labels:?}");
+}
+
+#[test]
 fn completion_recovers_incomplete_generic_bound() {
     let text = r#"interface Measure {
     pub method &self.measure(): i32

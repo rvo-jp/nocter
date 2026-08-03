@@ -121,3 +121,63 @@ func main(): i32 {
             .any(|diagnostic| diagnostic.code == "E0443")
     );
 }
+
+#[test]
+fn accepts_literal_result_provenance_contract_satisfied_by_body() {
+    let diagnostics = check_text(
+        r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self from text {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_literal_body_result_outside_declared_provenance() {
+    let diagnostics = check_text(
+        r#"struct Text { value: &str }
+
+literal Text ""(text: &str): Self from current {
+    return Text { value: text }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0445")
+    );
+}
+
+#[test]
+fn accepts_current_provenance_for_pointer_backed_owned_result() {
+    let diagnostics = check_text(
+        r#"primitive allocate(): *u8 from current
+
+struct Buffer { ptr: *u8 }
+
+func build(): Buffer from current {
+    return Buffer { ptr: allocate() }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

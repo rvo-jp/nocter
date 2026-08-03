@@ -270,6 +270,10 @@ program-lifetime storage. `current` denotes the current allocation context and i
 allocation effect. Concrete bodies are checked against the declared origin set; bodyless interface
 methods use the clause as their callable provenance summary.
 
+Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
+Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
+buffer still carries the allocation context responsible for its storage.
+
 Allocation effects otherwise remain inferred and have no source annotation in Phase 4.
 
 ## Typed Literal Allocation
