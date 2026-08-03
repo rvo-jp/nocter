@@ -47,6 +47,18 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
                 ][..],
             )
         }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group_expr(&catch.expression) else {
+                return false;
+            };
+            (
+                call,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )
+        }
         _ => return false,
     };
     let Some(return_type) = call_return_type_expr_with_substitutions(

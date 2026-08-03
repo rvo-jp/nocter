@@ -110,3 +110,61 @@ func lookup(mode: i32): i32?! {
     assert_eq!(*target, CallTarget::same_file("lookup"));
     assert!(instructions.contains(&Instruction::ReturnFallibleSuccess));
 }
+
+#[test]
+fn lowers_composed_catch_and_otherwise_to_independent_handlers() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    let value = lookup(0) catch error { return 7 } otherwise { return 8 }
+    return value
+}
+
+func lookup(mode: i32): i32?! {
+    return 42
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "lookup",
+            Type::ComposedOutcome {
+                outer: OutcomeLayer::Fallible,
+                inner: OutcomeLayer::Optional,
+                payload: Box::new(Type::I32),
+            },
+            vec![Type::I32],
+        )]),
+    )
+    .unwrap();
+
+    let call = function.instructions.iter().find_map(|instruction| {
+        let Instruction::CallComposedOutcome {
+            outer_mode,
+            inner_mode,
+            ..
+        } = instruction
+        else {
+            return None;
+        };
+        Some((outer_mode, inner_mode))
+    });
+    let Some((
+        FallibleFailureMode::Catch {
+            instructions: catch_instructions,
+            ..
+        },
+        FallibleFailureMode::Handle {
+            instructions: absence_instructions,
+        },
+    )) = call
+    else {
+        panic!("{function:?}");
+    };
+    assert!(catch_instructions.contains(&Instruction::SetI32 {
+        destination: I32Location::Return,
+        value: I32Value::Const(7),
+    }));
+    assert!(absence_instructions.contains(&Instruction::SetI32 {
+        destination: I32Location::Return,
+        value: I32Value::Const(8),
+    }));
+}

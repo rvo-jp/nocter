@@ -82,3 +82,34 @@ func main(): i32 {
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn distributed_std_cwd_current_origin_cannot_escape_a_region() {
+    let project = TempProject::new("distributed-home-cwd-region-origin");
+    let source = project.write_source(
+        "cwd_region_origin.nct",
+        r#"use std/mem.page_allocator
+use std/process.cwd
+
+func leak(): String! {
+    var arena = page_allocator()
+    region temporary using arena {
+        return cwd()?
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert_eq!(stderr.matches("error[E0436]").count(), 1, "{stderr}");
+    assert!(
+        stderr.contains("region `temporary`") && stderr.contains("region ends before"),
+        "expected cwd's `from current` result to resolve to the active region:\n{stderr}"
+    );
+}

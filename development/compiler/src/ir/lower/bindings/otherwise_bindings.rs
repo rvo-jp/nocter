@@ -234,6 +234,30 @@ pub(super) fn lower_otherwise_scalar_binding(
             call,
             &otherwise.fallback,
             kind,
+            propagating_failure_mode(context)?,
+            context,
+            loop_control,
+        )
+        .map(Some);
+    }
+    if let Expr::Catch(catch) = unwrap_group(&otherwise.value)
+        && let Expr::Call(call) = unwrap_group(&catch.expression)
+        && let Some((target, _)) = context.direct_call_target_and_name(call)
+        && let Some(Type::ComposedOutcome {
+            outer: crate::outcomes::OutcomeLayer::Fallible,
+            inner: crate::outcomes::OutcomeLayer::Optional,
+            payload,
+        }) = context.call_return_type(&target).cloned()
+        && let Some(kind) = optional_success_scalar_binding_kind(statement, &payload, context)?
+    {
+        let reserved_abi_words = kind.abi_word_count();
+        let outer_mode = lower_catch_failure_mode(catch, context, reserved_abi_words)?;
+        return lower_composed_otherwise_scalar_call_binding(
+            statement,
+            call,
+            &otherwise.fallback,
+            kind,
+            outer_mode,
             context,
             loop_control,
         )
@@ -282,12 +306,12 @@ pub(super) fn lower_composed_otherwise_scalar_call_binding(
     call: &CallExpr,
     fallback: &Block,
     kind: ScalarBindingKind,
+    outer_mode: FallibleFailureMode,
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let expression_context = context.with_reserved_local_abi_words(kind.abi_word_count());
     let mut temporaries = TemporaryAllocator::new(&expression_context)?;
-    let outer_mode = propagating_failure_mode(&expression_context)?;
 
     let (destination, inner_mode) = match &kind {
         ScalarBindingKind::I32 => {

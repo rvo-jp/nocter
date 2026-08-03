@@ -70,6 +70,168 @@ func lookup(): i32?! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_routes_composed_failure_only_to_catch_and_absence_only_to_otherwise() {
+    let project = TempProject::new("cli-run-composed-catch-otherwise-channels");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "composed_catch_otherwise_channels.nct",
+        r#"use std/error.Error
+
+func main(): i32 {
+    let present = lookup(0) catch error { return 1 } otherwise { return 2 }
+    let absent = lookup(1) catch error { return 3 } otherwise { 4 }
+    let unused = lookup(2) catch error { return present + absent + 34 } otherwise { return 5 }
+    return unused
+}
+
+func lookup(mode: i32): i32?! {
+    if mode == 0 { return 4 }
+    if mode == 1 { return none }
+    return Error.new("app.lookup", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_drops_each_owner_once_across_composed_outcome_paths() {
+    let project = TempProject::new("cli-run-composed-outcome-cleanup");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "composed_outcome_cleanup.nct",
+        r#"use std/error.Error
+use std/log.write
+
+struct Owner {
+    id: i32
+}
+
+impl Owner {
+    drop &+self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32 {
+    let present = choose(0)
+    let absent = choose(1)
+    let failure = choose(2)
+    return present + absent + failure
+}
+
+func choose(mode: i32): i32 {
+    var owner = Owner { id: mode }
+    let value = lookup(mode) catch error { return 9 } otherwise { 8 }
+    return value
+}
+
+func lookup(mode: i32): i32?! {
+    if mode == 0 { return 25 }
+    if mode == 1 { return none }
+    return Error.new("app.lookup", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\ndrop\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_uses_composed_outcome_abi_for_specialized_methods() {
+    let project = TempProject::new("cli-run-specialized-method-composed-outcome");
+    let source = project.write_source(
+        "specialized_method_composed_outcome.nct",
+        r#"copy struct Holder<T> {
+    value: T
+}
+
+impl<T> Holder<T> {
+    method &self.get(): T?! {
+        return self.value
+    }
+}
+
+func main(): i32! {
+    let holder = Holder<i32> { value: 42 }
+    let value = holder.get()? otherwise { return 1 }
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_fallible_scalar_and_view_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-fallible-scalar-view-call-statement");
     project.write_nocter_home_file(

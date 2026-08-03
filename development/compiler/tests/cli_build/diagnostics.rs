@@ -1825,15 +1825,15 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_std_process_env_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-env-check-only-boundary");
+fn build_command_accepts_renamed_std_process_env_composed_outcome() {
+    let project = TempProject::new("cli-build-process-env-renamed-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
         "process_env_check_only_boundary.nct",
         r#"use std/process.env as lookup
 
 func main(): i32! {
-    let value = lookup("HOME")?
+    let value = lookup("HOME")? otherwise { return 0 }
     return 0
 }
 "#,
@@ -1842,44 +1842,20 @@ func main(): i32! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("check-only `std/process.env` calls"),
-        "expected env check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let value = lookup(\"HOME\")?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("nested fallible or optional return types"),
-        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_std_process_env_namespace_use_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-env-namespace-use-check-only-boundary");
+fn build_command_accepts_namespace_std_process_env_composed_outcome() {
+    let project = TempProject::new("cli-build-process-env-namespace-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
         "process_env_namespace_use_check_only_boundary.nct",
         r#"use std/process
 
 func main(): i32! {
-    let value = process.env("HOME")?
+    let value = process.env("HOME")? otherwise { return 0 }
     return 0
 }
 "#,
@@ -1888,32 +1864,8 @@ func main(): i32! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("check-only `std/process.env` calls"),
-        "expected env check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let value = process.env(\"HOME\")?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("nested fallible or optional return types"),
-        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

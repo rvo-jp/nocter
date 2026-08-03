@@ -4158,6 +4158,40 @@ func main(): i32! {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_args_rejects_invalid_utf8() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let project = TempProject::new("distributed-home-process-args-invalid-utf8");
+    let source = project.write_source(
+        "process_args_invalid_utf8.nct",
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    return 2
+}
+"#,
+    );
+    let executable = project.root().join("process_args_invalid_utf8");
+    let build = nocter_build(&project, &source, &executable);
+    assert_success(&build);
+
+    let output = Command::new(&executable)
+        .arg(OsString::from_vec(vec![0x66, 0x80, 0x6f]))
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
+    );
+}
+
 #[test]
 fn distributed_std_process_env_renamed_import_builds_to_macho() {
     let project = TempProject::new("distributed-home-process-env-renamed-build");
@@ -4244,6 +4278,31 @@ func main(): i32! {
         )
         .output()
         .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_env_rejects_invalid_requested_name() {
+    let project = TempProject::new("distributed-home-process-env-invalid-name");
+    let source = project.write_source(
+        "process_env_invalid_name.nct",
+        r#"use std/process.env
+
+func main(): i32! {
+    let value = env("INVALID=NAME")? otherwise { return 2 }
+    return 3
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
 
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
