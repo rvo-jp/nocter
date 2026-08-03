@@ -3065,6 +3065,50 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_round_trips_stored_outcomes_through_values_and_structs() {
+    let project = TempProject::new("cli-run-first-class-outcome-values");
+    let source = project.write_source(
+        "first_class_outcome_values.nct",
+        r#"struct Holder {
+    value: i32?
+}
+
+func main(): i32 {
+    let present = maybe(true)
+    let forwarded = forward(present)
+    let holder = Holder { value: forwarded }
+    let extracted = holder.value
+    let first = extracted otherwise { return 1 }
+
+    let absent = maybe(false)
+    let second = absent otherwise { 2 }
+    return first + second
+}
+
+func maybe(present: bool): i32? {
+    if present { return 40 }
+    return none
+}
+
+func forward(value: i32?): i32? {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_indirect_aggregate_otherwise_none_exit_code() {
     let project = TempProject::new("cli-run-optional-indirect-aggregate-otherwise-none");
     let source = project.write_source(

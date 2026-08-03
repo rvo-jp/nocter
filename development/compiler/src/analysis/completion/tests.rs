@@ -144,6 +144,7 @@ fn completion_candidates_follow_lexical_local_scope() {
     let later = 3
     return outer
 }
+
 func other(hidden: i32): i32 {
     return hidden
 }
@@ -170,6 +171,29 @@ func other(hidden: i32): i32 {
     }
     assert!(!outer_items.iter().any(|item| item.label == "inner"));
     assert!(!outer_items.iter().any(|item| item.label == "hidden"));
+}
+
+#[test]
+fn completion_preserves_stored_outcome_details() {
+    let text = r#"func main(): i32 {
+    let saved = lookup()
+    return 0
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("return 0").unwrap();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let saved = items
+        .iter()
+        .find(|item| item.label == "saved")
+        .expect("expected stored outcome local");
+
+    assert_eq!(saved.detail.as_deref(), Some("let saved: i32!?"));
 }
 
 #[test]

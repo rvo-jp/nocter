@@ -16,6 +16,8 @@ mod interpolation;
 mod iteration;
 #[path = "distributed_home/iteration_cleanup.rs"]
 mod iteration_cleanup;
+#[path = "distributed_home/outcome_values.rs"]
+mod outcome_values;
 #[path = "distributed_home/provenance_bounds.rs"]
 mod provenance_bounds;
 #[path = "distributed_home/typed_literals.rs"]

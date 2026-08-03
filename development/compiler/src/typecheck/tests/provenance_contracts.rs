@@ -181,3 +181,20 @@ func main(): i32 {
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn preserves_result_provenance_through_stored_outcome_bindings() {
+    let diagnostics = check_text(
+        r#"func forward(value: (&i32)?): (&i32)? from value {
+    let saved = move value
+    return move saved
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

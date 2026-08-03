@@ -415,3 +415,72 @@ func lookup(): i32?! {
             Instruction::IfStoredOutcomeTag { .. }))
     )));
 }
+
+#[test]
+fn stores_and_extracts_outcomes_in_fixed_arrays() {
+    let module = lower_text(
+        r#"func main(): i32 {
+    let saved = maybe()
+    let values: [i32?; 1] = [saved]
+    let extracted = values[0]
+    return extracted otherwise { 7 }
+}
+
+func maybe(): i32? {
+    return 42
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(
+        main.instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction,
+                Instruction::CopyAggregateRange {
+                    layout: ValueLayout { size: 16, align: 8 },
+                    ..
+                }
+            ))
+            .count()
+            >= 2
+    );
+}
+
+#[test]
+fn moving_owned_outcomes_transfers_one_drop_obligation() {
+    let module = lower_text(
+        r#"struct Resource { code: i32 }
+
+impl Resource {
+    drop &+self { return }
+}
+
+func main(): i32 {
+    let first = make()
+    let second = move first
+    return 0
+}
+
+func make(): Resource? {
+    return Resource { code: 1 }
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions
+            .iter()
+            .filter(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
+            .count(),
+        1
+    );
+}

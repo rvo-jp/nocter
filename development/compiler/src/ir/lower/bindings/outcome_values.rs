@@ -193,6 +193,93 @@ pub(super) fn lower_outcome_local_binding(
         );
         return Ok(Some(instructions));
     }
+    if let Expr::Index(index) = unwrap_group(&statement.initializer) {
+        let lowered = {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let access = fixed_array_element_access(index, context, &mut temporaries, || {
+                vec![Diagnostic::error(
+                    "E8008",
+                    "stored outcome fixed-array index cannot be lowered",
+                )]
+            })?;
+            let Some(access) = access else {
+                return Ok(None);
+            };
+            let AbiType::Outcome { layout } = access.element else {
+                return Ok(None);
+            };
+            if access.out_of_bounds {
+                return Err(vec![Diagnostic::error(
+                    "E8008",
+                    "stored outcome fixed-array index is out of bounds",
+                )]);
+            }
+            let Some(ty) = context.expression_type_expr(statement.initializer.span()) else {
+                return Ok(None);
+            };
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Ok(None);
+            };
+            let shape = outcome_shape_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            });
+            let Some(storage) = shape.storage_layout(
+                abi_value_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .ok()
+                .map(|value| value.layout)
+                .unwrap_or(layout),
+            ) else {
+                return Ok(None);
+            };
+            if storage.layout != layout {
+                return Ok(None);
+            }
+            let Some(payload_type) =
+                return_type_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+                    context.resolved_source(source)
+                })
+            else {
+                return Ok(None);
+            };
+            (access, storage, payload_type, ty)
+        };
+        let (access, storage, payload_type, ty) = lowered;
+        let is_copy = context.resolved_calls().is_some_and(|(_, resolved)| {
+            type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            })
+        });
+        if !is_copy {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                "stored outcome fixed-array binding requires a copyable payload",
+            )]);
+        }
+        let slot_index = context.reserve_aggregate_slot_index();
+        let mut instructions = access.instructions;
+        instructions.push(Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: storage.layout,
+        });
+        instructions.push(Instruction::CopyAggregateRange {
+            destination: AggregateLocation::Slot(slot_index),
+            destination_offset: 0,
+            source: access.source,
+            source_offset: access.offset,
+            layout: storage.layout,
+        });
+        context.define_outcome_local_at_slot(
+            statement.name.clone(),
+            slot_index,
+            storage,
+            payload_type,
+            true,
+            None,
+        );
+        return Ok(Some(instructions));
+    }
     if let Some((source_name, moved)) = outcome_identifier_initializer(&statement.initializer) {
         let Some(source) = context.outcome_local(source_name) else {
             return Ok(None);

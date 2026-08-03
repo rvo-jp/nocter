@@ -33,6 +33,43 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
+    let stored = match unwrap_group_expr(value) {
+        Expr::Identifier(identifier) => Some((
+            identifier.span,
+            &[crate::outcomes::OutcomeLayer::Optional][..],
+        )),
+        Expr::Propagate(propagation) => match unwrap_group_expr(&propagation.expression) {
+            Expr::Identifier(identifier) => Some((
+                identifier.span,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )),
+            _ => None,
+        },
+        Expr::Catch(catch) => match unwrap_group_expr(&catch.expression) {
+            Expr::Identifier(identifier) => Some((
+                identifier.span,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some((span, expected_layers)) = stored
+        && let Some(ty) = typecheck_facts.expression_type_expr(span)
+    {
+        let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+        return outcome_shape_with_resolver(&ty, resolved, |source| {
+            resolved_sources.get(&source).copied()
+        })
+        .layers
+            == expected_layers;
+    }
     let (call, expected_layers) = match unwrap_group_expr(value) {
         Expr::Call(call) => (call, &[crate::outcomes::OutcomeLayer::Optional][..]),
         Expr::Propagate(propagation) => {

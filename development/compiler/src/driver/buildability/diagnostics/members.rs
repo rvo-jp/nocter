@@ -70,6 +70,12 @@ pub(in crate::driver::buildability) fn member_field_value_type_is_buildable(
     {
         return Some(true);
     }
+    let shape = outcome_shape_with_resolver(ty, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    });
+    if !shape.layers.is_empty() && shape.is_supported_callable_shape() {
+        return Some(true);
+    }
     Some(false)
 }
 

@@ -110,6 +110,27 @@ fn workspace_hover_uses_typecheck_facts_and_documentation() {
 }
 
 #[test]
+fn workspace_hover_preserves_stored_composed_outcome_type() {
+    let text = r#"func main(): i32 {
+    let saved = lookup()
+    let forwarded = saved
+    return 0
+}
+
+func lookup(): i32?! {
+    return 42
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("forwarded = saved").unwrap() + "forwarded = ".len();
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
+
+    assert_eq!(hover.label, "let saved: i32?!");
+}
+
+#[test]
 fn workspace_hover_uses_normalized_typecheck_facts_for_function_reference() {
     let text = "type Exit = i32\n\nfunc answer(value: Exit): Exit {\n    return value\n}\n\nfunc main(): i32 {\n    return answer(1)\n}\n";
     let (sources, analysis) = analyze_text(text);
