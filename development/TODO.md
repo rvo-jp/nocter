@@ -15,7 +15,7 @@ chronological implementation history.
   `v0.3.0 Phase 4 Public Provenance Contracts and Generic Interface Bounds`, and
   `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`, and
   `v0.3.0 Phase 6 First-Class Outcome Values`
-- active milestone gate: none
+- active milestone gate: `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -24,6 +24,8 @@ chronological implementation history.
 - required Phase 4 items: none
 - required Phase 5 items: none
 - required Phase 6 items: none
+- required Phase 7 items: trusted protocol roles, standard-library conformances, collection-for
+  semantics, ownership/provenance, IR cleanup, LSP recovery, and packaged verification
 
 Phase 6 added recursive stored layouts, explicit callable bridges, active-payload ownership and
 cleanup, ordinary stored-value consumers, aggregate and fixed-array storage, generic and alias
@@ -32,5 +34,5 @@ verification for the adopted outcome shapes.
 
 ## Current Objective
 
-No later v0.3.0 phase has been adopted. Define its contract and acceptance matrix before beginning
-additional feature work.
+Complete Phase 7 in the work order defined by the development contract. Stop only after the Phase 7
+verification gate passes and the completion status replaces this active handoff.

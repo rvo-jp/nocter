@@ -336,14 +336,43 @@ Rules:
 - Exiting a loop runs the normal scope-end `drop` behavior for values whose scopes end.
 - `break` and `continue` run the same cleanup for scopes they leave.
 
+v0.3.0 Phase 7 adopts protocol-driven collection iteration with an explicit ownership mode:
+
+```nct
+for item in &values {
+    inspect(item)
+}
+
+for item in move values {
+    consume(move item)
+}
+```
+
+- `&expression` selects the trusted readonly conversion protocol. The source remains owned by its
+  existing place, and the produced iterator retains the source provenance.
+- `move expression` selects the trusted consuming conversion protocol and transfers the source into
+  the produced iterator.
+- A bare expression is accepted only when its type already implements the trusted iterator
+  protocol. A collection value without `&` or `move` is rejected rather than guessed.
+- The source expression is evaluated once. Its iterator is owned by the loop and advanced through
+  a validated declaration identity, not a method-name search.
+- Each successful step initializes one immutable loop binding. Absence ends the loop without
+  initializing or dropping an element.
+- `continue` drops an unconsumed current element before advancing. `break`, `return`, propagation,
+  and normal completion drop live element state and then the iterator exactly once.
+- A readonly yielded borrow retains its source loan through the borrow's last use. A consuming
+  yielded value owns exactly one transferred drop obligation.
+
 Deferred:
 
-- `for item in expr { ... }`
 - mutable element iteration over `&+[T]`
-- compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
+- implicit choice between readonly and consuming iteration for a bare collection value
 - reverse iteration and custom step syntax
+- asynchronous iteration and iterator adapters that require closures
 
-Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`.
+The compiler must not lower collection iteration into calls selected by the spellings `iter`,
+`into_iter`, or `next`. Trusted standard-library interface declarations are validated once and then
+used by declaration identity.
 
 Use range `for` with indexing:
 

@@ -156,6 +156,17 @@ analysis. Protocol code does not recognize `env`, reinterpret `?!`, or synthesiz
 - malformed and incomplete consumers continue through the ordinary recovery pipeline
 - JSON-RPC tests verify exact normalized hover content and alias source range
 
+## Completed v0.3.0 Phase 6 Integration
+
+Stored outcome tooling reads normalized local and expression types from typecheck facts. Protocol
+code does not inspect tags, reconstruct outcome layers, or special-case a consumer expression.
+
+- hover on a saved optional, fallible, or supported composed value preserves its normalized type
+- completion detail reports the same stored type as hover
+- later consumption does not replace the saved binding's declaration fact with its payload type
+- generic aliases and specializations retain their concrete outcome layers
+- JSON-RPC tests cover stored `T!?` hover and completion through the protocol boundary
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -204,7 +215,8 @@ signature recovery through direct and JSON-RPC queries. Phase 4 tests cover norm
 labels, eligible-origin and bound-method completion, specialized signature help, interface-targeted
 definition/references, semantic classification, recovery, and protocol source ranges. Phase 5
 tests cover nested outcome normalization, exact `from static` display, static result provenance,
-and aliased callable hover ranges.
+and aliased callable hover ranges. Phase 6 tests cover normalized stored composed values through
+direct analysis and JSON-RPC hover/completion queries.
 
 ## Deferred Features
 

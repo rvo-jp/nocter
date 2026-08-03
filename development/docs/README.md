@@ -7,13 +7,13 @@ those rules here.
 The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
 **Phase 2: Explicit Iteration and Collection Access**, **Phase 3: Owned String Interpolation and
 Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
-Nested Outcomes and Executable Process Context** are complete on `develop`. No later v0.3.0 phase
-is active. Do not use
+Nested Outcomes and Executable Process Context**, and **Phase 6: First-Class Outcome Values** are
+complete on `develop`. **Phase 7: Protocol-Driven Collection Iteration** is active. Do not use
 `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 5 records and the single
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 6 records and the single
   entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
@@ -29,6 +29,10 @@ is active. Do not use
   result origins, generic capability lookup, static specialization, and editor boundaries
 - [Nested Outcomes and Executable Process Context](outcomes-process-context.md): recursive callable
   result channels, native ABI, process storage, and ambient/recoverable process APIs
+- [First-Class Outcome Values](outcome-values.md): recursive stored outcome layout, callable
+  bridging, active-payload ownership, consumers, and tooling
+- [Protocol-Driven Collection Iteration](iteration-protocol.md): trusted protocol roles, collection
+  conversion, loop ownership, cleanup, and editor boundaries
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): released runtime baseline and completed v0.3.0 runtime
@@ -51,6 +55,8 @@ is active. Do not use
 | Owned interpolation and formatting implementation design | `interpolation.md` |
 | Public provenance contracts and generic interface-bound dispatch | `provenance-contracts.md` |
 | Nested outcome lowering and executable process context | `outcomes-process-context.md` |
+| First-class stored outcome values | `outcome-values.md` |
+| Protocol-driven collection iteration | `iteration-protocol.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |
