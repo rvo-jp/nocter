@@ -289,12 +289,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "yes"
             && item.kind == CompletionItemKind::EnumMember
-            && detail_starts_with(item, "variant ")
+            && item.detail.as_deref() == Some("variant Choice.yes")
     }));
     assert!(items.iter().any(|item| {
         item.label == "no"
             && item.kind == CompletionItemKind::EnumMember
-            && detail_starts_with(item, "variant ")
+            && item.detail.as_deref() == Some("variant Choice.no")
     }));
     assert!(!items.iter().any(|item| item.label == "Choice"));
 }
@@ -326,7 +326,7 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "open"
             && item.kind == CompletionItemKind::Function
-            && detail_starts_with(item, "func open")
+            && item.detail.as_deref() == Some("func File.open(): File")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
 }
@@ -414,12 +414,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && detail_starts_with(item, "field ")
+            && item.detail.as_deref() == Some("field File.fd: i32")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && detail_starts_with(item, "field ")
+            && item.detail.as_deref() == Some("field File.size: i32")
     }));
     assert!(items.iter().any(|item| {
         item.label == "describe"
@@ -721,6 +721,9 @@ func use_boxes(readonly: &Box<i32>, readwrite: &+Box<i32>): void {
     let readwrite_offset = text.find("readwrite.inspect").unwrap() + "readwrite.".len();
 
     let readonly_items = completion_items_for_file_analysis_at_offset(file, readonly_offset);
+    assert!(readonly_items.iter().any(|item| {
+        item.label == "value" && item.detail.as_deref() == Some("field Box<i32>.value: i32")
+    }));
     assert!(readonly_items.iter().any(|item| item.label == "inspect"));
     assert!(!readonly_items.iter().any(|item| item.label == "mutate"));
 

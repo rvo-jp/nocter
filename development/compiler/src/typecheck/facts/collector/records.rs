@@ -344,11 +344,10 @@ impl TypecheckFactCollector<'_> {
         }
         self.facts.field_hover_labels.insert(
             span,
-            format!(
-                "field {}.{}: {}",
+            field_member_label(
                 type_owner_hover_label(owner, self.resolved),
-                field.name,
-                type_hover_label(field_ty, self.resolved)
+                &field.name,
+                &type_hover_label(field_ty, self.resolved),
             ),
         );
     }

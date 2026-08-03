@@ -12,7 +12,10 @@ pub(in crate::analysis::hover) fn function_like_header(
         .to_string()
 }
 
-pub(in crate::analysis::hover) fn parameters_label(text: &str, parameters: &[Parameter]) -> String {
+pub(in crate::analysis::hover) fn parameter_labels(
+    text: &str,
+    parameters: &[Parameter],
+) -> Vec<String> {
     parameters
         .iter()
         .map(|parameter| {
@@ -22,8 +25,7 @@ pub(in crate::analysis::hover) fn parameters_label(text: &str, parameters: &[Par
                 source_fragment(text, parameter.ty.span())
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect()
 }
 
 pub(in crate::analysis::hover) fn binding_kind_label(

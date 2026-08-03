@@ -1360,7 +1360,7 @@ fn returns_short_visible_type_names_for_hover() {
 
     assert_eq!(
         field_declaration["result"]["contents"]["value"],
-        json!("```nocter\nfield field3: String\n```")
+        json!("```nocter\nfield TestStruct.field3: String\n```")
     );
     assert_eq!(
         field_reference["result"]["contents"]["value"],
@@ -2622,6 +2622,10 @@ return file.fd
         Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
     );
     assert_eq!(
+        completion_item_with_label(variant_items, "yes").and_then(|item| item["detail"].as_str()),
+        Some("variant Choice.yes")
+    );
+    assert_eq!(
         completion_item_with_label(variant_items, "no").and_then(|item| item["kind"].as_u64()),
         Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
     );
@@ -2654,7 +2658,7 @@ return file.fd
         open_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
     );
-    assert_eq!(open_item["detail"].as_str(), Some("func open(): File"));
+    assert_eq!(open_item["detail"].as_str(), Some("func File.open(): File"));
     assert_eq!(open_item["insertText"].as_str(), Some("open()"));
     assert!(completion_item_with_label(function_items, "File").is_none());
 }
@@ -2711,7 +2715,7 @@ return file.fd
         fd_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
     );
-    assert_eq!(fd_item["detail"].as_str(), Some("field fd: i32"));
+    assert_eq!(fd_item["detail"].as_str(), Some("field File.fd: i32"));
     assert_eq!(fd_item["insertText"].as_str(), Some("fd"));
     assert_eq!(
         describe_item["kind"].as_u64(),

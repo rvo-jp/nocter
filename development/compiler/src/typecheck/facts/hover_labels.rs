@@ -90,13 +90,14 @@ pub(super) fn struct_declaration_hover_label(
 }
 
 pub(super) fn struct_field_declaration_hover_label(
+    owner: &StructDecl,
     field: &StructField,
     resolved: &ResolveOutput,
 ) -> String {
-    format!(
-        "field {}: {}",
-        field.name,
-        type_label(&field.ty, resolved, None)
+    field_member_label(
+        &declared_member_owner_label(&owner.name, &owner.generics),
+        &field.name,
+        &type_label(&field.ty, resolved, None),
     )
 }
 
@@ -108,18 +109,26 @@ pub(super) fn enum_declaration_hover_label(enum_: &EnumDecl, resolved: &ResolveO
     )
 }
 
+fn declared_member_owner_label(name: &str, generics: &GenericParamList) -> String {
+    generic_type_owner_name(
+        name,
+        &generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>(),
+    )
+}
+
 pub(super) fn enum_variant_declaration_hover_label(
+    owner: &EnumDecl,
     variant: &EnumVariant,
     resolved: &ResolveOutput,
 ) -> String {
-    if variant.payload.is_empty() {
-        return format!("variant {}", variant.name);
-    }
-
-    format!(
-        "variant {}({})",
-        variant.name,
-        parameters_label(&variant.payload, resolved, None)
+    enum_variant_member_label(
+        &declared_member_owner_label(&owner.name, &owner.generics),
+        &variant.name,
+        &parameter_labels(&variant.payload, resolved, None),
     )
 }
 
@@ -128,19 +137,10 @@ pub(super) fn enum_variant_signature_hover_label(
     variant: &crate::resolve::EnumVariantSignature,
     resolved: &ResolveOutput,
 ) -> String {
-    if variant.payload.is_empty() {
-        return format!(
-            "variant {}.{}",
-            type_owner_hover_label(owner, resolved),
-            variant.name
-        );
-    }
-
-    format!(
-        "variant {}.{}({})",
+    enum_variant_member_label(
         type_owner_hover_label(owner, resolved),
-        variant.name,
-        parameter_signatures_label(&variant.payload, resolved, None)
+        &variant.name,
+        &parameter_signature_labels(&variant.payload, resolved, None),
     )
 }
 
@@ -332,6 +332,14 @@ pub(super) fn parameters_label(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> String {
+    parameter_labels(parameters, resolved, self_type).join(", ")
+}
+
+fn parameter_labels(
+    parameters: &[Parameter],
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Vec<String> {
     parameters
         .iter()
         .map(|parameter| {
@@ -341,8 +349,7 @@ pub(super) fn parameters_label(
                 type_label(&parameter.ty, resolved, self_type)
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect()
 }
 
 pub(super) fn parameter_signatures_label(
@@ -350,6 +357,14 @@ pub(super) fn parameter_signatures_label(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> String {
+    parameter_signature_labels(parameters, resolved, self_type).join(", ")
+}
+
+fn parameter_signature_labels(
+    parameters: &[ParameterSignature],
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Vec<String> {
     parameters
         .iter()
         .map(|parameter| {
@@ -359,8 +374,7 @@ pub(super) fn parameter_signatures_label(
                 parameter_signature_type_label(parameter, resolved, self_type)
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect()
 }
 
 pub(super) fn parameter_signature_type_label(

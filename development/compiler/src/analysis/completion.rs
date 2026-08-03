@@ -18,7 +18,11 @@ use crate::resolve::{
 use crate::source::ByteSpan;
 use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
-use crate::typecheck::{type_expr_is_aborting_allocator_capability, type_expr_presentation_label};
+use crate::typecheck::{
+    enum_variant_member_label, field_member_label, qualified_member_name,
+    type_expr_is_aborting_allocator_capability, type_expr_presentation_label,
+    type_symbol_presentation_label,
+};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
@@ -688,6 +692,7 @@ fn type_member_completion_items(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,
 ) -> Vec<CompletionItemInfo> {
+    let owner = type_symbol_presentation_label(symbol, resolved);
     let mut items = Vec::new();
     if symbol.kind == TypeSymbolKind::Enum {
         items.extend(enum_variant_completion_items(symbol, resolved));
@@ -697,7 +702,7 @@ fn type_member_completion_items(
             .associated_functions
             .iter()
             .filter(|function| function.is_accessible)
-            .map(|function| associated_function_completion_item(function, resolved)),
+            .map(|function| associated_function_completion_item(function, &owner, resolved)),
     );
     items
 }
@@ -761,15 +766,17 @@ fn enum_variant_completion_items(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,
 ) -> Vec<CompletionItemInfo> {
+    let owner = type_symbol_presentation_label(symbol, resolved);
     symbol
         .variants
         .iter()
-        .map(|variant| enum_variant_completion_item(variant, resolved))
+        .map(|variant| enum_variant_completion_item(variant, &owner, resolved))
         .collect()
 }
 
 fn enum_variant_completion_item(
     variant: &EnumVariantSignature,
+    owner: &str,
     resolved: &ResolveOutput,
 ) -> CompletionItemInfo {
     let payload = variant
@@ -780,11 +787,7 @@ fn enum_variant_completion_item(
     CompletionItemInfo {
         label: variant.name.clone(),
         kind: CompletionItemKind::EnumMember,
-        detail: Some(if payload.is_empty() {
-            format!("variant {}", variant.name)
-        } else {
-            format!("variant {}({})", variant.name, payload.join(", "))
-        }),
+        detail: Some(enum_variant_member_label(owner, &variant.name, &payload)),
         documentation: None,
         insert_text: Some(if payload.is_empty() {
             variant.name.clone()
@@ -798,6 +801,7 @@ fn enum_variant_completion_item(
 
 fn associated_function_completion_item(
     function: &AssociatedFunctionSignature,
+    owner: &str,
     resolved: &ResolveOutput,
 ) -> CompletionItemInfo {
     CompletionItemInfo {
@@ -805,7 +809,7 @@ fn associated_function_completion_item(
         kind: CompletionItemKind::Function,
         detail: Some(callable_detail(
             "func",
-            &function.name,
+            &qualified_member_name(owner, &function.name),
             &function.signature,
             resolved,
         )),
@@ -823,13 +827,17 @@ fn struct_field_completion_item(
     substitutions: &HashMap<String, TypeExpr>,
 ) -> CompletionItemInfo {
     let ty = substitute_type_expr_parameters(&field.ty, substitutions);
+    let owner = substitutions
+        .get("Self")
+        .map(|ty| type_expr_presentation_label(ty, resolved))
+        .unwrap_or_else(|| "Self".to_string());
     CompletionItemInfo {
         label: field.name.clone(),
         kind: CompletionItemKind::Field,
-        detail: Some(format!(
-            "field {}: {}",
-            field.name,
-            type_expr_presentation_label(&ty, resolved)
+        detail: Some(field_member_label(
+            &owner,
+            &field.name,
+            &type_expr_presentation_label(&ty, resolved),
         )),
         documentation: None,
         insert_text: Some(if literal {

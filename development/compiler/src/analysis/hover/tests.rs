@@ -238,7 +238,7 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_struct_field() {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "field fd: i32");
+    assert_eq!(hover.label, "field File.fd: i32");
 }
 
 #[test]
@@ -264,7 +264,48 @@ fn workspace_hover_uses_normalized_typecheck_facts_for_enum_variant() {
     let hover =
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
-    assert_eq!(hover.label, "variant count(value: i32)");
+    assert_eq!(hover.label, "variant Event.count(value: i32)");
+}
+
+#[test]
+fn workspace_hover_qualifies_generic_member_declarations() {
+    let text = r#"struct Box<T> {
+    value: T
+}
+
+enum Option<T> {
+    some(value: T)
+    empty
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let field = hover_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        text.find("value: T").expect("expected field"),
+    )
+    .expect("expected field hover");
+    let variant = hover_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        text.find("some(value").expect("expected variant"),
+    )
+    .expect("expected variant hover");
+    let payloadless = hover_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        text.find("empty").expect("expected payloadless variant"),
+    )
+    .expect("expected payloadless variant hover");
+
+    assert_eq!(field.label, "field Box<T>.value: T");
+    assert_eq!(variant.label, "variant Option<T>.some(value: T)");
+    assert_eq!(payloadless.label, "variant Option<T>.empty");
 }
 
 #[test]

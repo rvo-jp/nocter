@@ -19,6 +19,7 @@ mod interface_bounds;
 mod interfaces;
 mod iteration;
 mod literals;
+mod member_presentation;
 mod model;
 mod numeric;
 mod operations;
@@ -55,7 +56,10 @@ pub(crate) use facts::{
     TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
     TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
     TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
-    collect_typecheck_facts, type_expr_presentation_label,
+    collect_typecheck_facts, type_expr_presentation_label, type_symbol_presentation_label,
+};
+pub(crate) use member_presentation::{
+    enum_variant_member_label, field_member_label, generic_type_owner_name, qualified_member_name,
 };
 pub(crate) use semantic_facts::{
     CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,

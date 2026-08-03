@@ -128,16 +128,25 @@ pub(in crate::analysis::hover) fn collect_struct_hover_symbols(
     struct_: &StructDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
+    let owner = generic_type_owner_name(
+        &struct_.name,
+        &struct_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>(),
+    );
     let copy_prefix = if struct_.is_copy { "copy " } else { "" };
     push_hover_symbol(
         text,
         struct_.name_span,
         struct_.span.start,
-        format!("{copy_prefix}struct {}", struct_.name),
+        format!("{copy_prefix}struct {owner}"),
         symbols,
     );
     for field in &struct_.fields {
-        push_struct_field_hover_symbol(text, field, symbols);
+        push_struct_field_hover_symbol(text, &owner, field, symbols);
     }
 }
 
@@ -146,24 +155,32 @@ pub(in crate::analysis::hover) fn collect_enum_hover_symbols(
     enum_: &EnumDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
+    let owner = generic_type_owner_name(
+        &enum_.name,
+        &enum_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>(),
+    );
     push_hover_symbol(
         text,
         enum_.name_span,
         enum_.span.start,
-        format!("enum {}", enum_.name),
+        format!("enum {owner}"),
         symbols,
     );
     for variant in &enum_.variants {
-        let payload = if variant.payload.is_empty() {
-            String::new()
-        } else {
-            format!("({})", parameters_label(text, &variant.payload))
-        };
         push_hover_symbol(
             text,
             variant.name_span,
             variant.span.start,
-            format!("variant {}{}", variant.name, payload),
+            enum_variant_member_label(
+                &owner,
+                &variant.name,
+                &parameter_labels(text, &variant.payload),
+            ),
             symbols,
         );
         collect_parameter_hover_symbols(text, &variant.payload, symbols);
@@ -258,6 +275,7 @@ pub(in crate::analysis::hover) fn push_primitive_hover_symbol(
 
 pub(in crate::analysis::hover) fn push_struct_field_hover_symbol(
     text: &str,
+    owner: &str,
     field: &StructField,
     symbols: &mut Vec<HoverSymbol>,
 ) {
@@ -265,11 +283,7 @@ pub(in crate::analysis::hover) fn push_struct_field_hover_symbol(
         text,
         field.name_span,
         field.span.start,
-        format!(
-            "field {}: {}",
-            field.name,
-            source_fragment(text, field.ty.span())
-        ),
+        field_member_label(owner, &field.name, source_fragment(text, field.ty.span())),
         symbols,
     );
 }

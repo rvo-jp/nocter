@@ -66,6 +66,17 @@ use specializations::*;
 use type_exprs::*;
 use utility::*;
 
+use super::member_presentation::{
+    enum_variant_member_label, field_member_label, generic_type_owner_name,
+};
+
 pub(crate) fn type_expr_presentation_label(ty: &TypeExpr, resolved: &ResolveOutput) -> String {
     type_label(ty, resolved, None)
+}
+
+pub(crate) fn type_symbol_presentation_label(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+) -> String {
+    type_owner_hover_label(symbol, resolved).to_string()
 }

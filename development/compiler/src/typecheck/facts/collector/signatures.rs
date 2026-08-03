@@ -45,7 +45,7 @@ impl TypecheckFactCollector<'_> {
                 for field in &struct_.fields {
                     self.facts.declaration_hover_labels.insert(
                         field.name_span,
-                        struct_field_declaration_hover_label(field, self.resolved),
+                        struct_field_declaration_hover_label(struct_, field, self.resolved),
                     );
                     self.collect_type_expr_references(&field.ty);
                 }
@@ -59,7 +59,7 @@ impl TypecheckFactCollector<'_> {
                 for variant in &enum_.variants {
                     self.facts.declaration_hover_labels.insert(
                         variant.name_span,
-                        enum_variant_declaration_hover_label(variant, self.resolved),
+                        enum_variant_declaration_hover_label(enum_, variant, self.resolved),
                     );
                     self.collect_parameter_type_references(&variant.payload);
                 }

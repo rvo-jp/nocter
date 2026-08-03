@@ -12,7 +12,10 @@ use crate::resolve::{
     LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind, TypeSymbolKind,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use crate::typecheck::{
+    TypecheckFacts, collect_typecheck_facts, enum_variant_member_label, field_member_label,
+    generic_type_owner_name,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HoverInfo {

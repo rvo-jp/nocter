@@ -32,6 +32,12 @@ identity and visibility. Call-argument candidates use typechecker assignability 
 Incomplete calls, member expressions, imports, regions, and typed literals use temporary
 compile-unit recovery overlays separate from the authoritative document.
 
+Type-member presentation has one shared renderer across declaration hover, reference hover, and
+completion detail. Fields, variants, methods, and associated functions always include their visible
+owner as `Type.member`; generic completion substitutes the concrete owner and member types when
+typecheck establishes them. Canonical declaration identity remains internal and is not exposed as a
+repository or module path.
+
 ## Released v0.2.0 Capabilities
 
 ### Hover
