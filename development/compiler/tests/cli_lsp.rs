@@ -716,6 +716,102 @@ func main(): i32! {
 }
 
 #[test]
+fn lsp_preserves_stored_composed_outcomes_across_protocol_queries() {
+    let project = TempProject::new("cli-lsp-stored-composed-outcome");
+    let source_text = r#"func main(): i32 {
+    let saved = lookup()
+    let forwarded = saved
+    return 0
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#;
+    let source = project.write_source("stored_composed_outcome.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("forwarded = saved").unwrap() + "forwarded = ".len();
+    let completion_offset = source_text.find("return 0").unwrap();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(
+        hover["contents"]["value"].as_str(),
+        Some("```nocter\nlet saved: i32!?\n```")
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(hover_line));
+    assert_eq!(hover["range"]["start"]["character"], json!(hover_character));
+
+    let completion_items = response_with_id(&messages, 3)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let saved = completion_item_with_label(completion_items, "saved")
+        .expect("expected stored outcome completion");
+    assert_eq!(saved["detail"], json!("let saved: i32!?"));
+}
+
+#[test]
 fn lsp_command_exposes_generic_bound_and_provenance_source_ranges() {
     let project = TempProject::new("cli-lsp-bound-provenance-ranges");
     let source_text = r#"interface Read<T> {
