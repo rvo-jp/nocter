@@ -351,12 +351,14 @@ fn method_signature_inner(
     impl_target_ty: Option<TypeExpr>,
     generics: &GenericParamList,
 ) -> MethodSignature {
+    let has_default_body = method.body.is_some() && impl_target_ty.is_none();
     MethodSignature {
         name: method.name.clone(),
         name_span: method.name_span,
         visibility: method.visibility,
         is_accessible: true,
         impl_target_ty,
+        has_default_body,
         receiver: method.receiver.clone(),
         signature: method_callable_signature(
             generics,

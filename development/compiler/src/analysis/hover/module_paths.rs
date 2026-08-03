@@ -22,11 +22,13 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
                 .and_then(|body| module_path_in_block_at_offset(body, offset)),
             ImplMember::Drop(drop_) => module_path_in_block_at_offset(&drop_.body, offset),
         }),
-        Item::Primitive(_)
-        | Item::TypeAlias(_)
-        | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
+        Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+            method
+                .body
+                .as_ref()
+                .and_then(|body| module_path_in_block_at_offset(body, offset))
+        }),
+        Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => None,
     }
 }
 

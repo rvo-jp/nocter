@@ -169,12 +169,15 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                     }
                 }
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if let Some(body) = &method.body {
+                        collect_block_import_sites(body, sites);
+                    }
+                }
+            }
             Item::Literal(literal) => collect_block_import_sites(&literal.body, sites),
-            Item::Primitive(_)
-            | Item::TypeAlias(_)
-            | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
         }
     }
 }

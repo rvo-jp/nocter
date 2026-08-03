@@ -47,13 +47,19 @@ pub(super) fn check_region_statements(
                     }
                 }
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if let Some(body) = &method.body {
+                        check_block(sources, body, None, &mut tree, diagnostics);
+                    }
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
             Item::Literal(_) => {}
         }
     }

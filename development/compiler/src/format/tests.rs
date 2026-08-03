@@ -74,6 +74,23 @@ primitive allocated_text():&str from current
 }
 
 #[test]
+fn formats_interface_default_methods_stably() {
+    assert_formats_stably(
+        r#"interface Value{pub method &self.value():i32{let result:i32=self.required() return result}pub method &self.required():i32}
+"#,
+        concat!(
+            "interface Value {\n",
+            "    pub method &self.value(): i32 {\n",
+            "        let result: i32 = self.required()\n",
+            "        return result\n",
+            "    }\n",
+            "    pub method &self.required(): i32\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_generic_interface_bounds_stably() {
     assert_formats_stably(
         r#"func measure<T:Measure+Display>(value:&T):i32{return value.measure()}

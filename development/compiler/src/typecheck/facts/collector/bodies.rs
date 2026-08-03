@@ -19,6 +19,28 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, self.resolved, interface);
+                    let receiver = method.receiver.implicit_parameter();
+                    self.record_parameter_bindings(std::slice::from_ref(&receiver), &environment);
+                    self.record_parameter_bindings(&method.parameters.parameters, &environment);
+                    let return_type = type_expr_to_type_in_environment(
+                        &method.return_type,
+                        self.resolved,
+                        &environment,
+                    );
+                    self.collect_block_facts(
+                        body,
+                        &mut environment,
+                        Some(return_type.success_type()),
+                    );
+                }
+            }
             Item::Literal(literal) => {
                 let mut environment = environment_for_literal(literal, self.resolved);
                 let return_type = type_expr_to_type_in_environment(
@@ -37,8 +59,7 @@ impl TypecheckFactCollector<'_> {
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
 

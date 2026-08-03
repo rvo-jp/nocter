@@ -154,11 +154,8 @@ impl Parser<'_> {
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
         let result_provenance = self.parse_result_provenance_clause()?;
-        let body = if require_body {
+        let body = if require_body || self.at_punctuation("{") {
             Some(self.parse_block()?)
-        } else if self.at_punctuation("{") {
-            self.error_current("interface method signatures cannot have bodies");
-            return Err(());
         } else {
             None
         };

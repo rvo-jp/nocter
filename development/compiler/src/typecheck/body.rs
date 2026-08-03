@@ -19,7 +19,7 @@ use super::diagnostics::{
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
-    environment_for_literal_pack_binding, environment_for_method,
+    environment_for_interface_method, environment_for_literal_pack_binding, environment_for_method,
     environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{
@@ -72,6 +72,23 @@ pub(super) fn check_body_expressions(
             Item::Impl(impl_) => {
                 check_impl_member_expressions(sources, impl_, resolved, diagnostics);
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, resolved, interface);
+                    check_block_expressions(
+                        sources,
+                        body,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        0,
+                    );
+                }
+            }
             Item::Literal(literal) => {
                 let mut environment =
                     super::environments::environment_for_literal(literal, resolved);
@@ -89,8 +106,7 @@ pub(super) fn check_body_expressions(
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
 }

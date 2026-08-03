@@ -807,7 +807,7 @@ fn rejects_private_interface_methods() {
 }
 
 #[test]
-fn rejects_interface_method_bodies() {
+fn parses_interface_default_method_bodies() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void! {
@@ -817,8 +817,12 @@ fn rejects_interface_method_bodies() {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(output.diagnostics[0].message.contains("cannot have bodies"));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface");
+    };
+    assert!(interface.methods[0].body.is_some());
 }
 
 #[test]

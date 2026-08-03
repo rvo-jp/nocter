@@ -15,7 +15,8 @@ use super::diagnostics::{
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
-    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_interface_method, environment_for_literal,
+    environment_for_literal_pack_binding, environment_for_method,
     environment_for_parameters_in_impl, environment_for_switch_arm, impl_member_name,
 };
 use super::expressions::expression_type;
@@ -93,6 +94,36 @@ pub(super) fn check_return_types(
             }
             Item::Impl(impl_) => {
                 check_impl_member_return_types(sources, impl_, resolved, diagnostics, summaries);
+            }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, resolved, interface);
+                    let mut borrow_provenance = ProvenanceEnvironment::default();
+                    let context = ReturnContext::new(
+                        CallableKind::Method(format!("{}.{}", interface.name, method.name)),
+                        type_expr_to_type_in_environment(
+                            &method.return_type,
+                            resolved,
+                            &environment,
+                        ),
+                        method.return_type.span(),
+                    );
+                    check_fallible_success_type(sources, &context, diagnostics);
+                    check_block_returns(
+                        sources,
+                        body,
+                        &context,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        &mut borrow_provenance,
+                        summaries,
+                    );
+                }
             }
             Item::Literal(literal) => {
                 let mut environment = environment_for_literal(literal, resolved);

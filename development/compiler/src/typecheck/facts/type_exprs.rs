@@ -4,7 +4,7 @@ pub(super) fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
     type_to_type_expr_inner(ty, span, None)
 }
 
-pub(super) fn type_to_type_expr_allowing_parameters(
+pub(in crate::typecheck) fn type_to_type_expr_allowing_parameters(
     ty: &Type,
     span: ByteSpan,
     free_type_parameters: &mut HashSet<String>,

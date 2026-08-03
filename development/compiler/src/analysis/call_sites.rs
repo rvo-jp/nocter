@@ -34,13 +34,18 @@ fn call_in_item_at_offset(
                 .and_then(|body| call_in_block_at_offset(body, offset, region)),
             ImplMember::Drop(drop_) => call_in_block_at_offset(&drop_.body, offset, region),
         }),
+        Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+            method
+                .body
+                .as_ref()
+                .and_then(|body| call_in_block_at_offset(body, offset, region))
+        }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)
         | Item::TypeAlias(_)
         | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
+        | Item::Enum(_) => None,
     }
 }
 

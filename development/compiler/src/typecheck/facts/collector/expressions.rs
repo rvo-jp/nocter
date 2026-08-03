@@ -118,7 +118,8 @@ impl TypecheckFactCollector<'_> {
                         ),
                         Type::Parameter(_)
                     );
-                    if !resolved_method.signature.generic_parameters.is_empty()
+                    if owner.kind == crate::resolve::TypeSymbolKind::Interface
+                        || !resolved_method.signature.generic_parameters.is_empty()
                         || receiver_is_bounded_parameter
                     {
                         self.facts

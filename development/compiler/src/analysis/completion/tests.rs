@@ -430,6 +430,120 @@ func main(): i32 {
 }
 
 #[test]
+fn member_completion_includes_unambiguous_interface_default_method() {
+    let text = r#"interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.value").unwrap() + "unit.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let value = items
+        .iter()
+        .find(|item| item.label == "value")
+        .expect("expected interface default method");
+
+    assert_eq!(value.kind, CompletionItemKind::Method);
+    assert_eq!(value.detail.as_deref(), Some("method &Unit.value(): i32"));
+}
+
+#[test]
+fn member_completion_prefers_inherent_override_to_interface_default_method() {
+    let text = r#"interface Value {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.value").unwrap() + "unit.".len();
+
+    let values = completion_items_for_file_analysis_at_offset(file, offset)
+        .into_iter()
+        .filter(|item| item.label == "value")
+        .collect::<Vec<_>>();
+
+    assert_eq!(values.len(), 1);
+    assert_eq!(
+        values[0].declaration_span,
+        file.resolved
+            .type_symbol_by_name("Unit")
+            .unwrap()
+            .methods
+            .first()
+            .map(|method| method.name_span)
+    );
+}
+
+#[test]
+fn member_completion_omits_competing_interface_default_methods() {
+    let text = r#"interface Left {
+    pub method &self.inspect(): i32 {
+        return 1
+    }
+}
+
+interface Right {
+    pub method &self.inspect(): i32 {
+        return 2
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Left for Unit
+impl Right for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.marker
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.marker").unwrap() + "unit.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
+}
+
+#[test]
 fn completion_candidates_include_fields_and_methods_after_incomplete_value_member_dot() {
     let text = r#"struct File {
     fd: i32

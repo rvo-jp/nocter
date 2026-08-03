@@ -369,6 +369,38 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
+                    Item::Interface(interface) => {
+                        for method in &interface.methods {
+                            if method.body.is_none() {
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .methods
+                                .get(&method.name_span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                let mut substitutions = specialization.substitutions.clone();
+                                substitutions
+                                    .insert("Self".to_string(), specialization.self_ty.clone());
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        specialization.self_ty.clone(),
+                                        substitutions,
+                                        specialization.target_name.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     Item::Literal(literal) => {
                         for specialization in call_specializations
                             .literals

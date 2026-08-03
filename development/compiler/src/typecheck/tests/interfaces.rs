@@ -1,6 +1,190 @@
 use super::check_text;
 
 #[test]
+fn accepts_interface_default_without_inherent_implementation() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 7
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn default_body_can_call_required_method() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32
+
+    pub method &self.doubled(): i32 {
+        return self.value() * 2
+    }
+}
+
+copy struct Number {
+    value: i32
+}
+
+impl Number {
+    pub method &self.value(): i32 {
+        return self.value
+    }
+}
+
+impl Value for Number
+
+func main(): i32 {
+    let number = Number { value: 4 }
+    return number.doubled()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn inherent_method_overrides_interface_default() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): i32 {
+        return 2
+    }
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_competing_interface_defaults() {
+    let diagnostics = check_text(
+        r#"interface Left {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+interface Right {
+    pub method &self.value(): i32 {
+        return 2
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Left for Unit
+impl Right for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0451"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_invalid_interface_default_body_against_declaring_contract() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return self.missing()
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("missing")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_incompatible_inherent_override_of_interface_default() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): usize {
+        return 2
+    }
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0426"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn accepts_explicit_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Printable {

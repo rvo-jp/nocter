@@ -42,13 +42,19 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
                     }
                 }
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if let Some(body) = &method.body {
+                        collect_block(file, body, None, &mut facts);
+                    }
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
     facts

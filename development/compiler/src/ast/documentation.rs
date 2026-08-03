@@ -44,6 +44,9 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
             push_target(text, interface.span, targets);
             for method in &interface.methods {
                 push_target(text, method.span, targets);
+                if let Some(body) = &method.body {
+                    collect_block_targets(text, body, targets);
+                }
             }
         }
         Item::Impl(impl_) => {

@@ -77,9 +77,13 @@ fn check_interface_impl(
     let interface_substitutions =
         type_symbol_generic_substitutions(interface_symbol, &interface_type);
     for required in &interface_symbol.methods {
-        let Some(actual) = target_symbol.methods.iter().find(|method| {
+        let actual = target_symbol.methods.iter().find(|method| {
             method.name == required.name && method_applies_to_receiver(method, &self_type, resolved)
-        }) else {
+        });
+        let Some(actual) = actual else {
+            if required.has_default_body {
+                continue;
+            }
             diagnostics.push(interface_method_missing_diagnostic(
                 sources,
                 impl_,

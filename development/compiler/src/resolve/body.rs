@@ -31,17 +31,7 @@ impl Resolver<'_> {
                 }
                 Item::Interface(interface) => {
                     for method in &interface.methods {
-                        let mut scope = Scope::new();
-                        self.define_declaration_parameter_name(
-                            method.receiver.name.clone(),
-                            method.receiver.name_span,
-                            &mut scope,
-                        );
-                        self.define_declaration_parameters(
-                            &method.parameters.parameters,
-                            &mut scope,
-                        );
-                        self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
+                        self.resolve_method(method);
                     }
                 }
                 Item::Literal(literal) => {
@@ -72,30 +62,7 @@ impl Resolver<'_> {
         for member in &impl_.members {
             match member {
                 ImplMember::Method(method) => {
-                    let mut scope = Scope::new();
-                    if method.body.is_some() {
-                        self.define_local_name(
-                            method.receiver.name.clone(),
-                            method.receiver.name_span,
-                            LocalSymbolKind::Parameter,
-                            &mut scope,
-                        );
-                        self.define_parameters(&method.parameters.parameters, &mut scope);
-                    } else {
-                        self.define_declaration_parameter_name(
-                            method.receiver.name.clone(),
-                            method.receiver.name_span,
-                            &mut scope,
-                        );
-                        self.define_declaration_parameters(
-                            &method.parameters.parameters,
-                            &mut scope,
-                        );
-                    }
-                    self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
-                    if let Some(body) = &method.body {
-                        self.resolve_block(body, &mut scope);
-                    }
+                    self.resolve_method(method);
                 }
                 ImplMember::Drop(drop_) => {
                     let mut scope = Scope::new();
@@ -108,6 +75,30 @@ impl Resolver<'_> {
                     self.resolve_block(&drop_.body, &mut scope);
                 }
             }
+        }
+    }
+
+    fn resolve_method(&mut self, method: &crate::ast::MethodDecl) {
+        let mut scope = Scope::new();
+        if method.body.is_some() {
+            self.define_local_name(
+                method.receiver.name.clone(),
+                method.receiver.name_span,
+                LocalSymbolKind::Parameter,
+                &mut scope,
+            );
+            self.define_parameters(&method.parameters.parameters, &mut scope);
+        } else {
+            self.define_declaration_parameter_name(
+                method.receiver.name.clone(),
+                method.receiver.name_span,
+                &mut scope,
+            );
+            self.define_declaration_parameters(&method.parameters.parameters, &mut scope);
+        }
+        self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
+        if let Some(body) = &method.body {
+            self.resolve_block(body, &mut scope);
         }
     }
 

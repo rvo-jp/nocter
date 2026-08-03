@@ -388,3 +388,48 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_invokes_imported_interface_default_method() {
+    let project = TempProject::new("cli-run-imported-interface-default");
+    project.write_nocter_home_file(
+        "std/values.nct",
+        r#"pub interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+pub copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+pub func make(): Unit {
+    return Unit { marker: 0 }
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_interface_default.nct",
+        r#"use std/values.make
+
+func main(): i32 {
+    let unit = make()
+    return unit.value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

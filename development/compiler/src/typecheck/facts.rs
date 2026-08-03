@@ -10,7 +10,8 @@ use super::calls::{
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
-    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_interface_method, environment_for_literal,
+    environment_for_literal_pack_binding, environment_for_method,
     environment_for_parameters_in_impl, environment_for_switch_arm, function_self_type,
     impl_self_type,
 };
@@ -61,6 +62,7 @@ pub(crate) use model::{
     TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
     TypecheckSliceElementKind,
 };
+pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 
 use hover_labels::*;
 use specializations::*;

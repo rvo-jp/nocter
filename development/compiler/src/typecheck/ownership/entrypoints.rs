@@ -30,6 +30,36 @@ pub(in crate::typecheck) fn check_ownership_states(
             Item::Impl(impl_) => {
                 check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, resolved, interface);
+                    let mut ownership = OwnershipState::default();
+                    ownership.define_binding_from_environment(
+                        &method.receiver.name,
+                        method.receiver.name_span,
+                        &environment,
+                        resolved,
+                    );
+                    ownership.define_parameters(
+                        &method.parameters.parameters,
+                        &environment,
+                        resolved,
+                    );
+                    check_block_ownership(
+                        sources,
+                        body,
+                        resolved,
+                        summaries,
+                        diagnostics,
+                        &mut environment,
+                        &mut ownership,
+                    );
+                }
+            }
             Item::Literal(literal) => {
                 let mut environment = environment_for_literal(literal, resolved);
                 let mut ownership = OwnershipState::default();
@@ -49,8 +79,7 @@ pub(in crate::typecheck) fn check_ownership_states(
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
 }

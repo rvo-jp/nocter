@@ -244,6 +244,36 @@ impl<'a> CallableIndex<'a> {
                             }
                         }
                     }
+                    Item::Interface(interface) => {
+                        for method in &interface.methods {
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            for specialization in call_specializations
+                                .methods
+                                .get(&method.name_span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        body,
+                                        &specialization.self_ty,
+                                        specialization.substitutions.clone(),
+                                        file,
+                                        &resolved_sources,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }

@@ -6,8 +6,8 @@ use super::calls::resolved_call_signature;
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,
     environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
-    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
-    environment_for_switch_arm,
+    environment_for_interface_method, environment_for_literal,
+    environment_for_literal_pack_binding, environment_for_method, environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -114,6 +114,29 @@ pub(super) fn infer_callable_allocation_effects(
                             }
                         }
                     }
+                    Item::Interface(interface) => {
+                        for method in &interface.methods {
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            let callable = CallableId::declared_at(method.name_span);
+                            if !summaries.needs_current_allocation_context(callable)
+                                && block_needs_current_allocation_context(
+                                    body,
+                                    source.resolved,
+                                    &mut environment_for_interface_method(
+                                        method,
+                                        source.resolved,
+                                        interface,
+                                    ),
+                                    summaries,
+                                )
+                            {
+                                summaries.set_needs_current_allocation_context(callable);
+                                changed = true;
+                            }
+                        }
+                    }
                     Item::Literal(literal) => {
                         let callable = CallableId::declared_at(literal.span);
                         if !summaries.needs_current_allocation_context(callable)
@@ -133,8 +156,7 @@ pub(super) fn infer_callable_allocation_effects(
                     | Item::Primitive(_)
                     | Item::TypeAlias(_)
                     | Item::Struct(_)
-                    | Item::Enum(_)
-                    | Item::Interface(_) => {}
+                    | Item::Enum(_) => {}
                 }
             }
         }

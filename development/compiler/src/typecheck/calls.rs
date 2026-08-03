@@ -1,10 +1,10 @@
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
-    ambiguous_generic_bound_method_diagnostic, argument_count_mismatch_diagnostic,
-    argument_type_mismatch_diagnostic, associated_function_unknown_diagnostic,
-    field_called_as_method_diagnostic, generic_bound_not_satisfied_diagnostic,
-    method_readwrite_receiver_requires_var_diagnostic, method_unknown_diagnostic,
-    non_copy_struct_argument_diagnostic,
+    ambiguous_default_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
+    argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
+    associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
+    generic_bound_not_satisfied_diagnostic, method_readwrite_receiver_requires_var_diagnostic,
+    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
@@ -202,13 +202,24 @@ pub(super) fn resolved_method_for_call<'a>(
             candidates.next().is_none().then_some(candidate)
         }
         _ => {
-            let owner = inherent_method_owner_for_type(&self_type, resolved)?;
-            let method = owner.methods.iter().find(|method| {
-                method_is_accessible(method, member.member_span.source, resolved)
-                    && method.name == member.member
-                    && method_applies_to_receiver(method, &self_type, resolved)
-            })?;
-            Some((owner, method))
+            if let Some(owner) = inherent_method_owner_for_type(&self_type, resolved)
+                && let Some(method) = owner.methods.iter().find(|method| {
+                    method_is_accessible(method, member.member_span.source, resolved)
+                        && method.name == member.member
+                        && method_applies_to_receiver(method, &self_type, resolved)
+                })
+            {
+                return Some((owner, method));
+            }
+            let mut candidates = super::default_methods::candidates(
+                &self_type,
+                &member.member,
+                member.member_span.source,
+                resolved,
+            )
+            .into_iter();
+            let candidate = candidates.next()?;
+            candidates.next().is_none().then_some(candidate)
         }
     }
 }
@@ -232,18 +243,29 @@ pub(super) fn infer_generic_substitutions(
     let mut substitutions = HashMap::new();
     if signature.kind == CheckedCallKind::Method
         && let Some(member) = method_member_for_call(call)
-        && let Type::Parameter(parameter) = method_self_type_for_receiver_in_environment(
+        && let Some((owner, _)) = resolved_method_for_call(resolved, call, environment)
+        && owner.kind == TypeSymbolKind::Interface
+    {
+        let receiver_type = method_self_type_for_receiver_in_environment(
             &expression_type(&member.object, resolved, environment),
             environment,
-        )
-        && let Some((owner, bound_type)) = resolved_method_for_call(resolved, call, environment)
-            .and_then(|(selected, _)| {
-                interface_symbols_for_generic_parameter(&parameter, environment, resolved)
+        );
+        let interface_type = match &receiver_type {
+            Type::Parameter(parameter) => {
+                interface_symbols_for_generic_parameter(parameter, environment, resolved)
                     .into_iter()
-                    .find(|(owner, _)| owner.canonical_name == selected.canonical_name)
-            })
-    {
-        substitutions.extend(type_symbol_substitutions(owner, &bound_type));
+                    .find(|(candidate, _)| candidate.canonical_name == owner.canonical_name)
+                    .map(|(_, bound)| bound)
+            }
+            _ => implemented_interface_types(&receiver_type, resolved)
+                .into_iter()
+                .find(|implemented| {
+                    implemented.nominal_name() == Some(owner.canonical_name.as_str())
+                }),
+        };
+        if let Some(interface_type) = interface_type {
+            substitutions.extend(type_symbol_substitutions(owner, &interface_type));
+        }
     }
     if let (Some(impl_target_ty), Some(self_type)) =
         (signature.impl_target_ty, signature.self_type.as_ref())
@@ -521,6 +543,22 @@ pub(super) fn check_unresolved_member_call(
             bounded_method_candidates(parameter, &self_type, member, environment, resolved);
         if candidates.len() > 1 {
             diagnostics.push(ambiguous_generic_bound_method_diagnostic(
+                sources,
+                member.member_span,
+                &member.member,
+                &candidates,
+            ));
+            return;
+        }
+    } else {
+        let candidates = super::default_methods::candidates(
+            &self_type,
+            &member.member,
+            member.member_span.source,
+            resolved,
+        );
+        if candidates.len() > 1 {
+            diagnostics.push(ambiguous_default_method_diagnostic(
                 sources,
                 member.member_span,
                 &member.member,

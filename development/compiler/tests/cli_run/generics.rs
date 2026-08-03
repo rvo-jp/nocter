@@ -447,3 +447,242 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_invokes_interface_default_method() {
+    let project = TempProject::new("cli-run-interface-default-method");
+    let source = project.write_source(
+        "interface_default_method.nct",
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_interface_default_method_calls_required_method() {
+    let project = TempProject::new("cli-run-interface-default-calls-required");
+    let source = project.write_source(
+        "interface_default_calls_required.nct",
+        r#"interface Value {
+    pub method &self.value(): i32
+
+    pub method &self.incremented(): i32 {
+        let value = self.value()
+        return value + 1
+    }
+}
+
+copy struct Number {
+    value: i32
+}
+
+impl Number {
+    pub method &self.value(): i32 {
+        return self.value
+    }
+}
+
+impl Value for Number
+
+func main(): i32 {
+    let number = Number { value: 41 }
+    return number.incremented()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_specializes_interface_default_method_through_generic_bound() {
+    let project = TempProject::new("cli-run-interface-default-generic-bound");
+    let source = project.write_source(
+        "interface_default_generic_bound.nct",
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+func read<T: Value>(value: &T): i32 {
+    return value.value()
+}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return read(&unit)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_generic_bound_dispatches_to_inherent_default_override() {
+    let project = TempProject::new("cli-run-interface-default-override");
+    let source = project.write_source(
+        "interface_default_override.nct",
+        r#"interface Value {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+impl Value for Unit
+
+func read<T: Value>(value: &T): i32 {
+    return value.value()
+}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return read(&unit)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_specializes_generic_interface_default_method() {
+    let project = TempProject::new("cli-run-generic-interface-default-method");
+    let source = project.write_source(
+        "generic_interface_default_method.nct",
+        r#"interface Identity {
+    pub method &self.identity<T>(value: T): T {
+        return value
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Identity for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.identity(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_specializes_generic_interface_owner_default_method() {
+    let project = TempProject::new("cli-run-generic-interface-owner-default");
+    let source = project.write_source(
+        "generic_interface_owner_default.nct",
+        r#"interface Value<T> {
+    pub method &self.value(fallback: T): T {
+        return fallback
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value<i32> for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

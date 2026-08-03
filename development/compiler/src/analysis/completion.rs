@@ -19,9 +19,9 @@ use crate::source::ByteSpan;
 use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 use crate::typecheck::{
-    enum_variant_member_label, field_member_label, qualified_member_name,
-    type_expr_is_aborting_allocator_capability, type_expr_presentation_label,
-    type_symbol_presentation_label,
+    default_method_completion_candidates, enum_variant_member_label, field_member_label,
+    qualified_member_name, type_expr_is_aborting_allocator_capability,
+    type_expr_presentation_label, type_symbol_presentation_label,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -681,10 +681,22 @@ fn member_completion_items(
             && !facts.binding_is_readonly(owner_span).unwrap_or(true));
     let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
     if let Some(owner) = value_member_owner(resolved, owner_ty) {
-        return value_member_completion_items(&owner, resolved, can_readwrite, can_move);
+        return value_member_completion_items(
+            &owner,
+            resolved,
+            can_readwrite,
+            can_move,
+            owner_span.source,
+        );
     }
     let owners = generic_bound_member_owners(ast, resolved, owner_ty, offset);
-    unambiguous_capability_member_items(owners, resolved, can_readwrite, can_move)
+    unambiguous_capability_member_items(
+        owners,
+        resolved,
+        can_readwrite,
+        can_move,
+        owner_span.source,
+    )
 }
 
 fn type_member_completion_items(
@@ -711,6 +723,7 @@ fn value_member_completion_items(
     resolved: &ResolveOutput,
     can_readwrite: bool,
     can_move: bool,
+    use_source: crate::source::SourceId,
 ) -> Vec<CompletionItemInfo> {
     let mut items = Vec::new();
     items.extend(
@@ -734,6 +747,39 @@ fn value_member_completion_items(
             })
             .map(|method| method_completion_item(method, resolved, &owner.substitutions)),
     );
+    let inherent_names = owner
+        .symbol
+        .methods
+        .iter()
+        .map(|method| method.name.as_str())
+        .collect::<HashSet<_>>();
+    let self_ty = owner
+        .substitutions
+        .get("Self")
+        .expect("value member owners always define Self");
+    let mut defaults_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
+    for candidate in default_method_completion_candidates(self_ty, use_source, resolved) {
+        if inherent_names.contains(candidate.method.name.as_str())
+            || !method_receiver_is_available(candidate.method, can_readwrite, can_move)
+        {
+            continue;
+        }
+        defaults_by_name
+            .entry(candidate.method.name.as_str())
+            .or_default()
+            .push(method_completion_item(
+                candidate.method,
+                resolved,
+                &candidate.substitutions,
+            ));
+    }
+    items.extend(defaults_by_name.into_values().filter_map(|candidates| {
+        let identities = candidates
+            .iter()
+            .filter_map(|item| item.declaration_span)
+            .collect::<HashSet<_>>();
+        (identities.len() == 1).then(|| candidates.into_iter().next().unwrap())
+    }));
     items
 }
 
@@ -970,10 +1016,13 @@ fn unambiguous_capability_member_items(
     resolved: &ResolveOutput,
     can_readwrite: bool,
     can_move: bool,
+    use_source: crate::source::SourceId,
 ) -> Vec<CompletionItemInfo> {
     let mut by_label: HashMap<String, Vec<CompletionItemInfo>> = HashMap::new();
     for owner in owners {
-        for item in value_member_completion_items(&owner, resolved, can_readwrite, can_move) {
+        for item in
+            value_member_completion_items(&owner, resolved, can_readwrite, can_move, use_source)
+        {
             by_label.entry(item.label.clone()).or_default().push(item);
         }
     }
@@ -1067,13 +1116,18 @@ fn completion_context_in_item_at_offset(
                 .and_then(|body| completion_context_in_block_at_offset(body, offset)),
             ImplMember::Drop(drop_) => completion_context_in_block_at_offset(&drop_.body, offset),
         }),
+        Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+            method
+                .body
+                .as_ref()
+                .and_then(|body| completion_context_in_block_at_offset(body, offset))
+        }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)
         | Item::TypeAlias(_)
         | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
+        | Item::Enum(_) => None,
     }
 }
 

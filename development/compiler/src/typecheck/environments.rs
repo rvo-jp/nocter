@@ -6,8 +6,9 @@ use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, LiteralDecl,
-    LiteralPackForStmt, MethodDecl, Parameter, SwitchArm, TypeExpr,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, ImplDecl,
+    InterfaceDecl, LiteralDecl, LiteralPackForStmt, MethodDecl, Parameter, SwitchArm, TypeExpr,
+    TypeReference,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
@@ -98,6 +99,47 @@ pub(super) fn environment_for_method(
     environment.define(method.receiver.name.clone(), receiver_type);
     define_parameters_in_environment(&method.parameters.parameters, resolved, &mut environment);
     environment
+}
+
+pub(super) fn environment_for_interface_method(
+    method: &MethodDecl,
+    resolved: &ResolveOutput,
+    interface: &InterfaceDecl,
+) -> TypeEnvironment {
+    let mut environment = TypeEnvironment::with_self_type(Type::Parameter("Self".to_string()));
+    environment.define_generic_parameter_list(&interface.generics);
+    environment.define_generic_parameter("Self".to_string(), vec![interface_self_bound(interface)]);
+    environment.define_generic_parameter_list(&method.generics);
+    let receiver = method.receiver.implicit_parameter();
+    let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
+    environment.define(method.receiver.name.clone(), receiver_type);
+    define_parameters_in_environment(&method.parameters.parameters, resolved, &mut environment);
+    environment
+}
+
+fn interface_self_bound(interface: &InterfaceDecl) -> TypeExpr {
+    if interface.generics.parameters.is_empty() {
+        return TypeExpr::Reference(TypeReference {
+            span: interface.name_span,
+            name: interface.name.clone(),
+        });
+    }
+    TypeExpr::Generic(GenericType {
+        span: interface.name_span,
+        name: interface.name.clone(),
+        name_span: interface.name_span,
+        arguments: interface
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| {
+                TypeExpr::Reference(TypeReference {
+                    span: parameter.span,
+                    name: parameter.name.clone(),
+                })
+            })
+            .collect(),
+    })
 }
 
 fn define_parameters_in_environment(

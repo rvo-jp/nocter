@@ -473,6 +473,35 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
 }
 
 #[test]
+fn workspace_hover_presents_concrete_receiver_for_interface_default_call() {
+    let text = r#"interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.value").unwrap() + "unit.".len();
+
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected default method hover");
+
+    assert_eq!(hover.label, "method &Unit.value(): i32");
+}
+
+#[test]
 fn workspace_hover_preserves_complete_capability_set() {
     let text = r#"interface Readable {
     pub method &self.read(): i32

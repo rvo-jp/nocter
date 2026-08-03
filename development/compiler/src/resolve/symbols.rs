@@ -513,6 +513,7 @@ pub struct MethodSignature {
     pub visibility: Visibility,
     pub is_accessible: bool,
     pub impl_target_ty: Option<TypeExpr>,
+    pub has_default_body: bool,
     pub receiver: MethodReceiver,
     pub signature: FunctionSignature,
 }

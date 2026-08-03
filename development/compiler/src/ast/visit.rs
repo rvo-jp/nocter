@@ -18,14 +18,20 @@ pub(crate) fn visit_file_expressions(ast: &AstFile, visitor: &mut impl FnMut(&Ex
                     }
                 }
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if let Some(body) = &method.body {
+                        visit_block_expressions(body, visitor);
+                    }
+                }
+            }
             Item::Literal(literal) => visit_block_expressions(&literal.body, visitor),
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
 }

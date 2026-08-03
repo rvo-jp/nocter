@@ -218,6 +218,13 @@ impl TypeEnvironment {
         }
     }
 
+    pub(super) fn define_generic_parameter(&mut self, name: String, bounds: Vec<TypeExpr>) {
+        self.generic_parameters.insert(name.clone());
+        if !bounds.is_empty() {
+            self.generic_bounds.insert(name, bounds);
+        }
+    }
+
     pub(super) fn generic_bounds(&self, name: &str) -> Option<&[TypeExpr]> {
         self.generic_bounds.get(name).map(Vec::as_slice)
     }

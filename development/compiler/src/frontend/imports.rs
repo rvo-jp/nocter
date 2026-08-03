@@ -38,11 +38,14 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
                 }
             }
         }
-        Item::Primitive(_)
-        | Item::TypeAlias(_)
-        | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => {}
+        Item::Interface(interface) => {
+            for method in &interface.methods {
+                if let Some(body) = &method.body {
+                    collect_block_import_paths(body, paths);
+                }
+            }
+        }
+        Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
     }
 }
 

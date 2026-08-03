@@ -3,7 +3,8 @@ use super::diagnostics::{
     missing_result_contract_diagnostic, result_contract_violation_diagnostic,
 };
 use super::environments::{
-    environment_for_function, environment_for_literal, environment_for_method,
+    environment_for_function, environment_for_interface_method, environment_for_literal,
+    environment_for_method,
 };
 use super::model::TypeEnvironment;
 use super::provenance::{
@@ -94,16 +95,33 @@ pub(super) fn check_result_provenance_contracts(
             }
             Item::Interface(interface) => {
                 for method in &interface.methods {
+                    let environment = environment_for_interface_method(method, resolved, interface);
                     check_clause(
                         sources,
                         method.result_provenance.as_ref(),
                         Some(method),
                         &method.parameters.parameters,
                         &method.return_type,
-                        None,
+                        Some(&environment),
                         resolved,
                         diagnostics,
                     );
+                    if let (Some(body), Some(clause)) =
+                        (method.body.as_ref(), method.result_provenance.as_ref())
+                    {
+                        check_body_contract(
+                            sources,
+                            body,
+                            clause,
+                            Some(method),
+                            &method.parameters.parameters,
+                            &method.return_type,
+                            resolved,
+                            &environment,
+                            summaries,
+                            diagnostics,
+                        );
+                    }
                     if method.body.is_none()
                         && method.result_provenance.is_none()
                         && return_type_carries_storage(&method.return_type, None, resolved)

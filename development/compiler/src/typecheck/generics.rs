@@ -95,6 +95,9 @@ pub(super) fn check_generic_type_arities(
                         diagnostics,
                     );
                     check_method_signature(sources, method, resolved, &method_scope, diagnostics);
+                    if let Some(body) = &method.body {
+                        check_block(sources, body, resolved, &method_scope, diagnostics);
+                    }
                 }
             }
             Item::Impl(impl_) => {

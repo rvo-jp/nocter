@@ -115,26 +115,39 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                 }
                 Item::Interface(interface) => {
                     for method in &interface.methods {
-                        let provenance = method
-                            .result_provenance
-                            .as_ref()
-                            .and_then(|clause| {
-                                result_provenance_contract(
-                                    clause,
-                                    Some(method),
-                                    &method.parameters.parameters,
-                                    source.resolved,
-                                )
-                                .ok()
-                            })
-                            .or_else(|| {
-                                elided_result_provenance_contract(
-                                    Some(method),
-                                    &method.parameters.parameters,
-                                    &method.return_type,
-                                    source.resolved,
-                                )
-                            });
+                        let environment =
+                            environment_for_interface_method(method, source.resolved, interface);
+                        let declared = method.result_provenance.as_ref().and_then(|clause| {
+                            result_provenance_contract(
+                                clause,
+                                Some(method),
+                                &method.parameters.parameters,
+                                source.resolved,
+                            )
+                            .ok()
+                        });
+                        let inferred = method.body.as_ref().and_then(|body| {
+                            let return_type = type_expr_to_type_in_environment(
+                                &method.return_type,
+                                source.resolved,
+                                &environment,
+                            );
+                            borrow_return_provenance_for_callable_body(
+                                body,
+                                &return_type,
+                                source.resolved,
+                                &environment,
+                                previous,
+                            )
+                        });
+                        let provenance = declared.or(inferred).or_else(|| {
+                            elided_result_provenance_contract(
+                                Some(method),
+                                &method.parameters.parameters,
+                                &method.return_type,
+                                source.resolved,
+                            )
+                        });
                         let Some(provenance) = provenance else {
                             continue;
                         };

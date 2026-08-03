@@ -129,8 +129,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if method.body.is_none() {
                     continue;
                 }
-                let context_substitutions =
-                    method_specialization_context_substitutions(impl_, &specialization);
+                let context_substitutions = impl_.map_or_else(
+                    || {
+                        let mut substitutions = specialization.substitutions.clone();
+                        substitutions.insert("Self".to_string(), specialization.self_ty.clone());
+                        substitutions
+                    },
+                    |impl_| method_specialization_context_substitutions(impl_, &specialization),
+                );
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
@@ -364,7 +370,7 @@ fn iteration_method_call_specialization(
     analysis: &CompileUnitAnalysis,
     method: &crate::typecheck::TypecheckIterationMethod,
 ) -> Option<MethodCallSpecialization> {
-    let Some((_file, impl_, _declaration)) =
+    let Some((_file, Some(impl_), _declaration)) =
         method_declaration_for_span(analysis, method.declaration_span)
     else {
         return interface_method_name_for_span(analysis, method.declaration_span)
@@ -400,18 +406,19 @@ fn function_declaration_for_span(
 fn method_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &ImplDecl, &MethodDecl)> {
+) -> Option<(&FileAnalysis, Option<&ImplDecl>, &MethodDecl)> {
     analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let Item::Impl(impl_) = item else {
-                return None;
-            };
-            impl_.members.iter().find_map(|member| {
+        file.ast.items.iter().find_map(|item| match item {
+            Item::Impl(impl_) => impl_.members.iter().find_map(|member| {
                 let ImplMember::Method(method) = member else {
                     return None;
                 };
-                (method.name_span == declaration_span).then_some((file, impl_, method))
-            })
+                (method.name_span == declaration_span).then_some((file, Some(impl_), method))
+            }),
+            Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+                (method.name_span == declaration_span).then_some((file, None, method))
+            }),
+            _ => None,
         })
     })
 }

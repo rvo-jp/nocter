@@ -8,6 +8,7 @@ mod calls;
 mod conformance;
 mod controls;
 mod copyability;
+mod default_methods;
 mod diagnostics;
 mod drop_members;
 mod entry;
@@ -52,6 +53,7 @@ use regions::*;
 use returns::*;
 use sized::*;
 
+pub(crate) use default_methods::completion_candidates_for_type_expr as default_method_completion_candidates;
 pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
     TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
