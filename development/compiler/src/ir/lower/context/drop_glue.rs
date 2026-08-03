@@ -1,4 +1,47 @@
 use super::*;
+use crate::outcomes::outcome_shape_with_resolver;
+
+pub(in crate::ir::lower) fn outcome_drop_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    outcome_drop_for_type_expr_with_resolver_ref(ty, root_source, fallback_resolved, &resolver)
+}
+
+pub(in crate::ir::lower) fn outcome_drop_for_type_expr_with_resolver_ref<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if shape.layers.is_empty() || !shape.is_supported_callable_shape() {
+        return None;
+    }
+    let payload_layout =
+        abi_value_from_type_expr_with_resolver(&shape.payload, fallback_resolved, resolver)
+            .ok()?
+            .layout;
+    let storage = shape.storage_layout(payload_layout)?;
+    let payload = aggregate_drop_for_type_expr_with_resolver_ref(
+        &shape.payload,
+        root_source,
+        fallback_resolved,
+        resolver,
+    )?;
+    Some(AggregateDrop::Outcome(OutcomeDrop {
+        storage,
+        payload: Box::new(payload),
+    }))
+}
 
 pub(in crate::ir::lower) fn aggregate_drop_for_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,

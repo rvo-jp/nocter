@@ -411,7 +411,20 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_dropped(&mut self, name: &str) {
-        self.update_aggregate_drop_obligation(name, DropObligation::Inactive);
+        if let Some(local) = self.locals.iter_mut().find(|local| local.name == name) {
+            match &mut local.kind {
+                LocalKind::Aggregate {
+                    drop_obligation, ..
+                } => {
+                    *drop_obligation = DropObligation::Inactive;
+                }
+                LocalKind::Outcome(outcome) => {
+                    outcome.drop_obligation = DropObligation::Inactive;
+                    outcome.is_live = false;
+                }
+                _ => {}
+            }
+        }
     }
 
     pub(in crate::ir::lower) fn mark_aggregate_local_dropped_by_slot(&mut self, slot_index: usize) {
@@ -554,15 +567,21 @@ impl<'a> LoweringContext<'a> {
                 .iter()
                 .rev()
                 .filter_map(|local| {
-                    let LocalKind::Aggregate {
-                        layout,
-                        slot_index,
-                        ref drop_obligation,
-                        ref drop_kind,
-                        ..
-                    } = local.kind
-                    else {
-                        return None;
+                    let (layout, slot_index, drop_obligation, drop_kind) = match &local.kind {
+                        LocalKind::Aggregate {
+                            layout,
+                            slot_index,
+                            drop_obligation,
+                            drop_kind,
+                            ..
+                        } => (*layout, *slot_index, drop_obligation, drop_kind),
+                        LocalKind::Outcome(outcome) if outcome.is_live => (
+                            outcome.storage.layout,
+                            outcome.slot_index,
+                            &outcome.drop_obligation,
+                            &outcome.drop_kind,
+                        ),
+                        _ => return None,
                     };
                     if !drop_obligation.is_active() {
                         return None;
@@ -615,15 +634,21 @@ impl<'a> LoweringContext<'a> {
                 .iter()
                 .rev()
                 .filter_map(|local| {
-                    let LocalKind::Aggregate {
-                        layout,
-                        slot_index,
-                        ref drop_obligation,
-                        ref drop_kind,
-                        ..
-                    } = local.kind
-                    else {
-                        return None;
+                    let (layout, slot_index, drop_obligation, drop_kind) = match &local.kind {
+                        LocalKind::Aggregate {
+                            layout,
+                            slot_index,
+                            drop_obligation,
+                            drop_kind,
+                            ..
+                        } => (*layout, *slot_index, drop_obligation, drop_kind),
+                        LocalKind::Outcome(outcome) if outcome.is_live => (
+                            outcome.storage.layout,
+                            outcome.slot_index,
+                            &outcome.drop_obligation,
+                            &outcome.drop_kind,
+                        ),
+                        _ => return None,
                     };
                     if !drop_obligation.is_active() {
                         return None;

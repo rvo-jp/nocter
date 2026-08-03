@@ -103,7 +103,19 @@ pub(super) struct LoweringParameterSlots {
     pub(super) error: Vec<Option<String>>,
     pub(super) borrow_parameters: Vec<BorrowParameter>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
+    pub(super) outcomes: Vec<LoweringOutcomeParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LoweringOutcomeParameter {
+    pub(super) name: String,
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload_type: Type,
+    pub(super) slot_index: usize,
+    pub(super) source: AggregateParameterSource,
+    pub(super) is_copy: bool,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -256,7 +268,8 @@ mod type_queries;
 use call_targets::UniqueCallTargets;
 pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
-    drop_glue_for_type_expr_with_resolver,
+    drop_glue_for_type_expr_with_resolver, outcome_drop_for_type_expr_with_resolver,
+    outcome_drop_for_type_expr_with_resolver_ref,
 };
 pub(super) use drop_obligation::{
     ArrayElementDropState, DropObligation, PayloadFieldDropState, StructFieldDropState,
@@ -414,6 +427,9 @@ pub(super) struct OutcomeLocal {
     pub(super) storage: OutcomeStorageLayout,
     pub(super) payload_type: Type,
     pub(super) is_copy: bool,
+    pub(super) is_live: bool,
+    pub(super) drop_obligation: DropObligation,
+    pub(super) drop_kind: Option<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -431,6 +447,13 @@ pub(super) enum AggregateDrop {
     Struct(StructDrop),
     Array(ArrayDrop),
     PayloadEnum(PayloadEnumDrop),
+    Outcome(OutcomeDrop),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OutcomeDrop {
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -521,6 +544,10 @@ pub(super) enum AggregateFieldKind {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
     },
+    Outcome {
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
+    },
 }
 
 impl AggregateFieldKind {
@@ -528,6 +555,7 @@ impl AggregateFieldKind {
         match self {
             AggregateFieldKind::Array { layout, .. }
             | AggregateFieldKind::Aggregate { layout, .. } => Some(*layout),
+            AggregateFieldKind::Outcome { storage, .. } => Some(storage.layout),
             _ => None,
         }
     }
@@ -538,6 +566,7 @@ impl AggregateFieldKind {
         match self {
             AggregateFieldKind::Array { layout, .. } => Some((*layout, Vec::new())),
             AggregateFieldKind::Aggregate { layout, fields } => Some((*layout, fields.clone())),
+            AggregateFieldKind::Outcome { .. } => None,
             _ => None,
         }
     }

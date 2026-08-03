@@ -180,6 +180,46 @@ pub(super) fn lower_aggregate_field_assignment(
                 )
             }
         }
+        AggregateFieldKind::Outcome { storage, .. } => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let replacement_slot = temporaries.next_aggregate_slot();
+            let Some(mut instructions) = super::super::aggregates::lower_outcome_field_to_location(
+                storage.layout,
+                value,
+                AggregateLocation::Slot(replacement_slot),
+                0,
+                context,
+                &mut temporaries,
+            )?
+            else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            instructions.insert(
+                0,
+                Instruction::ReserveAggregateSlot {
+                    slot_index: replacement_slot,
+                    layout: storage.layout,
+                },
+            );
+            if let Some(drop_kind) = &field_drop_kind {
+                instructions.extend(lower_aggregate_drop_instructions_at_location(
+                    "outcome field replacement",
+                    destination,
+                    offset,
+                    storage.layout,
+                    drop_kind,
+                    context,
+                )?);
+            }
+            instructions.push(Instruction::CopyAggregateRange {
+                destination,
+                destination_offset: offset,
+                source: AggregateLocation::Slot(replacement_slot),
+                source_offset: 0,
+                layout: storage.layout,
+            });
+            Ok(instructions)
+        }
     }
 }
 

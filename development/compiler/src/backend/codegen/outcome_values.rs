@@ -1,8 +1,177 @@
+use super::control_flow::BranchPatch;
 use super::*;
 use crate::ir::AggregateLocation;
 use crate::outcomes::{OutcomeLayer, storage::OutcomeStorageLayout};
 
 impl EntryEmitter {
+    pub(in crate::backend::codegen) fn emit_return_stored_outcome(
+        &mut self,
+        source: AggregateLocation,
+        storage: &OutcomeStorageLayout,
+        payload_type: &Type,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "stored outcome return emission requires a stack frame",
+            )]);
+        };
+        let mut completion_branches = Vec::new();
+        self.emit_stored_outcome_layer_to_return(
+            source,
+            storage,
+            payload_type,
+            0,
+            0,
+            frame,
+            &mut completion_branches,
+        )?;
+        for branch in completion_branches {
+            self.patch_branch_placeholder_to_current(branch, "stored outcome return target")?;
+        }
+        self.emit_return(Some(frame));
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_stored_outcome_layer_to_return(
+        &mut self,
+        source: AggregateLocation,
+        storage: &OutcomeStorageLayout,
+        payload_type: &Type,
+        layer_index: usize,
+        register_index: usize,
+        frame: &FrameLayout,
+        completion_branches: &mut Vec<BranchPatch>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let layer = storage.layers.get(layer_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9002",
+                "stored outcome layer is missing",
+            )]
+        })?;
+        let tag_register = XReg::argument(register_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9002",
+                "stored outcome tag exceeds return registers",
+            )]
+        })?;
+        let tag_offset = self.aggregate_slot_load_offset(
+            source,
+            u32::try_from(layer.tag_offset).map_err(|_| {
+                vec![Diagnostic::error(
+                    "E9002",
+                    "stored outcome tag offset exceeds u32",
+                )]
+            })?,
+            8,
+            Some(frame),
+        )?;
+        self.encoder.emit_ldr_x_sp(tag_register, tag_offset);
+        self.encoder.emit_cmp_x_zero(tag_register);
+        let success = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        if layer.layer == OutcomeLayer::Fallible {
+            let failure_offset = layer
+                .failure_offset
+                .expect("fallible layer has error storage");
+            for word in 0..4 {
+                let register = XReg::argument(register_index + 1 + word).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9002",
+                        "stored error exceeds return registers",
+                    )]
+                })?;
+                let offset = self.aggregate_slot_load_offset(
+                    source,
+                    u32::try_from(failure_offset + (word as u64) * 8).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "E9002",
+                            "stored error offset exceeds u32",
+                        )]
+                    })?,
+                    8,
+                    Some(frame),
+                )?;
+                self.encoder.emit_ldr_x_sp(register, offset);
+            }
+        }
+        completion_branches.push(self.emit_branch_placeholder());
+        self.patch_branch_placeholder_to_current(success, "stored outcome success return")?;
+        if layer_index + 1 < storage.layers.len() {
+            self.emit_stored_outcome_layer_to_return(
+                source,
+                storage,
+                payload_type,
+                layer_index + 1,
+                register_index + 1,
+                frame,
+                completion_branches,
+            )
+        } else {
+            self.emit_stored_outcome_payload_to_return(
+                source,
+                storage,
+                payload_type,
+                register_index + 1,
+                frame,
+            )
+        }
+    }
+
+    fn emit_stored_outcome_payload_to_return(
+        &mut self,
+        source: AggregateLocation,
+        storage: &OutcomeStorageLayout,
+        payload_type: &Type,
+        register_index: usize,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let payload_offset = u32::try_from(storage.payload_offset).map_err(|_| {
+            vec![Diagnostic::error(
+                "E9002",
+                "stored payload offset exceeds u32",
+            )]
+        })?;
+        if matches!(payload_type, Type::Aggregate { .. }) {
+            return self.emit_copy_aggregate_range(
+                AggregateLocation::Return,
+                0,
+                source,
+                payload_offset,
+                storage.payload_layout,
+                Some(frame),
+            );
+        }
+        let words = match payload_type {
+            Type::Str | Type::Slice { .. } => 2,
+            Type::DirectAggregate { words, .. } => *words,
+            Type::I32 | Type::U8 | Type::Usize | Type::Bool | Type::Borrow { .. } => 1,
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "E9002",
+                    "stored outcome payload cannot be returned by value",
+                )]);
+            }
+        };
+        for word in 0..words {
+            let register = XReg::argument(register_index + word).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9002",
+                    "stored outcome payload exceeds return registers",
+                )]
+            })?;
+            let offset = self.aggregate_slot_load_offset(
+                source,
+                payload_offset + u32::try_from(word * 8).expect("ABI word offset"),
+                8,
+                Some(frame),
+            )?;
+            self.encoder.emit_ldr_x_sp(register, offset);
+        }
+        Ok(())
+    }
+
     pub(in crate::backend::codegen) fn emit_call_stored_outcome(
         &mut self,
         destination: AggregateLocation,

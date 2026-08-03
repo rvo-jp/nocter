@@ -970,6 +970,13 @@ impl EntryEmitter {
             } => {
                 self.emit_load_stored_outcome_payload(*destination, *source, *offset, frame)?;
             }
+            Instruction::ReturnStoredOutcome {
+                source,
+                storage,
+                payload_type,
+            } => {
+                self.emit_return_stored_outcome(*source, storage, payload_type, frame)?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }

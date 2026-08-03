@@ -629,6 +629,11 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         offset: u32,
     },
+    ReturnStoredOutcome {
+        source: AggregateLocation,
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,

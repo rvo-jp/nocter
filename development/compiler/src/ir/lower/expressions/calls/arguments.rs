@@ -261,7 +261,14 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                     words: *words,
                 }));
             }
-            Type::Void | Type::Never | Type::Fallible(_) | Type::ComposedOutcome { .. } => {
+            Type::Fallible(_) | Type::ComposedOutcome { .. } => {
+                arguments.push(lower_stored_outcome_argument(
+                    argument,
+                    parameter_type_expr.as_ref(),
+                    context,
+                )?);
+            }
+            Type::Void | Type::Never => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(

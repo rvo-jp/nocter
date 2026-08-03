@@ -158,6 +158,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue
@@ -257,7 +258,9 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::LoadUsizeFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. } => false,
-        Instruction::LoadStoredOutcomePayload { .. } => true,
+        Instruction::LoadStoredOutcomePayload { .. } | Instruction::ReturnStoredOutcome { .. } => {
+            true
+        }
         Instruction::CopyAggregate {
             destination,
             source,

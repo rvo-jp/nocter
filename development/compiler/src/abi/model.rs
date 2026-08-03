@@ -24,6 +24,7 @@ pub enum AbiType {
     Array { element: Box<AbiType>, length: u64 },
     Struct(Vec<AbiField>),
     Enum(AbiEnum),
+    Outcome { layout: ValueLayout },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

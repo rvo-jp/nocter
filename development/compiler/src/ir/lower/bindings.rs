@@ -16,7 +16,10 @@ use super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct_with_resolver,
 };
-use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
+use super::context::{
+    AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, OutcomeDrop, OutcomeLocal,
+    SliceTypeInfo,
+};
 use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
@@ -41,10 +44,10 @@ use super::expressions::{
     push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
-    lower_aggregate_drop_instructions_at_location, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, propagating_failure_mode,
-    replacement_drop_for_aggregate_slot,
+    lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
+    lower_drop_statement, lower_never_expression_with_scope_drops,
+    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
+    propagating_failure_mode, replacement_drop_for_aggregate_slot,
 };
 use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
@@ -211,7 +214,10 @@ pub(super) fn lower_assignment(
 
     match unwrap_group(&statement.target) {
         Expr::Identifier(identifier) => {
-            lower_identifier_assignment(identifier, &statement.value, context)
+            lower_outcome_assignment(identifier, &statement.value, context)?.map_or_else(
+                || lower_identifier_assignment(identifier, &statement.value, context),
+                Ok,
+            )
         }
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
         Expr::Index(index) => lower_index_assignment(index, &statement.value, context),

@@ -188,6 +188,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateU8Indexed { .. }
         | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::RegionEnter { .. }

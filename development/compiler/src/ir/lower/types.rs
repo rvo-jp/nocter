@@ -325,6 +325,25 @@ where
         return Some(Type::Error);
     }
 
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if !shape.layers.is_empty() {
+        let payload = parameter_type_from_type_expr_inner(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        )?;
+        return match shape.layers.as_slice() {
+            [_] => Some(Type::Fallible(Box::new(payload))),
+            [outer, inner] => Some(Type::ComposedOutcome {
+                outer: *outer,
+                inner: *inner,
+                payload: Box::new(payload),
+            }),
+            _ => None,
+        };
+    }
+
     if let Some(ty) = scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver) {
         return Some(ty);
     }

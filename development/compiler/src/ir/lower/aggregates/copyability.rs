@@ -50,6 +50,42 @@ pub(in crate::ir::lower) fn type_expr_is_copy_aggregate_value_with_resolver<'a, 
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, &resolver);
+    if !shape.layers.is_empty() {
+        let payload_is_scalar_or_view =
+            abi_value_from_type_expr_with_resolver(&shape.payload, fallback_resolved, &resolver)
+                .is_ok_and(|value| {
+                    matches!(
+                        value.ty,
+                        AbiType::I8
+                            | AbiType::I16
+                            | AbiType::I32
+                            | AbiType::I64
+                            | AbiType::Isize
+                            | AbiType::U8
+                            | AbiType::U16
+                            | AbiType::U32
+                            | AbiType::U64
+                            | AbiType::Usize
+                            | AbiType::Bool
+                            | AbiType::Pointer
+                            | AbiType::StrView
+                            | AbiType::SliceView
+                    )
+                });
+        return payload_is_scalar_or_view
+            || type_expr_is_copy_fixed_array_value_with_resolver(
+                &shape.payload,
+                fallback_resolved,
+                &resolver,
+            )
+            || type_expr_is_copy_struct_inner(
+                &shape.payload,
+                fallback_resolved,
+                &resolver,
+                &mut HashSet::new(),
+            );
+    }
     if type_expr_is_copy_fixed_array_value_with_resolver(ty, fallback_resolved, &resolver) {
         return true;
     }

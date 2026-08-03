@@ -176,3 +176,242 @@ func attempt(): i32! {
         }
     )));
 }
+
+#[test]
+fn copies_and_replaces_copyable_stored_outcomes() {
+    let module = lower_text(
+        r#"func main(): i32 {
+    let first = maybe(1)
+    var second = first
+    second = maybe(2)
+    let value = second otherwise { 7 }
+    return value
+}
+
+func maybe(value: i32): i32? {
+    return value
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(1),
+            source: AggregateLocation::Slot(0),
+            layout: ValueLayout { size: 16, align: 8 },
+        }
+    )));
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallStoredOutcome {
+            destination: AggregateLocation::Slot(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn passes_stored_outcomes_through_value_parameters() {
+    let module = lower_text(
+        r#"func main(): i32 {
+    let saved = maybe()
+    let result = inspect(saved)
+    return result
+}
+
+func maybe(): i32? {
+    return 42
+}
+
+func inspect(value: i32?): i32 {
+    return value otherwise { 7 }
+}
+"#,
+    );
+    let inspect = module
+        .functions
+        .iter()
+        .find(|function| function.name == "inspect")
+        .unwrap();
+    assert!(matches!(
+        inspect.instructions.as_slice(),
+        [
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout { size: 16, align: 8 },
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(0),
+                source: AggregateLocation::DirectParameter { start_index: 0 },
+                ..
+            },
+            ..
+        ]
+    ));
+    assert!(
+        inspect
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
+    );
+}
+
+#[test]
+fn returns_stored_outcomes_through_callable_abi_unpacking() {
+    let module = lower_text(
+        r#"func main(): i32 {
+    let optional = make_optional()
+    let forwarded = forward(optional)
+    let composed = make_composed()
+    let forwarded_composed = forward_composed(composed)
+    return 0
+}
+
+func make_optional(): i32? {
+    return 1
+}
+
+func make_composed(): i32?! {
+    return 2
+}
+
+func forward(value: i32?): i32? {
+    return value
+}
+
+func forward_composed(value: i32?!): i32?! {
+    return value
+}
+"#,
+    );
+    for name in ["forward", "forward_composed"] {
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == name)
+            .unwrap();
+        assert!(matches!(
+            function.instructions.last(),
+            Some(Instruction::ReturnStoredOutcome { .. })
+        ));
+    }
+}
+
+#[test]
+fn drops_only_the_active_owned_outcome_payload() {
+    let module = lower_text(
+        r#"struct Resource {
+    code: i32
+}
+
+impl Resource {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    let saved = make()
+    return 0
+}
+
+func make(): Resource? {
+    return Resource { code: 1 }
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } if outcome_instructions.is_empty()
+            && success_instructions.iter().any(|nested| matches!(nested,
+                Instruction::CallVoid { target: CallTarget::SameFile(name), .. }
+                    if name == "Resource.drop"))
+    )));
+}
+
+#[test]
+fn stores_and_extracts_outcomes_in_struct_fields() {
+    let module = lower_text(
+        r#"struct Holder {
+    value: i32?
+}
+
+func main(): i32 {
+    let saved = maybe()
+    let holder = Holder { value: saved }
+    let extracted = holder.value
+    return extracted otherwise { 7 }
+}
+
+func maybe(): i32? {
+    return 42
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(
+        main.instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction,
+                Instruction::CopyAggregateRange {
+                    layout: ValueLayout { size: 16, align: 8 },
+                    ..
+                }
+            ))
+            .count()
+            >= 2
+    );
+    assert!(
+        main.instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::IfStoredOutcomeTag { .. }))
+    );
+}
+
+#[test]
+fn consumes_both_layers_of_a_stored_fallible_optional() {
+    let module = lower_text(
+        r#"func main(): i32! {
+    let saved = lookup()
+    let value = saved? otherwise { return 7 }
+    return value
+}
+
+func lookup(): i32?! {
+    return 42
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            ..
+        } if success_instructions.iter().any(|nested| matches!(nested,
+            Instruction::IfStoredOutcomeTag { .. }))
+    )));
+}

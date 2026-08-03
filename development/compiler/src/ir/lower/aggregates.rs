@@ -1,7 +1,7 @@
 use super::bindings::lower_aggregate_optional_otherwise_to_location;
 use super::context::{
     AggregateField, AggregateFieldKind, LoweringContext, SliceTypeInfo,
-    aggregate_drop_for_type_expr_with_resolver_ref,
+    aggregate_drop_for_type_expr_with_resolver_ref, outcome_drop_for_type_expr_with_resolver_ref,
 };
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
@@ -16,7 +16,9 @@ use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
 };
-use super::types::view_element_type_from_type_expr_with_resolver;
+use super::types::{
+    return_type_from_type_expr_with_resolver, view_element_type_from_type_expr_with_resolver,
+};
 use crate::abi::{
     AbiType, AbiValue, ValueLayout, abi_value_from_type_expr,
     abi_value_from_type_expr_with_resolver, array_element_stride, layout_of, layout_struct,
@@ -30,6 +32,7 @@ use crate::ir::{
     AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type, U8Value,
     UsizeValue,
 };
+use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceId;
 use crate::typecheck::TypecheckSliceElementKind;
@@ -42,6 +45,7 @@ mod field_layouts;
 mod field_values;
 mod initialization;
 mod literals;
+mod outcome_fields;
 mod payload_initialization;
 mod struct_initialization;
 
@@ -55,6 +59,7 @@ pub(super) use payload_initialization::*;
 pub(super) use struct_initialization::*;
 
 use field_values::lower_aggregate_field_to_location;
+pub(super) use outcome_fields::lower_outcome_field_to_location;
 
 pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     diagnostic_code: &'static str,

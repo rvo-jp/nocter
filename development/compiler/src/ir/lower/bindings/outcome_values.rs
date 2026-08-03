@@ -13,14 +13,42 @@ where
     let Expr::Otherwise(otherwise) = unwrap_group(value) else {
         return Ok(None);
     };
-    let Expr::Identifier(identifier) = unwrap_group(&otherwise.value) else {
-        return Ok(None);
+    let (identifier, outer_failure_mode) = match unwrap_group(&otherwise.value) {
+        Expr::Identifier(identifier) => (identifier, None),
+        Expr::Propagate(propagation) => {
+            let Expr::Identifier(identifier) = unwrap_group(&propagation.expression) else {
+                return Ok(None);
+            };
+            (identifier, Some(propagating_failure_mode(context)?))
+        }
+        Expr::Force(force) => {
+            let Expr::Identifier(identifier) = unwrap_group(&force.expression) else {
+                return Ok(None);
+            };
+            (identifier, Some(FallibleFailureMode::Trap))
+        }
+        Expr::Catch(catch) => {
+            let Expr::Identifier(identifier) = unwrap_group(&catch.expression) else {
+                return Ok(None);
+            };
+            (
+                identifier,
+                Some(lower_catch_failure_mode(
+                    catch,
+                    context,
+                    outcome_destination_reserved_words(destination),
+                )?),
+            )
+        }
+        _ => return Ok(None),
     };
     let Some(local) = context.outcome_local(&identifier.name) else {
         return Ok(None);
     };
-    if local.storage.layers.len() != 1
-        || local.storage.layers[0].layer != OutcomeLayer::Optional
+    let optional_layer_index = usize::from(outer_failure_mode.is_some());
+    if local.storage.layers.len() != optional_layer_index + 1
+        || local.storage.layers[optional_layer_index].layer != OutcomeLayer::Optional
+        || (outer_failure_mode.is_some() && local.storage.layers[0].layer != OutcomeLayer::Fallible)
         || !outcome_payload_destination_matches(&local.payload_type, destination)
     {
         return Ok(None);
@@ -43,7 +71,7 @@ where
             )]);
         }
     };
-    let layer = local.storage.layers[0];
+    let layer = local.storage.layers[optional_layer_index];
     let tag_offset = u32::try_from(layer.tag_offset).map_err(|_| {
         vec![Diagnostic::error(
             "E8008",
@@ -56,7 +84,7 @@ where
             "stored outcome payload offset exceeds u32",
         )]
     })?;
-    Ok(Some(vec![Instruction::IfStoredOutcomeTag {
+    let optional_check = Instruction::IfStoredOutcomeTag {
         source: AggregateLocation::Slot(local.slot_index),
         tag_offset,
         success_instructions: vec![Instruction::LoadStoredOutcomePayload {
@@ -65,7 +93,46 @@ where
             offset: payload_offset,
         }],
         outcome_instructions,
-    }]))
+    };
+    if let Some(failure_mode) = outer_failure_mode {
+        let outer = local.storage.layers[0];
+        return Ok(Some(vec![Instruction::CheckStoredFallible {
+            source: AggregateLocation::Slot(local.slot_index),
+            tag_offset: u32::try_from(outer.tag_offset).map_err(|_| {
+                vec![Diagnostic::error(
+                    "E8008",
+                    "stored outcome tag offset exceeds u32",
+                )]
+            })?,
+            error_offset: u32::try_from(
+                outer
+                    .failure_offset
+                    .expect("fallible layer has error storage"),
+            )
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "E8008",
+                    "stored outcome error offset exceeds u32",
+                )]
+            })?,
+            success_instructions: vec![optional_check],
+            failure_mode,
+        }]));
+    }
+    Ok(Some(vec![optional_check]))
+}
+
+fn outcome_destination_reserved_words(destination: ComposedOutcomeDestination) -> usize {
+    match destination {
+        ComposedOutcomeDestination::I32(I32Location::Local(index))
+        | ComposedOutcomeDestination::U8(U8Location::Local(index))
+        | ComposedOutcomeDestination::Usize(UsizeLocation::Local(index))
+        | ComposedOutcomeDestination::Borrow(UsizeLocation::Local(index))
+        | ComposedOutcomeDestination::Bool(BoolLocation::Local(index)) => index + 1,
+        ComposedOutcomeDestination::Str(StrLocation::Local(index))
+        | ComposedOutcomeDestination::Slice(SliceLocation::Local(index)) => index + 2,
+        _ => 0,
+    }
 }
 
 fn outcome_payload_destination_matches(
@@ -88,6 +155,79 @@ pub(super) fn lower_outcome_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Expr::Member(member) = unwrap_group(&statement.initializer)
+        && let Expr::Identifier(root) = unwrap_group(&member.object)
+        && let Some(access) = context.aggregate_field(&root.name, &member.member)
+        && let AggregateFieldKind::Outcome {
+            storage,
+            payload_type,
+        } = access.kind
+    {
+        if !access.is_copy {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                "stored outcome member binding requires `move` for a move-only payload",
+            )]);
+        }
+        let slot_index = context.reserve_aggregate_slot_index();
+        let instructions = vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: storage.layout,
+            },
+            Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(slot_index),
+                destination_offset: 0,
+                source: access.source,
+                source_offset: access.offset,
+                layout: storage.layout,
+            },
+        ];
+        context.define_outcome_local_at_slot(
+            statement.name.clone(),
+            slot_index,
+            storage,
+            payload_type,
+            true,
+            None,
+        );
+        return Ok(Some(instructions));
+    }
+    if let Some((source_name, moved)) = outcome_identifier_initializer(&statement.initializer) {
+        let Some(source) = context.outcome_local(source_name) else {
+            return Ok(None);
+        };
+        if !source.is_live || (!moved && !source.is_copy) {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                "stored outcome binding requires a live copy value or an explicit `move`",
+            )]);
+        }
+        let slot_index = context.reserve_aggregate_slot_index();
+        context.define_outcome_local_at_slot(
+            statement.name.clone(),
+            slot_index,
+            source.storage.clone(),
+            source.payload_type.clone(),
+            source.is_copy,
+            source.drop_kind.clone(),
+        );
+        if moved {
+            context.mark_outcome_local_moved(source_name);
+        }
+        return Ok(Some(vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: source.storage.layout,
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                source: AggregateLocation::Slot(source.slot_index),
+                layout: source.storage.layout,
+            },
+        ]));
+    }
+
     let Expr::Call(call) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
@@ -167,12 +307,156 @@ pub(super) fn lower_outcome_local_binding(
         ) || type_expr_is_copy_aggregate_value_with_resolver(&shape.payload, resolved, |source| {
             context.resolved_source(source)
         });
+    let drop_kind = context
+        .aggregate_drop_for_type_expr(&shape.payload)
+        .map(|payload| {
+            AggregateDrop::Outcome(OutcomeDrop {
+                storage: storage.clone(),
+                payload: Box::new(payload),
+            })
+        });
     context.define_outcome_local_at_slot(
         statement.name.clone(),
         slot_index,
         storage,
         payload_type,
         is_copy,
+        drop_kind,
     );
     Ok(Some(instructions))
+}
+
+pub(super) fn lower_outcome_assignment(
+    target: &crate::ast::IdentifierExpr,
+    value: &Expr,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(destination) = context.outcome_local(&target.name) else {
+        return Ok(None);
+    };
+    if !destination.is_live {
+        return Err(vec![Diagnostic::error(
+            "E8008",
+            "cannot assign through a moved stored outcome",
+        )]);
+    }
+
+    if let Some((source_name, moved)) = outcome_identifier_initializer(value) {
+        let Some(source) = context.outcome_local(source_name) else {
+            return Ok(None);
+        };
+        if source.storage != destination.storage || !source.is_live || (!moved && !source.is_copy) {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                "stored outcome assignment requires the same shape and a live copy or move source",
+            )]);
+        }
+        if moved {
+            context.mark_outcome_local_moved(source_name);
+        }
+        let replacement_slot = context.reserve_aggregate_slot_index();
+        let mut instructions = vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: replacement_slot,
+                layout: destination.storage.layout,
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(replacement_slot),
+                source: AggregateLocation::Slot(source.slot_index),
+                layout: destination.storage.layout,
+            },
+        ];
+        instructions.extend(lower_outcome_replacement_drop(&destination, context)?);
+        instructions.push(Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(destination.slot_index),
+            source: AggregateLocation::Slot(replacement_slot),
+            layout: destination.storage.layout,
+        });
+        return Ok(Some(instructions));
+    }
+
+    let Expr::Call(call) = unwrap_group(value) else {
+        return Ok(None);
+    };
+    let Some(return_type) = context.call_return_type_expr(call) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+    let shape = outcome_shape_with_resolver(&return_type, resolved, |source| {
+        context.resolved_source(source)
+    });
+    let payload_abi = abi_value_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .ok();
+    let Some(storage) = payload_abi.and_then(|payload| shape.storage_layout(payload.layout)) else {
+        return Ok(None);
+    };
+    if storage != destination.storage {
+        return Err(vec![Diagnostic::error(
+            "E8008",
+            "stored outcome assignment call has a different storage shape",
+        )]);
+    }
+    let Some((call_target, callee_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let (mut instructions, arguments) = lower_call_arguments_to_scalar_arguments_with_temporaries(
+        call,
+        &call_target,
+        &callee_name,
+        context,
+        &mut temporaries,
+    )?;
+    let replacement_slot = context.reserve_aggregate_slot_index();
+    instructions.push(Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout: destination.storage.layout,
+    });
+    instructions.push(Instruction::CallStoredOutcome {
+        destination: AggregateLocation::Slot(replacement_slot),
+        target: call_target,
+        arguments,
+        storage,
+        payload_type: destination.payload_type.clone(),
+    });
+    instructions.extend(lower_outcome_replacement_drop(&destination, context)?);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination.slot_index),
+        source: AggregateLocation::Slot(replacement_slot),
+        layout: destination.storage.layout,
+    });
+    Ok(Some(instructions))
+}
+
+fn lower_outcome_replacement_drop(
+    destination: &OutcomeLocal,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(drop_kind) = &destination.drop_kind else {
+        return Ok(Vec::new());
+    };
+    lower_aggregate_drop_instructions(
+        "stored outcome replacement",
+        destination.slot_index,
+        destination.storage.layout,
+        drop_kind,
+        context,
+    )
+}
+
+fn outcome_identifier_initializer(expression: &Expr) -> Option<(&str, bool)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((&identifier.name, false)),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+                return None;
+            };
+            Some((&identifier.name, true))
+        }
+        _ => None,
+    }
 }

@@ -356,6 +356,7 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Return => false,
     }
 }

@@ -48,6 +48,7 @@ mod borrow_arguments;
 mod composed_outcomes;
 mod evaluation;
 mod normal_calls;
+mod outcome_arguments;
 mod pointer_drops;
 mod pointer_takes;
 mod primitives;
@@ -79,6 +80,7 @@ pub(in crate::ir::lower) use normal_calls::{
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
 };
+use outcome_arguments::lower_stored_outcome_argument;
 pub(super) use pointer_drops::{
     lower_drop_value_at_ptr_primitive_call, primitive_drop_value_at_ptr_call,
 };

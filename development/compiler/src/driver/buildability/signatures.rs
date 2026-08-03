@@ -346,6 +346,18 @@ pub(super) fn callable_non_alias_parameter_type_is_buildable_with_resolver<'a, F
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if !shape.layers.is_empty() && shape.is_supported_callable_shape() {
+        return type_expr_is_buildable_scalar_or_view_with_resolver(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+        ) || type_expr_is_supported_aggregate_value_with_resolver(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+        );
+    }
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)

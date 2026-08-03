@@ -175,6 +175,51 @@ pub(super) fn lower_scalar_parameters(
                     fields,
                 });
             }
+            ScalarParameterKind::OutcomeIndirect {
+                storage,
+                payload_type,
+                is_copy,
+            } => {
+                let parameter_index = slots.reserve_empty_abi_words(1);
+                let slot_index = slots.aggregates.len() + slots.outcomes.len();
+                slots.outcomes.push(LoweringOutcomeParameter {
+                    name: parameter.name.clone(),
+                    storage,
+                    payload_type,
+                    slot_index,
+                    source: AggregateParameterSource::Indirect { parameter_index },
+                    is_copy,
+                    drop_kind: outcome_drop_for_type_expr_with_resolver(
+                        &parameter.ty,
+                        root_source,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
+                });
+            }
+            ScalarParameterKind::OutcomeDirect {
+                storage,
+                payload_type,
+                words,
+                is_copy,
+            } => {
+                let start_index = slots.reserve_empty_abi_words(words);
+                let slot_index = slots.aggregates.len() + slots.outcomes.len();
+                slots.outcomes.push(LoweringOutcomeParameter {
+                    name: parameter.name.clone(),
+                    storage,
+                    payload_type,
+                    slot_index,
+                    source: AggregateParameterSource::Direct { start_index, words },
+                    is_copy,
+                    drop_kind: outcome_drop_for_type_expr_with_resolver(
+                        &parameter.ty,
+                        root_source,
+                        resolved,
+                        |source| resolved_sources.get(&source).copied(),
+                    ),
+                });
+            }
         }
     }
 
@@ -259,6 +304,25 @@ pub(super) fn lower_aggregate_parameter_setup(
             layout: parameter.layout,
         });
     }
+    for parameter in &parameters.outcomes {
+        instructions.push(Instruction::ReserveAggregateSlot {
+            slot_index: parameter.slot_index,
+            layout: parameter.storage.layout,
+        });
+        let source = match parameter.source {
+            AggregateParameterSource::Indirect { parameter_index } => {
+                AggregateLocation::Parameter(parameter_index)
+            }
+            AggregateParameterSource::Direct { start_index, .. } => {
+                AggregateLocation::DirectParameter { start_index }
+            }
+        };
+        instructions.push(Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(parameter.slot_index),
+            source,
+            layout: parameter.storage.layout,
+        });
+    }
     instructions
 }
 
@@ -288,6 +352,17 @@ pub(super) enum ScalarParameterKind {
         layout: crate::abi::ValueLayout,
         words: usize,
         fields: Vec<AggregateField>,
+    },
+    OutcomeIndirect {
+        storage: crate::outcomes::storage::OutcomeStorageLayout,
+        payload_type: Type,
+        is_copy: bool,
+    },
+    OutcomeDirect {
+        storage: crate::outcomes::storage::OutcomeStorageLayout,
+        payload_type: Type,
+        words: usize,
+        is_copy: bool,
     },
 }
 
@@ -321,6 +396,51 @@ pub(super) fn lower_scalar_parameter_kind(
         resolved_sources.get(&source).copied()
     })
     .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    if matches!(value.ty, AbiType::Outcome { .. }) {
+        let shape = outcome_shape_with_resolver(&parameter.ty, resolved, |source| {
+            resolved_sources.get(&source).copied()
+        });
+        let payload = abi_value_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+            resolved_sources.get(&source).copied()
+        })
+        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+        let storage = shape
+            .storage_layout(payload.layout)
+            .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
+        let payload_type =
+            return_type_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+                resolved_sources.get(&source).copied()
+            })
+            .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
+        let is_copy =
+            type_expr_is_copy_aggregate_value_with_resolver(&parameter.ty, resolved, |source| {
+                resolved_sources.get(&source).copied()
+            }) || matches!(
+                payload_type,
+                Type::I32
+                    | Type::U8
+                    | Type::Usize
+                    | Type::Bool
+                    | Type::Str
+                    | Type::Slice { .. }
+                    | Type::Borrow { .. }
+            );
+        return Ok(match value.classification {
+            crate::abi::ValueClassification::Indirect => ScalarParameterKind::OutcomeIndirect {
+                storage,
+                payload_type,
+                is_copy,
+            },
+            crate::abi::ValueClassification::Direct { words } => {
+                ScalarParameterKind::OutcomeDirect {
+                    storage,
+                    payload_type,
+                    words,
+                    is_copy,
+                }
+            }
+        });
+    }
     match &value.ty {
         AbiType::Borrow => lower_borrow_parameter_kind(
             parameter,

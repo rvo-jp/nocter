@@ -21,6 +21,7 @@ pub fn layout_of(ty: &AbiType) -> Result<ValueLayout, LayoutError> {
             Ok(ValueLayout::new(layout.size, layout.align))
         }
         AbiType::Enum(enum_) => layout_enum(enum_),
+        AbiType::Outcome { layout } => Ok(*layout),
     }
 }
 

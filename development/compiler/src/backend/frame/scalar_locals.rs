@@ -788,6 +788,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_slice_location(*location, highest_local_index)
             }
         },
+        Instruction::ReturnStoredOutcome { .. } => {}
         Instruction::While {
             condition_instructions,
             condition,

@@ -49,6 +49,12 @@ impl<'a> LoweringContext<'a> {
             .aggregates
             .iter()
             .map(|parameter| parameter.slot_index + 1)
+            .chain(
+                parameters
+                    .outcomes
+                    .iter()
+                    .map(|parameter| parameter.slot_index + 1),
+            )
             .max()
             .unwrap_or(0);
         for parameter in parameters.aggregates {
@@ -64,6 +70,21 @@ impl<'a> LoweringContext<'a> {
                 index: 0,
             });
             aggregate_fields.insert(parameter.slot_index, parameter.fields);
+        }
+        for parameter in parameters.outcomes {
+            locals.push(LocalBinding {
+                name: parameter.name,
+                kind: LocalKind::Outcome(OutcomeLocal {
+                    slot_index: parameter.slot_index,
+                    storage: parameter.storage,
+                    payload_type: parameter.payload_type,
+                    is_copy: parameter.is_copy,
+                    is_live: true,
+                    drop_obligation: DropObligation::for_drop_kind(&parameter.drop_kind),
+                    drop_kind: parameter.drop_kind,
+                }),
+                index: 0,
+            });
         }
 
         Self {

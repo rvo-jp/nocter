@@ -866,6 +866,7 @@ pub(super) fn record_instruction_parameter_spill_requests(
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue

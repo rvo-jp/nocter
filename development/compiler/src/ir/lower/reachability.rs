@@ -222,7 +222,8 @@ fn collect_reachable_call_targets(
             | Instruction::Break
             | Instruction::Continue
             | Instruction::Return => {}
-            Instruction::LoadStoredOutcomePayload { .. } => {}
+            Instruction::LoadStoredOutcomePayload { .. }
+            | Instruction::ReturnStoredOutcome { .. } => {}
         }
     }
 }

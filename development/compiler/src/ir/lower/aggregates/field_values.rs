@@ -584,6 +584,15 @@ pub(super) fn lower_aggregate_field_to_location(
             context,
             temporaries,
         ),
+        AbiType::Outcome { layout } => lower_outcome_field_to_location(
+            *layout,
+            expression,
+            destination,
+            offset,
+            context,
+            temporaries,
+        )?
+        .ok_or_else(|| unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)),
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,

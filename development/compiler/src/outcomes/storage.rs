@@ -30,6 +30,13 @@ impl OutcomeShape {
     }
 }
 
+pub(crate) fn outcome_storage_layout(
+    layers: &[OutcomeLayer],
+    payload_layout: ValueLayout,
+) -> OutcomeStorageLayout {
+    build_storage_layout(layers, payload_layout)
+}
+
 fn build_storage_layout(
     layers: &[OutcomeLayer],
     payload_layout: ValueLayout,

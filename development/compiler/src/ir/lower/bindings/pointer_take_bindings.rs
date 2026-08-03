@@ -143,6 +143,7 @@ pub(super) fn lower_pointer_take_binding(
         | AbiType::U16
         | AbiType::U32
         | AbiType::U64
-        | AbiType::Isize => Ok(None),
+        | AbiType::Isize
+        | AbiType::Outcome { .. } => Ok(None),
     }
 }

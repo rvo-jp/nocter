@@ -61,7 +61,9 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
         return;
     }
 
-    if !is_expression_assignable(expected, expression, resolved, environment) {
+    if actual != context.declared_type
+        && !is_expression_assignable(expected, expression, resolved, environment)
+    {
         diagnostics.push(body_result_type_mismatch_diagnostic(
             sources, expression, expected, &actual, context,
         ));
@@ -184,7 +186,9 @@ pub(in crate::typecheck::returns) fn check_return_statement(
                 return;
             }
 
-            if !is_expression_assignable(expected, expression, resolved, environment) {
+            if actual != context.declared_type
+                && !is_expression_assignable(expected, expression, resolved, environment)
+            {
                 diagnostics.push(return_type_mismatch_diagnostic(
                     sources, expression, expected, &actual, context,
                 ));

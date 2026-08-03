@@ -39,6 +39,12 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
+        && let Some(return_instructions) = lower_stored_outcome_return(expression, context)?
+    {
+        return Ok(return_instructions);
+    }
+
+    if let Some(expression) = &statement.expression
         && matches!(
             return_type,
             Type::Fallible(_) | Type::ComposedOutcome { .. }
