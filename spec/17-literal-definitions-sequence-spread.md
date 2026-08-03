@@ -1,19 +1,17 @@
-# Future Literal Definitions and Spread
+# Literal Definitions and Sequence Spread
 
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-This chapter is the adopted v0.3.0 direction for typed literal and contextual
-many-value syntax. It is not implemented by the v0.2.0 release. v0.3.0 Phase 0
-completed the region, provenance, and allocation-context foundation in
-[Memory, Regions, and Allocators](06-memory-region-allocator.md). The Phase 1
-implementation gate for the sequence and string literal core described below
-is complete on `develop`. Other shapes and spread contexts remain later work.
+This chapter defines the implemented v0.3.0 Phase 1 typed-literal core and
+v0.3.0 Phase 8 sequence spread. Neither feature is part of the v0.2.0 release.
+Other literal shapes, spread contexts, and ordinary variadic callables remain
+future work and are marked explicitly below.
 
 ## Purpose
 
-Adopted future direction: Nocter should allow nominal types to define how they
-are constructed from a small set of literal shapes.
+Nocter allows nominal types to define how they are constructed from a small set
+of literal shapes.
 
 The design exists to make standard-library and user-defined collection or value
 types feel direct without making the compiler know about every collection type.
@@ -21,18 +19,13 @@ It also keeps construction encapsulated: the type author exposes a public
 literal surface without exposing private fields, allocation strategy, or helper
 methods.
 
-Examples:
+Implemented examples:
 
 ```nct
 let nums = Vec [1, 2, 3]
 let empty = Vec<i32> []
 
-let names = Set ["Rvo", "Nocter"]
-
-let ages = Map {
-    "Rvo": 20,
-    "Nocter": 1,
-}
+let joined = Vec [0, ...nums, 4]
 ```
 
 The type name is mandatory. Bare `[1, 2, 3]` remains the built-in fixed-size
@@ -40,8 +33,8 @@ array literal unless another future chapter changes that rule explicitly.
 
 ## Implementation Boundary
 
-The following source forms belong to v0.3.0 Phase 1 and are not implemented by
-the v0.2.0 release:
+The following source forms are implemented on `develop` by v0.3.0 Phase 1 but
+are not part of the v0.2.0 release:
 
 ```nct
 literal Vec<T> [](...items: T): Self from current {
@@ -56,7 +49,7 @@ Vec [1, 2, 3]
 String "hello"
 ```
 
-The sequence-spread form entered the v0.3.0 Phase 8 implementation boundary:
+The sequence-spread form is implemented on `develop` by v0.3.0 Phase 8:
 
 ```nct
 Vec [
@@ -82,7 +75,7 @@ and methods remain valid construction APIs.
 
 ## Literal Definitions
 
-Adopted future syntax direction:
+Implemented syntax:
 
 ```nct
 literal Vec<T> [](...items: T): Self from current {
@@ -229,9 +222,11 @@ A typed literal target and its opening delimiter are separated by whitespace.
 index expression. Parsing does not guess from capitalization or whether a name
 later resolves to a type.
 
-A sequence literal evaluates element expressions from left to right. Each
-element is passed to the literal definition exactly once, preserving normal
-move, borrow, and failure behavior.
+A sequence literal prepares fixed elements and spread sources from left to
+right. Each fixed element is passed exactly once. Each spread source is
+evaluated once, then its iterator contributes items lazily when the literal
+body consumes the pack. Both paths preserve ordinary move, borrow, and failure
+behavior.
 
 The canonical sequence definition and capture parameter are:
 
@@ -243,10 +238,11 @@ literal Vec<T> [](...items: T): Self
 element pack of `T`. It does not create a first-class `[T]`, slice, `Vec<T>`,
 heap allocation, or ordinary variadic ABI parameter.
 
-The Phase 1 pack supports `items.len()` and consuming
-`for item in items`. It cannot escape the literal body or be passed to an
-ordinary callable. Each loop binding owns one element. Unconsumed elements are
-dropped exactly once in reverse acquisition order on every body exit.
+The implemented pack supports `items.len()` and consuming `for item in items`.
+Phase 8 permits fixed and exact-size spread segments without changing that body
+API. The pack cannot escape the literal body or be passed to an ordinary
+callable. Each loop binding owns one element. Unconsumed values and iterator
+suffixes are dropped exactly once on every body exit.
 
 A non-empty collection can require leading elements before the rest capture:
 
@@ -327,7 +323,8 @@ Rules:
 
 ## The `...` Operator Family
 
-Adopted future direction: `...` is Nocter's contextual many-value operator.
+`...` is Nocter's contextual many-value operator. Phase 1 implements literal rest capture and
+Phase 8 implements typed sequence spread; the other contexts below remain future work.
 
 The common meaning is:
 
@@ -336,7 +333,7 @@ The common meaning is:
 
 The exact rule depends on the syntactic context.
 
-Planned contexts:
+Contexts:
 
 ```nct
 struct C {
@@ -436,7 +433,7 @@ structure unless ordinary Nocter code explicitly constructs an owned collection.
 
 ## Ownership And Evaluation
 
-Future implementation must preserve Nocter's existing move and borrow model.
+Sequence spread preserves Nocter's existing move and borrow model.
 
 Rules:
 
@@ -448,9 +445,12 @@ Rules:
 - Already initialized elements or embedded values are cleaned up in reverse
   initialization order if a later element fails.
 - A spread source explicitly defines whether it is copied, borrowed, or moved.
-- Preparing a spread evaluates its source once, selects the statically resolved
-  conversion, and obtains the exact remaining count before the next source
-  element is prepared.
+- Preparing a spread evaluates its source once and selects the statically
+  resolved conversion in source order before the literal body starts.
+- After every segment is prepared, literal entry calls each spread iterator's
+  validated `remaining_len()` exactly once in segment order. It checks and
+  caches the sum with the fixed-element count. `items.len()` returns that
+  cached total even after pack consumption has started.
 - Iterator stepping is lazy: `next()` runs when the literal body consumes the
   pack. Plain element expressions and spread source expressions are still
   evaluated before the literal body starts.
@@ -479,7 +479,7 @@ if its `...` forms stay limited to struct declarations and struct literals.
 
 ## Non-Goals
 
-Literal definitions and `...` spread are not:
+Literal definitions and sequence `...` spread are not:
 
 - operator overloading
 - implicit conversion

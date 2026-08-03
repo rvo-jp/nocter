@@ -12,10 +12,9 @@ inherent member and interface method contexts.
 
 Nocter v0.2.0 does not include traits.
 Embedding is an adopted future composition feature, but it is not part of the
-v0.2.0 implementation contract. Generalized `...` spread, rest capture, variadic
-capture, and typed literal construction are specified as a separate future
-direction in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md).
+v0.2.0 implementation contract. Typed literal construction, literal rest capture, implemented
+sequence spread, and future variadic capture are specified separately in
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
 
 Not part of v0.2.0:
 
@@ -407,8 +406,8 @@ struct Profile {
 ```
 
 In the embedding subset, leading `...` is recognized only in struct bodies and
-struct literals. Broader future uses of `...` are defined separately in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+struct literals. Sequence spread and other contextual uses of `...` are defined separately in
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
 so embedding does not become a hidden import, macro, or general delegation
 mechanism.
 

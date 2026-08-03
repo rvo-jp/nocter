@@ -11,8 +11,8 @@ release.
 
 The design in this chapter is the adopted v0.3.0 direction. Its Phase 0 region, provenance, and
 allocation-context implementation is complete on `develop`, but is not a released language
-version. Typed literals, sequence spread, and collection iteration still require later reviewed
-gates. Development completion criteria live in the
+version. Later v0.3.0 phases build typed literals, sequence spread, and collection iteration on
+that foundation. Development completion criteria live in the
 [v0.3.0 Development Contract](../development/docs/v0.3.0.md).
 
 ## Memory Model
@@ -298,7 +298,7 @@ region temp using arena {
 - Bare `"hello"` remains a static `&str` and performs no allocation.
 
 The full literal and sequence rules live in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md).
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
 
 ## Phase 0 Non-goals
 

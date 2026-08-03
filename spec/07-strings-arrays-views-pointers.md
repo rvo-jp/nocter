@@ -177,8 +177,9 @@ Rules:
 
 Owned growable memory is represented by standard-library types such as `Vec<T>`. `Vec<T>` is not a
 compiler builtin. v0.3.0 Phase 1 provides declaration-driven typed literals such as
-`Vec [1, 2, 3]`; [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
-specifies the remaining spread direction. Bare `[1, 2, 3]` remains a fixed-size array literal.
+`Vec [1, 2, 3]`; [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
+defines the v0.3.0 Phase 8 sequence-spread behavior. Bare `[1, 2, 3]` remains a fixed-size array
+literal.
 
 ```nct
 var bytes = Buffer<u8>.with_capacity(allocator, 4096)?

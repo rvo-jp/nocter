@@ -15,7 +15,8 @@ chronological implementation history.
   `v0.3.0 Phase 4 Public Provenance Contracts and Generic Interface Bounds`, and
   `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`, and
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
-  `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`
+  `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
+  `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`
 - active milestone gate: none
 - target: `arm64-darwin`
 - required Phase 0 items: none
@@ -26,11 +27,12 @@ chronological implementation history.
 - required Phase 5 items: none
 - required Phase 6 items: none
 - required Phase 7 items: none
+- required Phase 8 items: none
 
-Phase 7 added declaration-identity iteration protocols, standard and user conformances, explicit
-readonly and consuming collection loops, direct iterator loops, shared ownership/effect/provenance
-analysis, exactly-once cleanup, normalized LSP presentation, incomplete-header recovery, and
-packaged native verification.
+Phase 8 added typed sequence spread with explicit copy, readonly-reference, and move modes;
+declaration-identity exact-size iteration; deterministic segment specializations; streaming pack
+lowering; checked cached length; shared ownership, provenance, effect, and cleanup analysis; and
+complete LSP recovery and presentation.
 
 ## Current Objective
 

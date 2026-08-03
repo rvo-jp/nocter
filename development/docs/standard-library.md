@@ -156,8 +156,8 @@ state.
 
 Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
 byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
-escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
-spread, rich path APIs, iterator adapters, Unicode text APIs, and general allocator plugins.
+escape rejection, and cleanup across exhaustion and early exits. Rich path APIs, iterator adapters,
+Unicode text APIs, and general allocator plugins remain later work.
 
 ## Phase 3 Formatting and Interpolation
 
@@ -224,3 +224,18 @@ Readonly collection loops retain the source loan and allocate nothing for the st
 conversion. Consuming loops transfer vector storage into `VecIntoIter<T>` and drop only the
 unconsumed suffix before releasing storage. Empty, nested, `continue`, `break`, `return`,
 propagation, and user-conformance tests execute against the packaged standard library.
+
+## Phase 8 Exact-Size Iteration and Sequence Spread
+
+Distributed `std/iter` adds `ExactSizeIterator<T>` with readonly `remaining_len(): usize`.
+`ViewIter<T>` and `VecIntoIter<T>` conform beside their existing `Iterator<T>` conformances. The
+count describes the exact unconsumed suffix and never grants the compiler unchecked memory access.
+
+Typed `Vec` literals now accept fixed values mixed with readonly-copy, readonly-reference, and
+owned-transfer spread segments. The compiler prepares standard or user iterators once, caches one
+checked total length, and streams `next()` calls into the existing literal body. Standard code does
+not allocate an intermediate vector for spread, and unknown-size iterators are rejected explicitly.
+
+Packaged tests cover repeated and empty spreads, move-only `String` elements, `Vec<&T>` pointer
+storage, direct `VecIntoIter<T>`, source loans, region provenance, exact cached length, early-exit
+suffix destruction, formatter output, and LSP protocol facts.

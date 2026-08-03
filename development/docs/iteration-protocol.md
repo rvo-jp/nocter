@@ -27,9 +27,10 @@ should be borrowed or moved.
 
 ## Trusted Protocol Roles
 
-The trusted Nocter home supplies three ordinary generic interfaces: iterator step, readonly
-conversion, and owned conversion. Frontend validation checks the complete interface shape and
-records the interface and required method declaration identities in `TrustedDeclarationFacts`.
+The trusted Nocter home supplies ordinary generic interfaces for iterator step, readonly
+conversion, owned conversion, and exact remaining length. Frontend validation checks each complete
+interface shape and records the interface and required method declaration identities in
+`TrustedDeclarationFacts`.
 
 Later phases consume a role enum and declaration spans. They do not search source names or module
 paths. A missing or malformed trusted bundle produces a source-backed availability diagnostic
@@ -38,6 +39,11 @@ before lowering. Explicit user conformance remains the only way a nominal type p
 The generic interface parameters carry the yielded item and concrete iterator types. Phase 7 does
 not require associated types or broaden the one-bound generic model. A conversion is usable only
 when its concrete iterator type also has exactly one matching iterator-role conformance.
+
+Phase 8 validates `ExactSizeIterator<T>` beside `Iterator<T>` for sequence spread. Its readonly
+`remaining_len(): usize` method is an ordinary statically specialized call. The compiler records
+the method identity in the same iteration runtime plan; it does not recognize the spelling or a
+standard-library nominal type.
 
 ## Semantic Plan
 
@@ -55,6 +61,11 @@ Resolver and typecheck produce the plan. Ownership, regions, buildability, IR, a
 consume it without repeating protocol lookup. The selected declaration identities connect implicit
 conversion and step calls to the ordinary result-provenance and allocation-effect summaries; those
 summaries are not duplicated inside the plan.
+
+Collection loops use conversion and step fields from this plan. Sequence spread additionally uses
+its exact-count target and an explicit copy, readonly-reference, or move projection. Hidden literal
+entry calls every count target once, checks and caches the total pack length, then reuses the same
+optional-step lowering as collection loops to stream items.
 
 ## Ownership and Cleanup
 
@@ -91,7 +102,11 @@ Tests observe item order, source moves and loans, active item drop, remaining su
 release, nested cleanup, region escape, generic specialization, diagnostics, incomplete editor
 input, and packaged execution. Instruction snapshots alone do not satisfy the runtime gate.
 
-The completed gate covers empty, readonly, consuming, direct, nested, user-conformance,
+The completed Phase 7 gate covers empty, readonly, consuming, direct, nested, user-conformance,
 `continue`, `break`, `return`, and propagation paths. LSP protocol tests cover all three source
 modes, exact element completion, semantic-token range remapping, parser diagnostics, and implicit
 allocation-effect presentation.
+
+Phase 8 tests add exact-size role validation, unknown-size rejection, repeated and direct-iterator
+spread, cached pack length, copy constraints, readonly provenance, owned suffix cleanup, implicit
+effect presentation, and incomplete spread recovery against the packaged standard library.

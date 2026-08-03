@@ -1,9 +1,9 @@
-# Typed Literal Core
+# Typed Literals and Composable Element Packs
 
-This document owns the compiler design for v0.3.0 Phase 1 typed literal definitions, expressions,
-literal element packs, and per-literal allocation-context selection. Public semantics belong to
-[Future Literal Definitions and Spread](../../spec/17-future-literal-definitions-spread.md), and the
-completed gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+This document owns the compiler design for v0.3.0 Phase 1 typed literal definitions and v0.3.0
+Phase 8 composable sequence packs. Public semantics belong to
+[Literal Definitions and Sequence Spread](../../spec/17-literal-definitions-sequence-spread.md),
+and the completed gates belong to the [v0.3.0 Development Contract](v0.3.0.md).
 
 ## Separate Concepts
 
@@ -12,7 +12,7 @@ completed gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
 | literal shape | compiler-defined source delimiter category such as sequence `[]` or string `""` |
 | literal definition | ordinary source body attached to one nominal declaration and one shape |
 | literal expression | construction syntax that resolves to exactly one visible definition |
-| element pack | compiler-owned, non-escaping sequence of evaluated literal elements |
+| element pack | compiler-owned, non-escaping sequence of fixed-value and spread-iterator segments |
 | allocation-context override | optional established aborting context selected before element evaluation |
 
 The compiler must not infer literal behavior from nominal names such as `Vec` or `String`, method
@@ -49,11 +49,12 @@ single canonical spelling.
 ## Element Pack
 
 `...items: T` introduces an owned ephemeral element pack. It is not `[T]`, a slice, an allocated
-collection, a normal ABI parameter, or a general variadic parameter.
+collection, a normal ABI parameter, or a general variadic parameter. Phase 8 composes the pack from
+fixed values and statically resolved iterator segments without changing that non-escaping model.
 
 The pack supports only the operations needed by the Phase 1 literal body:
 
-- `items.len()` reads the number of elements
+- `items.len()` reads one checked total cached before body execution
 - `for item in items` consumes elements once from left to right
 - each loop binding is an ordinary owned `T`
 - Phase 1 rejects `break` or `continue` that directly targets this consuming loop; nested ordinary
@@ -61,6 +62,16 @@ The pack supports only the operations needed by the Phase 1 literal body:
 - an unconsumed element retains its drop obligation
 - the pack itself cannot be returned, assigned outside the body, stored in an aggregate, borrowed
   beyond the body, or passed to an ordinary callable
+
+Phase 8 accepts three sequence-element segment forms:
+
+- `...source` creates a readonly iterator and copies each referent; its item must be `Copy`
+- `...&source` creates a readonly iterator and contributes the readonly references themselves
+- `...move source` transfers a collection or direct owning iterator and contributes owned items
+
+Every spread iterator must satisfy the trusted `Iterator<T>` and `ExactSizeIterator<T>` roles. An
+unknown-size iterator is rejected before lowering; the compiler never materializes a hidden
+collection to recover a length.
 
 Lowering owns a `LiteralElementPack` fact rather than pretending the pack has a public Nocter type.
 Diagnostics may display `literal pack of T`, but resolver and typechecker identify it by binding
@@ -72,17 +83,20 @@ Construction order is fixed:
 
 1. resolve and evaluate an optional `using` place
 2. install the selected allocation context for the construction
-3. evaluate literal elements once from left to right
-4. activate a recursive drop obligation after each element completes
-5. enter the literal body with the completed pack
-6. transfer each consumed element obligation to its loop binding
-7. publish the completed result
-8. drop every unconsumed element in reverse acquisition order
-9. restore the surrounding allocation context
+3. prepare fixed-value and spread-iterator segments once from left to right
+4. enter the hidden literal implementation and call each spread's exact-count target once in
+   segment order
+5. cache the checked sum of fixed values and exact spread counts
+6. enter the literal body and stream each segment only when pack iteration requests an item
+7. transfer each consumed item obligation to its loop binding
+8. publish the completed result
+9. drop the current item, remaining iterator suffixes, and later segments exactly once on exit
+10. restore the surrounding allocation context
 
-Failure during element evaluation drops the completed prefix in reverse order. `return`, `?`, and
-other body exits drop the current loop item and unconsumed elements exactly once. The pack is
-compiler-owned stack/runtime state and never causes an implicit heap allocation.
+Failure during segment preparation drops the completed prefix in reverse order. `return`, `?`, and
+other body exits drop the current loop item and unconsumed segments exactly once. Exact length is
+independent of consumption: repeated `items.len()` calls return the cached initial total. The pack
+is compiler-owned stack/runtime state and never causes an implicit heap allocation.
 
 ## Resolution and Typechecking
 
@@ -119,17 +133,19 @@ literal body carries the selected context's Phase 0 provenance.
 | definition/expression syntax and recovery | `parser/literals` and dedicated AST nodes |
 | declaration and shape identity | `resolve/literals` |
 | specialization, pack rules, context validation | `typecheck/literals` |
+| iteration conversion, exact count, and item projection | `typecheck/iteration` and immutable spread plans |
 | element ownership and escape checks | ownership consuming typed literal facts |
-| pack lowering and cleanup | `ir/lower/literal_packs` and `ir/lower/typed_literals` |
+| shared iterator step lowering | `ir/lower/collection_for` |
+| pack lowering, cached length, and cleanup | `ir/lower/literal_packs`, `ir/lower/literal_pack_lengths`, and `ir/lower/typed_literals` |
 | per-expression context override | `ir/lower/allocation_contexts` |
 | editor-facing literal facts | `analysis/literals`; protocol conversion in `driver/lsp` |
 
 AST consumers must handle literal nodes explicitly. They must not desugar them into calls before
 resolution, because doing so loses source shape, pack ownership, and context-selection spans.
 
-## Phase 1 Boundary
+## Phase Boundaries
 
-Sequence spread expressions, normal variadic callables, mapping/tuple/numeric/byte shapes, general
-collection iteration, iterator protocols, embedding, interpolation, and recoverable literals are
-not Phase 1 work. Later phases may reuse element-pack infrastructure only after defining their own
-ownership and escape rules.
+Phase 1 deliberately excluded sequence spread, iteration protocols, and interpolation. Phases 3,
+7, and 8 subsequently added those features through shared callable, iteration, and pack facts.
+Normal variadic callables, mapping/tuple/numeric/byte literal shapes, aggregate spread, embedding,
+mutable spread, and recoverable literals remain outside the completed Phase 8 boundary.

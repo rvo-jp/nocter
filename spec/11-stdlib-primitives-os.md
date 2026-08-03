@@ -426,6 +426,39 @@ pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
 of the source sequence's storage. Calls through `Sequence<T>` are monomorphized to public inherent
 methods; the interface has no runtime representation.
 
+v0.3.0 Phase 7 adds ordinary iteration protocols in `std/iter`:
+
+```nct
+pub interface Iterator<T> {
+    pub method &+self.next(): T?
+}
+
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+
+pub interface IntoIterator<T, I> {
+    pub method self.into_iter(): I
+}
+```
+
+`ViewIter<T>` yields `&T`; `VecIntoIter<T>` owns transferred vector storage and yields `T`.
+Collection `for` and sequence spread resolve these interfaces through explicit conformance and
+static specialization. They do not recognize iterator or method names.
+
+v0.3.0 Phase 8 adds the exact-count capability required by non-materialized literal packs:
+
+```nct
+pub interface ExactSizeIterator<T> {
+    pub method &self.remaining_len(): usize
+}
+```
+
+Both standard vector iterators conform to `ExactSizeIterator<T>` with their corresponding yielded
+item type. `remaining_len()` reports the exact unconsumed suffix. Sequence spread calls it once
+before literal-body execution and caches the checked total; iteration still terminates only through
+`Iterator.next()`.
+
 ### I/O API
 
 Adopted: `std/io` provides the initial user-facing file and text output API. The compiler must not special-case `File`, `stdout`, `stderr`, or `print`.
