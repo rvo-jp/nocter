@@ -56,20 +56,27 @@ Vec [1, 2, 3]
 String "hello"
 ```
 
-The following forms are later than Phase 1:
+The sequence-spread form entered the v0.3.0 Phase 8 implementation boundary:
 
 ```nct
 Vec [
-    ...other,
+    ...copyable,
+    ...&borrowed,
+    ...move owned,
     4,
 ]
+```
+
+The following form remains later than Phase 8:
+
+```nct
 
 func print_all(...values: String): void {
     ...
 }
 ```
 
-Until a form's phase is promoted, compiler and editor integration must reject
+Until another form's phase is promoted, compiler and editor integration must reject
 or recover it without pretending it is supported. Ordinary named constructors
 and methods remain valid construction APIs.
 
@@ -342,13 +349,30 @@ allowed public surface according to [Embedding](08-generics-interfaces-embedding
 
 ```nct
 Vec [
-    ...other,
+    ...copyable,
+    ...&borrowed,
+    ...move owned,
     4,
     5,
 ]
 ```
 
-Sequence spread. The elements of `other` are inserted at that source position.
+Sequence spread. The source expression is evaluated once at that source
+position. The selected iterator then contributes its remaining elements in
+order when the literal definition consumes its element pack.
+
+The three spellings have fixed ownership meanings:
+
+- `...source` performs readonly iteration and copies each yielded referent. The
+  element type must implement the language's ordinary `Copy` contract.
+- `...&source` performs readonly iteration and contributes the yielded
+  readonly references themselves. The literal capture type must therefore be
+  compatible with the reference item type.
+- `...move source` transfers the collection or direct iterator and contributes
+  owned yielded elements.
+
+A bare spread never guesses that a move-only collection should be consumed.
+Use `...move source` when ownership transfer is intended.
 
 ```nct
 Profile {
@@ -383,10 +407,18 @@ ephemeral sequence.
 compiler has allocated an owned array or slice value. They describe temporary
 element packs available inside their declared boundary.
 
-Lowering should preserve source order and ownership while avoiding unnecessary
+Lowering preserves source order and ownership while avoiding unnecessary
 allocation:
 
-- A literal body may be lowered as a loop over source elements.
+- A typed sequence is represented as compiler-owned value and iterator
+  segments. It is not flattened into a hidden heap collection.
+- A spread iterator must conform to both `Iterator<T>` and
+  `ExactSizeIterator<T>`. The latter reports its exact remaining count so
+  `items.len()` retains its exact contract without materialization.
+- Literal specialization uses the statically known segment signature rather
+  than the runtime number of yielded elements.
+- A literal body is lowered as ordered value steps and iterator loops over the
+  source segments.
 - A variadic call may pass a compile-time element list, a stack temporary, or a
   lowered iterator-like representation depending on ABI and escape rules.
 - If the callee stores the elements in an owned collection, that collection's
@@ -406,7 +438,7 @@ structure unless ordinary Nocter code explicitly constructs an owned collection.
 
 Future implementation must preserve Nocter's existing move and borrow model.
 
-Rules to finalize before implementation:
+Rules:
 
 - Elements are evaluated left to right.
 - A moved element is unavailable after it is consumed by the typed literal,
@@ -415,11 +447,23 @@ Rules to finalize before implementation:
   rules.
 - Already initialized elements or embedded values are cleaned up in reverse
   initialization order if a later element fails.
-- A spread source must define whether it is copied, borrowed, moved, or drained.
+- A spread source explicitly defines whether it is copied, borrowed, or moved.
+- Preparing a spread evaluates its source once, selects the statically resolved
+  conversion, and obtains the exact remaining count before the next source
+  element is prepared.
+- Iterator stepping is lazy: `next()` runs when the literal body consumes the
+  pack. Plain element expressions and spread source expressions are still
+  evaluated before the literal body starts.
+- Failure while preparing a later segment drops completed earlier segments in
+  reverse preparation order.
+- Early exit from the literal body drops the current item, the current iterator
+  suffix, and every later unconsumed segment exactly once.
 
-The design must reject ambiguous spread sources instead of guessing. For
-example, spreading a move-only collection should require a source API that makes
-copying, borrowing, or draining explicit.
+An iterator whose exact remaining count is unavailable is rejected. The
+compiler does not allocate an intermediate collection to recover the count.
+The reported count is a semantic contract of `ExactSizeIterator`; iteration
+still terminates through `Iterator.next()` and never uses the count for unsafe
+memory access.
 
 ## Interaction With Embedding
 
