@@ -45,9 +45,10 @@ use super::expressions::{
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
-    lower_drop_statement, lower_never_expression_with_scope_drops,
-    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
-    propagating_failure_mode, replacement_drop_for_aggregate_slot,
+    lower_aggregate_return_expression_to_location, lower_drop_statement,
+    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_scope_end_drops_for_locals_since, propagating_failure_mode,
+    replacement_drop_for_aggregate_slot,
 };
 use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
@@ -86,6 +87,7 @@ mod identifier_assignments;
 mod index_assignments;
 mod optional_assignments;
 mod otherwise_bindings;
+mod outcome_aggregate_values;
 mod outcome_values;
 mod payload_field_assignments;
 mod pointer_take_bindings;
@@ -102,7 +104,9 @@ use diagnostics::*;
 use identifier_assignments::*;
 use index_assignments::*;
 use optional_assignments::*;
+pub(in crate::ir::lower) use otherwise_bindings::lower_otherwise_recover_or_handle_failure_mode;
 use otherwise_bindings::*;
+use outcome_aggregate_values::*;
 use outcome_values::*;
 use payload_field_assignments::*;
 use pointer_take_bindings::*;
@@ -134,6 +138,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_outcome_local_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_stored_outcome_aggregate_binding(statement, context)? {
         return Ok(instructions);
     }
 

@@ -619,7 +619,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_rejects_nested_otherwise_value_expression_before_ir_lowering() {
+fn build_command_accepts_nested_otherwise_value_expression() {
     let project = TempProject::new("cli-build-nested-otherwise-value-expression");
     let source = project.write_source(
         "nested_otherwise_value_expression.nct",
@@ -639,27 +639,11 @@ func source(): i32? {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions"
-        ),
-        "expected otherwise expression construct, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "otherwise expression should be rejected before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    let run = Command::new(&executable)
+        .output()
+        .expect("built executable should run");
+    assert_eq!(run.status.code(), Some(3), "{}", text(&run.stderr));
 }
 
 #[test]
@@ -1150,7 +1134,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_imported_optional_and_fallible_locals_before_ir_lowering() {
+fn build_command_accepts_imported_optional_and_fallible_locals() {
     let project = TempProject::new("cli-build-imported-wrapper-local-boundary");
     project.write_source(
         "wrappers.nct",
@@ -1182,28 +1166,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(stderr.matches("error[E0435]").count(), 4, "{stderr}");
-    assert!(
-        stderr.contains("stored optional or fallible local values"),
-        "expected wrapper local diagnostic, got:\n{stderr}"
-    );
-    for line in [4, 5, 6, 7] {
-        assert!(
-            stderr.contains(&format!("{line} |     let ")),
-            "expected source line {line}, got:\n{stderr}"
-        );
-    }
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    let run = Command::new(&executable)
+        .output()
+        .expect("built executable should run");
+    assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
 }
 
 #[test]

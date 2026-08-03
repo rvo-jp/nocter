@@ -165,7 +165,7 @@ pub(in crate::driver::buildability) fn local_binding_type_expr_is_buildable(
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
     let source_resolver = |source| resolved_sources.get(&source).copied();
-    let shape = outcome_shape_with_resolver(ty, resolved, &source_resolver);
+    let shape = outcome_shape_with_resolver(ty, resolved, source_resolver);
     if !shape.layers.is_empty() && shape.is_supported_callable_shape() {
         return type_expr_is_buildable_scalar_or_view_for_sources(
             &shape.payload,

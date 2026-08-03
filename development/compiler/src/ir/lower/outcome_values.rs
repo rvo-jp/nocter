@@ -1,3 +1,4 @@
+use super::bindings::lower_otherwise_recover_or_handle_failure_mode;
 use super::context::LoweringContext;
 use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
@@ -13,6 +14,55 @@ pub(super) fn lower_stored_fallible_expression(
     failure_mode: FallibleFailureMode,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let expression = expression.without_groups();
+    if let Expr::Otherwise(otherwise) = expression
+        && let Expr::Identifier(identifier) = otherwise.value.without_groups()
+        && let Some(local) = context.outcome_local(&identifier.name)
+        && local.storage.layers.len() == 2
+        && local.storage.layers[0].layer == OutcomeLayer::Optional
+        && local.storage.layers[1].layer == OutcomeLayer::Fallible
+        && payload_destination_matches(&local.payload_type, destination)
+    {
+        let fallback = lower_otherwise_recover_or_handle_failure_mode(
+            &otherwise.fallback,
+            context,
+            None,
+            |_expression, _context| {
+                Err(vec![Diagnostic::error(
+                    "E8008",
+                    "stored optional-fallible fallback must exit the current control path",
+                )])
+            },
+            "stored optional-fallible fallback must exit the current control path",
+        )?;
+        let outcome_instructions = match fallback {
+            FallibleFailureMode::Handle { instructions }
+            | FallibleFailureMode::Recover { instructions } => instructions,
+            _ => unreachable!("otherwise fallback produces handle or recover mode"),
+        };
+        let outer = local.storage.layers[0];
+        let inner = local.storage.layers[1];
+        return Ok(Some(vec![Instruction::IfStoredOutcomeTag {
+            source: AggregateLocation::Slot(local.slot_index),
+            tag_offset: checked_offset(outer.tag_offset, "outer tag")?,
+            success_instructions: vec![Instruction::CheckStoredFallible {
+                source: AggregateLocation::Slot(local.slot_index),
+                tag_offset: checked_offset(inner.tag_offset, "inner tag")?,
+                error_offset: checked_offset(
+                    inner
+                        .failure_offset
+                        .expect("fallible layer has error storage"),
+                    "inner error",
+                )?,
+                success_instructions: vec![Instruction::LoadStoredOutcomePayload {
+                    destination,
+                    source: AggregateLocation::Slot(local.slot_index),
+                    offset: checked_offset(local.storage.payload_offset, "payload")?,
+                }],
+                failure_mode,
+            }],
+            outcome_instructions,
+        }]));
+    }
     let Expr::Identifier(identifier) = expression else {
         return Ok(None);
     };

@@ -25,7 +25,10 @@ pub(in crate::ir::lower) fn lower_outcome_field_to_location(
             }]))
         }
         Expr::Call(call) => {
-            let Some(return_type) = context.call_return_type_expr(call) else {
+            let Some(return_type) = context
+                .expression_type_expr(call.span)
+                .or_else(|| context.call_return_type_expr(call))
+            else {
                 return Ok(None);
             };
             let Some((_root_source, resolved)) = context.resolved_calls() else {

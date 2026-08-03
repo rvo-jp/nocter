@@ -683,12 +683,20 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Otherwise(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                expression.span,
-                "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
-                "use `otherwise` directly as a scalar/view value, aggregate member access root, aggregate argument, aggregate field initializer, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
-            ));
+            if !otherwise_optional_value_call_is_buildable(
+                &expression.value,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                resolved_sources,
+            ) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.span,
+                    "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
+                    "use `otherwise` directly as a scalar/view value, aggregate member access root, aggregate argument, aggregate field initializer, binding initializer, assignment value, or return expression until general optional expression lowering is promoted",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.value,
                 sources,

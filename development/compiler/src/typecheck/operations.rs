@@ -295,6 +295,11 @@ pub(super) fn is_expression_assignable(
             is_assignable(expected, &actual)
                 || is_expression_assignable(inner, expression, resolved, environment)
         }
+        (Type::Fallible { success, .. }, _) => {
+            let actual = expression_type(expression, resolved, environment);
+            is_assignable(expected, &actual)
+                || is_expression_assignable(success, expression, resolved, environment)
+        }
         (_, Expr::IntegerLiteral(literal)) if is_integer_type(expected) => {
             integer_literal_fits_type(literal, expected)
         }

@@ -484,3 +484,166 @@ func make(): Resource? {
         1
     );
 }
+
+#[test]
+fn extracts_indirect_aggregate_payload_from_stored_outcome() {
+    let module = lower_text(
+        r#"struct Wide {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let saved = make()
+    let value = saved!
+    if value.second == 42 { return 42 }
+    return 1
+}
+
+func make(): Wide? {
+    return Wide { first: 1, second: 42, third: 3 }
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            ..
+        } if success_instructions.iter().any(|nested| matches!(nested,
+            Instruction::CopyAggregateRange {
+                layout: ValueLayout { size: 24, align: 8 },
+                ..
+            }))
+    )));
+}
+
+#[test]
+fn consumes_both_layers_of_a_stored_optional_fallible() {
+    let module = lower_text(
+        r#"func main(): i32! {
+    let saved = lookup()
+    let value = (saved otherwise { return 7 })?
+    return value
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            ..
+        } if success_instructions.iter().any(|nested| matches!(nested,
+            Instruction::CheckStoredFallible { .. }))
+    )));
+}
+
+#[test]
+fn specializes_alias_method_and_generic_stored_outcomes() {
+    let module = lower_text(
+        r#"type MaybeInt = i32?
+
+copy struct Holder<T> { value: T }
+
+impl<T> Holder<T> {
+    method &self.get(): T? {
+        return self.value
+    }
+}
+
+func forward<T>(value: T?): T? {
+    return move value
+}
+
+func main(): i32 {
+    let holder = Holder<i32> { value: 42 }
+    let from_method = holder.get()
+    let saved: MaybeInt = from_method
+    let forwarded = forward(saved)
+    let result = forwarded otherwise { 1 }
+    return result
+}
+"#,
+    );
+    assert!(module.functions.iter().any(|function| {
+        function.name.starts_with("forward<")
+            && matches!(
+                function.instructions.last(),
+                Some(Instruction::ReturnStoredOutcome { .. })
+            )
+    }));
+}
+
+#[test]
+fn evaluates_owned_replacement_before_dropping_the_old_payload() {
+    let module = lower_text(
+        r#"struct Resource { code: i32 }
+
+impl Resource {
+    drop &+self { return }
+}
+
+func main(): i32 {
+    var saved = make(1)
+    saved = make(2)
+    return 0
+}
+
+func make(code: i32): Resource? {
+    return Resource { code: code }
+}
+"#,
+    );
+    let main = module
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let replacement_call = main
+        .instructions
+        .iter()
+        .rposition(|instruction| matches!(instruction, Instruction::CallStoredOutcome { .. }))
+        .unwrap();
+    let old_drop = main
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction,
+                Instruction::IfStoredOutcomeTag { success_instructions, .. }
+                    if success_instructions.iter().any(|nested| matches!(nested,
+                        Instruction::CallVoid { target: CallTarget::SameFile(name), .. }
+                            if name == "Resource.drop"))
+            )
+        })
+        .unwrap();
+    let publication = main
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    assert!(replacement_call < old_drop && old_drop < publication);
+}

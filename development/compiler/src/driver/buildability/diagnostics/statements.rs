@@ -37,6 +37,7 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
         Expr::Identifier(identifier) => Some((
             identifier.span,
             &[crate::outcomes::OutcomeLayer::Optional][..],
+            true,
         )),
         Expr::Propagate(propagation) => match unwrap_group_expr(&propagation.expression) {
             Expr::Identifier(identifier) => Some((
@@ -45,6 +46,7 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
                     crate::outcomes::OutcomeLayer::Fallible,
                     crate::outcomes::OutcomeLayer::Optional,
                 ][..],
+                false,
             )),
             _ => None,
         },
@@ -55,20 +57,22 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
                     crate::outcomes::OutcomeLayer::Fallible,
                     crate::outcomes::OutcomeLayer::Optional,
                 ][..],
+                false,
             )),
             _ => None,
         },
         _ => None,
     };
-    if let Some((span, expected_layers)) = stored
+    if let Some((span, expected_layers, allow_trailing)) = stored
         && let Some(ty) = typecheck_facts.expression_type_expr(span)
     {
         let ty = substitute_type_expr_parameters(ty, generic_substitutions);
-        return outcome_shape_with_resolver(&ty, resolved, |source| {
+        let shape = outcome_shape_with_resolver(&ty, resolved, |source| {
             resolved_sources.get(&source).copied()
-        })
-        .layers
-            == expected_layers;
+        });
+        return shape.is_supported_callable_shape()
+            && shape.layers.starts_with(expected_layers)
+            && (allow_trailing || shape.layers.len() == expected_layers.len());
     }
     let (call, expected_layers) = match unwrap_group_expr(value) {
         Expr::Call(call) => (call, &[crate::outcomes::OutcomeLayer::Optional][..]),

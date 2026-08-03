@@ -1702,7 +1702,7 @@ func source(): i32! {
 }
 
 #[test]
-fn reports_nested_otherwise_value_expression_before_ir_lowering() {
+fn accepts_nested_otherwise_value_expression() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
     return use_value((source() otherwise { 1 }) + 2)
@@ -1720,12 +1720,7 @@ func source(): i32? {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert_eq!(
-        diagnostics[0].message,
-        "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions yet"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

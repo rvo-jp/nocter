@@ -165,7 +165,7 @@ pub(super) fn lower_otherwise_loop_control_statement(
     Ok(instructions)
 }
 
-pub(super) fn lower_otherwise_recover_or_handle_failure_mode<F>(
+pub(in crate::ir::lower) fn lower_otherwise_recover_or_handle_failure_mode<F>(
     fallback: &Block,
     context: &LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,

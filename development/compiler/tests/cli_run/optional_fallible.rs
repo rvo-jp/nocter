@@ -3776,3 +3776,71 @@ func maybe_triple(): Triple? {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_extracts_stored_indirect_aggregate_outcome() {
+    let project = TempProject::new("cli-run-stored-indirect-outcome");
+    let source = project.write_source(
+        "stored_indirect_outcome.nct",
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let saved = maybe_triple()
+    let forwarded = forward(saved)
+    let value = forwarded!
+    if value.second == 42 { return 42 }
+    return 1
+}
+
+func maybe_triple(): Triple? {
+    return Triple { first: 1, second: 42, third: 3 }
+}
+
+func forward(value: Triple?): Triple? {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_consumes_stored_optional_fallible_layers() {
+    let project = TempProject::new("cli-run-stored-optional-fallible");
+    let source = project.write_source(
+        "stored_optional_fallible.nct",
+        r#"func main(): i32! {
+    let saved = lookup()
+    let value = (saved otherwise { return 1 })?
+    return value
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

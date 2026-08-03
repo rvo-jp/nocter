@@ -318,7 +318,10 @@ pub(super) fn lower_outcome_local_binding(
     let Expr::Call(call) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
-    let Some(return_type) = context.call_return_type_expr(call) else {
+    let Some(return_type) = context
+        .expression_type_expr(call.span)
+        .or_else(|| context.call_return_type_expr(call))
+    else {
         return Ok(None);
     };
     let Some((_root_source, resolved)) = context.resolved_calls() else {
@@ -465,7 +468,10 @@ pub(super) fn lower_outcome_assignment(
     let Expr::Call(call) = unwrap_group(value) else {
         return Ok(None);
     };
-    let Some(return_type) = context.call_return_type_expr(call) else {
+    let Some(return_type) = context
+        .expression_type_expr(call.span)
+        .or_else(|| context.call_return_type_expr(call))
+    else {
         return Ok(None);
     };
     let Some((_root_source, resolved)) = context.resolved_calls() else {

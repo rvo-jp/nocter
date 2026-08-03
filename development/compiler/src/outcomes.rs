@@ -3,7 +3,7 @@
 //! Optional and fallible constructors are independent semantic layers. This module resolves aliases
 //! once and preserves their order instead of collapsing both into one backend failure bit.
 
-use crate::ast::TypeExpr;
+use crate::ast::{TypeExpr, substitute_type_expr_parameters};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 use std::collections::HashSet;
@@ -100,6 +100,39 @@ where
             }
             let payload =
                 collect_outcome_shape(target, fallback_resolved, resolver, resolving_names, layers);
+            resolving_names.remove(&symbol.canonical_name);
+            payload
+        }
+        TypeExpr::Generic(generic) => {
+            let resolved = resolver(ty.span().source).unwrap_or(fallback_resolved);
+            let symbol = resolved
+                .type_symbol_by_reference_name(&generic.name)
+                .or_else(|| fallback_resolved.type_symbol_by_reference_name(&generic.name));
+            let Some(symbol) = symbol else {
+                return ty.clone();
+            };
+            let Some(target) = &symbol.alias_target else {
+                return ty.clone();
+            };
+            if symbol.generic_parameters.len() != generic.arguments.len()
+                || !resolving_names.insert(symbol.canonical_name.clone())
+            {
+                return ty.clone();
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            let target = substitute_type_expr_parameters(target, &substitutions);
+            let payload = collect_outcome_shape(
+                &target,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+                layers,
+            );
             resolving_names.remove(&symbol.canonical_name);
             payload
         }
