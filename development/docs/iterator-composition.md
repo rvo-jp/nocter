@@ -44,8 +44,9 @@ conditions differ; Phase 9 does not attempt overlap reasoning or specialization.
 
 ## Standard Adapter Boundary
 
-`std/iter` retains protocol interfaces and the contiguous readonly cursor. Focused adapter modules
-own their state and algorithms:
+`std/iter` retains protocol interfaces and the contiguous readonly cursor. `std/iter/sources`,
+`std/iter/range`, `std/iter/chain`, `std/iter/enumerate`, and `std/iter/ops` own their focused state
+and algorithms:
 
 - `empty` and `once`
 - `take` and `skip`

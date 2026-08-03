@@ -239,3 +239,28 @@ not allocate an intermediate vector for spread, and unknown-size iterators are r
 Packaged tests cover repeated and empty spreads, move-only `String` elements, `Vec<&T>` pointer
 storage, direct `VecIntoIter<T>`, source loans, region provenance, exact cached length, early-exit
 suffix destruction, formatter output, and LSP protocol facts.
+
+## Phase 9 Iterator Composition and Collection Builders
+
+The completed Phase 9 standard library keeps protocol declarations in `std/iter` and separates
+stateful algorithms by responsibility:
+
+- `std/iter/sources` owns `empty`, `once`, `EmptyIter<T>`, and `OnceIter<T>`
+- `std/iter/range` owns `take`, `skip`, and their prefix state machines
+- `std/iter/chain` owns sequential two-source composition
+- `std/iter/enumerate` owns zero-based `Indexed<T>` production
+- `std/iter/ops` owns consuming `count` and `last` terminal operations
+
+Every adapter owns its source and allocates nothing. Conditional conformances expose
+`ExactSizeIterator<T>` only when every required source is exact. Generic collection loops dispatch
+through the same interface declaration identities as ordinary bound method calls; the compiler
+contains no adapter-name table.
+
+`Vec.from_iter` starts from the allocation-free empty representation and grows through checked
+`push`. `Vec.from_exact_iter` reserves the initial reported remainder, but still treats `next()` as
+authoritative. Under-reporting uses checked growth and over-reporting leaves a shorter valid vector.
+Both builders inherit the current allocation context and retain its region provenance.
+
+Packaged-home native tests cover empty and scalar adapters, unknown-size growth, honest and
+dishonest exact-size reports, move-only drop order, early break, `last` replacement, vector transfer,
+lexical-region allocation, and region-escape rejection.

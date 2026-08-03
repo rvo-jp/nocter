@@ -190,6 +190,24 @@ It does not search for `iter`, `into_iter`, or `next` spellings.
 - JSON-RPC tests require parser diagnostics for incomplete input and reject an invented
   ownership-ambiguity diagnostic
 
+## Completed v0.3.0 Phase 9 Integration
+
+Capability-set tooling consumes the ordered bound list and resolved interface declaration
+identities retained by the compiler. It does not repeat conformance matching in the protocol layer.
+
+- declaration hover preserves normalized bound order such as `T: Readable + Measurable`
+- unresolved generic signature help preserves every bound; concrete calls continue to show their
+  specialized type arguments
+- member completion combines every interface in the capability set and deduplicates by declaration
+  identity
+- distinct interfaces that declare the same member name produce no arbitrarily selected completion
+  target; an actual ambiguous call receives the typechecker diagnostic
+- definition and references retain the selected interface method declaration
+- recovery after an incomplete `T: A +` inserts only a temporary syntax placeholder and accepts
+  results only after the preceding bound identities resolve again
+- JSON-RPC tests cover two-bound completion, hover ranges, definition identity, and normalized
+  provenance together
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -241,7 +259,9 @@ tests cover nested outcome normalization, exact `from static` display, static re
 and aliased callable hover ranges. Phase 6 tests cover normalized stored composed values through
 direct analysis and JSON-RPC hover/completion queries. Phase 7 tests cover exact source modes,
 concrete iterator/item facts, body completion, implicit allocation effects, incomplete-header
-diagnostics, and range-safe semantic recovery.
+diagnostics, and range-safe semantic recovery. Phase 9 tests cover complete capability-set hover and
+signature help, unambiguous/ambiguous member completion, incomplete additional-bound recovery, and
+JSON-RPC agreement.
 
 ## Deferred Features
 

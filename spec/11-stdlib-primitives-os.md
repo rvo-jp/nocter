@@ -459,9 +459,11 @@ item type. `remaining_len()` reports the exact unconsumed suffix. Sequence sprea
 before literal-body execution and caches the checked total; iteration still terminates only through
 `Iterator.next()`.
 
-v0.3.0 Phase 9 adds allocation-transparent iterator composition. `std/iter` provides `empty`,
-`once`, `take`, `skip`, `chain`, `enumerate`, `count`, and `last`. Adapters own their input iterator,
-yield in source order, and never create an implicit collection or runtime interface object.
+v0.3.0 Phase 9 adds allocation-transparent iterator composition. Focused modules
+`std/iter/sources`, `std/iter/range`, `std/iter/chain`, `std/iter/enumerate`, and `std/iter/ops`
+provide `empty`, `once`, `take`, `skip`, `chain`, `enumerate`, `count`, and `last`. Adapters own
+their input iterator, yield in source order, and never create an implicit collection or runtime
+interface object.
 `enumerate` yields `Indexed<T>` values with public `index` and `item` fields.
 
 Exact-size conformance is conditional. `empty` and `once` are exact unconditionally; `take`, `skip`,

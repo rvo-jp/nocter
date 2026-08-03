@@ -16,8 +16,9 @@ chronological implementation history.
   `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`, and
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
-  `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`
-- active milestone gate: `v0.3.0 Phase 9 Composable Iterators and Collection Builders`
+  `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
+  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`
+- active milestone gate: none
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -28,16 +29,13 @@ chronological implementation history.
 - required Phase 6 items: none
 - required Phase 7 items: none
 - required Phase 8 items: none
-- required Phase 9 items: capability sets, conditional conformances, standard iterator adapters,
-  collection builders, compiler-backed editor integration, and the complete verification gate
+- required Phase 9 items: none
 
-Phase 8 added typed sequence spread with explicit copy, readonly-reference, and move modes;
-declaration-identity exact-size iteration; deterministic segment specializations; streaming pack
-lowering; checked cached length; shared ownership, provenance, effect, and cleanup analysis; and
-complete LSP recovery and presentation.
+Phase 9 added capability sets, conditional conformances, statically specialized generic iteration,
+allocation-transparent standard adapters, unknown/exact-size vector builders, stored optional
+ownership support, and capability-set LSP presentation and recovery.
 
 ## Current Objective
 
-Complete the Phase 9 work order in `docs/v0.3.0.md`. The semantic foundation must use resolved
-interface and conformance identities; standard adapters and collection builders must not introduce
-name-based compiler behavior, hidden buffering, or duplicate ownership machinery.
+No implementation phase is active. Define and review the next v0.3.0 phase contract before changing
+language, standard-library, compiler, or LSP behavior.
