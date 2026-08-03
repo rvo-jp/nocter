@@ -91,6 +91,12 @@ bodyless interface method seeds its callable summary from the contract. Call sit
 receiver and parameter identities exactly as they do for inferred summaries; source syntax never
 introduces lifetime arithmetic or a parallel provenance graph.
 
+Phase 10 closure environments enter this model as compiler-generated aggregates. Each explicit
+capture field retains the captured place's exact provenance and loan. Generated closure call
+targets use receiver and parameter identities in the same callable-summary fixed point as source
+functions. An adapter calling a closure therefore propagates result origins and allocation effects
+without a closure-specific provenance graph.
+
 ## Allocation Effects
 
 An allocating source callable receives the current allocation context as a hidden capability. The

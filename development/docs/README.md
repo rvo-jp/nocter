@@ -10,8 +10,8 @@ Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bound
 Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
 **Phase 7: Protocol-Driven Collection Iteration**, **Phase 8: Explicit Sequence Spread and
 Composable Element Packs**, and **Phase 9: Composable Iterators and Collection Builders** are
-complete on `develop`. No later v0.3.0 phase is active. Do not use `v0` as shorthand for a release
-name or work scope.
+complete on `develop`. **Phase 10: Callable Values and Contract-Derived Extensions** is active. Do
+not use `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
@@ -37,6 +37,8 @@ name or work scope.
   conversion, loop ownership, cleanup, and editor boundaries
 - [Composable Iterators and Collection Builders](iterator-composition.md): capability sets,
   conditional conformance, adapter state, collection construction, and editor boundaries
+- [Callable Values and Contract-Derived Extensions](callable-extensions.md): method generics,
+  constrained extensions, closure ownership, callable specialization, and iterator chains
 - [Allocator and Ownership](allocator-ownership.md): the shared allocation, ownership, partial
   initialization, `String`, and `Vec<T>` foundation
 - [Standard Library](standard-library.md): released runtime baseline and completed v0.3.0 runtime
@@ -62,6 +64,7 @@ name or work scope.
 | First-class stored outcome values | `outcome-values.md` |
 | Protocol-driven collection iteration | `iteration-protocol.md` |
 | Composable iterators and collection builders | `iterator-composition.md` |
+| Callable values, contract-derived extensions, and iterator chains | `callable-extensions.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

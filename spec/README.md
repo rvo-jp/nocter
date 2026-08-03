@@ -34,6 +34,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
 - [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
+- [Callable Values and Extensions](18-callables-extensions.md)
 
 ## Supporting Material
 
@@ -45,7 +46,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 The implemented and released language baseline is v0.2.0. Adopted v0.3.0 directions are marked by
 version and implementation phase in their owning chapters. The
 [v0.3.0 Phase 0 through Phase 9](../development/docs/v0.3.0.md) implementation gates are complete on
-`develop`; no later phase is active. This does not make v0.3.0 a released language version. A future
+`develop`; Phase 10 is active. This does not make v0.3.0 a released language version. A future
 design is not buildable until its own stated gate passes.
 
 ## Editing Policy
