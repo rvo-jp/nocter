@@ -16,6 +16,7 @@ use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
 use crate::literals::decode_integer_literal_value;
+use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
@@ -291,7 +292,7 @@ impl<'a> IndexedCallable<'a> {
             resolved_sources,
             root_source,
         ));
-        issues.extend(nested_fallible_return_issue(
+        issues.extend(unsupported_outcome_return_issue(
             function,
             &HashMap::new(),
             &file.resolved,
@@ -324,7 +325,7 @@ impl<'a> IndexedCallable<'a> {
             resolved_sources,
             root_source,
         ));
-        issues.extend(nested_fallible_return_issue(
+        issues.extend(unsupported_outcome_return_issue(
             function,
             &substitutions,
             &file.resolved,
@@ -361,7 +362,7 @@ impl<'a> IndexedCallable<'a> {
         ));
         let return_type =
             substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
-        issues.extend(nested_fallible_return_type_issue(
+        issues.extend(unsupported_outcome_return_type_issue(
             &return_type,
             method.return_type.span(),
             &file.resolved,

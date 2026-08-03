@@ -645,7 +645,11 @@ pub(super) fn lower_terminal_if_statement_body_for_success_type_with_branch_prol
                 sources,
             )?
         }
-        Type::Never | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => return Ok(None),
+        Type::Never
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. }
+        | Type::Borrow { .. }
+        | Type::Error => return Ok(None),
     };
 
     Ok(Some(branch_instructions))

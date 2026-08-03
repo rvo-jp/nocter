@@ -104,6 +104,14 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
+        Instruction::CallComposedOutcome {
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            record_failure_mode_aggregate_slot_requests(outer_mode, requests)?;
+            record_failure_mode_aggregate_slot_requests(inner_mode, requests)
+        }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess

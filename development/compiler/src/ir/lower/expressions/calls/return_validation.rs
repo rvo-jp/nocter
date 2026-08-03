@@ -579,6 +579,8 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::Never => "never!",
             Type::Error => "error!",
             Type::Fallible(_) => "fallible",
+            Type::ComposedOutcome { .. } => "composed outcome",
         },
+        Type::ComposedOutcome { .. } => "composed outcome",
     }
 }

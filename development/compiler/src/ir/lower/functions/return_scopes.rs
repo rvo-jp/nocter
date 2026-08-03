@@ -39,7 +39,10 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
-        && matches!(return_type, Type::Fallible(_))
+        && matches!(
+            return_type,
+            Type::Fallible(_) | Type::ComposedOutcome { .. }
+        )
         && let Some((root_source, resolved)) = context.resolved_calls()
         && let Some(payload) =
             lower_error_payload(expression, resolved, root_source, Some(context))?
@@ -201,11 +204,9 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             &function_name,
             "never",
         )),
-        (Type::Fallible(_), _) => Err(unsupported_return_diagnostic(
-            diagnostic_code,
-            &function_name,
-            "nested fallible",
-        )),
+        (Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => Err(
+            unsupported_return_diagnostic(diagnostic_code, &function_name, "nested fallible"),
+        ),
     }?;
 
     let return_instructions = mark_fallible_success_returns(&return_type, return_instructions);
@@ -376,7 +377,8 @@ pub(in crate::ir::lower) fn lower_value_return_with_scope_drops(
         | Type::Void
         | Type::Never
         | Type::Borrow { .. }
-        | Type::Fallible(_) => return Ok(None),
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => return Ok(None),
     };
 
     Ok(Some(std::mem::take(&mut instructions)))

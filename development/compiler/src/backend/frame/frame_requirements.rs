@@ -32,6 +32,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
+        | Instruction::CallComposedOutcome { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
         | Instruction::ReadSlice { .. }
@@ -197,6 +198,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
+        | Instruction::CallComposedOutcome { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }

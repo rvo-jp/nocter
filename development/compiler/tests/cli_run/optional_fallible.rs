@@ -2,6 +2,74 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_observes_both_composed_fallible_optional_tags() {
+    let project = TempProject::new("cli-run-composed-fallible-optional-tags");
+    let source = project.write_source(
+        "composed_fallible_optional_tags.nct",
+        r#"func main(): i32! {
+    let present = lookup(true)? otherwise { return 1 }
+    let absent = lookup(false)? otherwise { return 42 }
+    return present + absent
+}
+
+func lookup(present: bool): i32?! {
+    if present { return 42 }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_propagates_composed_fallible_optional_error_payload() {
+    let project = TempProject::new("cli-run-composed-fallible-optional-error");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "composed_fallible_optional_error.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    let value = lookup()? otherwise { return 2 }
+    return value
+}
+
+func lookup(): i32?! {
+    return Error.new("app.lookup", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.lookup: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_fallible_scalar_and_view_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-fallible-scalar-view-call-statement");
     project.write_nocter_home_file(

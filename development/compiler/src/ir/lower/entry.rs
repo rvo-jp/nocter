@@ -22,7 +22,7 @@ use super::functions::{
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
-use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
+use super::types::{return_type_expr_has_optional_layer, return_type_from_type_expr};
 use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -135,7 +135,7 @@ fn lower_entry_body(
         function_signatures,
     )
     .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+    .with_function_returns_optional(return_type_expr_has_optional_layer(
         &function.return_type,
         resolved,
     ))

@@ -33,8 +33,21 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
-    let Expr::Call(call) = unwrap_group_expr(value) else {
-        return false;
+    let (call, expected_layers) = match unwrap_group_expr(value) {
+        Expr::Call(call) => (call, &[crate::outcomes::OutcomeLayer::Optional][..]),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group_expr(&propagation.expression) else {
+                return false;
+            };
+            (
+                call,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )
+        }
+        _ => return false,
     };
     let Some(return_type) = call_return_type_expr_with_substitutions(
         call,
@@ -45,7 +58,7 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
         return false;
     };
     let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_top_level_optional_with_resolver(&return_type, resolved, &source_resolver)
+    outcome_shape_with_resolver(&return_type, resolved, source_resolver).layers == expected_layers
 }
 
 pub(in crate::driver::buildability) fn expression_is_never_runtime_shape_is_buildable(

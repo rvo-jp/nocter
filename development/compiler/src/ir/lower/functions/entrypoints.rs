@@ -212,7 +212,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
     )
     .with_function_return_type(return_type.clone())
     .with_function_return_type_expr(return_type_expr.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
+    .with_function_returns_optional(return_type_expr_has_optional_layer_with_resolver(
         &return_type_expr,
         resolved,
         |source| resolved_sources.get(&source).copied(),
@@ -397,7 +397,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
     )
     .with_function_return_type(return_type.clone())
     .with_function_return_type_expr(return_type_expr.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional_with_resolver(
+    .with_function_returns_optional(return_type_expr_has_optional_layer_with_resolver(
         &return_type_expr,
         resolved,
         |source| resolved_sources.get(&source).copied(),

@@ -1039,8 +1039,8 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 
 #[test]
-fn diagnoses_nested_optional_success_none_return_without_panic() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_parenthesized_fallible_optional_none_return() {
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
     return 0
 }
@@ -1051,9 +1051,16 @@ func value(): (i32?)! {
 "#,
         "value",
         context::FunctionSignatures::new(HashMap::new()),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert!(diagnostics[0].message.contains("nested fallible"));
+    assert_eq!(
+        function.return_type,
+        Type::ComposedOutcome {
+            outer: crate::outcomes::OutcomeLayer::Fallible,
+            inner: crate::outcomes::OutcomeLayer::Optional,
+            payload: Box::new(Type::I32),
+        }
+    );
+    assert_eq!(function.instructions, vec![Instruction::ReturnOptionalNone]);
 }

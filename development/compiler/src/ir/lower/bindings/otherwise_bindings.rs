@@ -219,6 +219,26 @@ pub(super) fn lower_otherwise_scalar_binding(
     let Expr::Otherwise(otherwise) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
+    if let Expr::Propagate(propagate) = unwrap_group(&otherwise.value)
+        && let Expr::Call(call) = unwrap_group(&propagate.expression)
+        && let Some((target, _)) = context.direct_call_target_and_name(call)
+        && let Some(Type::ComposedOutcome {
+            outer: crate::outcomes::OutcomeLayer::Fallible,
+            inner: crate::outcomes::OutcomeLayer::Optional,
+            payload,
+        }) = context.call_return_type(&target).cloned()
+        && let Some(kind) = optional_success_scalar_binding_kind(statement, &payload, context)?
+    {
+        return lower_composed_otherwise_scalar_call_binding(
+            statement,
+            call,
+            &otherwise.fallback,
+            kind,
+            context,
+            loop_control,
+        )
+        .map(Some);
+    }
     let Expr::Call(call) = unwrap_group(&otherwise.value) else {
         return Ok(None);
     };
@@ -255,6 +275,149 @@ pub(super) fn lower_otherwise_scalar_binding(
         loop_control,
     )
     .map(Some)
+}
+
+pub(super) fn lower_composed_otherwise_scalar_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    fallback: &Block,
+    kind: ScalarBindingKind,
+    context: &mut LoweringContext,
+    loop_control: Option<LoopControlContext<'_>>,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let expression_context = context.with_reserved_local_abi_words(kind.abi_word_count());
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    let outer_mode = propagating_failure_mode(&expression_context)?;
+
+    let (destination, inner_mode) = match &kind {
+        ScalarBindingKind::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_i32_expression_to_location(expression, destination, context)
+                },
+                "IR can only lower i32 composed-outcome fallbacks that produce i32 or exit",
+            )?;
+            (ComposedOutcomeDestination::I32(destination), mode)
+        }
+        ScalarBindingKind::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_u8_expression_to_location(expression, destination, context)
+                },
+                "IR can only lower u8 composed-outcome fallbacks that produce u8 or exit",
+            )?;
+            (ComposedOutcomeDestination::U8(destination), mode)
+        }
+        ScalarBindingKind::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_usize_expression_to_location(expression, destination, context)
+                },
+                "IR can only lower usize composed-outcome fallbacks that produce usize or exit",
+            )?;
+            (ComposedOutcomeDestination::Usize(destination), mode)
+        }
+        ScalarBindingKind::Borrow {
+            is_readwrite,
+            inner,
+        } => {
+            let destination = context.next_usize_local_location()?;
+            let borrow_type = Type::Borrow {
+                is_readwrite: *is_readwrite,
+                inner: Box::new(inner.clone()),
+            };
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_borrow_expression_to_location(
+                        expression,
+                        destination,
+                        &borrow_type,
+                        context,
+                    )
+                },
+                "IR can only lower borrow composed-outcome fallbacks that produce a matching borrow or exit",
+            )?;
+            (ComposedOutcomeDestination::Borrow(destination), mode)
+        }
+        ScalarBindingKind::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_bool_expression_to_location(expression, destination, context, "E8008")
+                },
+                "IR can only lower bool composed-outcome fallbacks that produce bool or exit",
+            )?;
+            (ComposedOutcomeDestination::Bool(destination), mode)
+        }
+        ScalarBindingKind::Str => {
+            let destination = context.next_str_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_str_expression_to_location(expression, destination, context)
+                },
+                "IR can only lower &str composed-outcome fallbacks that produce &str or exit",
+            )?;
+            (ComposedOutcomeDestination::Str(destination), mode)
+        }
+        ScalarBindingKind::Slice(_) => {
+            let destination = context.next_slice_local_location()?;
+            let mode = lower_otherwise_recover_or_handle_failure_mode(
+                fallback,
+                &expression_context,
+                loop_control,
+                |expression, context| {
+                    lower_slice_expression_to_location(expression, destination, context)
+                },
+                "IR can only lower slice composed-outcome fallbacks that produce a slice or exit",
+            )?;
+            (ComposedOutcomeDestination::Slice(destination), mode)
+        }
+    };
+
+    let instructions = lower_composed_outcome_call(
+        call,
+        destination,
+        &expression_context,
+        &mut temporaries,
+        outer_mode,
+        inner_mode,
+    )?;
+    match kind {
+        ScalarBindingKind::I32 => context.define_i32_local(statement.name.clone()),
+        ScalarBindingKind::U8 => context.define_u8_local(statement.name.clone()),
+        ScalarBindingKind::Usize => context.define_usize_local(statement.name.clone()),
+        ScalarBindingKind::Borrow {
+            is_readwrite,
+            inner,
+        } => context.define_borrow_local(statement.name.clone(), is_readwrite, inner),
+        ScalarBindingKind::Bool => context.define_bool_local(statement.name.clone()),
+        ScalarBindingKind::Str => context.define_str_local(statement.name.clone()),
+        ScalarBindingKind::Slice(info) => {
+            context.define_slice_local(statement.name.clone(), info.element_kind, info.element_type)
+        }
+    }
+    Ok(instructions)
 }
 
 pub(super) fn lower_otherwise_scalar_call_binding(

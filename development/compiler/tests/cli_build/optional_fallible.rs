@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn build_command_lowers_composed_fallible_optional_scalar_call() {
+    let project = TempProject::new("cli-build-composed-fallible-optional-scalar-call");
+    let source = project.write_source(
+        "composed_fallible_optional_scalar_call.nct",
+        r#"func main(): i32! {
+    let present = lookup(true)? otherwise { return 1 }
+    let absent = lookup(false)? otherwise { return present }
+    return absent
+}
+
+func lookup(present: bool): i32?! {
+    if present { return 42 }
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_fallible_aggregate_binding_and_borrow_argument() {
     let project = TempProject::new("cli-build-fallible-aggregate-binding-borrow");
     let source = project.write_source(

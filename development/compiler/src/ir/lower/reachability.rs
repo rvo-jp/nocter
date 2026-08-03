@@ -79,6 +79,16 @@ fn collect_reachable_call_targets(
                 targets.push_back(target.clone());
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
+            Instruction::CallComposedOutcome {
+                target,
+                outer_mode,
+                inner_mode,
+                ..
+            } => {
+                targets.push_back(target.clone());
+                collect_failure_mode_reachable_call_targets(outer_mode, targets);
+                collect_failure_mode_reachable_call_targets(inner_mode, targets);
+            }
             Instruction::If {
                 then_instructions,
                 else_instructions,

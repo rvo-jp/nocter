@@ -894,6 +894,27 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
+            Instruction::CallComposedOutcome {
+                destination,
+                target,
+                arguments,
+                outer,
+                inner,
+                outer_mode,
+                inner_mode,
+            } => {
+                self.emit_call_composed_outcome(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    *outer,
+                    *inner,
+                    outer_mode,
+                    inner_mode,
+                    frame,
+                    return_type,
+                )?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -948,10 +969,10 @@ impl EntryEmitter {
                 self.emit_return_fallible_success(return_type, frame)?;
             }
             Instruction::ReturnOptionalNone => {
-                self.emit_return_optional_none(frame);
+                self.emit_return_optional_none(frame, return_type)?;
             }
             Instruction::ReturnFallibleFailure { code, message } => {
-                self.emit_return_fallible_failure(code, message, frame)?;
+                self.emit_return_fallible_failure(code, message, frame, return_type)?;
             }
             Instruction::Return => {
                 self.emit_return(frame);

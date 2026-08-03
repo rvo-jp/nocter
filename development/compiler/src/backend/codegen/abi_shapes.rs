@@ -35,6 +35,11 @@ pub(super) fn type_return_description(ty: &Type) -> String {
         Type::Void => "void".to_string(),
         Type::Never => "never".to_string(),
         Type::Fallible(success) => format!("fallible {}", type_return_description(success)),
+        Type::ComposedOutcome {
+            outer,
+            inner,
+            payload,
+        } => format!("{outer:?} {inner:?} {}", type_return_description(payload)),
     };
     format!(
         "{shape} ({})",

@@ -119,7 +119,8 @@ pub(super) fn lower_otherwise_scalar_return_call_to_return(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
             "IR v0 can only lower `otherwise` returns for scalar success types",
         )]),
@@ -211,7 +212,8 @@ pub(super) fn lower_otherwise_scalar_return_call_to_temporary(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
             "IR v0 can only lower `otherwise` returns for scalar success types",
         )]),
@@ -255,7 +257,8 @@ pub(super) fn append_scope_drops_then_restore_scalar_return(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => {
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => {
             return Err(vec![Diagnostic::error(
                 "E8007",
                 "IR v0 can only restore `otherwise` returns for scalar success types",
@@ -283,7 +286,8 @@ pub(super) fn scalar_return_temporary_abi_words(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
             "IR v0 can only restore `otherwise` returns for scalar success types",
         )]),

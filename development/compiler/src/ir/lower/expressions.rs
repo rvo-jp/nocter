@@ -123,7 +123,7 @@ use calls::{
     primitive_write_text_raw_call,
 };
 pub(super) use calls::{
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_composed_outcome_call, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
 };

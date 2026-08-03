@@ -23,7 +23,10 @@ pub(super) fn lower_catch_block(
             }
 
             if let Some(expression) = &statement.expression
-                && matches!(function_return_type, Type::Fallible(_))
+                && matches!(
+                    function_return_type,
+                    Type::Fallible(_) | Type::ComposedOutcome { .. }
+                )
                 && let Some((root_source, resolved)) = context.resolved_calls()
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(context))?
@@ -117,7 +120,9 @@ pub(super) fn lower_catch_block(
                 | (Type::Borrow { .. }, _)
                 | (Type::Error, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
-                (Type::Fallible(_), _) => Err(unsupported_catch_block_diagnostic()),
+                (Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => {
+                    Err(unsupported_catch_block_diagnostic())
+                }
             }?;
             let return_instructions =
                 mark_fallible_success_returns(&function_return_type, return_instructions);

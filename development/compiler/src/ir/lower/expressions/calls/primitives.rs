@@ -620,7 +620,8 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
             | Type::Error
             | Type::Void
             | Type::Never
-            | Type::Fallible(_) => {
+            | Type::Fallible(_)
+            | Type::ComposedOutcome { .. } => {
                 return Err(unsupported_pointer_primitive_diagnostic(
                     "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, `bool`, and `&str` element types",
                 ));

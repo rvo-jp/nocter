@@ -45,6 +45,7 @@ use crate::typecheck::TypecheckSliceElementKind;
 mod aggregate_arguments;
 mod arguments;
 mod borrow_arguments;
+mod composed_outcomes;
 mod evaluation;
 mod normal_calls;
 mod pointer_drops;
@@ -65,6 +66,7 @@ pub(in crate::ir::lower) use borrow_arguments::lower_borrow_source_from_expressi
 use borrow_arguments::{
     lower_borrow_argument, lower_implicit_receiver_borrow_argument, materialize_slice_borrow_index,
 };
+pub(in crate::ir::lower) use composed_outcomes::lower_composed_outcome_call;
 use evaluation::CallEvaluationContext;
 pub(in crate::ir::lower) use normal_calls::lower_fallible_borrow_normal_call;
 pub(super) use normal_calls::{

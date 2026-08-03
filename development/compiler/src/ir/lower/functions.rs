@@ -55,7 +55,7 @@ use super::expressions::{
 };
 use super::types::{
     borrow_inner_type_with_resolver, borrow_type_from_type_expr,
-    parameter_type_from_type_expr_with_resolver,
+    parameter_type_from_type_expr_with_resolver, return_type_expr_has_optional_layer_with_resolver,
     return_type_expr_is_top_level_optional_with_resolver, return_type_from_type_expr_with_resolver,
     type_expr_with_self_type, view_element_type_from_type_expr_with_resolver,
 };

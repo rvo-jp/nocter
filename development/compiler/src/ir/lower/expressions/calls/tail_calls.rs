@@ -109,9 +109,12 @@ fn lower_non_tail_return_call_instruction(
             arguments,
             *layout,
         )),
-        Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => {
-            Err(unsupported_non_tail_return_call_diagnostic(callee_name))
-        }
+        Type::Never
+        | Type::Void
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. }
+        | Type::Borrow { .. }
+        | Type::Error => Err(unsupported_non_tail_return_call_diagnostic(callee_name)),
     }
 }
 

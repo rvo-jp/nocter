@@ -7,6 +7,7 @@ use crate::ast::{
     ArrayType, BorrowType, FallibleType, GenericType, OptionalType, PointerType, TypeExpr, ViewType,
 };
 use crate::ir::Type;
+use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
 use crate::resolve::{ResolveOutput, TypeSymbol};
 use crate::source::SourceId;
 use std::collections::HashSet;
@@ -65,6 +66,23 @@ pub(super) fn return_type_expr_is_top_level_optional(
     resolved: &ResolveOutput,
 ) -> bool {
     return_type_expr_is_top_level_optional_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn return_type_expr_has_optional_layer(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    return_type_expr_has_optional_layer_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn return_type_expr_has_optional_layer_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    outcome_shape_with_resolver(ty, fallback_resolved, resolver)
+        .layers
+        .contains(&OutcomeLayer::Optional)
 }
 
 pub(super) fn return_type_expr_is_top_level_optional_with_resolver<'a, F>(
@@ -176,6 +194,20 @@ pub(super) fn return_type_from_type_expr_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, &resolver);
+    if let [outer, inner] = shape.layers.as_slice() {
+        let payload = return_type_from_type_expr_inner(
+            &shape.payload,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        )?;
+        return Some(Type::ComposedOutcome {
+            outer: *outer,
+            inner: *inner,
+            payload: Box::new(payload),
+        });
+    }
     return_type_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
 }
 

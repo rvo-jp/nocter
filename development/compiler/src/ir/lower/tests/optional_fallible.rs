@@ -2,6 +2,7 @@ use super::*;
 
 mod catch_aggregates;
 mod catch_scalars;
+mod composed;
 mod fallible_aggregates;
 mod fallible_scalars;
 mod generic_inference;

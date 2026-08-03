@@ -142,6 +142,10 @@ pub(super) fn validate_return_type_shape(
             let subject = format!("{subject} fallible success type");
             validate_return_type_shape(success, &subject, diagnostics);
         }
+        Type::ComposedOutcome { payload, .. } => {
+            let subject = format!("{subject} composed outcome payload type");
+            validate_return_type_shape(payload, &subject, diagnostics);
+        }
         _ => {}
     }
 }
@@ -451,6 +455,36 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                     diagnostics,
                 );
             }
+            Instruction::CallComposedOutcome {
+                destination,
+                target,
+                outer,
+                inner,
+                outer_mode,
+                inner_mode,
+                ..
+            } => {
+                validate_composed_outcome_call_return_shape(
+                    target,
+                    *destination,
+                    *outer,
+                    *inner,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    outer_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    inner_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
             Instruction::TailCall { target, .. } => {
                 validate_tail_call_return_shape(
                     target,
@@ -526,6 +560,7 @@ pub(super) fn instruction_call_arguments(instruction: &Instruction) -> Option<&[
         | Instruction::CallFallibleAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
         | Instruction::CallFallibleVoid { arguments, .. }
+        | Instruction::CallComposedOutcome { arguments, .. }
         | Instruction::TailCall { arguments, .. } => Some(arguments),
         _ => None,
     }
@@ -599,12 +634,20 @@ pub(super) fn validate_normal_call_return_shape(
         diagnostics.push(unresolved_call_target_diagnostic(&function));
         return;
     };
-    if matches!(return_type, Type::Fallible(_)) {
+    if matches!(
+        return_type,
+        Type::Fallible(_) | Type::ComposedOutcome { .. }
+    ) {
+        let outcome = match return_type {
+            Type::Fallible(_) => "fallible",
+            Type::ComposedOutcome { .. } => "composed outcome",
+            _ => unreachable!(),
+        };
         diagnostics.push(Diagnostic::error(
             "E9002",
             format!(
-                "codegen normal call to function `{}` targets a fallible return",
-                function.description()
+                "codegen normal call to function `{}` targets a {outcome} return",
+                function.description(),
             ),
         ));
         return;
@@ -638,6 +681,62 @@ pub(super) fn validate_fallible_call_return_shape(
         success_type,
         expected,
         "fallible call success",
+        diagnostics,
+    );
+}
+
+pub(super) fn validate_composed_outcome_call_return_shape(
+    target: &CallTarget,
+    destination: ComposedOutcomeDestination,
+    expected_outer: crate::outcomes::OutcomeLayer,
+    expected_inner: crate::outcomes::OutcomeLayer,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let function = FunctionSymbol::from_call_target(target);
+    let Some(return_type) = return_types.get(&function) else {
+        diagnostics.push(unresolved_call_target_diagnostic(&function));
+        return;
+    };
+    let Type::ComposedOutcome {
+        outer,
+        inner,
+        payload,
+    } = return_type
+    else {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!(
+                "codegen composed outcome call to function `{}` targets a non-composed return",
+                function.description()
+            ),
+        ));
+        return;
+    };
+    if (*outer, *inner) != (expected_outer, expected_inner) {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!(
+                "codegen composed outcome call layer mismatch for function `{}`",
+                function.description()
+            ),
+        ));
+        return;
+    }
+    let expected = match destination {
+        ComposedOutcomeDestination::I32(_) => ExpectedCallReturnShape::I32,
+        ComposedOutcomeDestination::U8(_) => ExpectedCallReturnShape::U8,
+        ComposedOutcomeDestination::Usize(_) => ExpectedCallReturnShape::Usize,
+        ComposedOutcomeDestination::Borrow(_) => ExpectedCallReturnShape::Borrow,
+        ComposedOutcomeDestination::Bool(_) => ExpectedCallReturnShape::Bool,
+        ComposedOutcomeDestination::Str(_) => ExpectedCallReturnShape::Str,
+        ComposedOutcomeDestination::Slice(_) => ExpectedCallReturnShape::Slice,
+    };
+    validate_success_return_shape(
+        &function,
+        payload,
+        expected,
+        "composed outcome call payload",
         diagnostics,
     );
 }

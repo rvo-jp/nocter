@@ -502,7 +502,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallFallibleDirectAggregate { .. }
             | Instruction::CallFallibleAggregate { .. }
             | Instruction::CallVoid { .. }
-            | Instruction::CallFallibleVoid { .. },
+            | Instruction::CallFallibleVoid { .. }
+            | Instruction::CallComposedOutcome { .. },
         )
         | None => false,
     }

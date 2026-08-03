@@ -1,4 +1,5 @@
 use crate::abi::{ReturnPassing, ValueLayout};
+use crate::outcomes::OutcomeLayer;
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -593,6 +594,15 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         failure_mode: FallibleFailureMode,
     },
+    CallComposedOutcome {
+        destination: ComposedOutcomeDestination,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        outer: OutcomeLayer,
+        inner: OutcomeLayer,
+        outer_mode: FallibleFailureMode,
+        inner_mode: FallibleFailureMode,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
@@ -647,6 +657,17 @@ pub(crate) enum FallibleFailureMode {
         message: StrLocation,
         instructions: Vec<Instruction>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ComposedOutcomeDestination {
+    I32(I32Location),
+    U8(U8Location),
+    Usize(UsizeLocation),
+    Borrow(UsizeLocation),
+    Bool(BoolLocation),
+    Str(StrLocation),
+    Slice(SliceLocation),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -944,12 +965,18 @@ pub(crate) enum Type {
     Void,
     Never,
     Fallible(Box<Type>),
+    ComposedOutcome {
+        outer: OutcomeLayer,
+        inner: OutcomeLayer,
+        payload: Box<Type>,
+    },
 }
 
 impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
+            Self::ComposedOutcome { payload, .. } => payload,
             Self::I32
             | Self::U8
             | Self::Usize
@@ -977,6 +1004,7 @@ impl Type {
             Self::Void => Some(ReturnPassing::Void),
             Self::Never => Some(ReturnPassing::Never),
             Self::Fallible(success) => success.success_return_passing(),
+            Self::ComposedOutcome { payload, .. } => payload.success_return_passing(),
             Self::Borrow { .. } => Some(ReturnPassing::Direct { words: 1 }),
         }
     }

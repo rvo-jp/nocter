@@ -26,15 +26,15 @@ use super::expressions::{
     lower_bool_expression_to_value_with_temporaries, lower_borrow_expression_to_location,
     lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_fallible_bool_normal_call, lower_fallible_borrow_normal_call,
-    lower_fallible_i32_normal_call, lower_fallible_slice_normal_call,
-    lower_fallible_str_normal_call, lower_fallible_u8_normal_call,
-    lower_fallible_usize_normal_call, lower_i32_expression_to_location,
-    lower_i32_expression_to_word, lower_i32_expression_to_word_with_temporaries,
-    lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
-    lower_slice_expression_to_location, lower_slice_expression_to_value,
-    lower_str_expression_to_location, lower_str_expression_to_value,
-    lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_composed_outcome_call, lower_fallible_bool_normal_call,
+    lower_fallible_borrow_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
+    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
+    lower_i32_expression_to_location, lower_i32_expression_to_word,
+    lower_i32_expression_to_word_with_temporaries, lower_macos_syscall_primitive_call_to_location,
+    lower_pointer_address_expression_to_word, lower_slice_expression_to_location,
+    lower_slice_expression_to_value, lower_str_expression_to_location,
+    lower_str_expression_to_value, lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
     lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
     lower_void_expression_statement, push_store_slice_view_to_aggregate_field,
@@ -66,9 +66,9 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, FallibleFailureMode, I32Location, I32Value,
-    Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, ComposedOutcomeDestination, FallibleFailureMode,
+    I32Location, I32Value, Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
+    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::resolve::ResolveOutput;
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};

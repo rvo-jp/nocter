@@ -15,6 +15,7 @@ pub mod home;
 pub mod ir;
 pub mod lexer;
 mod literals;
+mod outcomes;
 pub mod parser;
 pub mod resolve;
 mod semantics;

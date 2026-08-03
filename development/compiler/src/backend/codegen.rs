@@ -3,9 +3,9 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::{
-    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location,
-    I32Value, Instruction, IrModule, ScalarArgument, SliceValue, StrLocation, StrValue, Type,
-    UsizeLocation, UsizeValue,
+    BorrowSource, CallTarget, ComposedOutcomeDestination, DirectAggregateArgument,
+    FallibleFailureMode, Function, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
+    SliceValue, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -22,6 +22,7 @@ mod frames;
 mod instructions;
 mod io_runtime;
 mod locations;
+mod outcomes;
 mod process_arguments;
 mod region_runtime;
 mod runtime;

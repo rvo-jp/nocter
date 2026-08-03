@@ -64,14 +64,14 @@ pub(in crate::driver::buildability) fn drop_target_name(self_ty: &TypeExpr) -> S
     format!("{}.drop", type_expr_display_lossy(self_ty))
 }
 
-pub(in crate::driver::buildability) fn nested_fallible_return_issue(
+pub(in crate::driver::buildability) fn unsupported_outcome_return_issue(
     function: &FunctionDecl,
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
     let return_type = substitute_type_expr_parameters(&function.return_type, substitutions);
-    nested_fallible_return_type_issue(
+    unsupported_outcome_return_type_issue(
         &return_type,
         function.return_type.span(),
         resolved,
@@ -79,20 +79,23 @@ pub(in crate::driver::buildability) fn nested_fallible_return_issue(
     )
 }
 
-pub(in crate::driver::buildability) fn nested_fallible_return_type_issue(
+pub(in crate::driver::buildability) fn unsupported_outcome_return_type_issue(
     return_type: &TypeExpr,
     diagnostic_span: ByteSpan,
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Option<BuildabilityIssue> {
-    if type_expr_fallible_depth(return_type, resolved, resolved_sources) <= 1 {
+    let shape = outcome_shape_with_resolver(return_type, resolved, |source| {
+        resolved_sources.get(&source).copied()
+    });
+    if shape.is_supported_callable_shape() {
         return None;
     }
 
     Some(BuildabilityIssue {
         span: diagnostic_span,
-        construct: "nested fallible or optional return types",
-        help: "flatten the return boundary to a single optional or fallible layer until nested fallible lowering is promoted",
+        construct: "unsupported recursive optional or fallible return shapes",
+        help: "use a value, one optional or fallible layer, or one explicitly composed optional and fallible layer",
     })
 }
 

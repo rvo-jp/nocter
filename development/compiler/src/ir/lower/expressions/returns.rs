@@ -51,7 +51,10 @@ pub(in crate::ir::lower) fn lower_i32_return_expression(
     }
 }
 pub(in crate::ir::lower) fn success_return_instruction(return_type: &Type) -> Instruction {
-    if matches!(return_type, Type::Fallible(_)) {
+    if matches!(
+        return_type,
+        Type::Fallible(_) | Type::ComposedOutcome { .. }
+    ) {
         Instruction::ReturnFallibleSuccess
     } else {
         Instruction::Return
@@ -62,7 +65,10 @@ pub(in crate::ir::lower) fn mark_fallible_success_returns(
     return_type: &Type,
     instructions: Vec<Instruction>,
 ) -> Vec<Instruction> {
-    if !matches!(return_type, Type::Fallible(_)) {
+    if !matches!(
+        return_type,
+        Type::Fallible(_) | Type::ComposedOutcome { .. }
+    ) {
         return instructions;
     }
 

@@ -111,6 +111,28 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 include_value_parameters,
             );
         }
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            record_scalar_arguments_parameter_spill_requests(
+                arguments,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                outer_mode,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                inner_mode,
+                requests,
+                include_value_parameters,
+            );
+        }
         Instruction::If {
             condition,
             then_instructions,

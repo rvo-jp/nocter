@@ -78,6 +78,17 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             .map(ScalarArgument::abi_word_count)
             .sum::<usize>()
             .max(failure_mode_max_call_argument_count(failure_mode)),
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => arguments
+            .iter()
+            .map(ScalarArgument::abi_word_count)
+            .sum::<usize>()
+            .max(failure_mode_max_call_argument_count(outer_mode))
+            .max(failure_mode_max_call_argument_count(inner_mode)),
         Instruction::ReadSlice { failure_mode, .. }
         | Instruction::OpenRead { failure_mode, .. } => {
             failure_mode_max_call_argument_count(failure_mode)

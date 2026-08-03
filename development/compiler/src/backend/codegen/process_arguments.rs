@@ -295,6 +295,16 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
             scalar_arguments_use_process_arguments(arguments)
                 || failure_mode_uses_process_arguments(failure_mode)
         }
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            scalar_arguments_use_process_arguments(arguments)
+                || failure_mode_uses_process_arguments(outer_mode)
+                || failure_mode_uses_process_arguments(inner_mode)
+        }
         Instruction::If {
             condition,
             then_instructions,
