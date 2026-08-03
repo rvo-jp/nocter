@@ -41,7 +41,10 @@ fn incomplete_generic_bound_completion_text(text: &str, offset: usize) -> Option
     let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
     let prefix = text[line_start..offset].trim_end();
     let open = prefix.rfind('<')?;
-    if prefix[open..].contains('>') || !prefix.ends_with(':') {
+    if prefix[open..].contains('>')
+        || (!prefix.ends_with(':') && !prefix.ends_with('+'))
+        || !prefix[open..].contains(':')
+    {
         return None;
     }
     insert_completion_placeholder(text, offset)

@@ -676,16 +676,15 @@ fn member_completion_items(
     let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
         return Vec::new();
     };
-    let Some(owner) = value_member_owner(resolved, owner_ty)
-        .or_else(|| generic_bound_member_owner(ast, resolved, owner_ty, offset))
-    else {
-        return Vec::new();
-    };
     let can_readwrite = owner_type_is_readwrite(owner_ty)
         || (!matches!(owner_ty, TypeExpr::Borrow(_))
             && !facts.binding_is_readonly(owner_span).unwrap_or(true));
     let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
-    value_member_completion_items(&owner, resolved, can_readwrite, can_move)
+    if let Some(owner) = value_member_owner(resolved, owner_ty) {
+        return value_member_completion_items(&owner, resolved, can_readwrite, can_move);
+    }
+    let owners = generic_bound_member_owners(ast, resolved, owner_ty, offset);
+    unambiguous_capability_member_items(owners, resolved, can_readwrite, can_move)
 }
 
 fn type_member_completion_items(
@@ -909,23 +908,29 @@ fn method_completion_item(
     }
 }
 
-fn generic_bound_member_owner<'a>(
+fn generic_bound_member_owners<'a>(
     ast: &'a AstFile,
     resolved: &'a ResolveOutput,
     ty: &TypeExpr,
     offset: usize,
-) -> Option<ValueMemberOwner<'a>> {
-    let parameter_name = borrowed_reference_name(ty)?;
-    let bound = generic_bound_at_offset(ast, parameter_name, offset)?;
-    let mut owner = value_member_owner(resolved, bound)?;
-    owner.substitutions.insert(
-        "Self".to_string(),
-        TypeExpr::Reference(crate::ast::TypeReference {
-            span: ty.span(),
-            name: parameter_name.to_string(),
-        }),
-    );
-    Some(owner)
+) -> Vec<ValueMemberOwner<'a>> {
+    let Some(parameter_name) = borrowed_reference_name(ty) else {
+        return Vec::new();
+    };
+    generic_bounds_at_offset(ast, parameter_name, offset)
+        .into_iter()
+        .filter_map(|bound| {
+            let mut owner = value_member_owner(resolved, bound)?;
+            owner.substitutions.insert(
+                "Self".to_string(),
+                TypeExpr::Reference(crate::ast::TypeReference {
+                    span: ty.span(),
+                    name: parameter_name.to_string(),
+                }),
+            );
+            Some(owner)
+        })
+        .collect()
 }
 
 fn borrowed_reference_name(ty: &TypeExpr) -> Option<&str> {
@@ -936,25 +941,54 @@ fn borrowed_reference_name(ty: &TypeExpr) -> Option<&str> {
     }
 }
 
-fn generic_bound_at_offset<'a>(
+fn generic_bounds_at_offset<'a>(
     ast: &'a AstFile,
     parameter_name: &str,
     offset: usize,
-) -> Option<&'a TypeExpr> {
-    ast.items.iter().find_map(|item| {
-        let generics = match item {
-            Item::Function(function) if span_contains(function.body.span, offset) => {
-                &function.generics
-            }
-            Item::Impl(impl_) if span_contains(impl_.span, offset) => &impl_.generics,
-            _ => return None,
-        };
-        generics
-            .parameters
-            .iter()
-            .find(|parameter| parameter.name == parameter_name)
-            .and_then(|parameter| parameter.bounds.first())
-    })
+) -> Vec<&'a TypeExpr> {
+    ast.items
+        .iter()
+        .find_map(|item| {
+            let generics = match item {
+                Item::Function(function) if span_contains(function.body.span, offset) => {
+                    &function.generics
+                }
+                Item::Impl(impl_) if span_contains(impl_.span, offset) => &impl_.generics,
+                _ => return None,
+            };
+            generics
+                .parameters
+                .iter()
+                .find(|parameter| parameter.name == parameter_name)
+                .map(|parameter| parameter.bounds.iter().collect())
+        })
+        .unwrap_or_default()
+}
+
+fn unambiguous_capability_member_items(
+    owners: Vec<ValueMemberOwner<'_>>,
+    resolved: &ResolveOutput,
+    can_readwrite: bool,
+    can_move: bool,
+) -> Vec<CompletionItemInfo> {
+    let mut by_label: HashMap<String, Vec<CompletionItemInfo>> = HashMap::new();
+    for owner in owners {
+        for item in value_member_completion_items(&owner, resolved, can_readwrite, can_move) {
+            by_label.entry(item.label.clone()).or_default().push(item);
+        }
+    }
+    let mut items = by_label
+        .into_values()
+        .filter_map(|candidates| {
+            let identities = candidates
+                .iter()
+                .filter_map(|item| item.declaration_span)
+                .collect::<HashSet<_>>();
+            (identities.len() == 1).then(|| candidates.into_iter().next().unwrap())
+        })
+        .collect::<Vec<_>>();
+    items.sort_by(|left, right| left.label.cmp(&right.label));
+    items
 }
 
 struct ValueMemberOwner<'a> {

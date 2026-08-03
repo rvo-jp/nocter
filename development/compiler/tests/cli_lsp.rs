@@ -818,6 +818,10 @@ fn lsp_command_exposes_generic_bound_and_provenance_source_ranges() {
     pub method &self.read(): &T from self
 }
 
+interface Measure {
+    pub method &self.measure(): usize
+}
+
 struct Box<T> {
     value: T
 }
@@ -826,11 +830,16 @@ impl<U> Box<U> {
     pub method &self.read(): &U from self {
         return &self.value
     }
+
+    pub method &self.measure(): usize {
+        return 1
+    }
 }
 
 impl<T> Read<T> for Box<T>
+impl<T> Measure for Box<T>
 
-func borrow<B: Read<T>, T>(value: &B): &T from value {
+func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
     return value.read()
 }
 "#;
@@ -955,6 +964,10 @@ func borrow<B: Read<T>, T>(value: &B): &T from value {
         read["detail"]
             .as_str()
             .is_some_and(|detail| { detail.contains("method") && detail.contains("from self") })
+    );
+    assert!(
+        completion_item_with_label(completion_items, "measure").is_some(),
+        "expected second capability method completion"
     );
 }
 

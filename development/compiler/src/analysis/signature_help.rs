@@ -110,12 +110,7 @@ fn signature_info_for_call(
                 function.parameters.parameters.as_slice(),
                 &function.return_type,
                 function.result_provenance.as_ref(),
-                function
-                    .generics
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.name.as_str())
-                    .collect::<Vec<_>>(),
+                function.generics.parameters.iter().collect::<Vec<_>>(),
                 None,
             ),
             CallableDeclaration::Primitive(primitive) => (
@@ -124,12 +119,7 @@ fn signature_info_for_call(
                 primitive.parameters.parameters.as_slice(),
                 &primitive.return_type,
                 primitive.result_provenance.as_ref(),
-                primitive
-                    .generics
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.name.as_str())
-                    .collect::<Vec<_>>(),
+                primitive.generics.parameters.iter().collect::<Vec<_>>(),
                 None,
             ),
             CallableDeclaration::Method { method, .. } => (
@@ -324,7 +314,7 @@ fn parameter_label(
 
 fn specialized_callable_name(
     name: &str,
-    generic_parameters: &[&str],
+    generic_parameters: &[&crate::ast::GenericParam],
     substitutions: &HashMap<String, TypeExpr>,
     resolved: &crate::resolve::ResolveOutput,
 ) -> String {
@@ -333,10 +323,29 @@ fn specialized_callable_name(
     }
     let arguments = generic_parameters
         .iter()
-        .map(|parameter| substitutions.get(*parameter))
+        .map(|parameter| substitutions.get(&parameter.name))
         .collect::<Option<Vec<_>>>();
     let Some(arguments) = arguments else {
-        return name.to_string();
+        let parameters = generic_parameters
+            .iter()
+            .map(|parameter| {
+                let mut label = parameter.name.clone();
+                if !parameter.bounds.is_empty() {
+                    label.push_str(": ");
+                    label.push_str(
+                        &parameter
+                            .bounds
+                            .iter()
+                            .map(|bound| type_expr_presentation_label(bound, resolved))
+                            .collect::<Vec<_>>()
+                            .join(" + "),
+                    );
+                }
+                label
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        return format!("{name}<{parameters}>");
     };
     let arguments = arguments
         .into_iter()
@@ -479,6 +488,32 @@ func read<M: Lookup<i32>>(map: &M, fallback: &i32): &i32 from map | fallback {
             "method &M.get(fallback: &i32): &i32 from self | fallback"
         );
         assert_eq!(signature.parameters[0].label, "fallback: &i32");
+    }
+
+    #[test]
+    fn presents_every_bound_when_generic_arguments_are_not_inferred() {
+        let text = r#"interface Readable {}
+interface Measurable {}
+
+func inspect<T: Readable + Measurable>(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return inspect(42)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("42").expect("expected call argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected signature help");
+
+        assert_eq!(
+            signature.label,
+            "func inspect<T: Readable + Measurable>(value: i32): i32"
+        );
     }
 
     #[test]

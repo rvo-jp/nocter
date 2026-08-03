@@ -471,3 +471,32 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
         hover.documentation
     );
 }
+
+#[test]
+fn workspace_hover_preserves_complete_capability_set() {
+    let text = r#"interface Readable {
+    pub method &self.read(): i32
+}
+
+interface Measurable {
+    pub method &self.measure(): usize
+}
+
+func inspect<T: Readable + Measurable>(value: &T): i32 {
+    return value.read()
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text
+        .find("inspect<")
+        .expect("expected function declaration");
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected function hover");
+
+    assert!(
+        hover.label.contains("T: Readable + Measurable"),
+        "{}",
+        hover.label
+    );
+}

@@ -769,6 +769,51 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
 }
 
 #[test]
+fn member_completion_combines_unambiguous_capability_set_members() {
+    let text = r#"interface Readable {
+    pub method &self.read(): i32
+}
+
+interface Measurable {
+    pub method &self.measure(): usize
+}
+
+func inspect<T: Readable + Measurable>(value: &T): i32 {
+    return value.read()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("value.read").unwrap() + "value.".len();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(items.iter().any(|item| item.label == "read"));
+    assert!(items.iter().any(|item| item.label == "measure"));
+}
+
+#[test]
+fn member_completion_omits_ambiguous_capability_set_member() {
+    let text = r#"interface Left {
+    pub method &self.inspect(): i32
+}
+
+interface Right {
+    pub method &self.inspect(): i32
+}
+
+func inspect<T: Left + Right>(value: &T): i32 {
+    value.
+    return 0
+}
+"#;
+    let completion_offset = text.find("value.").unwrap() + "value.".len();
+    let items = completion_items_for_text_at_offset(text, completion_offset)
+        .expect("expected member completion response");
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
+}
+
+#[test]
 fn completion_recovers_incomplete_result_provenance_clause() {
     let text = r#"func choose(left: &i32, right: &i32): &i32 from {
     return left
@@ -831,5 +876,30 @@ func read<T: >(value: &T): i32 {
         items
             .iter()
             .any(|item| { item.label == "Measure" && item.kind == CompletionItemKind::Interface })
+    );
+}
+
+#[test]
+fn completion_recovers_incomplete_additional_generic_bound() {
+    let text = r#"interface Readable {
+    pub method &self.read(): i32
+}
+
+interface Measurable {
+    pub method &self.measure(): usize
+}
+
+func inspect<T: Readable + >(value: &T): i32 {
+    return 0
+}
+"#;
+    let offset = text.find("Readable + ").unwrap() + "Readable + ".len();
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered additional-bound completion");
+
+    assert!(
+        items.iter().any(|item| {
+            item.label == "Measurable" && item.kind == CompletionItemKind::Interface
+        })
     );
 }
