@@ -4,9 +4,10 @@ use super::TypecheckSource;
 use super::bindings::continuing_binding_type;
 use super::calls::resolved_call_signature;
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
-    environment_for_method, environment_for_switch_arm,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -295,17 +296,33 @@ fn statement_needs_current_allocation_context(
             )
         }
         Stmt::CollectionFor(statement) => {
+            let resolution =
+                super::iteration::resolve_collection_iteration(statement, resolved, environment)
+                    .ok();
+            let implicit_calls_need_context = resolution.as_ref().is_some_and(|resolution| {
+                resolution
+                    .conversion
+                    .iter()
+                    .chain(std::iter::once(&resolution.step))
+                    .any(|method| {
+                        summaries.needs_current_allocation_context(CallableId::declared_at(
+                            method.declaration,
+                        ))
+                    })
+            });
+            let item_type = resolution.map_or(Type::Unknown, |resolution| resolution.item_type);
             expression_needs_current_allocation_context(
                 &statement.source,
                 resolved,
                 environment,
                 summaries,
-            ) || block_needs_current_allocation_context(
-                &statement.body,
-                resolved,
-                &mut environment.clone(),
-                summaries,
-            )
+            ) || implicit_calls_need_context
+                || block_needs_current_allocation_context(
+                    &statement.body,
+                    resolved,
+                    &mut environment_for_collection_for_binding(statement, item_type, environment),
+                    summaries,
+                )
         }
         Stmt::LiteralPackFor(statement) => block_needs_current_allocation_context(
             &statement.body,

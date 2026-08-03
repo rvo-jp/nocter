@@ -795,6 +795,97 @@ fn semantic_data_contains(
     false
 }
 
+#[test]
+fn distributed_lsp_propagates_implicit_iteration_allocation_effects() {
+    let project = TempProject::new("distributed-home-collection-for-allocation-lsp");
+    let source_text = r#"use std/iter.{IntoIterator, Iterator}
+use std/vec.Vec
+
+struct AllocatingCollection {
+    end: i32
+}
+
+struct AllocatingIter {
+    next_value: i32
+    end: i32
+}
+
+impl AllocatingCollection {
+    pub method self.into_iter(): AllocatingIter {
+        let scratch = Vec [0]
+        drop scratch
+        return AllocatingIter { next_value: 0, end: self.end }
+    }
+}
+
+impl AllocatingIter {
+    pub method &+self.next(): i32? {
+        if self.next_value >= self.end {
+            return none
+        }
+        let current = self.next_value
+        self.next_value = current + 1
+        return current
+    }
+}
+
+impl IntoIterator<i32, AllocatingIter> for AllocatingCollection
+impl Iterator<i32> for AllocatingIter
+
+func run(source: AllocatingCollection): void {
+    for item in move source {
+        let copy = item
+    }
+    return
+}
+"#;
+    let source = project.write_source("collection_for_allocation_lsp.nct", source_text);
+    let uri = file_uri(&source);
+    let run_offset = source_text.rfind("run(source").unwrap();
+    let iteration_offset = source_text.rfind("move source").unwrap() + "move ".len();
+    let output = nocter_lsp(
+        &distributed_home().join("nocter"),
+        project.root(),
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"languageId":"nocter","version":1,"text":source_text}}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":2,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(source_text,run_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":3,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(source_text,iteration_offset)}
+            }),
+            json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+            json!({"jsonrpc":"2.0","method":"exit","params":null}),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+    let frames = read_frames(&output.stdout);
+    let run_hover = iteration_response_with_id(&frames, 2)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected run hover");
+    assert!(run_hover.contains("Allocation effect"), "{run_hover}");
+    let iteration_hover = iteration_response_with_id(&frames, 3)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected iteration hover");
+    assert!(
+        iteration_hover.contains("Allocation effect:** conversion uses"),
+        "{iteration_hover}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_collection_for_handles_empty_nested_and_user_iterators() {
