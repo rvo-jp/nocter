@@ -56,6 +56,73 @@ fn distributed_std_collection_for_return_cleans_item_before_iterator() {
     assert_token_run(&project, &source, b"ADCB");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_continue_drops_each_current_item() {
+    let project = TempProject::new("distributed-home-collection-for-continue-cleanup-run");
+    let source = project.write_source(
+        "collection_for_continue_cleanup_run.nct",
+        &token_program(
+            r#"    let values = tokens()
+    for token in move values {
+        continue
+    }
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"ABCD");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_propagation_cleans_item_before_iterator() {
+    let project = TempProject::new("distributed-home-collection-for-propagation-cleanup-run");
+    let source = project.write_source(
+        "collection_for_propagation_cleanup_run.nct",
+        r#"use std/io.print
+use std/vec.Vec
+
+struct Token {
+    label: &str
+}
+
+impl Token {
+    drop &+self {
+        print(self.label)!
+        return
+    }
+}
+
+func fail(): void! {
+    return Error.new("test.failure", "expected")
+}
+
+func propagate(): i32! {
+    let values = Vec [
+        Token { label: "A" },
+        Token { label: "B" },
+        Token { label: "C" },
+        Token { label: "D" },
+    ]
+    for token in move values {
+        drop token
+        fail()?
+    }
+    return 1
+}
+
+func main(): i32 {
+    return propagate() catch expected_failure {
+        return 42
+    }
+}
+"#,
+    );
+
+    assert_token_run(&project, &source, b"ADCB");
+}
+
 #[test]
 fn distributed_std_region_iterators_cannot_escape_their_storage_region() {
     let project = TempProject::new("distributed-home-iterator-region-escape-check");

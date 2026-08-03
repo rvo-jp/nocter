@@ -365,6 +365,8 @@ impl TypecheckIterationMethod {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TypecheckCollectionForPlan {
+    pub(crate) binding_span: ByteSpan,
+    pub(crate) source_span: ByteSpan,
     pub(crate) source_mode: TypecheckCollectionForSourceMode,
     pub(crate) source_type: TypeExpr,
     pub(crate) iterator_type: TypeExpr,
@@ -379,6 +381,8 @@ impl TypecheckCollectionForPlan {
         context_substitutions: &HashMap<String, TypeExpr>,
     ) -> Option<Self> {
         Some(Self {
+            binding_span: self.binding_span,
+            source_span: self.source_span,
             source_mode: self.source_mode,
             source_type: substitute_type_expr_parameters(&self.source_type, context_substitutions),
             iterator_type: substitute_type_expr_parameters(

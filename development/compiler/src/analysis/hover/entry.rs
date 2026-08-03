@@ -54,10 +54,15 @@ pub(crate) fn hover_for_file_analysis(
         let semantic = semantic_documentation(sources, analysis, symbol.target.declaration_span);
         let region =
             crate::analysis::regions::region_markdown(sources, file, symbol.target.focus_span);
+        let iteration =
+            crate::analysis::iteration::iteration_markdown_at_offset(analysis, file, offset);
         return Some(HoverInfo {
             span: symbol.target.focus_span,
             label: symbol.label.clone(),
-            documentation: combine_documentation(combine_documentation(attached, semantic), region),
+            documentation: combine_documentation(
+                combine_documentation(combine_documentation(attached, semantic), region),
+                iteration,
+            ),
         });
     }
 
@@ -104,7 +109,10 @@ pub(crate) fn hover_for_file_analysis(
         HoverInfo {
             span,
             label,
-            documentation,
+            documentation: combine_documentation(
+                documentation,
+                crate::analysis::iteration::iteration_markdown_at_offset(analysis, file, offset),
+            ),
         }
     })
 }

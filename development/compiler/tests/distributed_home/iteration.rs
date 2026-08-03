@@ -541,6 +541,7 @@ func main(): i32 {
     }
     return 42
 }
+
 "#,
     );
 
@@ -550,6 +551,313 @@ func main(): i32 {
         .env("NOCTER_HOME", home)
         .output()
         .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn distributed_lsp_exposes_iteration_plans_and_recovers_incomplete_headers() {
+    let project = TempProject::new("distributed-home-collection-for-lsp");
+    let valid_text = r#"use std/vec.Vec
+use std/vec_into_iter.VecIntoIter
+
+func run(values: Vec<i32>, owned: Vec<i32>, iterator: VecIntoIter<i32>): void {
+    for readonly_item in &values {
+        let copy = readonly_item
+    }
+    for owned_item in move owned {
+        let copy = owned_item
+    }
+    for direct_item in iterator {
+        let copy = direct_item
+    }
+    return
+}
+"#;
+    let incomplete_text = r#"use std/vec.Vec
+
+func run(values: Vec<i32>): void {
+    for item in &
+    return
+}
+"#;
+    let source = project.write_source("collection_for_lsp.nct", valid_text);
+    let uri = file_uri(&source);
+    let item_offset = valid_text.find("readonly_item in").unwrap();
+    let source_offset = valid_text.find("&values {").unwrap() + 1;
+    let owned_offset = valid_text.find("move owned").unwrap() + "move ".len();
+    let direct_offset = valid_text.find("in iterator").unwrap() + "in ".len();
+    let body_completion_offset = valid_text.find("let copy = readonly_item").unwrap();
+    let incomplete_offset = incomplete_text.find("in &\n").unwrap() + "in &".len();
+    let output = nocter_lsp(
+        &distributed_home().join("nocter"),
+        project.root(),
+        &[
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"languageId":"nocter","version":1,"text":valid_text}}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":2,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(valid_text,item_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":3,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(valid_text,source_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":4,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(valid_text,owned_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":7,
+                "method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(valid_text,direct_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":8,
+                "method":"textDocument/completion",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(valid_text,body_completion_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didChange",
+                "params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":incomplete_text}]}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":5,
+                "method":"textDocument/completion",
+                "params":{"textDocument":{"uri":uri},"position":iteration_lsp_position(incomplete_text,incomplete_offset)}
+            }),
+            json!({
+                "jsonrpc":"2.0",
+                "id":6,
+                "method":"textDocument/semanticTokens/full",
+                "params":{"textDocument":{"uri":uri}}
+            }),
+            json!({"jsonrpc":"2.0","id":9,"method":"shutdown","params":null}),
+            json!({"jsonrpc":"2.0","method":"exit","params":null}),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(output.stderr.is_empty(), "{}", text(&output.stderr));
+    let frames = read_frames(&output.stdout);
+    let incomplete_diagnostics = frames
+        .iter()
+        .rev()
+        .find(|message| {
+            message["method"] == "textDocument/publishDiagnostics"
+                && message["params"]["uri"] == uri
+        })
+        .and_then(|message| message["params"]["diagnostics"].as_array())
+        .expect("expected diagnostics for the incomplete header");
+    assert!(
+        incomplete_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "E0200"),
+        "diagnostics: {incomplete_diagnostics:#?}"
+    );
+    assert!(
+        incomplete_diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic["code"] != "E0448"),
+        "recovery must not invent an iteration protocol: {incomplete_diagnostics:#?}"
+    );
+    for id in [2, 3] {
+        let markdown = iteration_response_with_id(&frames, id)["result"]["contents"]["value"]
+            .as_str()
+            .expect("expected iteration hover");
+        assert!(markdown.contains("readonly source borrow"), "{markdown}");
+        assert!(markdown.contains("ViewIter<i32>"), "{markdown}");
+        assert!(markdown.contains("item:** `&i32`"), "{markdown}");
+        assert!(
+            markdown.contains("statically selected conformance"),
+            "{markdown}"
+        );
+    }
+
+    let owned_hover = iteration_response_with_id(&frames, 4)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected owned iteration hover");
+    assert!(
+        owned_hover.contains("owned source transfer"),
+        "{owned_hover}"
+    );
+    let direct_hover = iteration_response_with_id(&frames, 7)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected direct iteration hover");
+    assert!(
+        direct_hover.contains("direct iterator transfer"),
+        "{direct_hover}"
+    );
+    assert!(
+        direct_hover.contains("Conversion target:** none"),
+        "{direct_hover}"
+    );
+
+    let body_completion = iteration_response_with_id(&frames, 8)["result"]["items"]
+        .as_array()
+        .expect("expected body completion items");
+    let readonly_item = body_completion
+        .iter()
+        .find(|item| item["label"].as_str() == Some("readonly_item"))
+        .expect("expected the loop item in body completion");
+    assert_eq!(
+        readonly_item["detail"],
+        "collection element readonly_item: &i32"
+    );
+
+    let completion = iteration_response_with_id(&frames, 5)["result"]["items"]
+        .as_array()
+        .expect("expected recovered completion items");
+    assert!(
+        completion
+            .iter()
+            .any(|item| item["label"].as_str() == Some("values")),
+        "completion: {completion:#?}"
+    );
+
+    let data = iteration_response_with_id(&frames, 6)["result"]["data"]
+        .as_array()
+        .expect("expected recovered semantic tokens");
+    let item_position =
+        iteration_lsp_position(incomplete_text, incomplete_text.find("item in").unwrap());
+    assert!(
+        semantic_data_contains(
+            data,
+            item_position["line"].as_u64().unwrap() as usize,
+            item_position["character"].as_u64().unwrap() as usize,
+            "item".len(),
+            2,
+        ),
+        "semantic data: {data:#?}"
+    );
+}
+
+fn iteration_lsp_position(text: &str, offset: usize) -> Value {
+    let line = text[..offset].bytes().filter(|byte| *byte == b'\n').count();
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    json!({"line":line,"character":text[line_start..offset].chars().count()})
+}
+
+fn iteration_response_with_id(frames: &[Value], id: u64) -> &Value {
+    frames
+        .iter()
+        .find(|message| message["id"] == id)
+        .unwrap_or_else(|| panic!("missing response {id}: {frames:#?}"))
+}
+
+fn semantic_data_contains(
+    data: &[Value],
+    expected_line: usize,
+    expected_character: usize,
+    expected_length: usize,
+    expected_kind: usize,
+) -> bool {
+    let mut line = 0usize;
+    let mut character = 0usize;
+    for token in data.chunks_exact(5) {
+        let delta_line = token[0].as_u64().unwrap() as usize;
+        let delta_character = token[1].as_u64().unwrap() as usize;
+        if delta_line == 0 {
+            character += delta_character;
+        } else {
+            line += delta_line;
+            character = delta_character;
+        }
+        if line == expected_line
+            && character == expected_character
+            && token[2].as_u64() == Some(expected_length as u64)
+            && token[3].as_u64() == Some(expected_kind as u64)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_handles_empty_nested_and_user_iterators() {
+    let project = TempProject::new("distributed-home-collection-for-composition-run");
+    let source = project.write_source(
+        "collection_for_composition_run.nct",
+        r#"use std/iter.{IntoIterator, Iterator}
+use std/vec.Vec
+
+struct Counter {
+    end: i32
+}
+
+struct CounterIter {
+    next_value: i32
+    end: i32
+}
+
+impl Counter {
+    pub method self.into_iter(): CounterIter {
+        return CounterIter { next_value: 0, end: self.end }
+    }
+}
+
+impl CounterIter {
+    pub method &+self.next(): i32? {
+        if self.next_value >= self.end {
+            return none
+        }
+        let current = self.next_value
+        self.next_value = current + 1
+        return current
+    }
+}
+
+impl IntoIterator<i32, CounterIter> for Counter
+impl Iterator<i32> for CounterIter
+
+func main(): i32 {
+    let empty: Vec<i32> = Vec []
+    for unexpected in move empty {
+        return 1
+    }
+
+    var total: i32 = 0
+    let outer = Vec [1, 2, 3]
+    for left in move outer {
+        let inner = Vec [4, 5]
+        for right in move inner {
+            total = total + left + right
+        }
+    }
+
+    let counter = Counter { end: 3 }
+    for value in move counter {
+        total = total + value
+    }
+    return total
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
     assert_eq!(
         output.status.code(),
         Some(42),

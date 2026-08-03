@@ -279,6 +279,8 @@ fn collection_for_fact(
         &free_type_parameters,
     );
     Some(TypecheckCollectionForPlan {
+        binding_span: statement.name_span,
+        source_span: statement.source.span(),
         source_mode: match resolution.source_mode {
             crate::typecheck::iteration::CollectionIterationSourceMode::Direct => {
                 TypecheckCollectionForSourceMode::Direct

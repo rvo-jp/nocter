@@ -43,6 +43,28 @@ pub(crate) fn classified_identifiers_for_file_analysis(
 pub(crate) fn classified_identifiers_for_single_file_text(
     text: &str,
 ) -> Option<Vec<ClassifiedIdentifier>> {
+    if let Some(identifiers) = classify_single_file_text(text) {
+        return Some(identifiers);
+    }
+
+    let recovery = super::collection_for_recovery::collection_for_document_recovery(text)?;
+    let inserted_end = recovery.insertion_start + recovery.insertion_len;
+    let mut identifiers = classify_single_file_text(&recovery.text)?;
+    identifiers.retain_mut(|identifier| {
+        if identifier.end_byte <= recovery.insertion_start {
+            return true;
+        }
+        if identifier.start_byte >= inserted_end {
+            identifier.start_byte -= recovery.insertion_len;
+            identifier.end_byte -= recovery.insertion_len;
+            return true;
+        }
+        false
+    });
+    Some(identifiers)
+}
+
+fn classify_single_file_text(text: &str) -> Option<Vec<ClassifiedIdentifier>> {
     let parsed = parse_single_file_text("semantic.nct", text)?;
     let resolved = resolve_single_file_ast("semantic.nct", text, parsed.source, &parsed.ast);
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
@@ -462,6 +484,29 @@ mod tests {
                 "expected `{name}` to be classified as a type"
             );
         }
+    }
+
+    #[test]
+    fn incomplete_collection_for_recovery_remaps_identifiers_after_the_edit() {
+        let text = "func observe(value: i32): void { return }\nfunc run(values: i32): void {\n    for item in &\n    observe(values)\n    return\n}\n";
+        let identifiers = classified_identifiers_for_single_file_text(text)
+            .expect("expected collection-for semantic recovery");
+        let item = text.find("item in").unwrap();
+        let values = text.rfind("values)").unwrap();
+
+        assert!(identifiers.iter().any(|identifier| {
+            identifier.start_byte == item
+                && identifier.end_byte == item + "item".len()
+                && identifier.kind == SemanticTokenKind::Variable
+        }));
+        assert!(
+            identifiers.iter().any(|identifier| {
+                identifier.start_byte == values
+                    && identifier.end_byte == values + "values".len()
+                    && identifier.kind == SemanticTokenKind::Parameter
+            }),
+            "identifiers: {identifiers:#?}"
+        );
     }
 
     #[test]

@@ -14,6 +14,10 @@ pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(
             .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
             .or_else(|| incomplete_import_symbol_completion_text(text, offset))
             .map(|text| (text, offset))
+            .or_else(|| {
+                super::collection_for_recovery::collection_for_recovery_overlay(text, offset)
+                    .map(|recovery| (recovery.text, recovery.cursor))
+            })
             .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
     })
 }

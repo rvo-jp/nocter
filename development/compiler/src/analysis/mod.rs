@@ -3,6 +3,7 @@
 pub(crate) mod allocation;
 mod call_sites;
 pub(crate) mod call_specializations;
+mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;
 pub(crate) mod definition;
@@ -11,6 +12,7 @@ mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
 pub(crate) mod interpolation;
+pub(crate) mod iteration;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
@@ -26,6 +28,7 @@ pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub(crate) use collection_for_recovery::collection_for_recovery_text;
 pub(crate) use completion_recovery::{completion_recovery_overlay, signature_recovery_texts};
 pub(crate) use interpolation::{
     interpolation_completion_recovery_overlay, interpolation_recovery_text,
