@@ -118,6 +118,41 @@ impl TypecheckFactCollector<'_> {
                 );
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
+            Stmt::CollectionFor(statement) => {
+                self.collect_expression_facts_in_context(
+                    &statement.source,
+                    environment,
+                    return_type,
+                );
+                let Ok(resolution) = crate::typecheck::iteration::resolve_collection_iteration(
+                    statement,
+                    self.resolved,
+                    environment,
+                ) else {
+                    let mut body_environment = environment.clone();
+                    body_environment.define(statement.name.clone(), Type::Unknown);
+                    self.collect_block_facts(&statement.body, &mut body_environment, return_type);
+                    return;
+                };
+                if let Some(plan) = collection_for_fact(statement, &resolution) {
+                    self.facts.collection_for_plans.insert(statement.span, plan);
+                }
+                self.record_drop_type_specialization(
+                    statement.source.span(),
+                    &resolution.iterator_type,
+                );
+                let mut body_environment = environment_for_collection_for_binding(
+                    statement,
+                    resolution.item_type,
+                    environment,
+                );
+                self.record_environment_binding(
+                    statement.name_span,
+                    &statement.name,
+                    &body_environment,
+                );
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
+            }
             Stmt::LiteralPackFor(statement) => {
                 let mut body_environment =
                     environment_for_literal_pack_binding(statement, environment);
@@ -211,5 +246,69 @@ impl TypecheckFactCollector<'_> {
                 .insert(statement.name_span, ty.clone());
         }
         environment.define_binding(statement.name.clone(), binding_type, is_mutable);
+    }
+}
+
+fn collection_for_fact(
+    statement: &crate::ast::CollectionForStmt,
+    resolution: &crate::typecheck::iteration::CollectionIterationResolution,
+) -> Option<TypecheckCollectionForPlan> {
+    let mut free_type_parameters = HashSet::new();
+    let source_type = type_to_type_expr_allowing_parameters(
+        &resolution.source_type,
+        statement.source.span(),
+        &mut free_type_parameters,
+    )?;
+    let iterator_type = type_to_type_expr_allowing_parameters(
+        &resolution.iterator_type,
+        statement.source.span(),
+        &mut free_type_parameters,
+    )?;
+    let item_type = type_to_type_expr_allowing_parameters(
+        &resolution.item_type,
+        statement.name_span,
+        &mut free_type_parameters,
+    )?;
+    let conversion = resolution
+        .conversion
+        .as_ref()
+        .map(|method| iteration_method_fact(method, source_type.clone(), &free_type_parameters));
+    let step = iteration_method_fact(
+        &resolution.step,
+        iterator_type.clone(),
+        &free_type_parameters,
+    );
+    Some(TypecheckCollectionForPlan {
+        source_mode: match resolution.source_mode {
+            crate::typecheck::iteration::CollectionIterationSourceMode::Direct => {
+                TypecheckCollectionForSourceMode::Direct
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::ReadonlyConversion => {
+                TypecheckCollectionForSourceMode::ReadonlyConversion
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::OwnedConversion => {
+                TypecheckCollectionForSourceMode::OwnedConversion
+            }
+        },
+        source_type,
+        iterator_type,
+        item_type,
+        conversion,
+        step,
+    })
+}
+
+fn iteration_method_fact(
+    resolution: &crate::typecheck::iteration::IterationMethodResolution,
+    self_ty: TypeExpr,
+    free_type_parameters: &HashSet<String>,
+) -> TypecheckIterationMethod {
+    TypecheckIterationMethod {
+        declaration_span: resolution.declaration,
+        target_name: resolution.target_name.clone(),
+        self_ty,
+        receiver_mode: resolution.receiver_mode,
+        method_name: resolution.method_name.clone(),
+        free_type_parameters: free_type_parameters.clone(),
     }
 }

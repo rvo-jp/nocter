@@ -966,6 +966,20 @@ fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::CollectionFor(statement) => {
+                instructions.extend(
+                    super::collection_for::lower_collection_for_statement(
+                        statement,
+                        context,
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             Stmt::Loop(statement) => {
                 instructions.extend(
                     lower_nonterminal_loop_statement(

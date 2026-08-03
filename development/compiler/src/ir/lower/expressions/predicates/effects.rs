@@ -150,6 +150,8 @@ fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
                 || expression_contains_call(&statement.end)
                 || block_contains_call(&statement.body)
         }
+        // Conversion (when selected) and iterator step are implicit calls in the typecheck plan.
+        crate::ast::Stmt::CollectionFor(_) => true,
         crate::ast::Stmt::LiteralPackFor(statement) => block_contains_call(&statement.body),
         crate::ast::Stmt::While(statement) => {
             expression_contains_call(&statement.condition) || block_contains_call(&statement.body)

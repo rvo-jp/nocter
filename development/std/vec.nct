@@ -11,7 +11,7 @@
 //! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
-use std/iter.ViewIter
+use std/iter.{Iterable, IntoIterator, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.addr
@@ -443,3 +443,5 @@ impl<T> Vec<T> {
 }
 
 impl<T> Sequence<T> for Vec<T>
+impl<T> Iterable<&T, ViewIter<T>> for Vec<T>
+impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T>

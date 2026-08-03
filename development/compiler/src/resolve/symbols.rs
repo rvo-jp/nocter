@@ -226,7 +226,7 @@ impl ResolveOutput {
             })
     }
 
-    fn type_symbol_definition_by_canonical_name(
+    pub(crate) fn type_symbol_definition_by_canonical_name(
         &self,
         canonical_name: &str,
     ) -> Option<(&Symbol, &TypeSymbol)> {
@@ -305,6 +305,7 @@ pub enum LocalSymbolKind {
     PatternPayload,
     CatchError,
     ForRange,
+    CollectionFor,
     LiteralPackFor,
 }
 

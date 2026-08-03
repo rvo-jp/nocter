@@ -91,6 +91,10 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
                 collect_expression_import_paths(&statement.end, paths);
                 collect_block_import_paths(&statement.body, paths);
             }
+            Stmt::CollectionFor(statement) => {
+                collect_expression_import_paths(&statement.source, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
             Stmt::LiteralPackFor(statement) => {
                 collect_block_import_paths(&statement.body, paths);
             }

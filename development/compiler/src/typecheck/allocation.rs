@@ -294,6 +294,19 @@ fn statement_needs_current_allocation_context(
                 summaries,
             )
         }
+        Stmt::CollectionFor(statement) => {
+            expression_needs_current_allocation_context(
+                &statement.source,
+                resolved,
+                environment,
+                summaries,
+            ) || block_needs_current_allocation_context(
+                &statement.body,
+                resolved,
+                &mut environment.clone(),
+                summaries,
+            )
+        }
         Stmt::LiteralPackFor(statement) => block_needs_current_allocation_context(
             &statement.body,
             resolved,

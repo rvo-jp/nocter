@@ -1097,6 +1097,10 @@ fn completion_context_in_statement_at_offset(
                 .or_else(|| completion_context_in_expression_at_offset(&statement.end, offset))
                 .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
         }
+        Stmt::CollectionFor(statement) => {
+            completion_context_in_expression_at_offset(&statement.source, offset)
+                .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
+        }
         Stmt::LiteralPackFor(statement) => {
             completion_context_in_block_at_offset(&statement.body, offset)
         }

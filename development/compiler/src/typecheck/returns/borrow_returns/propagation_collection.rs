@@ -196,6 +196,17 @@ pub(in crate::typecheck::returns) fn collect_statement_fallible_propagation_prov
                 flow,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.source,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
         Stmt::LiteralPackFor(_) => {}
         Stmt::Loop(_) => {}
         Stmt::Region(statement) => {
@@ -836,6 +847,26 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
             Stmt::ForRange(statement) => {
                 let mut body_environment =
                     environment_for_for_range_binding(statement, resolved, environment);
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    return_type,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            Stmt::CollectionFor(statement) => {
+                let item_type = super::super::super::iteration::resolve_collection_iteration(
+                    statement,
+                    resolved,
+                    environment,
+                )
+                .map_or(Type::Unknown, |plan| plan.item_type);
+                let mut body_environment =
+                    environment_for_collection_for_binding(statement, item_type, environment);
                 let mut body_borrow_provenance = borrow_provenance.clone();
                 collect_return_statement_provenance(
                     &statement.body,

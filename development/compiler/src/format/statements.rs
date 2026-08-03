@@ -71,6 +71,14 @@ impl Formatter {
                 self.write(" ");
                 self.format_block(&statement.body);
             }
+            Stmt::CollectionFor(statement) => {
+                self.write("for ");
+                self.write(&statement.name);
+                self.write(" in ");
+                self.format_expression(&statement.source);
+                self.write(" ");
+                self.format_block(&statement.body);
+            }
             Stmt::LiteralPackFor(statement) => {
                 self.write("for ");
                 self.write(&statement.name);

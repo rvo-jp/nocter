@@ -1,6 +1,7 @@
 mod aggregates;
 mod allocation_contexts;
 mod bindings;
+mod collection_for;
 mod context;
 mod control_flow;
 mod entry;

@@ -630,6 +630,15 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_statement
                 scope,
             )
         }),
+        Stmt::CollectionFor(statement) => explicit_aggregate_move_span_in_payload_block(
+            &statement.body,
+            Some(&statement.name),
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
         Stmt::LiteralPackFor(statement) => explicit_aggregate_move_span_in_payload_block(
             &statement.body,
             Some(&statement.name),

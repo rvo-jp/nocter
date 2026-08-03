@@ -6,6 +6,8 @@ pub(super) struct ActiveBorrow {
     pub(super) borrow_name: String,
     pub(super) borrow_span: ByteSpan,
     pub(super) is_readwrite: bool,
+    /// Keeps compiler-created loans alive for the full nested scope.
+    pub(super) scope_bound: bool,
 }
 
 #[derive(Debug, Clone)]

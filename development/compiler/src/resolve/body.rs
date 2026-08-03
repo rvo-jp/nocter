@@ -266,6 +266,17 @@ impl Resolver<'_> {
                 );
                 self.resolve_block(&statement.body, &mut body_scope);
             }
+            Stmt::CollectionFor(statement) => {
+                self.resolve_expression(&statement.source, scope);
+                let mut body_scope = scope.clone();
+                self.define_local_name(
+                    statement.name.clone(),
+                    statement.name_span,
+                    LocalSymbolKind::CollectionFor,
+                    &mut body_scope,
+                );
+                self.resolve_block(&statement.body, &mut body_scope);
+            }
             Stmt::LiteralPackFor(statement) => {
                 if let Some(local_id) = scope.resolve(&statement.pack_name) {
                     self.output

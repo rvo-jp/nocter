@@ -492,7 +492,7 @@ fn lower_nonterminal_if_block_with_prologue(
     Ok(instructions)
 }
 
-fn lower_nonterminal_loop_block_statements(
+pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
     statements: &[Stmt],
     result: Option<&Expr>,
     context: &mut LoweringContext,
@@ -717,6 +717,18 @@ fn lower_nonterminal_loop_block_statements(
             ),
             Stmt::ForRange(statement) => instructions.extend(
                 lower_nonterminal_for_range_statement(
+                    statement,
+                    context,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
+            Stmt::CollectionFor(statement) => instructions.extend(
+                crate::ir::lower::collection_for::lower_collection_for_statement(
                     statement,
                     context,
                     diagnostic_code,

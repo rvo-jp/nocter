@@ -19,4 +19,15 @@ impl LoweringContext<'_> {
         abi_value_from_type_expr_with_resolver(&ty, resolved, |source| self.resolved_source(source))
             .ok()
     }
+
+    pub(in crate::ir::lower) fn ir_type_for_type_expr(
+        &self,
+        ty: &TypeExpr,
+    ) -> Option<crate::ir::Type> {
+        let (_root_source, resolved) = self.resolved_calls()?;
+        let ty = self.specialize_type_expr(ty);
+        crate::ir::lower::types::return_type_from_type_expr_with_resolver(&ty, resolved, |source| {
+            self.resolved_source(source)
+        })
+    }
 }

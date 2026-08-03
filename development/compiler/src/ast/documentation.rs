@@ -131,6 +131,10 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             collect_expression_targets(text, &statement.end, targets);
             collect_block_targets(text, &statement.body, targets);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_targets(text, &statement.source, targets);
+            collect_block_targets(text, &statement.body, targets);
+        }
         Stmt::LiteralPackFor(statement) => {
             collect_block_targets(text, &statement.body, targets);
         }

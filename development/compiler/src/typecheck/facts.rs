@@ -8,10 +8,11 @@ use super::calls::{
     resolved_method_for_call,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
-    environment_for_method, environment_for_parameters_in_impl, environment_for_switch_arm,
-    function_self_type, impl_self_type,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm, function_self_type,
+    impl_self_type,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -54,9 +55,10 @@ mod tests;
 pub(crate) use collector::collect_typecheck_facts;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
-    TypeReferenceFact, TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSliceElementKind,
+    TypeReferenceFact, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
+    TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
+    TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckScalarViewKind, TypecheckSliceElementKind,
 };
 
 use hover_labels::*;

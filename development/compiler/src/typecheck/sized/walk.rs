@@ -117,6 +117,10 @@ fn check_statement(
             check_expression(sources, &statement.end, resolved, self_type, diagnostics);
             check_block(sources, &statement.body, resolved, self_type, diagnostics);
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression(sources, &statement.source, resolved, self_type, diagnostics);
+            check_block(sources, &statement.body, resolved, self_type, diagnostics);
+        }
         Stmt::LiteralPackFor(statement) => {
             check_block(sources, &statement.body, resolved, self_type, diagnostics);
         }

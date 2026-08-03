@@ -1,5 +1,61 @@
 use super::*;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_exhaustion_drops_each_owned_item_once() {
+    let project = TempProject::new("distributed-home-collection-for-exhaustion-cleanup-run");
+    let source = project.write_source(
+        "collection_for_exhaustion_cleanup_run.nct",
+        &token_program(
+            r#"    let values = tokens()
+    for token in move values {
+        drop token
+    }
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"ABCD");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_break_drops_item_then_remaining_suffix() {
+    let project = TempProject::new("distributed-home-collection-for-break-cleanup-run");
+    let source = project.write_source(
+        "collection_for_break_cleanup_run.nct",
+        &token_program(
+            r#"    let values = tokens()
+    for token in move values {
+        drop token
+        break
+    }
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"ADCB");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_return_cleans_item_before_iterator() {
+    let project = TempProject::new("distributed-home-collection-for-return-cleanup-run");
+    let source = project.write_source(
+        "collection_for_return_cleanup_run.nct",
+        &token_program(
+            r#"    let values = tokens()
+    for token in move values {
+        drop token
+        return 42
+    }
+    return 1"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"ADCB");
+}
+
 #[test]
 fn distributed_std_region_iterators_cannot_escape_their_storage_region() {
     let project = TempProject::new("distributed-home-iterator-region-escape-check");

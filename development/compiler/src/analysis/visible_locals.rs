@@ -137,6 +137,15 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
             define(locals, &statement.name, statement.name_span, "range");
             collect_block(&statement.body, offset, locals);
         }
+        Stmt::CollectionFor(statement) if contains(statement.body.span, offset) => {
+            define(
+                locals,
+                &statement.name,
+                statement.name_span,
+                "collection element",
+            );
+            collect_block(&statement.body, offset, locals);
+        }
         Stmt::LiteralPackFor(statement) if contains(statement.body.span, offset) => {
             define(
                 locals,
@@ -174,6 +183,7 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
         | Stmt::Drop(_)
         | Stmt::Region(_)
         | Stmt::ForRange(_)
+        | Stmt::CollectionFor(_)
         | Stmt::LiteralPackFor(_) => {}
     }
 }

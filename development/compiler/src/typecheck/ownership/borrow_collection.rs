@@ -98,6 +98,15 @@ pub(super) fn collect_direct_borrow_expressions_in_statement(
                 borrows,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            collect_direct_borrow_expressions(&statement.source, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
         Stmt::LiteralPackFor(statement) => collect_direct_borrow_expressions_in_block(
             &statement.body,
             resolved,

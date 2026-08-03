@@ -80,6 +80,9 @@ pub(in crate::typecheck) fn statement_evaluates_never_before_fallthrough(
             expression_type(&statement.start, resolved, environment) == Type::Never
                 || expression_type(&statement.end, resolved, environment) == Type::Never
         }
+        Stmt::CollectionFor(statement) => {
+            expression_type(&statement.source, resolved, environment) == Type::Never
+        }
         Stmt::LiteralPackFor(_) => false,
         Stmt::While(statement) => {
             expression_type(&statement.condition, resolved, environment) == Type::Never
@@ -266,6 +269,7 @@ pub(super) fn statement_guarantees_return(statement: &Stmt) -> bool {
         Stmt::Binding(_)
         | Stmt::Assignment(_)
         | Stmt::ForRange(_)
+        | Stmt::CollectionFor(_)
         | Stmt::LiteralPackFor(_)
         | Stmt::While(_)
         | Stmt::Break(_)

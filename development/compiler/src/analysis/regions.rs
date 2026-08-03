@@ -157,6 +157,10 @@ fn collect_statement(
             collect_expression(file, &statement.end, parent, facts);
             collect_block(file, &statement.body, parent, facts);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression(file, &statement.source, parent, facts);
+            collect_block(file, &statement.body, parent, facts);
+        }
         Stmt::LiteralPackFor(statement) => {
             collect_block(file, &statement.body, parent, facts);
         }

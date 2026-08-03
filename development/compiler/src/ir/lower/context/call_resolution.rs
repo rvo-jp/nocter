@@ -175,6 +175,29 @@ impl<'a> LoweringContext<'a> {
             .cloned()
     }
 
+    pub(in crate::ir::lower) fn collection_for_plan(
+        &self,
+        statement_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckCollectionForPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .collection_for_plan(statement_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
+    pub(in crate::ir::lower) fn iteration_method_target(
+        &self,
+        method: &crate::typecheck::TypecheckIterationMethod,
+    ) -> Option<CallTarget> {
+        let resolution = self.call_resolution.as_ref()?;
+        Some(call_target_for_source(
+            method.declaration_span.source,
+            resolution.root_source,
+            method.target_name.clone(),
+        ))
+    }
+
     pub(in crate::ir::lower) fn runtime_callable_target(
         &self,
         callable: &crate::semantics::RuntimeCallable,

@@ -436,6 +436,13 @@ fn check_pack_uses_in_block(
                 pack_loops,
                 diagnostics,
             ),
+            Stmt::CollectionFor(statement) => check_pack_uses_in_block(
+                sources,
+                &statement.body,
+                resolved,
+                pack_loops,
+                diagnostics,
+            ),
             Stmt::While(statement) => check_pack_uses_in_block(
                 sources,
                 &statement.body,
@@ -508,6 +515,7 @@ fn check_pack_loop_control(sources: &SourceMap, block: &Block, diagnostics: &mut
                 check_pack_loop_control(sources, &statement.body, diagnostics)
             }
             Stmt::ForRange(_)
+            | Stmt::CollectionFor(_)
             | Stmt::LiteralPackFor(_)
             | Stmt::While(_)
             | Stmt::Loop(_)
@@ -573,6 +581,7 @@ fn visit_statement_expressions(statement: &Stmt, visitor: &mut impl FnMut(&Expr)
             visitor(&statement.start);
             visitor(&statement.end);
         }
+        Stmt::CollectionFor(statement) => visitor(&statement.source),
         Stmt::While(statement) => visitor(&statement.condition),
         Stmt::Region(statement) => visitor(&statement.allocator),
         Stmt::Expression(statement) => visitor(&statement.expression),

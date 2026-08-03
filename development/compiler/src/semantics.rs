@@ -58,6 +58,22 @@ pub(crate) struct InterpolationRuntime {
     formatters: HashMap<InterpolationInputKind, RuntimeCallable>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationProtocol {
+    pub(crate) interface_declaration: ByteSpan,
+    /// Qualified identity derived from the validated declaration's owning module.
+    pub(crate) interface_canonical_name: String,
+    pub(crate) method_declaration: ByteSpan,
+    pub(crate) method_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IterationRuntime {
+    pub(crate) iterator: IterationProtocol,
+    pub(crate) readonly_conversion: IterationProtocol,
+    pub(crate) owned_conversion: IterationProtocol,
+}
+
 impl InterpolationRuntime {
     pub(crate) fn new(
         string_type_declaration: ByteSpan,
@@ -80,6 +96,7 @@ impl InterpolationRuntime {
 pub(crate) struct TrustedDeclarationFacts {
     roles: HashMap<ByteSpan, TrustedDeclarationRole>,
     interpolation_runtime: Option<InterpolationRuntime>,
+    iteration_runtime: Option<IterationRuntime>,
 }
 
 impl TrustedDeclarationFacts {
@@ -91,6 +108,9 @@ impl TrustedDeclarationFacts {
         self.roles.extend(other.roles);
         if other.interpolation_runtime.is_some() {
             self.interpolation_runtime = other.interpolation_runtime;
+        }
+        if other.iteration_runtime.is_some() {
+            self.iteration_runtime = other.iteration_runtime;
         }
     }
 
@@ -104,5 +124,13 @@ impl TrustedDeclarationFacts {
 
     pub(crate) fn interpolation_runtime(&self) -> Option<&InterpolationRuntime> {
         self.interpolation_runtime.as_ref()
+    }
+
+    pub(crate) fn set_iteration_runtime(&mut self, runtime: IterationRuntime) {
+        self.iteration_runtime = Some(runtime);
+    }
+
+    pub(crate) fn iteration_runtime(&self) -> Option<&IterationRuntime> {
+        self.iteration_runtime.as_ref()
     }
 }

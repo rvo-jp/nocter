@@ -84,6 +84,10 @@ fn visit_statement_expressions(statement: &Stmt, visitor: &mut impl FnMut(&Expr)
             visit_expression(&statement.end, visitor);
             visit_block_expressions(&statement.body, visitor);
         }
+        Stmt::CollectionFor(statement) => {
+            visit_expression(&statement.source, visitor);
+            visit_block_expressions(&statement.body, visitor);
+        }
         Stmt::LiteralPackFor(statement) => visit_block_expressions(&statement.body, visitor),
         Stmt::While(statement) => {
             visit_expression(&statement.condition, visitor);

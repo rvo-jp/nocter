@@ -105,6 +105,10 @@ fn collect_statement(
             collect_expression(&statement.end, root_source, resolved, targets);
             collect_block(&statement.body, root_source, resolved, targets);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression(&statement.source, root_source, resolved, targets);
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
         Stmt::LiteralPackFor(statement) => {
             collect_block(&statement.body, root_source, resolved, targets);
         }

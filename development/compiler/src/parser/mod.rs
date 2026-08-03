@@ -1,5 +1,6 @@
 //! Parser for Nocter source syntax.
 
+mod collection_for;
 mod cursor;
 mod expressions;
 mod items;
@@ -38,6 +39,7 @@ pub fn parse(sources: &SourceMap, source: SourceId, tokens: &[Token]) -> ParseOu
         index: 0,
         pending_token: None,
         diagnostics: Vec::new(),
+        literal_pack_capture: None,
     };
 
     match parser.parse_source_file() {
@@ -61,6 +63,7 @@ struct Parser<'a> {
     index: usize,
     pending_token: Option<Token>,
     diagnostics: Vec<Diagnostic>,
+    literal_pack_capture: Option<String>,
 }
 
 #[cfg(test)]

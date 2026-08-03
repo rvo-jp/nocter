@@ -375,6 +375,17 @@ pub(in crate::analysis::hover) fn collect_statement_hover_symbols(
             collect_expression_hover_symbols(text, &statement.end, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
+        Stmt::CollectionFor(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.source, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
         Stmt::LiteralPackFor(statement) => {
             push_hover_symbol(
                 text,

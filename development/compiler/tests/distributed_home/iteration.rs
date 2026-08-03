@@ -1,6 +1,192 @@
 use super::*;
 
 #[test]
+fn distributed_std_collection_for_surface_passes_check() {
+    let project = TempProject::new("distributed-home-collection-for-check");
+    let source = project.write_source(
+        "collection_for_shape.nct",
+        r#"use std/vec.Vec
+
+func read(value: &i32): i32 {
+    return 0
+}
+
+func main(): i32 {
+    let readonly = Vec [1, 2, 3]
+    for item in &readonly {
+        read(item)
+    }
+
+    let owned = Vec [4, 5, 6]
+    for item in move owned {
+        read(&item)
+    }
+
+    let source = Vec [7, 8, 9]
+    let iterator = (move source).into_iter()
+    for item in iterator {
+        read(&item)
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_success(&nocter_check(&project, &source));
+}
+
+#[test]
+fn distributed_std_collection_for_rejects_a_bare_collection() {
+    let project = TempProject::new("distributed-home-collection-for-bare-collection");
+    let source = project.write_source(
+        "collection_for_bare_collection.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values = Vec [1, 2, 3]
+    for item in values {
+        return item
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0448]"), "{stderr}");
+    assert!(stderr.contains("explicit ownership mode"), "{stderr}");
+}
+
+#[test]
+fn distributed_std_collection_for_keeps_the_readonly_source_loan_active() {
+    let project = TempProject::new("distributed-home-collection-for-readonly-loan");
+    let source = project.write_source(
+        "collection_for_readonly_loan.nct",
+        r#"use std/vec.Vec
+
+func read(value: &i32): void {
+    return
+}
+
+func main(): i32 {
+    var values = Vec [1, 2, 3]
+    for item in &values {
+        values.push(4)
+        read(item)
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0434]"), "{stderr}");
+    assert!(stderr.contains("values"), "{stderr}");
+}
+
+#[test]
+fn distributed_std_collection_for_consumes_owned_sources_and_direct_iterators() {
+    let project = TempProject::new("distributed-home-collection-for-consumes-sources");
+    let source = project.write_source(
+        "collection_for_consumes_sources.nct",
+        r#"use std/vec.Vec
+
+func owned(): void {
+    let values = Vec [1, 2, 3]
+    for item in move values {
+        let copy = item
+    }
+    let after = values.len()
+    return
+}
+
+func direct(): void {
+    let values = Vec [1, 2, 3]
+    let iterator = (move values).into_iter()
+    for item in iterator {
+        let copy = item
+    }
+    let after = iterator.remaining()
+    return
+}
+
+func main(): i32 {
+    owned()
+    direct()
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert_eq!(stderr.matches("error[E0385]").count(), 2, "{stderr}");
+    assert!(
+        stderr.contains("values") && stderr.contains("iterator"),
+        "{stderr}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_collection_for_readonly_owned_and_direct_iteration_runs() {
+    let project = TempProject::new("distributed-home-collection-for-run");
+    let source = project.write_source(
+        "collection_for_run.nct",
+        r#"use std/vec.Vec
+
+copy struct Value {
+    number: i32
+}
+
+func read(value: &Value): i32 {
+    return value.number
+}
+
+func main(): i32 {
+    let readonly = Vec [
+        Value { number: 4 },
+        Value { number: 5 },
+        Value { number: 6 },
+    ]
+    var total: i32 = 0
+    for item in &readonly {
+        total = total + read(item)
+    }
+
+    let owned = Vec [7, 8, 9]
+    for item in move owned {
+        total = total + item
+    }
+
+    let source = Vec [1, 2, 0]
+    let iterator = (move source).into_iter()
+    for item in iterator {
+        total = total + item
+    }
+    return total
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
 fn distributed_std_readonly_iterator_surface_passes_check() {
     let project = TempProject::new("distributed-home-readonly-iterator-check");
     let source = project.write_source(

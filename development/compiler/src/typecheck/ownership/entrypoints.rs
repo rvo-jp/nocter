@@ -122,16 +122,38 @@ pub(super) fn check_block_ownership(
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
 ) -> FlowState {
-    let mut active_borrows: Vec<ActiveBorrow> = Vec::new();
+    check_block_ownership_with_borrows(
+        sources,
+        block,
+        resolved,
+        summaries,
+        diagnostics,
+        environment,
+        ownership,
+        Vec::new(),
+    )
+}
+
+pub(super) fn check_block_ownership_with_borrows(
+    sources: &SourceMap,
+    block: &Block,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
+    ownership: &mut OwnershipState,
+    mut active_borrows: Vec<ActiveBorrow>,
+) -> FlowState {
     for (index, statement) in block.statements.iter().enumerate() {
         active_borrows.retain(|borrow| {
-            statements_or_result_use_identifier_before_terminal(
-                &block.statements[index..],
-                block.result.as_deref(),
-                &borrow.borrow_name,
-                resolved,
-                environment,
-            )
+            borrow.scope_bound
+                || statements_or_result_use_identifier_before_terminal(
+                    &block.statements[index..],
+                    block.result.as_deref(),
+                    &borrow.borrow_name,
+                    resolved,
+                    environment,
+                )
         });
         check_statement_borrow_conflicts(
             sources,
@@ -166,7 +188,8 @@ pub(super) fn check_block_ownership(
     }
     if let Some(result) = &block.result {
         active_borrows.retain(|borrow| {
-            expression_uses_identifier(result, &borrow.borrow_name, resolved, environment)
+            borrow.scope_bound
+                || expression_uses_identifier(result, &borrow.borrow_name, resolved, environment)
         });
         check_expression_borrow_conflicts(
             sources,

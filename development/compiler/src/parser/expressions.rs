@@ -577,6 +577,7 @@ impl Parser<'_> {
             index: 0,
             pending_token: None,
             diagnostics: Vec::new(),
+            literal_pack_capture: None,
         };
         parser.skip_newlines();
         let expression = match parser.parse_expression() {

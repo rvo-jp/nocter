@@ -5,6 +5,7 @@
 //! only the unconsumed suffix in reverse order; RawBuffer then releases storage
 //! exactly once through its allocator provenance.
 
+use std/iter.Iterator
 use std/mem.RawBuffer
 use std/ptr.addr
 use std/ptr.drop_value_at_ptr
@@ -81,3 +82,5 @@ impl<T> VecIntoIter<T> {
         return
     }
 }
+
+impl<T> Iterator<T> for VecIntoIter<T>

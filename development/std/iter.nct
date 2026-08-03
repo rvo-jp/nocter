@@ -3,6 +3,21 @@
 //! ViewIter retains the source view itself so element borrows preserve the
 //! view's storage origin. Iterator names are ordinary standard-library APIs.
 
+/// Advances a mutable iterator and returns one item, or `none` at exhaustion.
+pub interface Iterator<T> {
+    pub method &+self.next(): T?
+}
+
+/// Creates a readonly iterator whose yielded values retain the collection origin.
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+
+/// Transfers a collection into an owning iterator.
+pub interface IntoIterator<T, I> {
+    pub method self.into_iter(): I
+}
+
 /// A forward cursor over readonly borrows into contiguous storage.
 pub struct ViewIter<T> {
     view: &[T]
@@ -50,3 +65,5 @@ impl<T> ViewIter<T> {
         return &self.view[index]
     }
 }
+
+impl<T> Iterator<&T> for ViewIter<T>

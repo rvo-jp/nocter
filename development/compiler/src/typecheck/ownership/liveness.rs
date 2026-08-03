@@ -57,6 +57,18 @@ fn statement_uses_identifier(
                 || expression_uses_identifier(&statement.end, name, resolved, environment)
                 || block_uses_identifier(&statement.body, name, resolved, &body_environment)
         }
+        Stmt::CollectionFor(statement) => {
+            let item_type = super::super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .map_or(Type::Unknown, |plan| plan.item_type);
+            let body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            expression_uses_identifier(&statement.source, name, resolved, environment)
+                || block_uses_identifier(&statement.body, name, resolved, &body_environment)
+        }
         Stmt::LiteralPackFor(statement) => {
             let body_environment = environment_for_literal_pack_binding(statement, environment);
             statement.pack_name == name

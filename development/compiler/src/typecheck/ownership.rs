@@ -6,9 +6,10 @@ use super::diagnostics::{
     uninitialized_binding_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
-    environment_for_method, environment_for_parameters_in_impl, environment_for_switch_arm,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -37,13 +38,13 @@ mod state_checks;
 
 use borrow_collection::{
     collect_direct_borrow_expressions, collect_direct_borrow_expressions_in_statement,
-    returned_borrow_sources,
+    direct_borrow_source, returned_borrow_sources,
 };
 use borrow_conflicts::{
     check_expression_borrow_conflicts, check_statement_borrow_conflicts, record_statement_borrow,
 };
-use entrypoints::check_block_ownership;
 pub(super) use entrypoints::check_ownership_states;
+use entrypoints::{check_block_ownership, check_block_ownership_with_borrows};
 use liveness::{expression_uses_identifier, statements_or_result_use_identifier_before_terminal};
 use model::{
     ActiveBorrow, BorrowAction, BorrowPlace, DirectBorrowSource, FlowState, OwnershipState,

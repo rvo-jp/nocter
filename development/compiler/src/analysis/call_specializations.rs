@@ -45,6 +45,19 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Method(specialization));
             }
         }
+        for (_, plan) in file.typecheck_facts.collection_for_plans() {
+            for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                else {
+                    continue;
+                };
+                if let Some(specialization) =
+                    specialization.with_context_substitutions(&HashMap::new())
+                {
+                    queue.push_back(PendingCallSpecialization::Method(specialization));
+                }
+            }
+        }
         for specialization in file.typecheck_facts.drop_type_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
                 && let Some(specialization) =
@@ -300,6 +313,38 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
+    for (statement_span, plan) in file.typecheck_facts.collection_for_plans() {
+        if !span_contains(span, *statement_span) {
+            continue;
+        }
+        for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+            let Some(specialization) = iteration_method_call_specialization(analysis, method)
+            else {
+                continue;
+            };
+            if let Some(specialization) =
+                specialization.with_context_substitutions(context_substitutions)
+            {
+                queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+    }
+}
+
+fn iteration_method_call_specialization(
+    analysis: &CompileUnitAnalysis,
+    method: &crate::typecheck::TypecheckIterationMethod,
+) -> Option<MethodCallSpecialization> {
+    let (_file, impl_, _declaration) =
+        method_declaration_for_span(analysis, method.declaration_span)?;
+    let substitutions = impl_substitutions_for_self_ty(impl_, &method.self_ty)?;
+    let generic_parameters = impl_
+        .generics
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name.clone())
+        .collect();
+    Some(method.as_method_call_specialization(generic_parameters, substitutions))
 }
 
 fn function_declaration_for_span(

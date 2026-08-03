@@ -235,6 +235,10 @@ fn collect_statement_import_sites<'a>(statement: &'a Stmt, sites: &mut Vec<Impor
             collect_expression_import_sites(&statement.end, sites);
             collect_block_import_sites(&statement.body, sites);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_import_sites(&statement.source, sites);
+            collect_block_import_sites(&statement.body, sites);
+        }
         Stmt::LiteralPackFor(statement) => collect_block_import_sites(&statement.body, sites),
         Stmt::While(statement) => {
             collect_expression_import_sites(&statement.condition, sites);

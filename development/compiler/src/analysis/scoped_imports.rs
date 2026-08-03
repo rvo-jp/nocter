@@ -89,6 +89,10 @@ fn collect_scoped_import_name_spans_in_statement(statement: &Stmt, spans: &mut H
             collect_scoped_import_name_spans_in_expression(&statement.end, spans);
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_scoped_import_name_spans_in_expression(&statement.source, spans);
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
         Stmt::LiteralPackFor(statement) => {
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
@@ -331,6 +335,11 @@ fn scoped_import_spans_in_statement_at_offset(
                 .or_else(|| {
                     scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
                 })
+        }
+        Stmt::CollectionFor(statement) => {
+            scoped_import_spans_in_expression_at_offset(&statement.source, offset, visible).or_else(
+                || scoped_import_spans_in_block_at_offset(&statement.body, offset, visible),
+            )
         }
         Stmt::LiteralPackFor(statement) => {
             scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)

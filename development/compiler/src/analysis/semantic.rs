@@ -393,6 +393,7 @@ fn semantic_kind_for_local_symbol_kind(kind: LocalSymbolKind) -> SemanticTokenKi
         | LocalSymbolKind::PatternPayload
         | LocalSymbolKind::CatchError
         | LocalSymbolKind::ForRange
+        | LocalSymbolKind::CollectionFor
         | LocalSymbolKind::LiteralPackFor => SemanticTokenKind::Variable,
         LocalSymbolKind::LiteralCapture => SemanticTokenKind::Variable,
     }
@@ -408,6 +409,7 @@ fn local_symbol_modifiers(symbol: &LocalSymbol, span: ByteSpan, facts: &Typechec
         LocalSymbolKind::PatternPayload
         | LocalSymbolKind::CatchError
         | LocalSymbolKind::ForRange
+        | LocalSymbolKind::CollectionFor
         | LocalSymbolKind::LiteralPackFor => {
             if facts.binding_is_readonly(span) == Some(true) {
                 SEMANTIC_READONLY_MODIFIER

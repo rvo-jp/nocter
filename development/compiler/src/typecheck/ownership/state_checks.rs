@@ -344,6 +344,75 @@ pub(super) fn check_statement_ownership(
             ownership.join_branches(&incoming);
             FlowState::fallthrough()
         }
+        Stmt::CollectionFor(statement) => {
+            let resolution = super::super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .ok();
+            check_expression_ownership(
+                sources,
+                &statement.source,
+                resolved,
+                summaries,
+                diagnostics,
+                environment,
+                ownership,
+            );
+            if resolution.as_ref().is_some_and(|plan| {
+                plan.source_mode == super::super::iteration::CollectionIterationSourceMode::Direct
+            }) && let Expr::Identifier(identifier) = statement.source.without_groups()
+            {
+                ownership.ensure_binding_from_environment(
+                    &identifier.name,
+                    identifier.span,
+                    environment,
+                    resolved,
+                );
+                ownership.move_binding(sources, identifier, diagnostics);
+            }
+            let item_type = resolution
+                .as_ref()
+                .map_or(Type::Unknown, |plan| plan.item_type.clone());
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            let mut body_ownership = ownership.clone();
+            let source_loan = resolution
+                .as_ref()
+                .filter(|plan| {
+                    plan.source_mode
+                        == super::super::iteration::CollectionIterationSourceMode::ReadonlyConversion
+                })
+                .and_then(|_| direct_borrow_source(&statement.source))
+                .map(|source| ActiveBorrow {
+                    source: source.source,
+                    borrow_name: format!("collection iterator `{}`", statement.name),
+                    borrow_span: source.source_span,
+                    is_readwrite: source.is_readwrite,
+                    scope_bound: true,
+                })
+                .into_iter()
+                .collect();
+            let body_flow = check_block_ownership_with_borrows(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+                source_loan,
+            );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
+        }
         Stmt::LiteralPackFor(statement) => {
             let mut body_environment = environment_for_literal_pack_binding(statement, environment);
             let mut body_ownership = ownership.clone();

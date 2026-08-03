@@ -137,6 +137,10 @@ fn check_statement(
             check_expression_blocks(sources, &statement.end, parent, tree, diagnostics);
             check_block(sources, &statement.body, parent, tree, diagnostics);
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression_blocks(sources, &statement.source, parent, tree, diagnostics);
+            check_block(sources, &statement.body, parent, tree, diagnostics);
+        }
         Stmt::LiteralPackFor(statement) => {
             check_block(sources, &statement.body, parent, tree, diagnostics);
         }

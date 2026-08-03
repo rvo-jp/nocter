@@ -277,6 +277,16 @@ pub(super) fn environment_for_for_range_binding(
     body_environment
 }
 
+pub(super) fn environment_for_collection_for_binding(
+    statement: &crate::ast::CollectionForStmt,
+    item_type: Type,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut body_environment = environment.clone();
+    body_environment.define(statement.name.clone(), item_type);
+    body_environment
+}
+
 pub(super) fn environment_for_literal_pack_binding(
     statement: &LiteralPackForStmt,
     environment: &TypeEnvironment,

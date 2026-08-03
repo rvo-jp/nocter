@@ -148,6 +148,21 @@ impl Stmt {
                     statement.body.to_json_with_kind(sources, "body"),
                 ],
             ),
+            Stmt::CollectionFor(statement) => JsonAstNode::with_value(
+                "collection_for_statement",
+                statement.name.clone(),
+                json_span(sources, statement.span),
+                vec![
+                    JsonAstNode::with_value(
+                        "for_binding",
+                        statement.name.clone(),
+                        json_span(sources, statement.name_span),
+                        Vec::new(),
+                    ),
+                    statement.source.to_json(sources),
+                    statement.body.to_json_with_kind(sources, "body"),
+                ],
+            ),
             Stmt::LiteralPackFor(statement) => JsonAstNode::with_value(
                 "literal_pack_for_statement",
                 statement.name.clone(),

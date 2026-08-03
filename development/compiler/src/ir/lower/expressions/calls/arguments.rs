@@ -19,6 +19,14 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
     explicit_parameter_types: Option<&[TypeExpr]>,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let Some(parameter_types) = context.call_parameter_types(target) else {
+        if explicit_parameter_types.is_some() {
+            return Err(vec![Diagnostic::error(
+                "E8006",
+                format!(
+                    "IR cannot find the specialized signature for planned call `{callee_name}`"
+                ),
+            )]);
+        }
         return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
     let mut evaluation = CallEvaluationContext::new(context, temporaries)?;

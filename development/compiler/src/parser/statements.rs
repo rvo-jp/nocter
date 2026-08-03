@@ -2,9 +2,9 @@ use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
-    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, Item, LiteralPackForStmt,
-    LoopStmt, ReturnStmt, Stmt, SwitchArm, SwitchPayloadBinding, SwitchPayloadDiscard,
-    SwitchPayloadPattern, SwitchStmt, SwitchWildcardArm, Visibility, WhileStmt,
+    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, Item, LoopStmt, ReturnStmt,
+    Stmt, SwitchArm, SwitchPayloadBinding, SwitchPayloadDiscard, SwitchPayloadPattern, SwitchStmt,
+    SwitchWildcardArm, Visibility, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -426,22 +426,7 @@ impl Parser<'_> {
         self.expect_keyword(Keyword::In, "`in`")?;
         let range_start = self.parse_expression()?;
         let Some(range) = self.match_punctuation("..<") else {
-            let Expr::Identifier(pack) = range_start else {
-                self.error_at(
-                    range_start.span(),
-                    "literal pack iteration requires a pack binding after `in`",
-                );
-                return Err(());
-            };
-            let body = self.parse_block()?;
-            return Ok(Stmt::LiteralPackFor(LiteralPackForStmt {
-                span: self.span(start.span.start, body.span.end),
-                name: name.value,
-                name_span: name.span,
-                pack_name: pack.name,
-                pack_span: pack.span,
-                body,
-            }));
+            return self.finish_non_range_for_statement(start, name, range_start);
         };
         let range_end = self.parse_expression()?;
         let body = self.parse_block()?;

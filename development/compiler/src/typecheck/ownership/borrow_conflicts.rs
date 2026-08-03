@@ -182,6 +182,7 @@ pub(super) fn record_statement_borrow(
         borrow_name: binding.name.clone(),
         borrow_span: binding.name_span,
         is_readwrite: source.is_readwrite,
+        scope_bound: false,
     }));
 }
 
@@ -260,6 +261,10 @@ fn statement_conflicting_action(
         Stmt::ForRange(statement) => {
             expression_move_action(&statement.start, source, resolved, environment)
                 .or_else(|| expression_move_action(&statement.end, source, resolved, environment))
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
+        }
+        Stmt::CollectionFor(statement) => {
+            expression_move_action(&statement.source, source, resolved, environment)
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::LiteralPackFor(statement) => {
@@ -357,6 +362,10 @@ fn statement_read_action(
         Stmt::ForRange(statement) => {
             expression_read_action(&statement.start, source, resolved, environment)
                 .or_else(|| expression_read_action(&statement.end, source, resolved, environment))
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
+        }
+        Stmt::CollectionFor(statement) => {
+            expression_read_action(&statement.source, source, resolved, environment)
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::LiteralPackFor(statement) => {

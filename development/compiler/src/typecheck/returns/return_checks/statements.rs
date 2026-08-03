@@ -352,6 +352,37 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 summaries,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression_for_nested_returns(
+                sources,
+                &statement.source,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            let item_type = super::super::super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .map_or(Type::Unknown, |plan| plan.item_type);
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+        }
         Stmt::LiteralPackFor(statement) => {
             let mut body_environment = environment_for_literal_pack_binding(statement, environment);
             let mut body_borrow_provenance = borrow_provenance.clone();

@@ -17,6 +17,7 @@ mod fallible;
 mod generics;
 mod interface_bounds;
 mod interfaces;
+mod iteration;
 mod literals;
 mod model;
 mod numeric;
@@ -50,10 +51,11 @@ use returns::*;
 use sized::*;
 
 pub(crate) use facts::{
-    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckInterpolationPlan, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSliceElementKind, collect_typecheck_facts,
-    type_expr_presentation_label,
+    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
+    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
+    TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
+    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
+    collect_typecheck_facts, type_expr_presentation_label,
 };
 pub(crate) use semantic_facts::{
     CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,

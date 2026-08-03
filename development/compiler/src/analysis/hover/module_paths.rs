@@ -98,6 +98,10 @@ pub(in crate::analysis::hover) fn module_path_in_statement_at_offset(
         Stmt::ForRange(statement) => module_path_in_expression_at_offset(&statement.start, offset)
             .or_else(|| module_path_in_expression_at_offset(&statement.end, offset))
             .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
+        Stmt::CollectionFor(statement) => {
+            module_path_in_expression_at_offset(&statement.source, offset)
+                .or_else(|| module_path_in_block_at_offset(&statement.body, offset))
+        }
         Stmt::LiteralPackFor(statement) => module_path_in_block_at_offset(&statement.body, offset),
         Stmt::While(statement) => module_path_in_expression_at_offset(&statement.condition, offset)
             .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),

@@ -134,7 +134,9 @@ pub(in crate::analysis::hover) fn local_symbol_hover_label(symbol: &LocalSymbol)
         LocalSymbolKind::Region => format!("region {}", symbol.name),
         LocalSymbolKind::PatternPayload => format!("payload {}", symbol.name),
         LocalSymbolKind::CatchError => format!("catch {}", symbol.name),
-        LocalSymbolKind::ForRange | LocalSymbolKind::LiteralPackFor => {
+        LocalSymbolKind::ForRange
+        | LocalSymbolKind::CollectionFor
+        | LocalSymbolKind::LiteralPackFor => {
             format!("for {}", symbol.name)
         }
         LocalSymbolKind::LiteralCapture => format!("literal pack {}", symbol.name),

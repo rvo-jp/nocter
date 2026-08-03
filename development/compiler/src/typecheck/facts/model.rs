@@ -6,6 +6,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
+    pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -49,6 +50,19 @@ impl TypecheckFacts {
         expression_span: ByteSpan,
     ) -> Option<&TypecheckInterpolationPlan> {
         self.interpolation_plans.get(&expression_span)
+    }
+
+    pub(crate) fn collection_for_plan(
+        &self,
+        statement_span: ByteSpan,
+    ) -> Option<&TypecheckCollectionForPlan> {
+        self.collection_for_plans.get(&statement_span)
+    }
+
+    pub(crate) fn collection_for_plans(
+        &self,
+    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckCollectionForPlan)> {
+        self.collection_for_plans.iter()
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -294,6 +308,93 @@ pub(crate) struct TypecheckInterpolationPart {
     pub(crate) expression_span: Option<ByteSpan>,
     pub(crate) input: crate::semantics::InterpolationInputKind,
     pub(crate) formatter: crate::semantics::RuntimeCallable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckCollectionForSourceMode {
+    Direct,
+    ReadonlyConversion,
+    OwnedConversion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckIterationMethod {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
+    pub(crate) self_ty: TypeExpr,
+    pub(crate) receiver_mode: crate::ast::MethodReceiverMode,
+    pub(super) method_name: String,
+    pub(super) free_type_parameters: HashSet<String>,
+}
+
+impl TypecheckIterationMethod {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let self_ty = substitute_type_expr_parameters(&self.self_ty, context_substitutions);
+        if type_expr_contains_free_parameters(&self_ty, &self.free_type_parameters) {
+            return None;
+        }
+        Some(Self {
+            declaration_span: self.declaration_span,
+            target_name: method_target_name_from_self_ty(&self_ty, &self.method_name),
+            self_ty,
+            receiver_mode: self.receiver_mode,
+            method_name: self.method_name.clone(),
+            free_type_parameters: HashSet::new(),
+        })
+    }
+
+    pub(crate) fn as_method_call_specialization(
+        &self,
+        generic_parameters: Vec<String>,
+        substitutions: HashMap<String, TypeExpr>,
+    ) -> MethodCallSpecialization {
+        MethodCallSpecialization {
+            declaration_span: self.declaration_span,
+            method_name: self.method_name.clone(),
+            target_name: self.target_name.clone(),
+            self_ty: self.self_ty.clone(),
+            generic_parameters,
+            substitutions,
+            free_type_parameters: self.free_type_parameters.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckCollectionForPlan {
+    pub(crate) source_mode: TypecheckCollectionForSourceMode,
+    pub(crate) source_type: TypeExpr,
+    pub(crate) iterator_type: TypeExpr,
+    pub(crate) item_type: TypeExpr,
+    pub(crate) conversion: Option<TypecheckIterationMethod>,
+    pub(crate) step: TypecheckIterationMethod,
+}
+
+impl TypecheckCollectionForPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            source_mode: self.source_mode,
+            source_type: substitute_type_expr_parameters(&self.source_type, context_substitutions),
+            iterator_type: substitute_type_expr_parameters(
+                &self.iterator_type,
+                context_substitutions,
+            ),
+            item_type: substitute_type_expr_parameters(&self.item_type, context_substitutions),
+            conversion: match &self.conversion {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            step: self
+                .step
+                .with_context_substitutions(context_substitutions)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

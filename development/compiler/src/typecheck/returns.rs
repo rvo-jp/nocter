@@ -13,10 +13,10 @@ use super::diagnostics::{
     unexpected_body_result_diagnostic, unexpected_return_value_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_literal, environment_for_literal_pack_binding,
-    environment_for_method, environment_for_parameters_in_impl, environment_for_switch_arm,
-    impl_member_name,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_literal, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm, impl_member_name,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};

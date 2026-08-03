@@ -454,6 +454,10 @@ fn check_statement(
             check_expression(sources, &statement.end, resolved, scope, diagnostics);
             check_block(sources, &statement.body, resolved, scope, diagnostics);
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression(sources, &statement.source, resolved, scope, diagnostics);
+            check_block(sources, &statement.body, resolved, scope, diagnostics);
+        }
         Stmt::LiteralPackFor(statement) => {
             check_block(sources, &statement.body, resolved, scope, diagnostics);
         }

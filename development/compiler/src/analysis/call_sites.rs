@@ -114,6 +114,10 @@ fn call_in_statement_at_offset(
         Stmt::ForRange(statement) => call_in_expression_at_offset(&statement.start, offset, region)
             .or_else(|| call_in_expression_at_offset(&statement.end, offset, region))
             .or_else(|| call_in_block_at_offset(&statement.body, offset, region)),
+        Stmt::CollectionFor(statement) => {
+            call_in_expression_at_offset(&statement.source, offset, region)
+                .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
+        }
         Stmt::LiteralPackFor(statement) => call_in_block_at_offset(&statement.body, offset, region),
         Stmt::While(statement) => {
             call_in_expression_at_offset(&statement.condition, offset, region)

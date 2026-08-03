@@ -1,5 +1,6 @@
 //! Source-level abstract syntax tree definitions.
 
+mod collection_for;
 mod documentation;
 mod json;
 mod literals;
@@ -8,6 +9,7 @@ mod receivers;
 mod types;
 mod visit;
 
+pub use collection_for::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
 pub use provenance::*;
@@ -339,6 +341,7 @@ pub enum Stmt {
     IfIs(IfIsStmt),
     Switch(SwitchStmt),
     ForRange(ForRangeStmt),
+    CollectionFor(CollectionForStmt),
     LiteralPackFor(LiteralPackForStmt),
     While(WhileStmt),
     Loop(LoopStmt),
@@ -825,6 +828,7 @@ impl Stmt {
             Stmt::IfIs(statement) => statement.span,
             Stmt::Switch(statement) => statement.span,
             Stmt::ForRange(statement) => statement.span,
+            Stmt::CollectionFor(statement) => statement.span,
             Stmt::LiteralPackFor(statement) => statement.span,
             Stmt::While(statement) => statement.span,
             Stmt::Loop(statement) => statement.span,

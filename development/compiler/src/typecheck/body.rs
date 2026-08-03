@@ -17,8 +17,9 @@ use super::diagnostics::{
     self_move_assignment_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_literal_pack_binding, environment_for_method,
     environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{
@@ -29,7 +30,7 @@ use super::literals::{
     check_literal_pack_for_statement, check_typed_sequence_literal, check_typed_string_literal,
     check_unconstrained_literal_initializer, literal_expression_type_with_expected,
 };
-use super::model::{TypeEnvironment, binding_kind_is_mutable};
+use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
     check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
@@ -390,6 +391,39 @@ fn check_statement_expressions(
 
             let mut body_environment =
                 environment_for_for_range_binding(statement, resolved, environment);
+            check_block_expressions(
+                sources,
+                &statement.body,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                loop_depth + 1,
+            );
+        }
+        Stmt::CollectionFor(statement) => {
+            check_expression_tree(
+                sources,
+                &statement.source,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            let item_type = match super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            ) {
+                Ok(plan) => plan.item_type,
+                Err(error) => {
+                    diagnostics.push(super::iteration::collection_iteration_diagnostic(
+                        sources, statement, error,
+                    ));
+                    Type::Unknown
+                }
+            };
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
             check_block_expressions(
                 sources,
                 &statement.body,
