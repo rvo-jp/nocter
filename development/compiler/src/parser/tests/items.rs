@@ -588,6 +588,32 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_method_generic_parameters_after_the_method_name() {
+    let output = parse_text(
+        r#"struct Factory {}
+
+impl Factory {
+    method &self.identity<T: Copyable>(value: T): T {
+        return value
+    }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Impl(impl_) = &ast.items[1] else {
+        panic!("expected impl");
+    };
+    let ImplMember::Method(method) = &impl_.members[0] else {
+        panic!("expected method");
+    };
+    assert_eq!(method.generics.parameters.len(), 1);
+    assert_eq!(method.generics.parameters[0].name, "T");
+    assert_eq!(method.generics.parameters[0].bounds.len(), 1);
+}
+
+#[test]
 fn parses_interface_declarations() {
     let output = parse_text(
         r#"pub interface Writer {

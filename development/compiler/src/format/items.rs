@@ -249,6 +249,7 @@ impl Formatter {
         self.format_method_receiver(&item.receiver);
         self.write(".");
         self.write(&item.name);
+        self.format_generics(&item.generics);
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);

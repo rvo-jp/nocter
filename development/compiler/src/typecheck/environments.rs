@@ -92,6 +92,7 @@ pub(super) fn environment_for_method(
 ) -> TypeEnvironment {
     let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
     define_impl_generic_parameters(impl_, &mut environment);
+    environment.define_generic_parameter_list(&method.generics);
     let receiver = method.receiver.implicit_parameter();
     let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
     environment.define(method.receiver.name.clone(), receiver_type);

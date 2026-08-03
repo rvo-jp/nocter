@@ -150,9 +150,10 @@ pub(super) fn method_declaration_hover_label(
     self_type: Option<&Type>,
 ) -> String {
     let mut label = format!(
-        "method {}.{}({}): {}",
+        "method {}.{}{}({}): {}",
         method_receiver_label(&method.receiver, resolved, self_type),
         method.name,
+        generic_parameters_label(&method.generics, resolved, self_type),
         parameters_label(&method.parameters.parameters, resolved, self_type),
         type_label(&method.return_type, resolved, self_type)
     );

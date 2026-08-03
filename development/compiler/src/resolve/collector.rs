@@ -137,10 +137,20 @@ impl Resolver<'_> {
                             interface,
                         ));
                     for method in &interface.methods {
+                        let subject =
+                            format!("interface method `{}.{}`", interface.name, method.name);
+                        self.output
+                            .diagnostics
+                            .extend(method_generic_parameter_name_diagnostics(
+                                self.sources,
+                                &subject,
+                                &interface.generics,
+                                &method.generics,
+                            ));
                         self.output.diagnostics.extend(
                             duplicate_method_parameter_name_diagnostics(
                                 self.sources,
-                                &format!("interface method `{}.{}`", interface.name, method.name),
+                                &subject,
                                 &method.receiver,
                                 &method.parameters.parameters,
                             ),
@@ -163,10 +173,19 @@ impl Resolver<'_> {
                         ));
                     for member in &impl_.members {
                         if let crate::ast::ImplMember::Method(method) = member {
+                            let subject = format!("method `{}`", method.name);
+                            self.output.diagnostics.extend(
+                                method_generic_parameter_name_diagnostics(
+                                    self.sources,
+                                    &subject,
+                                    &impl_.generics,
+                                    &method.generics,
+                                ),
+                            );
                             self.output.diagnostics.extend(
                                 duplicate_method_parameter_name_diagnostics(
                                     self.sources,
-                                    &format!("method `{}`", method.name),
+                                    &subject,
                                     &method.receiver,
                                     &method.parameters.parameters,
                                 ),
@@ -465,6 +484,34 @@ fn generic_parameter_name_diagnostics(
             ));
         } else {
             seen.insert(parameter.name.as_str(), parameter.span);
+        }
+    }
+
+    diagnostics
+}
+
+fn method_generic_parameter_name_diagnostics(
+    sources: &SourceMap,
+    subject: &str,
+    owner_generics: &GenericParamList,
+    method_generics: &GenericParamList,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = generic_parameter_name_diagnostics(sources, subject, method_generics);
+    let owner_parameters = owner_generics
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.name.as_str(), parameter.span))
+        .collect::<HashMap<_, _>>();
+
+    for parameter in &method_generics.parameters {
+        if let Some(first_span) = owner_parameters.get(parameter.name.as_str()).copied() {
+            diagnostics.push(duplicate_generic_parameter_name_diagnostic(
+                sources,
+                subject,
+                &parameter.name,
+                first_span,
+                parameter.span,
+            ));
         }
     }
 

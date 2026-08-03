@@ -86,7 +86,15 @@ pub(super) fn check_generic_type_arities(
                 let scope = GenericScope::new(&interface.generics).with_self_type();
                 check_generic_bounds(sources, &interface.generics, resolved, &scope, diagnostics);
                 for method in &interface.methods {
-                    check_method_signature(sources, method, resolved, &scope, diagnostics);
+                    let method_scope = scope.clone().with_generics(&method.generics);
+                    check_generic_bounds(
+                        sources,
+                        &method.generics,
+                        resolved,
+                        &method_scope,
+                        diagnostics,
+                    );
+                    check_method_signature(sources, method, resolved, &method_scope, diagnostics);
                 }
             }
             Item::Impl(impl_) => {
@@ -100,15 +108,23 @@ pub(super) fn check_generic_type_arities(
                 for member in &impl_.members {
                     match member {
                         ImplMember::Method(method) => {
+                            let method_scope = member_scope.clone().with_generics(&method.generics);
+                            check_generic_bounds(
+                                sources,
+                                &method.generics,
+                                resolved,
+                                &method_scope,
+                                diagnostics,
+                            );
                             check_method_signature(
                                 sources,
                                 method,
                                 resolved,
-                                &member_scope,
+                                &method_scope,
                                 diagnostics,
                             );
                             if let Some(body) = &method.body {
-                                check_block(sources, body, resolved, &member_scope, diagnostics);
+                                check_block(sources, body, resolved, &method_scope, diagnostics);
                             }
                         }
                         ImplMember::Drop(drop_) => {
@@ -200,6 +216,16 @@ impl<'a> GenericScope<'a> {
 
     fn with_self_type(mut self) -> Self {
         self.allows_self_type = true;
+        self
+    }
+
+    fn with_generics(mut self, generics: &'a GenericParamList) -> Self {
+        self.parameters.extend(
+            generics
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.name.as_str(), parameter.span)),
+        );
         self
     }
 

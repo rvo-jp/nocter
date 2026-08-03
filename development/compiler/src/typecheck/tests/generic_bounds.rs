@@ -36,6 +36,39 @@ func main(): i32 {{
 }
 
 #[test]
+fn accepts_statically_resolved_method_local_generics_through_an_interface_bound() {
+    let diagnostics = check_text(
+        r#"interface Identity {
+    pub method &self.apply<T>(value: T): T
+}
+
+struct IdentityValue {
+    marker: i32
+}
+
+impl IdentityValue {
+    pub method &self.apply<U>(value: U): U {
+        return value
+    }
+}
+
+impl Identity for IdentityValue
+
+func apply_i32<I: Identity>(identity: &I, value: i32): i32 {
+    return identity.apply(value)
+}
+
+func main(): i32 {
+    let identity = IdentityValue { marker: 0 }
+    return apply_i32(&identity, 7)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_concrete_type_that_does_not_satisfy_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}

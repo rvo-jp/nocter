@@ -149,6 +149,7 @@ impl Parser<'_> {
         let receiver = self.parse_method_receiver()?;
         self.expect_punctuation(".", "`.`")?;
         let name = self.expect_name_identifier("expected method name after `.`")?;
+        let generics = self.parse_generic_param_list()?;
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
@@ -176,6 +177,7 @@ impl Parser<'_> {
             receiver,
             name: name.value,
             name_span: name.span,
+            generics,
             parameters,
             return_type,
             result_provenance,

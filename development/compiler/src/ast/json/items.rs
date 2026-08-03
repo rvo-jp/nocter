@@ -305,6 +305,7 @@ impl MethodDecl {
                     Vec::new(),
                 )],
             ),
+            self.generics.to_json(sources),
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),
         ];

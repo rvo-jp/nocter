@@ -302,6 +302,20 @@ impl File {drop &+self{drop self}}
 }
 
 #[test]
+fn formats_method_generic_parameters_stably() {
+    assert_formats_stably(
+        "impl Factory {pub method &self.convert<T:Readable+Measured,U>(value:T):U{return make(value)}}\n",
+        concat!(
+            "impl Factory {\n",
+            "    pub method &self.convert<T: Readable + Measured, U>(value: T): U {\n",
+            "        return make(value)\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_multi_line_string_with_comment_markers_stably() {
     assert_formats_stably(
         concat!(

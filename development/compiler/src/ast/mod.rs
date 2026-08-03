@@ -218,6 +218,7 @@ pub struct MethodDecl {
     pub receiver: MethodReceiver,
     pub name: String,
     pub name_span: ByteSpan,
+    pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,

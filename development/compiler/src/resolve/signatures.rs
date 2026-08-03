@@ -358,12 +358,39 @@ fn method_signature_inner(
         is_accessible: true,
         impl_target_ty,
         receiver: method.receiver.clone(),
-        signature: callable_signature(
+        signature: method_callable_signature(
             generics,
+            &method.generics,
             &method.parameters.parameters,
             method.return_type.clone(),
             method.result_provenance.clone(),
         ),
+    }
+}
+
+fn method_callable_signature(
+    owner_generics: &GenericParamList,
+    method_generics: &GenericParamList,
+    parameters: &[Parameter],
+    return_type: TypeExpr,
+    result_provenance: Option<crate::ast::ResultProvenanceClause>,
+) -> FunctionSignature {
+    FunctionSignature {
+        generic_parameters: owner_generics
+            .parameters
+            .iter()
+            .chain(&method_generics.parameters)
+            .map(|parameter| parameter.name.clone())
+            .collect(),
+        generic_parameter_bounds: owner_generics
+            .parameters
+            .iter()
+            .chain(&method_generics.parameters)
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
+        parameters: parameters.iter().map(parameter_signature).collect(),
+        return_type,
+        result_provenance,
     }
 }
 
