@@ -1,8 +1,11 @@
 # Protocol-Driven Collection Iteration
 
 This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming
-collection iteration. Public control-flow semantics belong to the specification. The active gate
-belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+collection iteration. Public control-flow semantics belong to the specification. The completed
+gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+
+Phase 7 completed on `develop` on 2026-08-03. The compiler, standard library, native backend, and
+LSP implement the boundaries and acceptance observations recorded below.
 
 ## Boundary
 
@@ -45,11 +48,13 @@ Typecheck records one immutable plan per collection-for statement:
 - conversion interface, conformance, method declaration, and concrete call target when applicable
 - iterator interface, conformance, step declaration, and concrete call target
 - yielded item type and optional outcome shape
-- result provenance and allocation effect
+- binding and source spans used by editor queries
 - whether source evaluation transfers ownership
 
 Resolver and typecheck produce the plan. Ownership, regions, buildability, IR, analysis, and LSP
-consume it without repeating protocol lookup.
+consume it without repeating protocol lookup. The selected declaration identities connect implicit
+conversion and step calls to the ordinary result-provenance and allocation-effect summaries; those
+summaries are not duplicated inside the plan.
 
 ## Ownership and Cleanup
 
@@ -85,3 +90,8 @@ edges but do not acquire protocol lookup.
 Tests observe item order, source moves and loans, active item drop, remaining suffix drop, storage
 release, nested cleanup, region escape, generic specialization, diagnostics, incomplete editor
 input, and packaged execution. Instruction snapshots alone do not satisfy the runtime gate.
+
+The completed gate covers empty, readonly, consuming, direct, nested, user-conformance,
+`continue`, `break`, `return`, and propagation paths. LSP protocol tests cover all three source
+modes, exact element completion, semantic-token range remapping, parser diagnostics, and implicit
+allocation-effect presentation.

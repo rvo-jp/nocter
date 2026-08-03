@@ -983,7 +983,7 @@ fn parses_range_for_statement() {
 }
 
 #[test]
-fn parses_literal_pack_for_statement_for_semantic_validation() {
+fn parses_collection_for_statement_outside_literal_definitions() {
     let output = parse_text(
         r#"func main(): void {
     for item in items {
@@ -999,7 +999,7 @@ fn parses_literal_pack_for_statement_for_semantic_validation() {
     };
     assert!(matches!(
         function.body.statements[0],
-        Stmt::LiteralPackFor(_)
+        Stmt::CollectionFor(_)
     ));
 }
 

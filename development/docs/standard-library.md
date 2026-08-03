@@ -157,8 +157,7 @@ state.
 Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
 byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
 escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
-spread, rich path APIs, collection `for`, iterator interfaces/adapters,
-Unicode text APIs, and general allocator plugins.
+spread, rich path APIs, iterator adapters, Unicode text APIs, and general allocator plugins.
 
 ## Phase 3 Formatting and Interpolation
 
@@ -212,3 +211,16 @@ buffers on every supported exit path.
 Native repository and packaged-home tests cover multi-entry argv, malformed argument bytes,
 present and absent environment entries, malformed requested names and environment bytes, ambient
 cwd, explicit recoverable cwd, renamed imports, region escape rejection, and LSP provenance.
+
+## Phase 7 Iteration Protocols
+
+Distributed `std/iter` defines ordinary `Iterator<T>`, `Iterable<T, I>`, and
+`IntoIterator<T, I>` interfaces. `ViewIter<T>` conforms to `Iterator<&T>`, `VecIntoIter<T>`
+conforms to `Iterator<T>`, and `Vec<T>` conforms to both conversion interfaces. The compiler
+validates the trusted interface shapes once, then resolves standard and user types through the
+same explicit conformance and static-specialization machinery.
+
+Readonly collection loops retain the source loan and allocate nothing for the standard vector
+conversion. Consuming loops transfer vector storage into `VecIntoIter<T>` and drop only the
+unconsumed suffix before releasing storage. Empty, nested, `continue`, `break`, `return`,
+propagation, and user-conformance tests execute against the packaged standard library.

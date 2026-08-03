@@ -167,6 +167,23 @@ code does not inspect tags, reconstruct outcome layers, or special-case a consum
 - generic aliases and specializations retain their concrete outcome layers
 - JSON-RPC tests cover stored `T!?` hover and completion through the protocol boundary
 
+## Completed v0.3.0 Phase 7 Integration
+
+Collection-iteration tooling consumes the immutable typecheck plan and callable semantic summaries.
+It does not search for `iter`, `into_iter`, or `next` spellings.
+
+- hover on the loop binding or source reports readonly, owned, or direct mode plus the concrete
+  iterator and element types
+- hover reports the statically selected conversion and step targets, including an implicit
+  allocation effect when either target uses the current allocation context
+- completion inside the body reports the exact collection-element type
+- incomplete `for item in`, `for item in &`, and partial-source headers use a cursor-preserving
+  syntax overlay without creating a conformance fact
+- semantic-token recovery removes placeholder identifiers and remaps every later source range to
+  the original document
+- JSON-RPC tests require parser diagnostics for incomplete input and reject an invented
+  ownership-ambiguity diagnostic
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -216,7 +233,9 @@ labels, eligible-origin and bound-method completion, specialized signature help,
 definition/references, semantic classification, recovery, and protocol source ranges. Phase 5
 tests cover nested outcome normalization, exact `from static` display, static result provenance,
 and aliased callable hover ranges. Phase 6 tests cover normalized stored composed values through
-direct analysis and JSON-RPC hover/completion queries.
+direct analysis and JSON-RPC hover/completion queries. Phase 7 tests cover exact source modes,
+concrete iterator/item facts, body completion, implicit allocation effects, incomplete-header
+diagnostics, and range-safe semantic recovery.
 
 ## Deferred Features
 

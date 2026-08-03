@@ -7,13 +7,13 @@ those rules here.
 The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
 **Phase 2: Explicit Iteration and Collection Access**, **Phase 3: Owned String Interpolation and
 Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
-Nested Outcomes and Executable Process Context**, and **Phase 6: First-Class Outcome Values** are
-complete on `develop`. **Phase 7: Protocol-Driven Collection Iteration** is active. Do not use
-`v0` as shorthand for a release name or work scope.
+Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
+**Phase 7: Protocol-Driven Collection Iteration** are complete on `develop`. No later v0.3.0 phase
+is active. Do not use `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 6 records and the single
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 7 records and the single
   entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries

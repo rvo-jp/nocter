@@ -7,7 +7,8 @@ the public overview and the [specification](../spec/README.md) for language rule
 The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context**,
 **Phase 1: Typed Literal Core**, **Phase 2: Explicit Iteration and Collection Access**, and
 **Phase 3: Owned String Interpolation and Formatting**, **Phase 4: Public Provenance Contracts
-and Generic Interface Bounds**, and **Phase 5: Nested Outcomes and Executable Process Context** are
+and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Process Context**,
+**Phase 6: First-Class Outcome Values**, and **Phase 7: Protocol-Driven Collection Iteration** are
 complete on `develop`. No later v0.3.0 phase is active. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
