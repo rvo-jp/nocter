@@ -107,6 +107,8 @@ Rules:
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
 - A v0.3.0 Phase 4 generic bound uses no space before `:` and one space after it:
   `T: Interface<U>`.
+- Multiple v0.3.0 Phase 9 bounds use one space around `+`:
+  `T: Iterator<U> + ExactSizeIterator<U>`.
 - A result provenance clause follows the return type on the same line with one space before
   `from`. Union origins use one space around `|`.
 

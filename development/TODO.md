@@ -17,7 +17,7 @@ chronological implementation history.
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`
-- active milestone gate: none
+- active milestone gate: `v0.3.0 Phase 9 Composable Iterators and Collection Builders`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -28,6 +28,8 @@ chronological implementation history.
 - required Phase 6 items: none
 - required Phase 7 items: none
 - required Phase 8 items: none
+- required Phase 9 items: capability sets, conditional conformances, standard iterator adapters,
+  collection builders, compiler-backed editor integration, and the complete verification gate
 
 Phase 8 added typed sequence spread with explicit copy, readonly-reference, and move modes;
 declaration-identity exact-size iteration; deterministic segment specializations; streaming pack
@@ -36,5 +38,6 @@ complete LSP recovery and presentation.
 
 ## Current Objective
 
-No implementation phase is active. Define a later v0.3.0 phase in the development contract before
-starting additional milestone work.
+Complete the Phase 9 work order in `docs/v0.3.0.md`. The semantic foundation must use resolved
+interface and conformance identities; standard adapters and collection builders must not introduce
+name-based compiler behavior, hidden buffering, or duplicate ownership machinery.

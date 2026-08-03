@@ -168,6 +168,16 @@ Nocter v0.3.0 Phase 4 editor rules:
 - Recovery may complete missing delimiters or insert a temporary placeholder, but a response is
   valid only when the recovered compiler run resolves every bound and origin identity.
 
+Nocter v0.3.0 Phase 9 editor rules:
+
+- Hover and signature help preserve every normalized interface bound on a generic parameter.
+- Member completion combines the resolved capability set, removes declaration-identity duplicates,
+  and reports an ambiguity instead of choosing between distinct interfaces with the same member.
+- Conditional-conformance definition and specialization use the conformance declaration selected by
+  typecheck; protocol code does not inspect adapter or interface names.
+- Recovery for an incomplete `T: A +` edit returns semantic results only when all preceding bounds
+  retain their declaration identities.
+
 Later editor features:
 
 - rename

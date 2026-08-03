@@ -197,7 +197,7 @@ If the receiver is a generic type parameter, v0.2.0 has no interface-bound metho
 A method call through an unconstrained generic receiver is invalid unless a
 future feature supplies a bound and lookup rule.
 
-Nocter v0.3.0 Phase 4 supplies that rule for one explicit interface bound:
+Nocter v0.3.0 Phase 4 supplies that rule for an explicit interface bound:
 
 ```nct
 func read<S: Source<i32>>(source: &S): i32 {
@@ -207,17 +207,27 @@ func read<S: Source<i32>>(source: &S): i32 {
 
 Lookup on `S` searches only the canonical `Source<i32>` contract. Each concrete specialization
 requires explicit conformance and statically resolves to the matching public inherent method.
-Phase 4 does not add runtime interface objects, multiple bounds, or `where` clauses.
+Phase 9 extends this to a finite capability set while retaining static dispatch:
+
+```nct
+func inspect<I: Iterator<T> + ExactSizeIterator<T>, T>(iterator: &I): usize {
+    return iterator.remaining_len()
+}
+```
+
+The set is resolved by specialized interface declaration identity. If two distinct bounds declare
+the requested method name, the call is ambiguous even when their displayed signatures match.
+Runtime interface objects and `where` clauses remain unavailable.
 
 Concrete-receiver lookup order remains:
 
 1. inherent method on a concrete nominal receiver type
 2. no candidate, producing a compile error
 
-Bounded generic-receiver lookup in v0.3.0 Phase 4 is separate:
+Bounded generic-receiver lookup in v0.3.0 Phase 9 is separate:
 
-1. resolve the generic parameter's single canonical interface bound
-2. search only accessible methods declared by that interface
+1. resolve the generic parameter's canonical interface-bound set
+2. search only accessible methods declared by those interfaces
 3. typecheck against the specialized interface signature
 4. require explicit conformance for every reachable concrete specialization
 5. lower directly to the matching public inherent method
@@ -339,12 +349,13 @@ GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
 GenericParameter  = Name
 ```
 
-Generic bounds are not part of v0.2.0. Nocter v0.3.0 Phase 4 adds one interface bound to a generic
-parameter:
+Generic bounds are not part of v0.2.0. Nocter v0.3.0 Phase 4 adds one interface bound; Phase 9 adds
+a finite `+`-separated set:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
-GenericParameter  = Name [":" Type]
+GenericParameter  = Name [":" InterfaceBound ("+" InterfaceBound)*]
+InterfaceBound    = Type
 ```
 
 ```nct
@@ -353,9 +364,20 @@ func inspect<T: Readable<i32>>(value: &T): i32 {
 }
 ```
 
-The bound must resolve to an interface with the declared type arity and visibility. One generic
-parameter has at most one bound. Multiple bounds, `where` clauses, interface inheritance, and
-runtime interface values remain unavailable.
+Every bound must resolve to an interface with the declared type arity and visibility. Bound order
+is formatting information; semantics use a set of specialized interface declaration identities.
+Duplicate identities are invalid. `where` clauses, interface inheritance, and runtime interface
+values remain unavailable.
+
+Phase 9 also permits a conformance declaration's generic parameters to carry bounds. Such a
+conditional conformance exists for a concrete target only when all specialized bounds hold:
+
+```nct
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I>
+```
+
+Nocter rejects identical normalized target/interface patterns rather than selecting between
+overlapping conditional conformances.
 
 Generic implementation uses monomorphization. Each concrete instantiation is
 compiled as concrete code.
@@ -375,9 +397,8 @@ Initial generic scope:
 - type parameters on `impl` blocks where needed
 - compile-time monomorphization
 
-Deferred generic features after v0.3.0 Phase 4:
+Deferred generic features after v0.3.0 Phase 9:
 
-- multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types
 - generic associated types

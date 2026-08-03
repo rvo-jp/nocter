@@ -29,6 +29,7 @@ responsibility naturally explains it.
 | Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
 | Explicit iteration and collection access design | `docs/iteration.md` |
 | Owned interpolation and formatting design | `docs/interpolation.md` |
+| Capability sets, conditional conformance, adapters, and collection builders | `docs/iterator-composition.md` |
 | Distributed standard-library implementation | `docs/standard-library.md` |
 | LSP capabilities and analysis design | `docs/lsp.md` |
 | Next task and handoff facts | `TODO.md` |
@@ -46,6 +47,8 @@ released record and does not receive new work items.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.
 - Allocation, drop, or collection invariant changed: update `allocator-ownership.md`.
 - Iterator ownership, element access, or transient shifting changed: update `iteration.md`.
+- Capability-set, conditional-conformance, iterator-adapter, or collection-builder design changed:
+  update `iterator-composition.md`.
 - Interpolation runtime binding, evaluation, formatting, or cleanup changed: update
   `interpolation.md`.
 - Runtime behavior in tracked `development/std` changed: update `standard-library.md`.

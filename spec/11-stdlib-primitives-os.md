@@ -459,6 +459,21 @@ item type. `remaining_len()` reports the exact unconsumed suffix. Sequence sprea
 before literal-body execution and caches the checked total; iteration still terminates only through
 `Iterator.next()`.
 
+v0.3.0 Phase 9 adds allocation-transparent iterator composition. `std/iter` provides `empty`,
+`once`, `take`, `skip`, `chain`, `enumerate`, `count`, and `last`. Adapters own their input iterator,
+yield in source order, and never create an implicit collection or runtime interface object.
+`enumerate` yields `Indexed<T>` values with public `index` and `item` fields.
+
+Exact-size conformance is conditional. `empty` and `once` are exact unconditionally; `take`, `skip`,
+and `enumerate` preserve an input's exactness; `chain` is exact only when both inputs are exact.
+Iteration still stops through `next()`, and a reported exact count is never used for unchecked
+element access.
+
+`Vec.from_iter` consumes an arbitrary `Iterator<T>` through ordinary checked vector growth.
+`Vec.from_exact_iter` additionally requires `ExactSizeIterator<T>` and performs one initial exact
+reservation. Early exhaustion yields a shorter valid vector, while excess items continue through
+checked growth. Neither API materializes an intermediate collection.
+
 ### I/O API
 
 Adopted: `std/io` provides the initial user-facing file and text output API. The compiler must not special-case `File`, `stdout`, `stderr`, or `print`.
