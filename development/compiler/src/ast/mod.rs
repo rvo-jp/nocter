@@ -234,7 +234,7 @@ pub struct GenericParamList {
 pub struct GenericParam {
     pub span: ByteSpan,
     pub name: String,
-    pub bound: Option<TypeExpr>,
+    pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

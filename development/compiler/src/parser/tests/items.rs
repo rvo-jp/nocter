@@ -449,7 +449,7 @@ func main(): i32 {
     };
     assert_eq!(function.generics.parameters.len(), 1);
     assert_eq!(function.generics.parameters[0].name, "W");
-    assert!(function.generics.parameters[0].bound.is_none());
+    assert!(function.generics.parameters[0].bounds.is_empty());
 }
 
 #[test]
@@ -869,8 +869,35 @@ fn parses_single_generic_interface_bounds() {
     let parameter = &function.generics.parameters[0];
     assert_eq!(parameter.name, "W");
     assert!(matches!(
-        &parameter.bound,
+        parameter.bounds.first(),
         Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
+    ));
+}
+
+#[test]
+fn parses_multiple_generic_interface_bounds() {
+    let output = parse_text(
+        r#"func inspect<I: Iterator<T> + ExactSizeIterator<T>, T>(iterator: &I): usize {
+    return iterator.remaining_len()
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let parameter = &function.generics.parameters[0];
+    assert_eq!(parameter.name, "I");
+    assert_eq!(parameter.bounds.len(), 2);
+    assert!(matches!(
+        &parameter.bounds[0],
+        TypeExpr::Generic(generic) if generic.name == "Iterator"
+    ));
+    assert!(matches!(
+        &parameter.bounds[1],
+        TypeExpr::Generic(generic) if generic.name == "ExactSizeIterator"
     ));
 }
 

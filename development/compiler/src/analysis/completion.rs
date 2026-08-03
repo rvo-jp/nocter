@@ -953,7 +953,7 @@ fn generic_bound_at_offset<'a>(
             .parameters
             .iter()
             .find(|parameter| parameter.name == parameter_name)
-            .and_then(|parameter| parameter.bound.as_ref())
+            .and_then(|parameter| parameter.bounds.first())
     })
 }
 

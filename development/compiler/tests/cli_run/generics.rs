@@ -376,3 +376,74 @@ func main(): i32 {
         text(&output.stderr)
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_specializes_multiple_bounds_and_conditional_conformance() {
+    let project = TempProject::new("cli-run-conditional-conformance");
+    let source = project.write_source(
+        "conditional_conformance.nct",
+        r#"interface Read {
+    pub method &self.read(): i32
+}
+
+interface Size {
+    pub method &self.size(): i32
+}
+
+struct Value {
+    value: i32
+}
+
+impl Value {
+    pub method &self.read(): i32 {
+        return self.value
+    }
+
+    pub method &self.size(): i32 {
+        return 1
+    }
+}
+
+impl Read for Value
+impl Size for Value
+
+struct Adapter<T> {
+    value: T
+}
+
+impl<T: Read> Adapter<T> {
+    pub method &self.read(): i32 {
+        return self.value.read()
+    }
+}
+
+impl<T: Read> Read for Adapter<T>
+
+func inspect<T: Read + Size>(value: &T): i32 {
+    return value.read() + value.size()
+}
+
+func read<T: Read>(value: &T): i32 {
+    return value.read()
+}
+
+func main(): i32 {
+    let value = Value { value: 41 }
+    let inspected: i32 = inspect(&value)
+    let adapter = Adapter<Value> { value: Value { value: inspected } }
+    return read(&adapter)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}

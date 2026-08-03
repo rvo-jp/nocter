@@ -171,7 +171,7 @@ pub(super) struct TypeEnvironment {
     literal_packs: HashMap<String, Type>,
     self_type: Option<Type>,
     generic_parameters: HashSet<String>,
-    generic_bounds: HashMap<String, TypeExpr>,
+    generic_bounds: HashMap<String, Vec<TypeExpr>>,
 }
 
 impl TypeEnvironment {
@@ -211,15 +211,15 @@ impl TypeEnvironment {
     ) {
         for parameter in &generics.parameters {
             self.generic_parameters.insert(parameter.name.clone());
-            if let Some(bound) = &parameter.bound {
+            if !parameter.bounds.is_empty() {
                 self.generic_bounds
-                    .insert(parameter.name.clone(), bound.clone());
+                    .insert(parameter.name.clone(), parameter.bounds.clone());
             }
         }
     }
 
-    pub(super) fn generic_bound(&self, name: &str) -> Option<&TypeExpr> {
-        self.generic_bounds.get(name)
+    pub(super) fn generic_bounds(&self, name: &str) -> Option<&[TypeExpr]> {
+        self.generic_bounds.get(name).map(Vec::as_slice)
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&Type> {

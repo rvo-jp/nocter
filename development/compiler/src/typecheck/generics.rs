@@ -1,6 +1,7 @@
 use super::diagnostics::{
-    generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
-    self_type_outside_context_diagnostic, unresolved_type_reference_diagnostic,
+    duplicate_generic_bound_diagnostic, generic_bound_not_interface_diagnostic,
+    generic_type_argument_count_diagnostic, self_type_outside_context_diagnostic,
+    unresolved_type_reference_diagnostic,
 };
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
@@ -146,25 +147,35 @@ fn check_generic_bounds(
         })
         .collect();
     for parameter in &generics.parameters {
-        let Some(bound) = &parameter.bound else {
-            continue;
-        };
-        check_type_expr(sources, bound, resolved, scope, diagnostics);
-        let bound_type =
-            type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
-        if bound_type.is_unknown_or_unresolved() {
-            continue;
-        }
-        let is_interface = bound_type
-            .nominal_name()
-            .and_then(|name| resolved.type_symbol_by_canonical_name(name))
-            .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
-        if !is_interface {
-            diagnostics.push(generic_bound_not_interface_diagnostic(
-                sources,
-                bound,
-                &bound_type,
-            ));
+        let mut seen_bounds = HashMap::<String, ByteSpan>::new();
+        for bound in &parameter.bounds {
+            check_type_expr(sources, bound, resolved, scope, diagnostics);
+            let bound_type =
+                type_expr_to_type_with_substitutions(bound, resolved, None, &substitutions);
+            if bound_type.is_unknown_or_unresolved() {
+                continue;
+            }
+            let is_interface = bound_type
+                .nominal_name()
+                .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+                .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
+            if !is_interface {
+                diagnostics.push(generic_bound_not_interface_diagnostic(
+                    sources,
+                    bound,
+                    &bound_type,
+                ));
+                continue;
+            }
+            let key = bound_type.display();
+            if let Some(first_span) = seen_bounds.insert(key, bound.span()) {
+                diagnostics.push(duplicate_generic_bound_diagnostic(
+                    sources,
+                    bound,
+                    &bound_type,
+                    first_span,
+                ));
+            }
         }
     }
 }

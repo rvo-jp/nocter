@@ -118,13 +118,24 @@ fn qualify_type_symbol(
             imported_type_names,
         );
     }
-    for implemented in &mut symbol.interface_impls {
+    for conformance in &mut symbol.interface_conformances {
         qualify_type_expr(
-            implemented,
+            &mut conformance.interface_ty,
             import_path,
             local_type_names,
             imported_type_names,
         );
+        qualify_type_expr(
+            &mut conformance.target_ty,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+        for bounds in &mut conformance.generic_parameter_bounds {
+            for bound in bounds {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
+        }
     }
     for literal in &mut symbol.literals {
         if let Some(capture) = &mut literal.capture {
@@ -166,8 +177,10 @@ fn qualify_function_signature(
     local_type_names: &[String],
     imported_type_names: &[ImportedTypeName],
 ) {
-    for bound in signature.generic_parameter_bounds.iter_mut().flatten() {
-        qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+    for bounds in &mut signature.generic_parameter_bounds {
+        for bound in bounds {
+            qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+        }
     }
     for parameter in &mut signature.parameters {
         qualify_parameter_signature(

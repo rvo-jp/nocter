@@ -1,14 +1,15 @@
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
-    argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
-    associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
-    generic_bound_not_satisfied_diagnostic, method_readwrite_receiver_requires_var_diagnostic,
-    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
+    ambiguous_generic_bound_method_diagnostic, argument_count_mismatch_diagnostic,
+    argument_type_mismatch_diagnostic, associated_function_unknown_diagnostic,
+    field_called_as_method_diagnostic, generic_bound_not_satisfied_diagnostic,
+    method_readwrite_receiver_requires_var_diagnostic, method_unknown_diagnostic,
+    non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
     implemented_interface_types, interface_symbol_for_bound,
-    interface_symbol_for_generic_parameter, type_satisfies_interface_bound,
+    interface_symbols_for_generic_parameter, type_satisfies_interface_bound,
     type_symbol_substitutions,
 };
 use super::model::{Type, TypeEnvironment};
@@ -192,19 +193,24 @@ pub(super) fn resolved_method_for_call<'a>(
     let member = method_member_for_call(call)?;
     let receiver_type = expression_type(&member.object, resolved, environment);
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
-    let owner = match &self_type {
+    match &self_type {
         Type::Parameter(parameter) => {
-            interface_symbol_for_generic_parameter(parameter, environment, resolved)?.0
+            let mut candidates =
+                bounded_method_candidates(parameter, &self_type, member, environment, resolved)
+                    .into_iter();
+            let candidate = candidates.next()?;
+            candidates.next().is_none().then_some(candidate)
         }
-        _ => inherent_method_owner_for_type(&self_type, resolved)?,
-    };
-    let method = owner.methods.iter().find(|method| {
-        method_is_accessible(method, member.member_span.source, resolved)
-            && method.name == member.member
-            && method_applies_to_receiver(method, &self_type, resolved)
-    })?;
-
-    Some((owner, method))
+        _ => {
+            let owner = inherent_method_owner_for_type(&self_type, resolved)?;
+            let method = owner.methods.iter().find(|method| {
+                method_is_accessible(method, member.member_span.source, resolved)
+                    && method.name == member.member
+                    && method_applies_to_receiver(method, &self_type, resolved)
+            })?;
+            Some((owner, method))
+        }
+    }
 }
 
 pub(super) fn infer_generic_substitutions(
@@ -230,8 +236,12 @@ pub(super) fn infer_generic_substitutions(
             &expression_type(&member.object, resolved, environment),
             environment,
         )
-        && let Some((owner, bound_type)) =
-            interface_symbol_for_generic_parameter(&parameter, environment, resolved)
+        && let Some((owner, bound_type)) = resolved_method_for_call(resolved, call, environment)
+            .and_then(|(selected, _)| {
+                interface_symbols_for_generic_parameter(&parameter, environment, resolved)
+                    .into_iter()
+                    .find(|(owner, _)| owner.canonical_name == selected.canonical_name)
+            })
     {
         substitutions.extend(type_symbol_substitutions(owner, &bound_type));
     }
@@ -278,42 +288,44 @@ fn infer_substitutions_from_interface_bounds(
 ) {
     for _ in 0..signature.signature.generic_parameters.len() {
         let before = substitutions.len();
-        for (parameter, bound) in signature
+        for (parameter, bounds) in signature
             .signature
             .generic_parameters
             .iter()
             .zip(&signature.signature.generic_parameter_bounds)
         {
-            let (Some(bound), Some(actual)) = (bound, substitutions.get(parameter).cloned()) else {
+            let Some(actual) = substitutions.get(parameter).cloned() else {
                 continue;
             };
-            let expected_interface_name = match bound {
-                TypeExpr::Reference(reference) => reference.name.as_str(),
-                TypeExpr::Generic(generic) => generic.name.as_str(),
-                _ => continue,
-            };
-            for implemented in implemented_interface_types(&actual, resolved) {
-                let matches_interface = implemented
-                    .nominal_name()
-                    .and_then(|name| resolved.type_symbol_by_canonical_name(name))
-                    .is_some_and(|symbol| {
-                        symbol.canonical_name == expected_interface_name
-                            || symbol
-                                .canonical_name
-                                .rsplit('.')
-                                .next()
-                                .is_some_and(|name| name == expected_interface_name)
-                    });
-                if matches_interface {
-                    infer_type_expr_substitutions(
-                        bound,
-                        &implemented,
-                        resolved,
-                        None,
-                        parameters,
-                        substitutions,
-                    );
-                    break;
+            for bound in bounds {
+                let expected_interface_name = match bound {
+                    TypeExpr::Reference(reference) => reference.name.as_str(),
+                    TypeExpr::Generic(generic) => generic.name.as_str(),
+                    _ => continue,
+                };
+                for implemented in implemented_interface_types(&actual, resolved) {
+                    let matches_interface = implemented
+                        .nominal_name()
+                        .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+                        .is_some_and(|symbol| {
+                            symbol.canonical_name == expected_interface_name
+                                || symbol
+                                    .canonical_name
+                                    .rsplit('.')
+                                    .next()
+                                    .is_some_and(|name| name == expected_interface_name)
+                        });
+                    if matches_interface {
+                        infer_type_expr_substitutions(
+                            bound,
+                            &implemented,
+                            resolved,
+                            None,
+                            parameters,
+                            substitutions,
+                        );
+                        break;
+                    }
                 }
             }
         }
@@ -333,31 +345,34 @@ fn check_generic_interface_bounds(
     environment: &TypeEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (parameter, bound) in signature
+    for (parameter, bounds) in signature
         .signature
         .generic_parameters
         .iter()
         .zip(&signature.signature.generic_parameter_bounds)
     {
-        let (Some(bound), Some(actual)) = (bound, substitutions.get(parameter)) else {
+        let Some(actual) = substitutions.get(parameter) else {
             continue;
         };
-        let Some((_, bound_type)) = interface_symbol_for_bound(bound, substitutions, resolved)
-        else {
-            continue;
-        };
-        if type_satisfies_bound_in_environment(actual, &bound_type, resolved, environment) {
-            continue;
+        for bound in bounds {
+            let Some((_, bound_type)) = interface_symbol_for_bound(bound, substitutions, resolved)
+            else {
+                continue;
+            };
+            if type_satisfies_bound_in_environment(actual, &bound_type, resolved, environment) {
+                continue;
+            }
+            let span =
+                generic_argument_evidence_span(call, &signature.signature.parameters, parameter)
+                    .unwrap_or(call.span);
+            diagnostics.push(generic_bound_not_satisfied_diagnostic(
+                sources,
+                span,
+                actual,
+                &bound_type,
+                bound.span(),
+            ));
         }
-        let span = generic_argument_evidence_span(call, &signature.signature.parameters, parameter)
-            .unwrap_or(call.span);
-        diagnostics.push(generic_bound_not_satisfied_diagnostic(
-            sources,
-            span,
-            actual,
-            &bound_type,
-            bound.span(),
-        ));
     }
 }
 
@@ -372,11 +387,12 @@ fn type_satisfies_bound_in_environment(
     }
     let parameter = match actual {
         Type::Parameter(parameter) => parameter,
-        Type::Named(parameter) if environment.generic_bound(parameter).is_some() => parameter,
+        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => parameter,
         _ => return false,
     };
-    interface_symbol_for_generic_parameter(parameter, environment, resolved)
-        .is_some_and(|(_, actual_bound)| actual_bound == *bound)
+    interface_symbols_for_generic_parameter(parameter, environment, resolved)
+        .into_iter()
+        .any(|(_, actual_bound)| actual_bound == *bound)
 }
 
 fn generic_argument_evidence_span(
@@ -500,6 +516,19 @@ pub(super) fn check_unresolved_member_call(
     }
 
     let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
+    if let Type::Parameter(parameter) = &self_type {
+        let candidates =
+            bounded_method_candidates(parameter, &self_type, member, environment, resolved);
+        if candidates.len() > 1 {
+            diagnostics.push(ambiguous_generic_bound_method_diagnostic(
+                sources,
+                member.member_span,
+                &member.member,
+                &candidates,
+            ));
+            return;
+        }
+    }
     let Some(owner) = inherent_method_owner_for_type(&self_type, resolved) else {
         diagnostics.push(method_unknown_diagnostic(
             sources,
@@ -526,6 +555,29 @@ pub(super) fn check_unresolved_member_call(
         &receiver_type,
         Some(owner),
     ));
+}
+
+fn bounded_method_candidates<'a>(
+    parameter: &str,
+    self_type: &Type,
+    member: &MemberExpr,
+    environment: &TypeEnvironment,
+    resolved: &'a ResolveOutput,
+) -> Vec<(&'a TypeSymbol, &'a MethodSignature)> {
+    interface_symbols_for_generic_parameter(parameter, environment, resolved)
+        .into_iter()
+        .filter_map(|(owner, _)| {
+            owner
+                .methods
+                .iter()
+                .find(|method| {
+                    method_is_accessible(method, member.member_span.source, resolved)
+                        && method.name == member.member
+                        && method_applies_to_receiver(method, self_type, resolved)
+                })
+                .map(|method| (owner, method))
+        })
+        .collect()
 }
 
 fn receiver_is_mutable_binding(member: &MemberExpr, environment: &TypeEnvironment) -> bool {
@@ -614,7 +666,7 @@ pub(super) fn method_self_type_for_receiver_in_environment(
     let Type::Named(name) = &self_type else {
         return self_type;
     };
-    if environment.generic_bound(name).is_some() {
+    if environment.generic_bounds(name).is_some() {
         Type::Parameter(name.clone())
     } else {
         self_type

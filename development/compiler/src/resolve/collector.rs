@@ -1,4 +1,5 @@
 use super::builtins::{is_builtin_type_name, is_reserved_type_declaration_name};
+use super::conformance::interface_conformance;
 use super::diagnostics::{
     builtin_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
@@ -385,8 +386,10 @@ impl Resolver<'_> {
                 return;
             }
 
-            if let Some(interface_ty) = &impl_.interface_ty {
-                type_symbol.interface_impls.push(interface_ty.clone());
+            if impl_.interface_ty.is_some() {
+                if let Some(conformance) = interface_conformance(impl_) {
+                    type_symbol.interface_conformances.push(conformance);
+                }
                 return;
             }
 

@@ -314,13 +314,20 @@ pub(super) fn generic_parameters_label(
     let parameters = generics
         .parameters
         .iter()
-        .map(|parameter| match &parameter.bound {
-            Some(bound) => format!(
+        .map(|parameter| {
+            if parameter.bounds.is_empty() {
+                return parameter.name.clone();
+            }
+            format!(
                 "{}: {}",
                 parameter.name,
-                type_label(bound, resolved, self_type)
-            ),
-            None => parameter.name.clone(),
+                parameter
+                    .bounds
+                    .iter()
+                    .map(|bound| type_label(bound, resolved, self_type))
+                    .collect::<Vec<_>>()
+                    .join(" + ")
+            )
         })
         .collect::<Vec<_>>()
         .join(", ");

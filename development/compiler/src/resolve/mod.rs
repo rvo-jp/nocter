@@ -3,6 +3,7 @@
 mod body;
 mod builtins;
 mod collector;
+mod conformance;
 mod diagnostics;
 mod imports;
 mod literals;
@@ -17,9 +18,10 @@ mod tests;
 pub use symbols::{
     AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
     ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind,
-    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
-    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
-    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
+    InterfaceConformance, LiteralCaptureSignature, LiteralResolution, LiteralSignature,
+    LocalSymbol, LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature,
+    PreludeSourceMap, ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind,
+    SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;

@@ -10,6 +10,7 @@ use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 
+use super::conformance::interface_conformance;
 use super::diagnostics::duplicate_inherent_member_name_diagnostic;
 
 pub(super) fn attach_inherent_impl_members_to_symbol(
@@ -22,13 +23,13 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
     }
 
     symbol
-        .interface_impls
+        .interface_conformances
         .extend(ast.items.iter().filter_map(|item| {
             let crate::ast::Item::Impl(impl_) = item else {
                 return None;
             };
             (impl_target_type_name(&impl_.target_ty) == Some(type_name))
-                .then(|| impl_.interface_ty.clone())
+                .then(|| interface_conformance(impl_))
                 .flatten()
         }));
 
@@ -241,7 +242,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
-        interface_impls: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -268,7 +269,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .iter()
             .map(|method| method_signature_inner(method, None, &interface.generics))
             .collect(),
-        interface_impls: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -304,7 +305,7 @@ pub(super) fn struct_type_symbol(
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
-        interface_impls: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -335,7 +336,7 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .collect(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
-        interface_impls: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
     }
@@ -381,7 +382,7 @@ fn callable_signature(
         generic_parameter_bounds: generics
             .parameters
             .iter()
-            .map(|parameter| parameter.bound.clone())
+            .map(|parameter| parameter.bounds.clone())
             .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,

@@ -317,9 +317,14 @@ impl Formatter {
 
     fn format_generic_param(&mut self, parameter: &GenericParam) {
         self.write(&parameter.name);
-        if let Some(bound) = &parameter.bound {
+        if !parameter.bounds.is_empty() {
             self.write(": ");
-            self.format_type(bound);
+            for (index, bound) in parameter.bounds.iter().enumerate() {
+                if index != 0 {
+                    self.write(" + ");
+                }
+                self.format_type(bound);
+            }
         }
     }
 

@@ -414,7 +414,7 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
-    pub generic_parameter_bounds: Vec<Option<TypeExpr>>,
+    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
     pub result_provenance: Option<ResultProvenanceClause>,
@@ -432,9 +432,18 @@ pub struct TypeSymbol {
     pub variants: Vec<EnumVariantSignature>,
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
-    pub interface_impls: Vec<TypeExpr>,
+    pub interface_conformances: Vec<InterfaceConformance>,
     pub drop_member: Option<DropSignature>,
     pub literals: Vec<LiteralSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterfaceConformance {
+    pub declaration_span: ByteSpan,
+    pub generic_parameters: Vec<String>,
+    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
+    pub interface_ty: TypeExpr,
+    pub target_ty: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

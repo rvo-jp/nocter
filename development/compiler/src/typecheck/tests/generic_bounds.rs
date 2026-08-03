@@ -181,3 +181,190 @@ func main(): i32 {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn accepts_multiple_independent_interface_bounds() {
+    let diagnostics = check_text(
+        r#"interface Read {
+    pub method &self.read(): i32
+}
+
+interface Size {
+    pub method &self.size(): usize
+}
+
+struct Value {
+    raw: i32
+}
+
+impl Value {
+    pub method &self.read(): i32 {
+        return self.raw
+    }
+
+    pub method &self.size(): usize {
+        return 1
+    }
+}
+
+impl Read for Value
+impl Size for Value
+
+func inspect<T: Read + Size>(value: &T): i32 {
+    let size: usize = value.size()
+    return value.read()
+}
+
+func main(): i32 {
+    let value = Value { raw: 9 }
+    return inspect(&value)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_duplicate_interface_bound_by_specialized_identity() {
+    let diagnostics = check_text(
+        r#"interface Read<T> {
+    pub method &self.read(): T
+}
+
+func inspect<T: Read<i32> + Read<i32>>(value: &T): i32 {
+    return value.read()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0450"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_ambiguous_method_from_distinct_bounds() {
+    let diagnostics = check_text(
+        r#"interface Left {
+    pub method &self.read(): i32
+}
+
+interface Right {
+    pub method &self.read(): i32
+}
+
+func inspect<T: Left + Right>(value: &T): i32 {
+    return value.read()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0449"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn conditional_conformance_requires_its_generic_bound() {
+    let accepted = check_text(
+        r#"interface Source<T> {
+    pub method &+self.next(): T?
+}
+
+interface Wrapper<T> {
+    pub method &+self.next(): T?
+}
+
+struct Input {
+    value: i32
+}
+
+impl Input {
+    pub method &+self.next(): i32? {
+        return none
+    }
+}
+
+impl Source<i32> for Input
+
+struct Adapter<T, I> {
+    input: I
+}
+
+impl<T, I: Source<T>> Adapter<T, I> {
+    pub method &+self.next(): T? {
+        return self.input.next() otherwise { return none }
+    }
+}
+
+impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I>
+
+func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
+    let item = wrapper.next()
+    return
+}
+
+func main(): i32 {
+    var adapter = Adapter<i32, Input> { input: Input { value: 1 } }
+    use_wrapper(&+adapter)
+    return 0
+}
+"#,
+    );
+    assert!(accepted.is_empty(), "{accepted:?}");
+
+    let rejected = check_text(
+        r#"interface Source<T> {
+    pub method &+self.next(): T?
+}
+
+interface Wrapper<T> {
+    pub method &+self.next(): T?
+}
+
+struct Input {
+    value: i32
+}
+
+impl Input {
+    pub method &+self.next(): i32? {
+        return none
+    }
+}
+
+struct Adapter<T, I> {
+    input: I
+}
+
+impl<T, I: Source<T>> Adapter<T, I> {
+    pub method &+self.next(): T? {
+        return self.input.next() otherwise { return none }
+    }
+}
+
+impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I>
+
+func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
+    let item = wrapper.next()
+    return
+}
+
+func main(): i32 {
+    var adapter = Adapter<i32, Input> { input: Input { value: 1 } }
+    use_wrapper(&+adapter)
+    return 0
+}
+"#,
+    );
+    assert!(
+        rejected.iter().any(|diagnostic| diagnostic.code == "E0447"),
+        "{rejected:?}"
+    );
+}

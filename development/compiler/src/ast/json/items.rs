@@ -263,10 +263,10 @@ impl GenericParamList {
 impl GenericParam {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let children = self
-            .bound
-            .as_ref()
-            .map(|bound| vec![bound.to_json(sources)])
-            .unwrap_or_default();
+            .bounds
+            .iter()
+            .map(|bound| bound.to_json(sources))
+            .collect();
         JsonAstNode::with_value(
             "generic_param",
             self.name.clone(),

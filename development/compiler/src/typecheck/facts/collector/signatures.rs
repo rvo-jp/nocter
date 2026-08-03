@@ -130,7 +130,7 @@ impl TypecheckFactCollector<'_> {
         generics: &GenericParamList,
     ) {
         for parameter in &generics.parameters {
-            if let Some(bound) = &parameter.bound {
+            for bound in &parameter.bounds {
                 self.collect_type_expr_references(bound);
             }
         }

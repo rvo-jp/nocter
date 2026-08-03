@@ -103,7 +103,7 @@ fn interface_shape_matches(
             .generics
             .parameters
             .iter()
-            .all(|parameter| parameter.bound.is_none())
+            .all(|parameter| parameter.bounds.is_empty())
         && declaration.methods.len() == 1
         && declaration.methods[0].visibility == Visibility::Public
         && declaration.methods[0].name == method_name
