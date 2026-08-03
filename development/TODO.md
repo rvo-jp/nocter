@@ -13,8 +13,9 @@ chronological implementation history.
   `v0.3.0 Phase 2 Explicit Iteration and Collection Access`, and
   `v0.3.0 Phase 3 Owned String Interpolation and Formatting`,
   `v0.3.0 Phase 4 Public Provenance Contracts and Generic Interface Bounds`, and
-  `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`
-- active milestone gate: `v0.3.0 Phase 6 First-Class Outcome Values`
+  `v0.3.0 Phase 5 Nested Outcomes and Executable Process Context`, and
+  `v0.3.0 Phase 6 First-Class Outcome Values`
+- active milestone gate: none
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -22,14 +23,14 @@ chronological implementation history.
 - required Phase 3 items: none
 - required Phase 4 items: none
 - required Phase 5 items: none
-- required Phase 6 items: stored layout, callable bridging, active-payload ownership/drop,
-  arbitrary-expression consumers, provenance, buildability removal, LSP, and packaged verification
+- required Phase 6 items: none
 
-Phase 5 added structural composed-outcome lowering, independent failure and absence control-flow,
-callee-saved `argc`/`argv`/`envp` process context, executable UTF-8-checked `args` and `env`, ambient
-`cwd`, recoverable `try_cwd`, and compiler-owned LSP presentation of nested return/provenance facts.
+Phase 6 added recursive stored layouts, explicit callable bridges, active-payload ownership and
+cleanup, ordinary stored-value consumers, aggregate and fixed-array storage, generic and alias
+specialization, provenance preservation, normalized LSP presentation, and packaged native
+verification for the adopted outcome shapes.
 
 ## Current Objective
 
-Complete Phase 6 in the work order defined by the development contract. Stop only after the Phase 6
-verification gate passes and the completion status replaces this active handoff.
+No later v0.3.0 phase has been adopted. Define its contract and acceptance matrix before beginning
+additional feature work.
