@@ -8,6 +8,8 @@ use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 use std::collections::HashSet;
 
+pub(crate) mod storage;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutcomeLayer {
     Optional,
