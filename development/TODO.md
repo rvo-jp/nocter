@@ -18,7 +18,7 @@ chronological implementation history.
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
   `v0.3.0 Phase 9 Composable Iterators and Collection Builders`
-- active milestone gate: `v0.3.0 Phase 10 Callable Values and Contract-Derived Extensions`
+- active milestone gate: `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -30,7 +30,7 @@ chronological implementation history.
 - required Phase 7 items: none
 - required Phase 8 items: none
 - required Phase 9 items: none
-- required Phase 10 items: method-level generics, constrained extensions, explicit-capture
+- required Phase 10 items: method-level generics, interface default methods, explicit-capture
   closures, static callable specialization, chainable iterator operations, editor integration, and
   the complete verification gate
 
@@ -40,6 +40,6 @@ ownership support, and capability-set LSP presentation and recovery.
 
 ## Current Objective
 
-Complete the Phase 10 work order in `docs/v0.3.0.md`. Interface declarations remain contract-only;
-extension applicability and closure invocation must resolve by declaration identity without
+Complete the Phase 10 work order in `docs/v0.3.0.md`. Required and default interface methods remain
+distinct; default selection and closure invocation must resolve by declaration identity without
 runtime dispatch, heap boxing, implicit capture, or member-name rewriting.

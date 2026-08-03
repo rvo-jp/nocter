@@ -71,8 +71,9 @@ Generic parameters accept one interface bound:
 func inspect<T: Readable<i32>>(value: &T): i32
 ```
 
-Phase 4 deliberately excludes `where` clauses and multiple bounds. Bound lookup never imports
-extension methods and never falls back to inherent methods for an unconstrained parameter.
+Phase 4 deliberately excludes `where` clauses and multiple bounds. Bound lookup never falls back
+to methods from an unconstrained receiver. Phase 10 default bodies remain attached to their exact
+interface declaration identity.
 
 ## Internal Ownership
 

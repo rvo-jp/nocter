@@ -57,8 +57,8 @@ resource handling.
 
 - `struct`, `enum`, `func`, `impl`, and `method` form the value-oriented core.
 - Declarations are private unless marked `pub`.
-- `interface` is contract-only: it describes public capability without reusable
-  code.
+- `interface` describes public capability; v0.3.0 adds reusable default methods
+  derived from that capability without adding state or implicit conformance.
 - Future `embedding` is composition-only: it will own contained values and
   promote only their public contracts without exposing private internals.
 - `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
@@ -69,7 +69,7 @@ resource handling.
 - `if` and `match` are value-producing expressions.
 - `drop` provides deterministic cleanup instead of a runtime GC.
 
-Nocter deliberately avoids class inheritance, trait-based code reuse, implicit
+Nocter deliberately avoids class inheritance, implicit
 interface conformance, and hidden runtime machinery in its core direction.
 
 The normative language definition lives in

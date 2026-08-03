@@ -118,12 +118,12 @@ values expose argument and environment views, while ordinary `std/process` sourc
 matching, allocation policy, and public errors. See
 [Nested Outcomes and Executable Process Context](outcomes-process-context.md).
 
-Phase 10 keeps interface contracts, extension behavior, and closure storage separate. Resolver
-owns imported extension and anonymous closure identities. Typecheck produces specialized extension
-calls and closure plans. Ownership and provenance consume capture fields as ordinary aggregate
-state, while IR materializes anonymous environments and invokes generated static targets. No later
-phase performs member-name rewriting or reconstructs capture semantics. See
-[Callable Values and Contract-Derived Extensions](callable-extensions.md).
+Phase 10 keeps interface capability/default behavior and closure storage separate. Resolver
+preserves required/default method and anonymous closure identities. Typecheck produces specialized
+default-method calls and closure plans. Ownership and provenance consume capture fields as ordinary
+aggregate state, while IR materializes anonymous environments and invokes generated static targets.
+No later phase performs member-name rewriting or reconstructs capture semantics. See
+[Callable Values and Interface Default Methods](callable-default-methods.md).
 
 ## LSP Boundary
 

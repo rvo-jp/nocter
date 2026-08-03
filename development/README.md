@@ -11,7 +11,7 @@ and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Proces
 **Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
 **Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
 Iterators and Collection Builders** are complete on `develop`. **Phase 10: Callable Values and
-Contract-Derived Extensions** is active. The completion records and dependency order are defined in the
+Interface Default Methods** is active. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 
@@ -56,7 +56,7 @@ external runtime library, or the Xcode Command Line Tools.
 - [Owned String Interpolation and Formatting](docs/interpolation.md)
 - [Public Provenance Contracts and Generic Interface Bounds](docs/provenance-contracts.md)
 - [Composable Iterators and Collection Builders](docs/iterator-composition.md)
-- [Callable Values and Contract-Derived Extensions](docs/callable-extensions.md)
+- [Callable Values and Interface Default Methods](docs/callable-default-methods.md)
 - [Nested Outcomes and Executable Process Context](docs/outcomes-process-context.md)
 - [Allocator and Ownership](docs/allocator-ownership.md)
 - [Standard Library Runtime](docs/standard-library.md)

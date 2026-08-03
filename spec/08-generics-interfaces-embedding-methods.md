@@ -248,7 +248,7 @@ Initial implementation order:
 5. method declarations
 6. method calls such as `value.method(...)`
 
-## Interface Contracts
+## v0.2.0 Interface Contracts
 
 An interface is a contract-only nominal declaration. It may be private,
 `pub`, or `pub(nocter)` like other top-level definitions. Every member inside
@@ -307,12 +307,42 @@ This model prevents accidental conformance while keeping the contract check
 structural. It also keeps code reuse out of v0.2.0: interface declarations describe
 requirements only.
 
+## v0.3.0 Phase 10 Interface Defaults
+
+Phase 10 permits a public interface method to carry a default body. A bodyless method remains a
+conformance requirement. A body-bearing method is reusable behavior derived from the interface
+contract and does not add a conformance requirement.
+
+```nct
+pub interface Counter {
+    pub method &+self.next(): i32?
+
+    pub method self.count(): usize {
+        var source = move self
+        var total: usize = 0
+        loop {
+            source.next() otherwise { return total }
+            total += 1
+        }
+    }
+}
+```
+
+An explicit `impl Interface for Type` must satisfy every bodyless method. Default bodies are checked
+with `Self` constrained by their declaring interface and are statically specialized at use sites.
+An applicable inherent method takes precedence and acts as an explicit override. If two proven
+interfaces supply an otherwise applicable default with the same name, the call is ambiguous.
+Import or declaration order never resolves that ambiguity.
+
+See [Callable Values and Interface Default Methods](18-callables-default-methods.md) for the Phase
+10 callable and lookup contract.
+
 ## Interface And Embedding Separation
 
-Adopted: Nocter separates contract checking from implementation reuse.
+Adopted: Nocter separates stateless interface reuse from stored composition.
 
-An `interface` describes a public capability. It does not store data, provide
-method bodies, forward calls, inject members, or reuse code.
+An `interface` describes a public capability. Phase 10 permits default method bodies derived from
+that capability. An interface still does not store data, inject fields, or establish conformance.
 
 Embedding owns another value inside a struct and promotes only that value's
 public contract through the embedding owner. It is Nocter's planned
@@ -321,12 +351,13 @@ mixin, and not implicit interface conformance.
 
 This separation is part of Nocter's core direction:
 
-- `interface` answers "what public capability does this type promise?"
+- `interface` answers "what public capability does this type promise, and what stateless behavior
+  follows from it?"
 - `embedding` answers "what contained value does this type own and expose?"
 
 The two features may work together, but neither feature includes the other.
 A type that embeds a value does not automatically conform to an interface, and
-an interface does not provide reusable implementation.
+an interface default does not own or expose embedded state.
 
 ## Generics
 
@@ -633,11 +664,10 @@ Embedding is not:
 - class inheritance
 - subclassing
 - trait implementation reuse
-- interface default methods
 - mixins
 - extension methods
 - implicit conversion
 - automatic delegation to private implementation details
 
-Class inheritance is not part of the core language direction. Interface default
-methods and trait-style code reuse are not part of the core language direction.
+Class inheritance, mixins, extension declarations, and implicit conformance are not part of the
+core language direction.

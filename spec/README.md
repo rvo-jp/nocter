@@ -34,7 +34,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
 - [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
-- [Callable Values and Extensions](18-callables-extensions.md)
+- [Callable Values and Interface Default Methods](18-callables-default-methods.md)
 
 ## Supporting Material
 

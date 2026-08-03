@@ -13,7 +13,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/callable-extensions/</loc>
+    <loc>https://nocter.dev/development/docs/callable-default-methods/</loc>
     <lastmod>2026-08-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -128,13 +128,13 @@
   </url>
   <url>
     <loc>https://nocter.dev/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/00-design-principles/</loc>
-    <lastmod>2026-08-01</lastmod>
+    <lastmod>2026-08-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -253,7 +253,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/spec/18-callables-extensions/</loc>
+    <loc>https://nocter.dev/spec/18-callables-default-methods/</loc>
     <lastmod>2026-08-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

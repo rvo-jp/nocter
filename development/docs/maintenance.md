@@ -30,7 +30,7 @@ responsibility naturally explains it.
 | Explicit iteration and collection access design | `docs/iteration.md` |
 | Owned interpolation and formatting design | `docs/interpolation.md` |
 | Capability sets, conditional conformance, adapters, and collection builders | `docs/iterator-composition.md` |
-| Callable values, constrained extensions, and iterator chains | `docs/callable-extensions.md` |
+| Callable values, interface default methods, and iterator chains | `docs/callable-default-methods.md` |
 | Distributed standard-library implementation | `docs/standard-library.md` |
 | LSP capabilities and analysis design | `docs/lsp.md` |
 | Next task and handoff facts | `TODO.md` |
@@ -50,8 +50,8 @@ released record and does not receive new work items.
 - Iterator ownership, element access, or transient shifting changed: update `iteration.md`.
 - Capability-set, conditional-conformance, iterator-adapter, or collection-builder design changed:
   update `iterator-composition.md`.
-- Method-generic, extension, closure, callable specialization, or chain API design changed: update
-  `callable-extensions.md`.
+- Method-generic, default-method, closure, callable specialization, or chain API design changed:
+  update `callable-default-methods.md`.
 - Interpolation runtime binding, evaluation, formatting, or cleanup changed: update
   `interpolation.md`.
 - Runtime behavior in tracked `development/std` changed: update `standard-library.md`.

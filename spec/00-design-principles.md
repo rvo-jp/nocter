@@ -62,13 +62,12 @@ ordinary task.
 Nocter deliberately avoids class inheritance in v0.2.0. Designs that require users
 to reason about parent-class behavior, subclass overrides, protected internals,
 or fragile implementation coupling work against Nocter's encapsulation goal.
-Nocter should prefer modules, value types, inherent methods, and explicit
-contract-only interfaces.
+Nocter should prefer modules, value types, inherent methods, and explicit interfaces.
 
-Interfaces exist to describe public capability, not to reuse code or expose
-internal structure. An interface member must be public, and conformance is
-explicit through forms such as `impl Printable for User` so accidental shape
-matches do not silently become API commitments.
+Interfaces exist to describe public capability. Phase 10 default methods may reuse behavior derived
+only from that capability; they cannot expose internal structure or add state. An interface member
+must be public, and conformance is explicit through forms such as `impl Printable for User` so
+accidental shape matches do not silently become API commitments.
 
 Embedding is Nocter's planned composition-based reuse feature. It is separate
 from interfaces: an interface describes capability, while embedding owns a
