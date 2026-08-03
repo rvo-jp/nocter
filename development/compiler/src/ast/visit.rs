@@ -102,7 +102,7 @@ fn visit_statement_expressions(statement: &Stmt, visitor: &mut impl FnMut(&Expr)
     }
 }
 
-fn visit_expression(expression: &Expr, visitor: &mut impl FnMut(&Expr)) {
+pub(crate) fn visit_expression(expression: &Expr, visitor: &mut impl FnMut(&Expr)) {
     visitor(expression);
     match expression {
         Expr::Identifier(_)

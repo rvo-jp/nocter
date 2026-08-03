@@ -206,5 +206,6 @@ fn unary_spelling(operator: UnaryOperator) -> &'static str {
         UnaryOperator::LogicalNot => "!",
         UnaryOperator::Negate => "-",
         UnaryOperator::Move => "move",
+        UnaryOperator::Spread => "...",
     }
 }

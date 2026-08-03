@@ -164,6 +164,23 @@ pub(super) fn collect_direct_borrow_expressions(
     environment: &TypeEnvironment,
     borrows: &mut Vec<DirectBorrowSource>,
 ) {
+    if let Some(spread) = crate::typecheck::sequence_spread(expression)
+        && !matches!(
+            spread.operand.without_groups(),
+            Expr::Borrow(_)
+                | Expr::Unary(crate::ast::UnaryExpr {
+                    operator: UnaryOperator::Move,
+                    ..
+                })
+        )
+        && let Some(source) = expression_place(&spread.operand)
+    {
+        borrows.push(DirectBorrowSource {
+            source,
+            source_span: spread.operand.span(),
+            is_readwrite: false,
+        });
+    }
     if let Some(source) = direct_borrow_source(expression) {
         borrows.push(source);
     }

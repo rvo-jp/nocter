@@ -212,7 +212,7 @@ pub(in crate::ir::lower::expressions) fn lower_bool_unary_value(
             context,
             diagnostic_code,
         )?))),
-        UnaryOperator::Negate | UnaryOperator::Move => {
+        UnaryOperator::Negate | UnaryOperator::Move | UnaryOperator::Spread => {
             Err(unsupported_bool_expression_diagnostic(diagnostic_code))
         }
     }

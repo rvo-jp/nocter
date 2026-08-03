@@ -72,14 +72,46 @@ pub(in crate::ir::lower) fn lower_literal_function<'a>(
     ) {
         context = context.with_literal_pack(LiteralPackLowering {
             capture_name: capture.name.clone(),
-            element_names: (0..specialization.argument_types.len())
-                .map(literal_element_parameter_name)
+            runtime_length_name: specialization
+                .pack_segments
+                .iter()
+                .any(|segment| {
+                    matches!(
+                        segment,
+                        crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread { .. }
+                    )
+                })
+                .then(|| {
+                    super::super::literal_pack_lengths::runtime_length_name(&capture.name)
+                }),
+            segments: specialization
+                .pack_segments
+                .iter()
+                .map(|segment| match segment {
+                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Value {
+                        parameter_index,
+                    } => LiteralPackLoweringSegment::Value {
+                        parameter_name: literal_element_parameter_name(*parameter_index),
+                    },
+                    crate::analysis::literal_specializations::LiteralPackSegmentSpecialization::Spread {
+                        iterator_parameter_index,
+                        plan,
+                    } => LiteralPackLoweringSegment::Spread {
+                        iterator_parameter_name: literal_element_parameter_name(
+                            *iterator_parameter_index,
+                        ),
+                        plan: plan.clone(),
+                    },
+                })
                 .collect(),
             element_type: element_type.clone(),
         });
     }
 
     let mut instructions = parameter_setup;
+    instructions.extend(
+        super::super::literal_pack_lengths::lower_runtime_length_initialization(&mut context)?,
+    );
     instructions.extend(lower_callable_body(
         &name,
         &literal.body,

@@ -58,6 +58,19 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 }
             }
         }
+        for (_, plan) in file.typecheck_facts.sequence_spread_plans() {
+            for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
+                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                else {
+                    continue;
+                };
+                if let Some(specialization) =
+                    specialization.with_context_substitutions(&HashMap::new())
+                {
+                    queue.push_back(PendingCallSpecialization::Method(specialization));
+                }
+            }
+        }
         for specialization in file.typecheck_facts.drop_type_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
                 && let Some(specialization) =
@@ -318,6 +331,22 @@ fn enqueue_call_specializations_from_span(
             continue;
         }
         for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+            let Some(specialization) = iteration_method_call_specialization(analysis, method)
+            else {
+                continue;
+            };
+            if let Some(specialization) =
+                specialization.with_context_substitutions(context_substitutions)
+            {
+                queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+    }
+    for (spread_span, plan) in file.typecheck_facts.sequence_spread_plans() {
+        if !span_contains(span, *spread_span) {
+            continue;
+        }
+        for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
             let Some(specialization) = iteration_method_call_specialization(analysis, method)
             else {
                 continue;

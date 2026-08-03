@@ -15,6 +15,15 @@ pub(super) fn check_statement_borrow_conflicts(
         environment,
         &mut new_borrows,
     );
+    if diagnose_statement_sequence_spread_borrows(
+        sources,
+        statement,
+        resolved,
+        environment,
+        diagnostics,
+    ) {
+        return;
+    }
 
     for borrow in active_borrows {
         if let Some(action) =
@@ -85,6 +94,15 @@ pub(super) fn check_expression_borrow_conflicts(
 ) {
     let mut new_borrows = Vec::new();
     collect_direct_borrow_expressions(expression, resolved, environment, &mut new_borrows);
+    if diagnose_sequence_spread_borrow_conflicts(
+        sources,
+        expression,
+        resolved,
+        environment,
+        diagnostics,
+    ) {
+        return;
+    }
 
     for borrow in active_borrows {
         if let Some(action) =
@@ -143,6 +161,125 @@ pub(super) fn check_expression_borrow_conflicts(
             return;
         }
     }
+}
+
+fn diagnose_sequence_spread_borrow_conflicts(
+    sources: &SourceMap,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut reported = false;
+    crate::ast::visit_expression(expression, &mut |candidate| {
+        if reported {
+            return;
+        }
+        let Expr::TypedSequenceLiteral(literal) = candidate else {
+            return;
+        };
+        for (index, element) in literal.elements.iter().enumerate() {
+            let Some(earlier) = sequence_spread_borrow_source(element) else {
+                continue;
+            };
+            for later in &literal.elements[index + 1..] {
+                let mut later_borrows = Vec::new();
+                collect_direct_borrow_expressions(later, resolved, environment, &mut later_borrows);
+                if let Some(later_borrow) = later_borrows.iter().find(|later_borrow| {
+                    later_borrow.source.conflicts_with(&earlier.source)
+                        && (earlier.is_readwrite || later_borrow.is_readwrite)
+                }) {
+                    diagnostics.push(overlapping_expression_borrow_diagnostic(
+                        sources,
+                        &later_borrow.source.display(),
+                        if later_borrow.is_readwrite {
+                            "create readwrite borrow of"
+                        } else {
+                            "create readonly borrow of"
+                        },
+                        later_borrow.source_span,
+                        earlier.source_span,
+                        earlier.is_readwrite,
+                    ));
+                    reported = true;
+                    return;
+                }
+                if let Some(action) =
+                    expression_move_action(later, &earlier.source, resolved, environment)
+                {
+                    diagnostics.push(overlapping_expression_borrow_diagnostic(
+                        sources,
+                        &action.place.display(),
+                        action.description,
+                        action.span,
+                        earlier.source_span,
+                        earlier.is_readwrite,
+                    ));
+                    reported = true;
+                    return;
+                }
+            }
+        }
+    });
+    reported
+}
+
+fn sequence_spread_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
+    let spread = crate::typecheck::sequence_spread(expression)?;
+    match spread.operand.without_groups() {
+        Expr::Unary(crate::ast::UnaryExpr {
+            operator: UnaryOperator::Move,
+            ..
+        }) => None,
+        Expr::Borrow(borrow) => Some(DirectBorrowSource {
+            source: expression_place(&borrow.expression)?,
+            source_span: borrow.expression.span(),
+            is_readwrite: borrow.is_readwrite,
+        }),
+        operand => Some(DirectBorrowSource {
+            source: expression_place(operand)?,
+            source_span: operand.span(),
+            is_readwrite: false,
+        }),
+    }
+}
+
+fn diagnose_statement_sequence_spread_borrows(
+    sources: &SourceMap,
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let expressions = match statement {
+        Stmt::Return(statement) => statement.expression.iter().collect::<Vec<_>>(),
+        Stmt::Binding(statement) => vec![&statement.initializer],
+        Stmt::Assignment(statement) => vec![&statement.target, &statement.value],
+        Stmt::If(statement) => vec![&statement.condition],
+        Stmt::IfIs(statement) => vec![&statement.expression],
+        Stmt::Switch(statement) => vec![&statement.expression],
+        Stmt::ForRange(statement) => vec![&statement.start, &statement.end],
+        Stmt::CollectionFor(statement) => vec![&statement.source],
+        Stmt::While(statement) => vec![&statement.condition],
+        Stmt::Region(statement) => vec![&statement.allocator],
+        Stmt::Expression(statement) => vec![&statement.expression],
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::LiteralPackFor(_)
+        | Stmt::Loop(_)
+        | Stmt::Drop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => Vec::new(),
+    };
+    expressions.into_iter().any(|expression| {
+        diagnose_sequence_spread_borrow_conflicts(
+            sources,
+            expression,
+            resolved,
+            environment,
+            diagnostics,
+        )
+    })
 }
 
 pub(super) fn record_statement_borrow(

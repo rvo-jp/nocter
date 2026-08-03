@@ -58,7 +58,8 @@ pub(crate) use model::{
     TypeReferenceFact, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
     TypecheckFacts, TypecheckInterpolationPart, TypecheckInterpolationPlan,
     TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSliceElementKind,
+    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind,
 };
 
 use hover_labels::*;

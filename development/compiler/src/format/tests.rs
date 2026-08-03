@@ -86,7 +86,7 @@ fn formats_generic_interface_bounds_stably() {
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
         r#"pub literal Vec<T>[](...items:T):Self from current{for item in items{return move item}}
-func build(arena:Arena):Vec<i32>{return Vec<i32> [1,2,3] using arena}
+func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&other,...move other,3] using arena}
 "#,
         concat!(
             "pub literal Vec<T> [](...items: T): Self from current {\n",
@@ -95,8 +95,8 @@ func build(arena:Arena):Vec<i32>{return Vec<i32> [1,2,3] using arena}
             "    }\n",
             "}\n",
             "\n",
-            "func build(arena: Arena): Vec<i32> {\n",
-            "    return Vec<i32> [1, 2, 3] using arena\n",
+            "func build(arena: Arena, other: Vec<i32>): Vec<i32> {\n",
+            "    return Vec<i32> [1, ...other, ...&other, ...move other, 3] using arena\n",
             "}\n",
         ),
     );

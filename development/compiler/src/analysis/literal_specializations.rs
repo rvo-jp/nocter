@@ -16,8 +16,20 @@ pub(crate) struct LiteralSpecialization {
     pub(crate) result_type: TypeExpr,
     pub(crate) element_type: Option<TypeExpr>,
     pub(crate) argument_types: Vec<TypeExpr>,
+    pub(crate) pack_segments: Vec<LiteralPackSegmentSpecialization>,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
     pub(crate) shape: LiteralShape,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LiteralPackSegmentSpecialization {
+    Value {
+        parameter_index: usize,
+    },
+    Spread {
+        iterator_parameter_index: usize,
+        plan: crate::typecheck::TypecheckSequenceSpreadPlan,
+    },
 }
 
 pub(crate) fn collect_literal_specializations(
@@ -72,16 +84,49 @@ pub(crate) fn literal_specialization_for_expression_span(
 pub(crate) fn literal_target_name(
     result_type: &TypeExpr,
     shape: LiteralShape,
-    argument_count: usize,
+    specialization_key: &str,
 ) -> String {
     let shape = match shape {
         LiteralShape::Sequence => "sequence",
         LiteralShape::String => "string",
     };
     format!(
-        "{}.$literal.{shape}${argument_count}",
-        type_expr_display_lossy(result_type)
+        "{}.$literal.{shape}${:016x}",
+        type_expr_display_lossy(result_type),
+        stable_key_hash(specialization_key)
     )
+}
+
+pub(crate) fn literal_specialization_key(
+    shape: LiteralShape,
+    elements: &[Expr],
+    facts: &crate::typecheck::TypecheckFacts,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Option<String> {
+    if shape == LiteralShape::String {
+        return Some("string".to_string());
+    }
+    let mut key = String::new();
+    for element in elements {
+        if let Some(spread) = crate::typecheck::sequence_spread(element) {
+            let plan = facts
+                .sequence_spread_plan(spread.span)?
+                .with_context_substitutions(substitutions)?;
+            key.push_str("s:");
+            key.push_str(&format!("{:?}:", plan.mode));
+            key.push_str(&type_expr_display_lossy(&plan.iterator_type));
+            key.push(';');
+        } else {
+            key.push_str("v;");
+        }
+    }
+    Some(key)
+}
+
+fn stable_key_hash(key: &str) -> u64 {
+    key.bytes().fold(0xcbf29ce484222325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    })
 }
 
 pub(crate) fn literal_element_parameter_name(index: usize) -> String {
@@ -95,11 +140,9 @@ fn specialization_for_expression(
     context_substitutions: &HashMap<String, TypeExpr>,
     require_concrete: bool,
 ) -> Option<LiteralSpecialization> {
-    let (span, shape, argument_count) = match expression {
-        Expr::TypedSequenceLiteral(literal) => {
-            (literal.span, LiteralShape::Sequence, literal.elements.len())
-        }
-        Expr::TypedStringLiteral(literal) => (literal.span, LiteralShape::String, 1),
+    let (span, shape) = match expression {
+        Expr::TypedSequenceLiteral(literal) => (literal.span, LiteralShape::Sequence),
+        Expr::TypedStringLiteral(literal) => (literal.span, LiteralShape::String),
         _ => return None,
     };
     let resolution = file.resolved.literal_resolution(span)?;
@@ -126,16 +169,51 @@ fn specialization_for_expression(
         return None;
     }
 
-    let (element_type, argument_types) = match shape {
+    let (element_type, argument_types, pack_segments, specialization_key) = match shape {
         LiteralShape::Sequence => {
             let element_type = substitute_type_expr_parameters(
                 &declaration.capture.as_ref()?.element_type,
                 &substitutions,
             );
-            (
-                Some(element_type.clone()),
-                vec![element_type; argument_count],
-            )
+            let Expr::TypedSequenceLiteral(literal) = expression else {
+                unreachable!()
+            };
+            let mut argument_types = Vec::new();
+            let mut pack_segments = Vec::new();
+            let mut key = String::new();
+            for element in &literal.elements {
+                if let Some(spread) = crate::typecheck::sequence_spread(element) {
+                    let plan = file
+                        .typecheck_facts
+                        .sequence_spread_plan(spread.span)?
+                        .with_context_substitutions(&substitutions)?;
+                    let iterator_parameter_index = argument_types.len();
+                    argument_types.push(plan.iterator_type.clone());
+                    key.push_str("s:");
+                    key.push_str(&format!("{:?}:", plan.mode));
+                    key.push_str(&type_expr_display_lossy(&plan.iterator_type));
+                    key.push(';');
+                    pack_segments.push(LiteralPackSegmentSpecialization::Spread {
+                        iterator_parameter_index,
+                        plan,
+                    });
+                } else {
+                    let parameter_index = argument_types.len();
+                    argument_types.push(element_type.clone());
+                    key.push_str("v;");
+                    pack_segments.push(LiteralPackSegmentSpecialization::Value { parameter_index });
+                }
+            }
+            debug_assert_eq!(
+                key,
+                literal_specialization_key(
+                    shape,
+                    &literal.elements,
+                    &file.typecheck_facts,
+                    &substitutions,
+                )?
+            );
+            (Some(element_type), argument_types, pack_segments, key)
         }
         LiteralShape::String => {
             let parameters = declaration
@@ -144,16 +222,17 @@ fn specialization_for_expression(
                 .iter()
                 .map(|parameter| substitute_type_expr_parameters(&parameter.ty, &substitutions))
                 .collect();
-            (None, parameters)
+            (None, parameters, Vec::new(), "string".to_string())
         }
     };
     Some(LiteralSpecialization {
         declaration_span: declaration.span,
         expression_span: span,
-        target_name: literal_target_name(&result_type, shape, argument_count),
+        target_name: literal_target_name(&result_type, shape, &specialization_key),
         result_type,
         element_type,
         argument_types,
+        pack_segments,
         substitutions,
         shape,
     })

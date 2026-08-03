@@ -5,12 +5,24 @@ use crate::ast::type_expr_display_lossy;
 use crate::resolve::LocalSymbolKind;
 use crate::source::ByteSpan;
 use crate::typecheck::{TypecheckCollectionForPlan, TypecheckCollectionForSourceMode};
+use crate::typecheck::{TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan};
 
 pub(crate) fn iteration_markdown_at_offset(
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<String> {
+    if let Some(plan) = file
+        .typecheck_facts
+        .sequence_spread_plans()
+        .map(|(_, plan)| plan)
+        .filter(|plan| {
+            span_contains(plan.spread_span, offset) || span_contains(plan.source_span, offset)
+        })
+        .min_by_key(|plan| (plan.spread_span.len(), plan.spread_span.start))
+    {
+        return Some(sequence_spread_markdown(analysis, plan));
+    }
     let plan = file
         .typecheck_facts
         .collection_for_plans()
@@ -36,6 +48,84 @@ pub(crate) fn iteration_markdown_at_offset(
     }
 
     Some(iteration_markdown(analysis, plan))
+}
+
+pub(crate) fn sequence_spread_operator_hover(
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<(ByteSpan, String)> {
+    let plan = file
+        .typecheck_facts
+        .sequence_spread_plans()
+        .map(|(_, plan)| plan)
+        .filter_map(|plan| {
+            let operator_span = ByteSpan::new(
+                plan.spread_span.source,
+                plan.spread_span.start,
+                (plan.spread_span.start + 3).min(plan.spread_span.end),
+            );
+            (operator_span.start <= offset && offset < operator_span.end)
+                .then_some((operator_span, plan))
+        })
+        .min_by_key(|(_, plan)| (plan.spread_span.len(), plan.spread_span.start))?;
+    Some((plan.0, sequence_spread_markdown(analysis, plan.1)))
+}
+
+fn sequence_spread_markdown(
+    analysis: &CompileUnitAnalysis,
+    plan: &TypecheckSequenceSpreadPlan,
+) -> String {
+    let mode = match plan.mode {
+        TypecheckSequenceSpreadMode::Copy => "copy from readonly iteration",
+        TypecheckSequenceSpreadMode::Readonly => "readonly reference spread",
+        TypecheckSequenceSpreadMode::Move => "owned element transfer",
+    };
+    let mut lines = vec![
+        format!("**Sequence spread:** {mode}."),
+        format!(
+            "**Source:** `{}`.",
+            type_expr_display_lossy(&plan.source_type)
+        ),
+        format!(
+            "**Iterator:** `{}`; **iterator item:** `{}`; **pack item:** `{}`.",
+            type_expr_display_lossy(&plan.iterator_type),
+            type_expr_display_lossy(&plan.iterator_item_type),
+            type_expr_display_lossy(&plan.pack_item_type),
+        ),
+    ];
+    if let Some(conversion) = &plan.conversion {
+        lines.push(format!(
+            "**Conversion target:** `{}` (statically selected conformance).",
+            conversion.target_name
+        ));
+    } else {
+        lines.push("**Conversion target:** none; the source already is an iterator.".to_string());
+    }
+    lines.push(format!(
+        "**Exact-count target:** `{}`; **step target:** `{}`.",
+        plan.exact_size.target_name, plan.step.target_name
+    ));
+    let allocation_roles = [
+        plan.conversion
+            .as_ref()
+            .map(|method| ("conversion", method)),
+        Some(("exact count", &plan.exact_size)),
+        Some(("step", &plan.step)),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(|(label, method)| {
+        callable_uses_current_allocation_context(analysis, method.declaration_span).then_some(label)
+    })
+    .collect::<Vec<_>>();
+    if !allocation_roles.is_empty() {
+        lines.push(format!(
+            "**Allocation effect:** {} uses the current allocation context.",
+            allocation_roles.join(", ")
+        ));
+    }
+    lines.join("\n\n")
 }
 
 fn iteration_markdown(analysis: &CompileUnitAnalysis, plan: &TypecheckCollectionForPlan) -> String {

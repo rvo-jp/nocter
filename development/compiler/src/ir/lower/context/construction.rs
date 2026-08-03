@@ -158,6 +158,10 @@ impl<'a> LoweringContext<'a> {
             .filter(|pack| pack.capture_name == name)
     }
 
+    pub(in crate::ir::lower) fn active_literal_pack(&self) -> Option<&LiteralPackLowering> {
+        self.literal_pack.as_ref()
+    }
+
     pub(in crate::ir::lower) fn with_function_return_type(mut self, return_type: Type) -> Self {
         self.function_return_type = return_type;
         self

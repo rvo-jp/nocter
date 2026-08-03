@@ -31,7 +31,14 @@ pub(in crate::typecheck::returns) fn check_borrow_return_provenance(
         ));
         return;
     }
-    if !type_contains_borrow_like(ty, resolved) {
+    let has_tracked_element_storage = matches!(
+        &provenance,
+        ValueProvenance::Aggregate { elements, .. }
+            if elements
+                .values()
+                .any(ValueProvenance::has_storage_dependency)
+    );
+    if !type_contains_borrow_like(ty, resolved) && !has_tracked_element_storage {
         return;
     }
     let Some(source) = provenance.escaping_source() else {

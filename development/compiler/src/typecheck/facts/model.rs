@@ -7,6 +7,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
+    pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -63,6 +64,19 @@ impl TypecheckFacts {
         &self,
     ) -> impl Iterator<Item = (&ByteSpan, &TypecheckCollectionForPlan)> {
         self.collection_for_plans.iter()
+    }
+
+    pub(crate) fn sequence_spread_plan(
+        &self,
+        spread_span: ByteSpan,
+    ) -> Option<&TypecheckSequenceSpreadPlan> {
+        self.sequence_spread_plans.get(&spread_span)
+    }
+
+    pub(crate) fn sequence_spread_plans(
+        &self,
+    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckSequenceSpreadPlan)> {
+        self.sequence_spread_plans.iter()
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -373,6 +387,65 @@ pub(crate) struct TypecheckCollectionForPlan {
     pub(crate) item_type: TypeExpr,
     pub(crate) conversion: Option<TypecheckIterationMethod>,
     pub(crate) step: TypecheckIterationMethod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckSequenceSpreadMode {
+    Copy,
+    Readonly,
+    Move,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckSequenceSpreadPlan {
+    pub(crate) spread_span: ByteSpan,
+    pub(crate) source_span: ByteSpan,
+    pub(crate) mode: TypecheckSequenceSpreadMode,
+    pub(crate) source_mode: TypecheckCollectionForSourceMode,
+    pub(crate) source_type: TypeExpr,
+    pub(crate) iterator_type: TypeExpr,
+    pub(crate) iterator_item_type: TypeExpr,
+    pub(crate) pack_item_type: TypeExpr,
+    pub(crate) conversion: Option<TypecheckIterationMethod>,
+    pub(crate) exact_size: TypecheckIterationMethod,
+    pub(crate) step: TypecheckIterationMethod,
+}
+
+impl TypecheckSequenceSpreadPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            spread_span: self.spread_span,
+            source_span: self.source_span,
+            mode: self.mode,
+            source_mode: self.source_mode,
+            source_type: substitute_type_expr_parameters(&self.source_type, context_substitutions),
+            iterator_type: substitute_type_expr_parameters(
+                &self.iterator_type,
+                context_substitutions,
+            ),
+            iterator_item_type: substitute_type_expr_parameters(
+                &self.iterator_item_type,
+                context_substitutions,
+            ),
+            pack_item_type: substitute_type_expr_parameters(
+                &self.pack_item_type,
+                context_substitutions,
+            ),
+            conversion: match &self.conversion {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            exact_size: self
+                .exact_size
+                .with_context_substitutions(context_substitutions)?,
+            step: self
+                .step
+                .with_context_substitutions(context_substitutions)?,
+        })
+    }
 }
 
 impl TypecheckCollectionForPlan {

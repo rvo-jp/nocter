@@ -15,7 +15,7 @@ pub use literals::*;
 pub use provenance::*;
 pub use receivers::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
-pub(crate) use visit::visit_file_expressions;
+pub(crate) use visit::{visit_expression, visit_file_expressions};
 
 use crate::source::ByteSpan;
 
@@ -683,6 +683,7 @@ pub enum UnaryOperator {
     LogicalNot,
     Negate,
     Move,
+    Spread,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -930,6 +931,7 @@ impl UnaryOperator {
             UnaryOperator::LogicalNot => "!",
             UnaryOperator::Negate => "-",
             UnaryOperator::Move => "move",
+            UnaryOperator::Spread => "...",
         }
     }
 }

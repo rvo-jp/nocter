@@ -96,15 +96,31 @@ fn keeps_adjacent_brackets_as_index_syntax() {
 }
 
 #[test]
-fn rejects_sequence_spread_and_string_interpolation_in_phase_one() {
+fn parses_explicit_sequence_spread_modes_and_rejects_typed_string_interpolation() {
     let spread = parse_text(
         r#"func build(other: Vec<i32>): Vec<i32> {
-    return Vec<i32> [...other]
+    return Vec<i32> [0, ...other, ...&other, ...move other]
 }
 "#,
     );
-    assert!(spread.ast.is_none());
-    assert!(spread.diagnostics[0].message.contains("spread"));
+    assert!(spread.diagnostics.is_empty(), "{:?}", spread.diagnostics);
+    let ast = spread.ast.expect("expected spread AST");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function")
+    };
+    let Stmt::Return(statement) = &function.body.statements[0] else {
+        panic!("expected return")
+    };
+    let Expr::TypedSequenceLiteral(literal) = statement.expression.as_ref().unwrap() else {
+        panic!("expected typed sequence literal")
+    };
+    assert_eq!(literal.elements.len(), 4);
+    for element in &literal.elements[1..] {
+        let Expr::Unary(spread) = element else {
+            panic!("expected spread unary")
+        };
+        assert_eq!(spread.operator, crate::ast::UnaryOperator::Spread);
+    }
 
     let interpolation = parse_text(
         r#"func build(name: &str): String {

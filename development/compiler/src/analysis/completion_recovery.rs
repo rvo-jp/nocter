@@ -232,7 +232,10 @@ fn incomplete_member_completion_text(text: &str, offset: usize) -> Option<String
 }
 
 fn offset_is_after_member_dot(text: &str, offset: usize) -> bool {
-    offset > 0 && text.is_char_boundary(offset) && text.as_bytes().get(offset - 1) == Some(&b'.')
+    offset > 0
+        && text.is_char_boundary(offset)
+        && text.as_bytes().get(offset - 1) == Some(&b'.')
+        && text.as_bytes().get(offset.saturating_sub(2)) != Some(&b'.')
 }
 
 fn incomplete_struct_literal_field_completion_text(text: &str, offset: usize) -> Option<String> {
@@ -325,5 +328,13 @@ mod tests {
         let recovered = completion_recovery_text(text, offset).expect("expected recovery");
 
         assert_eq!(recovered, "use std/vec.__nocter_completion_placeholder\n");
+    }
+
+    #[test]
+    fn does_not_treat_sequence_spread_as_member_access() {
+        let text = "func main(): i32 {\n    let values = Vec [...source]\n}\n";
+        let offset = text.find("...source").unwrap() + 3;
+
+        assert!(incomplete_member_completion_text(text, offset).is_none());
     }
 }

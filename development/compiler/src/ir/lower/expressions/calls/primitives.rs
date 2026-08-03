@@ -612,9 +612,13 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
     instructions.extend(offset.instructions);
     let stored_value = unwrap_pointer_store_move(&call.arguments[2]);
 
-    if let Some(value_type) =
-        scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
-            context.resolved_source(source)
+    if let Some(value_type) = context
+        .ir_type_for_type_expr(&pointee_type)
+        .filter(|ty| matches!(ty, Type::Borrow { .. }))
+        .or_else(|| {
+            scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
+                context.resolved_source(source)
+            })
         })
     {
         match value_type {
@@ -668,17 +672,36 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                     value: value.value,
                 });
             }
+            Type::Borrow { .. } => {
+                let (borrow_instructions, value) = lower_borrow_argument(
+                    stored_value,
+                    &value_type,
+                    "store_value_to_ptr",
+                    context,
+                    temporaries,
+                )?;
+                instructions.extend(borrow_instructions);
+                let destination = temporaries.next_usize()?;
+                instructions.push(Instruction::SetUsizeFromBorrow {
+                    destination,
+                    source: value.source,
+                });
+                instructions.push(Instruction::StoreUsizeToPointer {
+                    pointer,
+                    offset: offset.value,
+                    value: UsizeValue::Location(destination),
+                });
+            }
             Type::Slice { .. }
             | Type::Aggregate { .. }
             | Type::DirectAggregate { .. }
-            | Type::Borrow { .. }
             | Type::Error
             | Type::Void
             | Type::Never
             | Type::Fallible(_)
             | Type::ComposedOutcome { .. } => {
                 return Err(unsupported_pointer_primitive_diagnostic(
-                    "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, `bool`, and `&str` element types",
+                    "`store_value_to_ptr` supports only scalar, borrow, and `&str` element types",
                 ));
             }
         }

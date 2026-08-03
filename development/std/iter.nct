@@ -8,6 +8,11 @@ pub interface Iterator<T> {
     pub method &+self.next(): T?
 }
 
+/// Reports the exact number of values that the iterator has not yielded yet.
+pub interface ExactSizeIterator<T> {
+    pub method &self.remaining_len(): usize
+}
+
 /// Creates a readonly iterator whose yielded values retain the collection origin.
 pub interface Iterable<T, I> {
     pub method &self.iter(): I
@@ -55,6 +60,11 @@ impl<T> ViewIter<T> {
         return remaining(self)
     }
 
+    /// Implements exact-size iteration for compiler-owned element packs.
+    pub method &self.remaining_len(): usize {
+        return remaining(self)
+    }
+
     /// Advances and returns a readonly borrow, or `none` at exhaustion.
     pub method &+self.next(): (&T)? {
         if self.next_index >= self.view.len() {
@@ -67,3 +77,4 @@ impl<T> ViewIter<T> {
 }
 
 impl<T> Iterator<&T> for ViewIter<T>
+impl<T> ExactSizeIterator<&T> for ViewIter<T>

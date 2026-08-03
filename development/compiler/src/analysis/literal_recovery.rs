@@ -18,8 +18,19 @@ pub(crate) fn literal_recovery_overlay(text: &str, offset: usize) -> Option<(Str
 fn incomplete_sequence_expression(text: &str, offset: usize) -> Option<String> {
     let scan = scan_to(text, offset);
     let open = *scan.square_brackets.last()?;
+    if !scan_to(text, text.len()).square_brackets.contains(&open) {
+        return None;
+    }
     target_precedes_delimiter(text, open)?;
-    Some(insert_at(text, offset, "]"))
+    let insertion = incomplete_spread_insertion(text, open, offset).unwrap_or("]");
+    Some(insert_at(text, offset, insertion))
+}
+
+fn incomplete_spread_insertion(text: &str, open: usize, offset: usize) -> Option<&'static str> {
+    let tail = text.get(open + 1..offset)?.trim_end();
+    let segment = tail.rsplit(',').next()?.trim_start();
+    matches!(segment, "..." | "...&" | "...move")
+        .then_some("__nocter_sequence_spread_source_placeholder]")
 }
 
 fn incomplete_string_expression(text: &str, offset: usize) -> Option<String> {
@@ -181,6 +192,25 @@ mod tests {
         let offset = text.find("[\n").unwrap() + 1;
         let recovered = literal_recovery_text(text, offset).expect("expected recovery");
         assert!(recovered.contains("Vec []\n"), "{recovered}");
+    }
+
+    #[test]
+    fn supplies_a_source_only_for_incomplete_sequence_spread_modes() {
+        for prefix in ["...", "...&", "...move "] {
+            let text = format!("func main(): i32 {{\n    let values = Vec [{prefix}\n}}\n");
+            let offset = text.find('\n').unwrap_or(text.len());
+            let offset = text[..offset]
+                .rfind(prefix)
+                .map(|start| start + prefix.len())
+                .unwrap_or_else(|| text.find(prefix).unwrap() + prefix.len());
+            let recovered = literal_recovery_text(&text, offset).expect("expected recovery");
+            assert!(
+                recovered.contains(&format!(
+                    "Vec [{prefix}__nocter_sequence_spread_source_placeholder]"
+                )),
+                "{recovered}"
+            );
+        }
     }
 
     #[test]

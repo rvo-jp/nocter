@@ -121,8 +121,20 @@ pub(super) struct LoweringOutcomeParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct LiteralPackLowering {
     pub(super) capture_name: String,
-    pub(super) element_names: Vec<String>,
+    pub(super) segments: Vec<LiteralPackLoweringSegment>,
     pub(super) element_type: TypeExpr,
+    pub(super) runtime_length_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum LiteralPackLoweringSegment {
+    Value {
+        parameter_name: String,
+    },
+    Spread {
+        iterator_parameter_name: String,
+        plan: crate::typecheck::TypecheckSequenceSpreadPlan,
+    },
 }
 
 impl LoweringParameterSlots {

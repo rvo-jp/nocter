@@ -249,7 +249,7 @@ impl TypecheckFactCollector<'_> {
     }
 }
 
-fn collection_for_fact(
+pub(super) fn collection_for_fact(
     statement: &crate::ast::CollectionForStmt,
     resolution: &crate::typecheck::iteration::CollectionIterationResolution,
 ) -> Option<TypecheckCollectionForPlan> {
@@ -300,7 +300,7 @@ fn collection_for_fact(
     })
 }
 
-fn iteration_method_fact(
+pub(super) fn iteration_method_fact(
     resolution: &crate::typecheck::iteration::IterationMethodResolution,
     self_ty: TypeExpr,
     free_type_parameters: &HashSet<String>,

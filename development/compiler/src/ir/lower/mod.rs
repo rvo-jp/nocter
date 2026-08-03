@@ -10,6 +10,7 @@ mod expressions;
 mod functions;
 mod imported_calls;
 mod interpolation;
+mod literal_pack_lengths;
 mod literal_packs;
 mod literals;
 mod outcome_values;

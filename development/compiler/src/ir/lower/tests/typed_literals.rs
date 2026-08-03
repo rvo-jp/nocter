@@ -19,12 +19,9 @@ func main(): i32 {
 "#,
     );
 
-    assert!(
-        module
-            .functions
-            .iter()
-            .any(|function| { function.target == CallTarget::same_file("Text.$literal.string$1") })
-    );
+    assert!(module.functions.iter().any(|function| {
+        function.target == CallTarget::same_file("Text.$literal.string$704be0d8faaffc58")
+    }));
     let main = module
         .functions
         .iter()
@@ -33,7 +30,7 @@ func main(): i32 {
     assert!(main.instructions.iter().any(|instruction| matches!(
         instruction,
         Instruction::CallDirectAggregate { target, arguments, .. }
-            if target == &CallTarget::same_file("Text.$literal.string$1")
+            if target == &CallTarget::same_file("Text.$literal.string$704be0d8faaffc58")
                 && arguments == &vec![ScalarArgument::Str(StrValue::StaticBytes(b"hello".to_vec()))]
     )));
 }
@@ -63,7 +60,7 @@ func main(): i32 {
 "#,
     );
 
-    let target = CallTarget::same_file("Numbers.$literal.sequence$3");
+    let target = CallTarget::same_file("Numbers.$literal.sequence$c44f4a18615cbe0a");
     let literal = module
         .functions
         .iter()
@@ -109,7 +106,7 @@ func main(): i32 {
 "#,
     );
 
-    let target = CallTarget::same_file("Bucket<i32>.$literal.sequence$2");
+    let target = CallTarget::same_file("Bucket<i32>.$literal.sequence$6dc449ffe3496ec1");
     let literal = module
         .functions
         .iter()
@@ -167,7 +164,7 @@ func main(): i32 {
             matches!(
                 instruction,
                 Instruction::CallDirectAggregate { target, .. }
-                    if call_target_name_is(target, "Text.$literal.string$1")
+                    if call_target_name_is(target, "Text.$literal.string$704be0d8faaffc58")
             )
         })
         .unwrap();
@@ -205,7 +202,9 @@ func main(): i32 {
     let literal = module
         .functions
         .iter()
-        .find(|function| function.target == CallTarget::same_file("Holder.$literal.sequence$2"))
+        .find(|function| {
+            function.target == CallTarget::same_file("Holder.$literal.sequence$6dc449ffe3496ec1")
+        })
         .unwrap();
     assert_eq!(
         literal
@@ -290,7 +289,7 @@ func main(): i32 {
     assert!(make.instructions.iter().any(|instruction| matches!(
         instruction,
         Instruction::CallDirectAggregate { target, .. }
-            if target == &CallTarget::same_file("Text.$literal.string$1")
+            if target == &CallTarget::same_file("Text.$literal.string$704be0d8faaffc58")
     )));
 }
 
@@ -317,10 +316,10 @@ pub literal Bucket<T> [](...items: T): Self {
     let root = fixture.analysis.root_file().unwrap();
     let index = FunctionIndex::new(&fixture.analysis, root.ast.span.source);
     assert!(
-        index
-            .definitions
-            .keys()
-            .any(|target| call_target_name_is(target, "std/items.Bucket<i32>.$literal.sequence$2")),
+        index.definitions.keys().any(|target| call_target_name_is(
+            target,
+            "std/items.Bucket<i32>.$literal.sequence$6dc449ffe3496ec1"
+        )),
         "indexed targets: {:?}",
         index.definitions.keys().collect::<Vec<_>>()
     );

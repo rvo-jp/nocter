@@ -16,11 +16,12 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateDrop, AggregateField, AggregateParameterSource, ArrayDrop,
     ArrayElementDropState, BorrowParameter, DropObligation, ErrorPayloads, FunctionNames,
-    FunctionSignatures, LiteralPackLowering, LoweringAggregateParameter, LoweringContext,
-    LoweringOutcomeParameter, LoweringParameterSlots, OutcomeDrop, PayloadEnumDrop,
-    PayloadEnumDropField, PayloadEnumDropVariant, PayloadFieldDropState, PendingAggregateDrop,
-    ResolvedSources, SliceTypeInfo, StructDrop, StructDropField, StructFieldDropState,
-    aggregate_drop_for_type_expr_with_resolver, outcome_drop_for_type_expr_with_resolver,
+    FunctionSignatures, LiteralPackLowering, LiteralPackLoweringSegment,
+    LoweringAggregateParameter, LoweringContext, LoweringOutcomeParameter, LoweringParameterSlots,
+    OutcomeDrop, PayloadEnumDrop, PayloadEnumDropField, PayloadEnumDropVariant,
+    PayloadFieldDropState, PendingAggregateDrop, ResolvedSources, SliceTypeInfo, StructDrop,
+    StructDropField, StructFieldDropState, aggregate_drop_for_type_expr_with_resolver,
+    outcome_drop_for_type_expr_with_resolver,
 };
 use super::control_flow::{
     TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,

@@ -288,7 +288,10 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             if self.current().kind == TokenKind::Identifier && self.next_is_punctuation(":") {
@@ -347,7 +350,10 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             let name = self.expect_identifier("expected struct literal field name")?;
@@ -457,7 +463,10 @@ impl Parser<'_> {
                 }))
             }
             TokenKind::Punctuation(".") if self.at_ellipsis() => {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 Err(())
             }
             TokenKind::Punctuation(".") if self.at_relative_module_path_expression() => {
@@ -610,7 +619,10 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             elements.push(self.parse_expression()?);

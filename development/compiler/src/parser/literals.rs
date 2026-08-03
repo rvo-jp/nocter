@@ -1,7 +1,8 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
     Expr, LiteralCapture, LiteralContextOverride, LiteralDecl, LiteralShape, ParameterList,
-    TypeExpr, TypedSequenceLiteralExpr, TypedStringLiteralExpr, Visibility,
+    TypeExpr, TypedSequenceLiteralExpr, TypedStringLiteralExpr, UnaryExpr, UnaryOperator,
+    Visibility,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -119,13 +120,20 @@ impl Parser<'_> {
                 return Err(());
             }
             if self.at_ellipsis() {
-                self.error_at(
-                    self.ellipsis_span(),
-                    "sequence spread is not part of v0.3.0 Phase 1",
-                );
-                return Err(());
+                let ellipsis_span = self.ellipsis_span();
+                self.bump();
+                self.bump();
+                self.bump();
+                let source = self.parse_expression()?;
+                elements.push(Expr::Unary(UnaryExpr {
+                    span: self.span(ellipsis_span.start, source.span().end),
+                    operator: UnaryOperator::Spread,
+                    operator_span: ellipsis_span,
+                    operand: Box::new(source),
+                }));
+            } else {
+                elements.push(self.parse_expression()?);
             }
-            elements.push(self.parse_expression()?);
             self.skip_newlines();
             if self.match_punctuation(",").is_none() {
                 break;

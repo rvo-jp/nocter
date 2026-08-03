@@ -1,6 +1,7 @@
 //! Protocol resolution and semantic planning for collection `for` statements.
 
 use super::calls::method_applies_to_receiver;
+use super::copyability::non_copy_owned_type_kind;
 use super::expressions::expression_type;
 use super::interface_bounds::implemented_interface_types;
 use super::model::{Type, TypeEnvironment};
@@ -33,6 +34,124 @@ pub(super) struct CollectionIterationResolution {
     pub(super) item_type: Type,
     pub(super) conversion: Option<IterationMethodResolution>,
     pub(super) step: IterationMethodResolution,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SequenceSpreadMode {
+    Copy,
+    Readonly,
+    Move,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SequenceSpreadResolution {
+    pub(super) mode: SequenceSpreadMode,
+    pub(super) iteration: CollectionIterationResolution,
+    pub(super) exact_size: IterationMethodResolution,
+    pub(super) pack_item_type: Type,
+}
+
+pub(super) fn resolve_sequence_spread(
+    spread: &crate::ast::UnaryExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Result<SequenceSpreadResolution, CollectionIterationError> {
+    debug_assert_eq!(spread.operator, UnaryOperator::Spread);
+    let runtime = resolved
+        .trusted_declarations
+        .iteration_runtime()
+        .ok_or(CollectionIterationError::RuntimeUnavailable)?;
+    let (mode, iteration) = match spread.operand.without_groups() {
+        Expr::Borrow(borrow) if borrow.is_readwrite => {
+            return Err(CollectionIterationError::MutableIterationDeferred);
+        }
+        Expr::Borrow(borrow) => (
+            SequenceSpreadMode::Readonly,
+            resolve_converted_iteration(
+                CollectionIterationSourceMode::ReadonlyConversion,
+                &borrow.expression,
+                &runtime.readonly_conversion,
+                runtime,
+                resolved,
+                environment,
+            )?,
+        ),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let source_type = expression_type(&unary.operand, resolved, environment);
+            let iteration = if let Some(iterator_interface) =
+                implemented_protocol_type(&source_type, &runtime.iterator, resolved)
+            {
+                resolve_direct_iteration(source_type, iterator_interface, runtime, resolved)?
+            } else {
+                resolve_converted_iteration(
+                    CollectionIterationSourceMode::OwnedConversion,
+                    &unary.operand,
+                    &runtime.owned_conversion,
+                    runtime,
+                    resolved,
+                    environment,
+                )?
+            };
+            (SequenceSpreadMode::Move, iteration)
+        }
+        expression => (
+            SequenceSpreadMode::Copy,
+            resolve_converted_iteration(
+                CollectionIterationSourceMode::ReadonlyConversion,
+                expression,
+                &runtime.readonly_conversion,
+                runtime,
+                resolved,
+                environment,
+            )?,
+        ),
+    };
+    let exact_interface =
+        implemented_protocol_type(&iteration.iterator_type, &runtime.exact_size, resolved)
+            .ok_or_else(|| {
+                CollectionIterationError::MissingExactSize(iteration.iterator_type.clone())
+            })?;
+    let exact_item = protocol_item_type(&exact_interface)
+        .ok_or(CollectionIterationError::MalformedConformance)?;
+    if exact_item != &iteration.item_type {
+        return Err(CollectionIterationError::MismatchedItem {
+            conversion: iteration.item_type.clone(),
+            iterator: exact_item.clone(),
+        });
+    }
+    let pack_item_type = match mode {
+        SequenceSpreadMode::Copy => {
+            readonly_referent_type(&iteration.item_type).ok_or_else(|| {
+                CollectionIterationError::CopyRequiresReadonlyItem(iteration.item_type.clone())
+            })?
+        }
+        SequenceSpreadMode::Readonly | SequenceSpreadMode::Move => iteration.item_type.clone(),
+    };
+    if mode == SequenceSpreadMode::Copy
+        && non_copy_owned_type_kind(&pack_item_type, resolved).is_some()
+    {
+        return Err(CollectionIterationError::CopyRequiresCopy(pack_item_type));
+    }
+    Ok(SequenceSpreadResolution {
+        mode,
+        exact_size: resolve_concrete_method(
+            &iteration.iterator_type,
+            &runtime.exact_size,
+            resolved,
+        )?,
+        iteration,
+        pack_item_type,
+    })
+}
+
+fn readonly_referent_type(item: &Type) -> Option<Type> {
+    let Type::Named(name) = item else {
+        return None;
+    };
+    let inner = name
+        .strip_prefix('&')
+        .filter(|name| !name.starts_with('+'))?;
+    Some(super::type_expr::simple_type_from_display_name(inner))
 }
 
 pub(super) fn resolve_collection_iteration(
@@ -216,6 +335,9 @@ pub(super) enum CollectionIterationError {
     AmbiguousCollection(Type),
     MissingConversion(Type),
     MissingIterator(Type),
+    MissingExactSize(Type),
+    CopyRequiresReadonlyItem(Type),
+    CopyRequiresCopy(Type),
     MismatchedItem { conversion: Type, iterator: Type },
     MalformedConformance,
 }
@@ -223,6 +345,23 @@ pub(super) enum CollectionIterationError {
 pub(super) fn collection_iteration_diagnostic(
     sources: &SourceMap,
     statement: &CollectionForStmt,
+    error: CollectionIterationError,
+) -> Diagnostic {
+    iteration_diagnostic(sources, statement.source.span(), "E0448", error)
+}
+
+pub(super) fn sequence_spread_diagnostic(
+    sources: &SourceMap,
+    spread: &crate::ast::UnaryExpr,
+    error: CollectionIterationError,
+) -> Diagnostic {
+    iteration_diagnostic(sources, spread.span, "E0524", error)
+}
+
+fn iteration_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    code: &'static str,
     error: CollectionIterationError,
 ) -> Diagnostic {
     let (message, help) = match error {
@@ -262,6 +401,23 @@ pub(super) fn collection_iteration_diagnostic(
             "make the concrete conversion result explicitly conform to the trusted iterator interface"
                 .to_string(),
         ),
+        CollectionIterationError::MissingExactSize(actual) => (
+            format!(
+                "spread iterator `{}` does not provide an exact remaining element count",
+                actual.display()
+            ),
+            "implement the validated `ExactSizeIterator<T>` interface; Nocter does not buffer unknown-size spread input"
+                .to_string(),
+        ),
+        CollectionIterationError::CopyRequiresReadonlyItem(actual) => (
+            format!("copy spread iterator yields `{}`, not a readonly reference", actual.display()),
+            "use `...move source` for an owning iterator or make readonly iteration yield `&T`"
+                .to_string(),
+        ),
+        CollectionIterationError::CopyRequiresCopy(actual) => (
+            format!("copy spread element `{}` is move-only", actual.display()),
+            "use `...move source` to transfer its elements explicitly".to_string(),
+        ),
         CollectionIterationError::MismatchedItem {
             conversion,
             iterator,
@@ -278,11 +434,8 @@ pub(super) fn collection_iteration_diagnostic(
             "fix the interface implementation before using it in a collection loop".to_string(),
         ),
     };
-    let mut diagnostic = Diagnostic::error("E0448", message);
-    diagnostic.primary_span = sources
-        .span_to_json(statement.source.span())
-        .ok()
-        .map(Box::new);
+    let mut diagnostic = Diagnostic::error(code, message);
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(help);
     diagnostic
 }

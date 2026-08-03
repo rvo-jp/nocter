@@ -15,7 +15,13 @@ pub(super) fn lower_borrow_argument(
         unreachable!("borrow argument lowering requires a borrow parameter type");
     };
 
-    let (instructions, source) = match unwrap_group(argument) {
+    let argument = match unwrap_group(argument) {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            unwrap_group(&unary.operand)
+        }
+        argument => argument,
+    };
+    let (instructions, source) = match argument {
         Expr::Borrow(borrow) => {
             if borrow.is_readwrite != *is_readwrite {
                 return Err(unsupported_borrow_argument_diagnostic(

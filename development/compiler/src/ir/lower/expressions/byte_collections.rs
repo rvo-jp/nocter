@@ -118,9 +118,31 @@ pub(super) fn lower_builtin_len_call_to_value(
     if let Expr::Identifier(identifier) = member.object.as_ref()
         && let Some(pack) = context.literal_pack(&identifier.name)
     {
+        let fixed = pack
+            .segments
+            .iter()
+            .filter(|segment| {
+                matches!(
+                    segment,
+                    super::super::context::LiteralPackLoweringSegment::Value { .. }
+                )
+            })
+            .count() as u64;
+        let value = match &pack.runtime_length_name {
+            Some(name) => match context.usize_location(name) {
+                Some(location) => UsizeValue::Location(location),
+                None => {
+                    return Some(Err(vec![Diagnostic::error(
+                        "E8014",
+                        "literal pack cached length is unavailable",
+                    )]));
+                }
+            },
+            None => UsizeValue::Const(fixed),
+        };
         return Some(Ok(LoweredUsizeValue {
             instructions: Vec::new(),
-            value: UsizeValue::Const(pack.element_names.len() as u64),
+            value,
         }));
     }
     byte_collection_expression_kind(&member.object, context)?;

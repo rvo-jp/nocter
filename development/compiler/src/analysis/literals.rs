@@ -44,6 +44,10 @@ pub(crate) fn literal_editor_info_at_offset(
     Some(editor_info(file, site, declaration, specialization, offset))
 }
 
+pub(crate) fn literal_arguments_contain_offset(file: &FileAnalysis, offset: usize) -> bool {
+    literal_site_at_offset(file, offset, LiteralCursorRegion::Arguments).is_some()
+}
+
 #[cfg(test)]
 pub(crate) fn literal_definition_span_at_offset(
     analysis: &CompileUnitAnalysis,

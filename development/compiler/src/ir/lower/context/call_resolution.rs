@@ -5,15 +5,21 @@ impl<'a> LoweringContext<'a> {
         &self,
         expression_span: ByteSpan,
         shape: crate::ast::LiteralShape,
-        argument_count: usize,
+        elements: &[Expr],
     ) -> Option<(CallTarget, String)> {
         let resolution = self.call_resolution.as_ref()?;
         let literal = resolution.resolved.literal_resolution(expression_span)?;
         let result_type = self.expression_type_expr(expression_span)?;
+        let key = crate::analysis::literal_specializations::literal_specialization_key(
+            shape,
+            elements,
+            resolution.typecheck_facts,
+            &self.generic_substitutions,
+        )?;
         let name = crate::analysis::literal_specializations::literal_target_name(
             &result_type,
             shape,
-            argument_count,
+            &key,
         );
         let target = call_target_for_source(
             literal.literal_declaration_span.source,
@@ -183,6 +189,17 @@ impl<'a> LoweringContext<'a> {
             .as_ref()?
             .typecheck_facts
             .collection_for_plan(statement_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
+    pub(in crate::ir::lower) fn sequence_spread_plan(
+        &self,
+        spread_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckSequenceSpreadPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .sequence_spread_plan(spread_span)?
             .with_context_substitutions(&self.generic_substitutions)
     }
 

@@ -247,7 +247,7 @@ fn diagnoses_spread_arguments_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("`...` spread is not part of v0")
+            .contains("`...` spread is not valid in this v0.3.0 Phase 8 context")
     );
 }
 
@@ -364,7 +364,7 @@ fn diagnoses_array_spread_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("`...` spread is not part of v0")
+            .contains("`...` spread is not valid in this v0.3.0 Phase 8 context")
     );
 }
 
@@ -521,7 +521,7 @@ func main(): i32 {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("`...` spread is not part of v0")
+            .contains("`...` spread is not valid in this v0.3.0 Phase 8 context")
     );
 }
 

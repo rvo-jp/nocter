@@ -68,6 +68,31 @@ pub(super) fn lower_pointer_take_binding(
             context.define_usize_local(statement.name.clone());
             Ok(Some(instructions))
         }
+        AbiType::Borrow => {
+            let Type::Borrow {
+                is_readwrite,
+                inner,
+            } = context.ir_type_for_type_expr(&ty).ok_or_else(|| {
+                unsupported_binding_diagnostic(
+                    "IR cannot recover a specialized pointer-take borrow type",
+                )
+            })?
+            else {
+                return Err(unsupported_binding_diagnostic(
+                    "IR pointer-take ABI and borrow type disagree",
+                ));
+            };
+            let destination = context.next_usize_local_location()?;
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let instructions = lower_take_value_at_ptr_primitive_call(
+                call,
+                PointerTakeDestination::Usize(destination),
+                context,
+                &mut temporaries,
+            )?;
+            context.define_borrow_local(statement.name.clone(), is_readwrite, *inner);
+            Ok(Some(instructions))
+        }
         AbiType::Bool => {
             let destination = context.next_bool_local_location()?;
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -136,7 +161,6 @@ pub(super) fn lower_pointer_take_binding(
             Ok(Some(instructions))
         }
         AbiType::SliceView
-        | AbiType::Borrow
         | AbiType::I8
         | AbiType::I16
         | AbiType::I64

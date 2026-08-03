@@ -88,7 +88,7 @@ pub(super) fn expression_type(
         Expr::Binary(expression) => binary_expression_type(expression, resolved, environment),
         Expr::Unary(expression) => match expression.operator {
             UnaryOperator::LogicalNot => Type::Primitive("bool".to_string()),
-            UnaryOperator::Negate | UnaryOperator::Move => {
+            UnaryOperator::Negate | UnaryOperator::Move | UnaryOperator::Spread => {
                 expression_type(&expression.operand, resolved, environment)
             }
         },

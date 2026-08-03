@@ -183,6 +183,7 @@ pub(super) fn check_unary_expression(
                 ));
             }
         }
+        UnaryOperator::Spread => {}
     }
 }
 

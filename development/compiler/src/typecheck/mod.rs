@@ -55,9 +55,11 @@ pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
     TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
     TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
-    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSliceElementKind,
-    collect_typecheck_facts, type_expr_presentation_label, type_symbol_presentation_label,
+    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
+    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, collect_typecheck_facts,
+    type_expr_presentation_label, type_symbol_presentation_label,
 };
+pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name, qualified_member_name,
 };

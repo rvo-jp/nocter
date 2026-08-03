@@ -37,8 +37,7 @@ pub(in crate::ir::lower) fn lower_typed_literal_to_location(
         ),
         _ => return Ok(None),
     };
-    let Some((target, target_name)) =
-        context.typed_literal_call_target(span, shape, arguments.len())
+    let Some((target, target_name)) = context.typed_literal_call_target(span, shape, &arguments)
     else {
         return Err(literal_lowering_diagnostic(
             "the hidden callable target is unavailable",
@@ -50,7 +49,12 @@ pub(in crate::ir::lower) fn lower_typed_literal_to_location(
     let parameter_types = match shape {
         LiteralShape::Sequence => arguments
             .iter()
-            .map(|argument| context.expression_type_expr(argument.span()))
+            .map(|argument| {
+                crate::typecheck::sequence_spread(argument)
+                    .and_then(|spread| context.sequence_spread_plan(spread.span))
+                    .map(|plan| plan.iterator_type)
+                    .or_else(|| context.expression_type_expr(argument.span()))
+            })
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| literal_lowering_diagnostic("an element has no concrete type fact"))?,
         LiteralShape::String => vec![readonly_str_type(target_span)],

@@ -26,6 +26,15 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
             MethodReceiverMode::ReadwriteBorrow,
             "T?",
         )?,
+        exact_size: find_interface(
+            module,
+            "std/iter",
+            "ExactSizeIterator",
+            &["T"],
+            "remaining_len",
+            MethodReceiverMode::ReadonlyBorrow,
+            "usize",
+        )?,
         readonly_conversion: find_interface(
             module,
             "std/iter",
@@ -129,6 +138,9 @@ mod tests {
             r#"pub interface Iterator<T> {
     pub method &+self.next(): T?
 }
+pub interface ExactSizeIterator<T> {
+    pub method &self.remaining_len(): usize
+}
 pub interface Iterable<T, I> {
     pub method &self.iter(): I
 }
@@ -146,6 +158,7 @@ pub interface IntoIterator<T, I> {
             runtime.readonly_conversion.interface_declaration.source,
             iter.span.source
         );
+        assert_eq!(runtime.exact_size.method_name, "remaining_len");
     }
 
     #[test]

@@ -5,7 +5,7 @@
 //! only the unconsumed suffix in reverse order; RawBuffer then releases storage
 //! exactly once through its allocator provenance.
 
-use std/iter.Iterator
+use std/iter.{ExactSizeIterator, Iterator}
 use std/mem.RawBuffer
 use std/ptr.addr
 use std/ptr.drop_value_at_ptr
@@ -67,6 +67,11 @@ impl<T> VecIntoIter<T> {
         return remaining(self)
     }
 
+    /// Implements exact-size iteration for compiler-owned element packs.
+    pub method &self.remaining_len(): usize {
+        return remaining(self)
+    }
+
     /// Transfers the next element, or returns `none` at exhaustion.
     pub method &+self.next(): T? {
         return next(self) otherwise { return none }
@@ -84,3 +89,4 @@ impl<T> VecIntoIter<T> {
 }
 
 impl<T> Iterator<T> for VecIntoIter<T>
+impl<T> ExactSizeIterator<T> for VecIntoIter<T>

@@ -1,7 +1,7 @@
 use super::allocation::type_is_aborting_allocator_capability;
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
-use super::operations::is_expression_assignable;
+use super::operations::{is_assignable, is_expression_assignable};
 use super::type_expr::{
     infer_type_expr_substitutions, type_expr_to_type_in_environment,
     type_expr_to_type_with_substitutions,
@@ -121,10 +121,29 @@ pub(super) fn check_typed_sequence_literal(
         &parameters,
     );
     for element in &literal.elements {
-        let actual = expression_type(element, resolved, environment);
+        let spread = sequence_spread(element);
+        let actual = match spread {
+            Some(spread) => {
+                match super::iteration::resolve_sequence_spread(spread, resolved, environment) {
+                    Ok(resolution) => resolution.pack_item_type,
+                    Err(error) => {
+                        diagnostics.push(super::iteration::sequence_spread_diagnostic(
+                            sources, spread, error,
+                        ));
+                        continue;
+                    }
+                }
+            }
+            None => expression_type(element, resolved, environment),
+        };
         if !actual.is_unknown_or_unresolved()
             && !expected_element.is_unknown_or_unresolved()
-            && !is_expression_assignable(&expected_element, element, resolved, environment)
+            && match spread {
+                Some(_) => !is_assignable(&expected_element, &actual),
+                None => {
+                    !is_expression_assignable(&expected_element, element, resolved, environment)
+                }
+            }
         {
             diagnostics.push(literal_diagnostic(
                 sources,
@@ -326,7 +345,13 @@ fn literal_signature_and_parameters<'a>(
             .map(String::as_str)
             .collect::<HashSet<_>>();
         for element in elements {
-            let actual = expression_type(element, resolved, environment);
+            let actual = sequence_spread(element)
+                .and_then(|spread| {
+                    super::iteration::resolve_sequence_spread(spread, resolved, environment)
+                        .ok()
+                        .map(|resolution| resolution.pack_item_type)
+                })
+                .unwrap_or_else(|| expression_type(element, resolved, environment));
             infer_type_expr_substitutions(
                 &capture.element_type,
                 &actual,
@@ -355,6 +380,13 @@ fn literal_signature_and_parameters<'a>(
         }
     };
     Some((signature, substitutions, result))
+}
+
+pub(crate) fn sequence_spread(expression: &Expr) -> Option<&crate::ast::UnaryExpr> {
+    let Expr::Unary(unary) = expression.without_groups() else {
+        return None;
+    };
+    (unary.operator == crate::ast::UnaryOperator::Spread).then_some(unary)
 }
 
 fn check_pack_uses_in_block(

@@ -269,6 +269,20 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&expression.target);
                 for element in &expression.elements {
                     self.collect_expression_facts_in_context(element, environment, return_type);
+                    if let Some(spread) = crate::typecheck::literals::sequence_spread(element)
+                        && let Ok(resolution) = crate::typecheck::iteration::resolve_sequence_spread(
+                            spread,
+                            self.resolved,
+                            environment,
+                        )
+                        && let Some(plan) = sequence_spread_fact(spread, &resolution)
+                    {
+                        self.facts.sequence_spread_plans.insert(spread.span, plan);
+                        self.record_drop_type_specialization(
+                            spread.span,
+                            &resolution.iteration.iterator_type,
+                        );
+                    }
                 }
                 if let Some(using) = &expression.using {
                     self.collect_expression_facts_in_context(
@@ -479,4 +493,78 @@ impl TypecheckFactCollector<'_> {
             }
         }
     }
+}
+
+fn sequence_spread_fact(
+    spread: &crate::ast::UnaryExpr,
+    resolution: &crate::typecheck::iteration::SequenceSpreadResolution,
+) -> Option<TypecheckSequenceSpreadPlan> {
+    let mut free_type_parameters = std::collections::HashSet::new();
+    let source_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.source_type,
+        spread.operand.span(),
+        &mut free_type_parameters,
+    )?;
+    let iterator_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.iterator_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    let iterator_item_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.item_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    let pack_item_type = type_to_type_expr_allowing_parameters(
+        &resolution.pack_item_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    Some(TypecheckSequenceSpreadPlan {
+        spread_span: spread.span,
+        source_span: spread.operand.span(),
+        mode: match resolution.mode {
+            crate::typecheck::iteration::SequenceSpreadMode::Copy => {
+                TypecheckSequenceSpreadMode::Copy
+            }
+            crate::typecheck::iteration::SequenceSpreadMode::Readonly => {
+                TypecheckSequenceSpreadMode::Readonly
+            }
+            crate::typecheck::iteration::SequenceSpreadMode::Move => {
+                TypecheckSequenceSpreadMode::Move
+            }
+        },
+        source_mode: match resolution.iteration.source_mode {
+            crate::typecheck::iteration::CollectionIterationSourceMode::Direct => {
+                TypecheckCollectionForSourceMode::Direct
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::ReadonlyConversion => {
+                TypecheckCollectionForSourceMode::ReadonlyConversion
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::OwnedConversion => {
+                TypecheckCollectionForSourceMode::OwnedConversion
+            }
+        },
+        source_type: source_type.clone(),
+        iterator_type: iterator_type.clone(),
+        iterator_item_type,
+        pack_item_type,
+        conversion: resolution.iteration.conversion.as_ref().map(|method| {
+            super::statements::iteration_method_fact(
+                method,
+                source_type.clone(),
+                &free_type_parameters,
+            )
+        }),
+        exact_size: super::statements::iteration_method_fact(
+            &resolution.exact_size,
+            iterator_type.clone(),
+            &free_type_parameters,
+        ),
+        step: super::statements::iteration_method_fact(
+            &resolution.iteration.step,
+            iterator_type,
+            &free_type_parameters,
+        ),
+    })
 }

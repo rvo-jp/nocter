@@ -592,12 +592,33 @@ fn expression_needs_current_allocation_context(
             environment,
             summaries,
         ),
-        Expr::Unary(expression) => expression_needs_current_allocation_context(
-            &expression.operand,
-            resolved,
-            environment,
-            summaries,
-        ),
+        Expr::Unary(expression) => {
+            let implicit_spread_calls_need_context = (expression.operator
+                == crate::ast::UnaryOperator::Spread)
+                .then(|| {
+                    super::iteration::resolve_sequence_spread(expression, resolved, environment)
+                        .ok()
+                })
+                .flatten()
+                .is_some_and(|resolution| {
+                    resolution
+                        .iteration
+                        .conversion
+                        .iter()
+                        .chain([&resolution.exact_size, &resolution.iteration.step])
+                        .any(|method| {
+                            summaries.needs_current_allocation_context(CallableId::declared_at(
+                                method.declaration,
+                            ))
+                        })
+                });
+            expression_needs_current_allocation_context(
+                &expression.operand,
+                resolved,
+                environment,
+                summaries,
+            ) || implicit_spread_calls_need_context
+        }
         Expr::TypeConversion(expression) => expression_needs_current_allocation_context(
             &expression.expression,
             resolved,

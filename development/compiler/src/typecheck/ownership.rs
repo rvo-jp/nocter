@@ -3,7 +3,7 @@ use super::calls::{method_member_for_call, resolved_call_signature, resolved_met
 use super::copyability::{non_copy_owned_type_kind, non_copy_struct_type_name};
 use super::diagnostics::{
     active_borrow_conflict_diagnostic, invalid_drop_target_diagnostic,
-    uninitialized_binding_diagnostic,
+    overlapping_expression_borrow_diagnostic, uninitialized_binding_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_collection_for_binding,

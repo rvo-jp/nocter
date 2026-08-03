@@ -559,12 +559,21 @@ impl LspServer {
             recovered_offset,
         )
         .or_else(|| {
-            crate::analysis::literals::literal_editor_info_at_offset(
+            let has_semantic_literal = crate::analysis::literals::literal_editor_info_at_offset(
                 &workspace.analysis,
                 file,
                 recovered_offset,
                 crate::analysis::literals::LiteralCursorRegion::Arguments,
-            )?;
+            )
+            .is_some();
+            if !has_semantic_literal
+                && !crate::analysis::literals::literal_arguments_contain_offset(
+                    file,
+                    recovered_offset,
+                )
+            {
+                return None;
+            }
             Some(completion_items_for_file_analysis_at_offset(
                 &workspace.sources,
                 &workspace.analysis,

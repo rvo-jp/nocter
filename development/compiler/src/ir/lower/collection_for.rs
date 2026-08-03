@@ -22,7 +22,9 @@ use crate::ast::{
     TypeExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, BoolValue, ComposedOutcomeDestination, Instruction, Type};
+use crate::ir::{
+    AggregateLocation, BoolValue, ComposedOutcomeDestination, Instruction, Type, UsizeValue,
+};
 use crate::outcomes::{OutcomeLayer, storage::outcome_storage_layout};
 use crate::source::{ByteSpan, SourceMap};
 use crate::typecheck::{
@@ -40,10 +42,65 @@ pub(in crate::ir::lower) fn lower_collection_for_statement(
     let plan = context
         .collection_for_plan(statement.span)
         .ok_or_else(|| iteration_diagnostic("the typecheck iteration plan is unavailable"))?;
+    lower_collection_for_with_plan(statement, &plan, context, diagnostic_code, subject, sources)
+}
+
+pub(in crate::ir::lower) fn lower_collection_for_with_plan(
+    statement: &CollectionForStmt,
+    plan: &TypecheckCollectionForPlan,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_collection_for_with_projection(
+        statement,
+        plan,
+        None,
+        None,
+        context,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+pub(in crate::ir::lower) fn lower_literal_pack_spread_with_plan(
+    statement: &CollectionForStmt,
+    plan: &TypecheckCollectionForPlan,
+    projected_item_type: Option<&TypeExpr>,
+    segment_index: usize,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_collection_for_with_projection(
+        statement,
+        plan,
+        projected_item_type,
+        Some(segment_index),
+        context,
+        diagnostic_code,
+        subject,
+        sources,
+    )
+}
+
+fn lower_collection_for_with_projection(
+    statement: &CollectionForStmt,
+    plan: &TypecheckCollectionForPlan,
+    projected_item_type: Option<&TypeExpr>,
+    iterator_discriminator: Option<usize>,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let iterator_mark = context.local_mark();
-    let iterator_name = hidden_name(statement, "iterator");
+    let iterator_name = hidden_iterator_name(statement, iterator_discriminator);
     let (iterator_slot, iterator_layout, mut instructions) =
-        materialize_iterator(statement, &plan, &iterator_name, context)?;
+        materialize_iterator(statement, plan, &iterator_name, context)?;
 
     let outcome_slot = context.reserve_aggregate_slot_index();
     let item_abi = context
@@ -61,8 +118,13 @@ pub(in crate::ir::lower) fn lower_collection_for_statement(
     let mut body_context = context.clone();
     let body_mark = body_context.local_mark();
     let region_mark = body_context.region_cleanup_mark();
+    let hidden_item_name = projected_item_type.map(|_| hidden_name(statement, "borrowed-item"));
+    let mut item_statement = statement.clone();
+    if let Some(hidden_item_name) = &hidden_item_name {
+        item_statement.name = hidden_item_name.clone();
+    }
     let item = define_item_binding(
-        statement,
+        &item_statement,
         &plan.item_type,
         &item_ir,
         &item_abi.ty,
@@ -76,7 +138,7 @@ pub(in crate::ir::lower) fn lower_collection_for_statement(
     body_context.define_bool_local(hidden_name(statement, "present"));
     let mut condition_instructions = lower_step_call(
         statement,
-        &plan,
+        plan,
         &iterator_name,
         outcome_slot,
         &outcome_storage,
@@ -93,6 +155,16 @@ pub(in crate::ir::lower) fn lower_collection_for_statement(
         checked_offset(outcome_storage.payload_offset, "optional payload")?,
         item_abi.layout,
     );
+    if let (Some(projected_item_type), Some(hidden_item_name)) =
+        (projected_item_type, hidden_item_name.as_deref())
+    {
+        success_instructions.extend(define_copy_projection_binding(
+            statement,
+            hidden_item_name,
+            projected_item_type,
+            &mut body_context,
+        )?);
+    }
     success_instructions.push(Instruction::SetBool {
         destination: condition,
         value: BoolValue::Const(true),
@@ -138,6 +210,100 @@ pub(in crate::ir::lower) fn lower_collection_for_statement(
     debug_assert!(context.aggregate_local_by_slot(iterator_slot).is_some());
     let _ = iterator_layout;
     Ok(instructions)
+}
+
+fn define_copy_projection_binding(
+    statement: &CollectionForStmt,
+    borrowed_name: &str,
+    projected_item_type: &TypeExpr,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (pointer, _, _) = context
+        .borrow_local(borrowed_name)
+        .ok_or_else(|| iteration_diagnostic("copy spread item borrow is unavailable"))?;
+    let projected = context
+        .ir_type_for_type_expr(projected_item_type)
+        .ok_or_else(|| iteration_diagnostic("copy spread projected item type is unavailable"))?;
+    let pointer = UsizeValue::Location(pointer);
+    let offset = UsizeValue::Const(0);
+    let name = statement.name.clone();
+    Ok(match projected {
+        Type::I32 => {
+            let destination = context.next_i32_local_location()?;
+            context.define_i32_local(name);
+            vec![Instruction::LoadI32FromPointer {
+                destination,
+                pointer,
+                offset,
+            }]
+        }
+        Type::U8 => {
+            let destination = context.next_u8_local_location()?;
+            context.define_u8_local(name);
+            vec![Instruction::LoadU8FromPointer {
+                destination,
+                pointer,
+                offset,
+            }]
+        }
+        Type::Usize => {
+            let destination = context.next_usize_local_location()?;
+            context.define_usize_local(name);
+            vec![Instruction::LoadUsizeFromPointer {
+                destination,
+                pointer,
+                offset,
+            }]
+        }
+        Type::Bool => {
+            let destination = context.next_bool_local_location()?;
+            context.define_bool_local(name);
+            vec![Instruction::LoadBoolFromPointer {
+                destination,
+                pointer,
+                offset,
+            }]
+        }
+        Type::Str => {
+            let destination = context.next_str_local_location()?;
+            context.define_str_local(name);
+            vec![Instruction::LoadStrFromPointer {
+                destination,
+                pointer,
+                offset,
+            }]
+        }
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => {
+            let (root_source, resolved) = context
+                .resolved_calls()
+                .ok_or_else(|| iteration_diagnostic("resolution facts are unavailable"))?;
+            let fields = aggregate_fields_from_type_expr_with_resolver(
+                projected_item_type,
+                root_source,
+                resolved,
+                |source| context.resolved_source(source),
+            )
+            .unwrap_or_default();
+            let slot = context.define_aggregate_local(name, layout, true, None, fields);
+            vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: slot,
+                    layout,
+                },
+                Instruction::CopyPointerToAggregate {
+                    destination: AggregateLocation::Slot(slot),
+                    pointer,
+                    offset,
+                    layout,
+                },
+            ]
+        }
+        _ => {
+            return Err(iteration_diagnostic(
+                "copy spread projected item kind is unsupported",
+            ));
+        }
+    })
 }
 
 fn materialize_iterator(
@@ -404,7 +570,11 @@ fn define_item_binding(
     })
 }
 
-fn receiver_expression(method: &TypecheckIterationMethod, name: &str, span: ByteSpan) -> Expr {
+pub(in crate::ir::lower) fn receiver_expression(
+    method: &TypecheckIterationMethod,
+    name: &str,
+    span: ByteSpan,
+) -> Expr {
     let identifier = Expr::Identifier(IdentifierExpr {
         span,
         name: name.to_string(),
@@ -427,7 +597,10 @@ fn receiver_expression(method: &TypecheckIterationMethod, name: &str, span: Byte
     }
 }
 
-fn receiver_parameter_type(method: &TypecheckIterationMethod, span: ByteSpan) -> TypeExpr {
+pub(in crate::ir::lower) fn receiver_parameter_type(
+    method: &TypecheckIterationMethod,
+    span: ByteSpan,
+) -> TypeExpr {
     match method.receiver_mode {
         MethodReceiverMode::Owned => method.self_ty.clone(),
         MethodReceiverMode::ReadonlyBorrow | MethodReceiverMode::ReadwriteBorrow => {
@@ -440,7 +613,11 @@ fn receiver_parameter_type(method: &TypecheckIterationMethod, span: ByteSpan) ->
     }
 }
 
-fn synthetic_call(span: ByteSpan, target_name: &str, arguments: Vec<Expr>) -> CallExpr {
+pub(in crate::ir::lower) fn synthetic_call(
+    span: ByteSpan,
+    target_name: &str,
+    arguments: Vec<Expr>,
+) -> CallExpr {
     CallExpr {
         span,
         callee: Box::new(Expr::Identifier(IdentifierExpr {
@@ -481,6 +658,18 @@ fn hidden_name(statement: &CollectionForStmt, role: &str) -> String {
     format!(
         "<collection-for:{}:{}:{role}>",
         statement.name_span.start, statement.name_span.end
+    )
+}
+
+fn hidden_iterator_name(statement: &CollectionForStmt, discriminator: Option<usize>) -> String {
+    discriminator.map_or_else(
+        || hidden_name(statement, "iterator"),
+        |index| {
+            format!(
+                "<collection-for:{}:{}:iterator:{index}>",
+                statement.name_span.start, statement.name_span.end
+            )
+        },
     )
 }
 

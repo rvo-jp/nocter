@@ -44,6 +44,16 @@ pub(crate) fn hover_for_file_analysis(
         });
     }
 
+    if let Some((span, documentation)) =
+        crate::analysis::iteration::sequence_spread_operator_hover(analysis, file, offset)
+    {
+        return Some(HoverInfo {
+            span,
+            label: "...".to_string(),
+            documentation: Some(documentation),
+        });
+    }
+
     if let Some(symbol) = symbols
         .iter()
         .find(|symbol| span_contains(symbol.target.focus_span, offset))
