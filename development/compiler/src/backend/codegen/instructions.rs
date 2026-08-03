@@ -915,6 +915,61 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
+            Instruction::CallStoredOutcome {
+                destination,
+                target,
+                arguments,
+                storage,
+                payload_type,
+            } => {
+                self.emit_call_stored_outcome(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    storage,
+                    payload_type,
+                    frame,
+                )?;
+            }
+            Instruction::IfStoredOutcomeTag {
+                source,
+                tag_offset,
+                success_instructions,
+                outcome_instructions,
+            } => {
+                self.emit_if_stored_outcome_tag(
+                    *source,
+                    *tag_offset,
+                    success_instructions,
+                    outcome_instructions,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::CheckStoredFallible {
+                source,
+                tag_offset,
+                error_offset,
+                success_instructions,
+                failure_mode,
+            } => {
+                self.emit_check_stored_fallible(
+                    *source,
+                    *tag_offset,
+                    *error_offset,
+                    success_instructions,
+                    failure_mode,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::LoadStoredOutcomePayload {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_stored_outcome_payload(*destination, *source, *offset, frame)?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }

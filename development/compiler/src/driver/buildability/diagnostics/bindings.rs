@@ -164,12 +164,22 @@ pub(in crate::driver::buildability) fn local_binding_type_expr_is_buildable(
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
+    let source_resolver = |source| resolved_sources.get(&source).copied();
+    let shape = outcome_shape_with_resolver(ty, resolved, &source_resolver);
+    if !shape.layers.is_empty() && shape.is_supported_callable_shape() {
+        return type_expr_is_buildable_scalar_or_view_for_sources(
+            &shape.payload,
+            resolved,
+            resolved_sources,
+        ) || type_expr_is_supported_aggregate_value_with_resolver(
+            &shape.payload,
+            resolved,
+            &source_resolver,
+        );
+    }
     type_expr_is_buildable_scalar_or_view_for_sources(ty, resolved, resolved_sources)
         || type_expr_is_error_parameter_for_sources(ty, resolved, resolved_sources)
-        || {
-            let source_resolver = |source| resolved_sources.get(&source).copied();
-            type_expr_is_supported_borrow_parameter_with_resolver(ty, resolved, &source_resolver)
-        }
+        || { type_expr_is_supported_borrow_parameter_with_resolver(ty, resolved, &source_resolver) }
         || type_expr_is_supported_aggregate_value_for_sources(ty, resolved, resolved_sources)
 }
 

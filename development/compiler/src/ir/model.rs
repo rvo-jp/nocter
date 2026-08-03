@@ -1,5 +1,6 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::outcomes::OutcomeLayer;
+use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -602,6 +603,31 @@ pub(crate) enum Instruction {
         inner: OutcomeLayer,
         outer_mode: FallibleFailureMode,
         inner_mode: FallibleFailureMode,
+    },
+    CallStoredOutcome {
+        destination: AggregateLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
+    },
+    IfStoredOutcomeTag {
+        source: AggregateLocation,
+        tag_offset: u32,
+        success_instructions: Vec<Instruction>,
+        outcome_instructions: Vec<Instruction>,
+    },
+    CheckStoredFallible {
+        source: AggregateLocation,
+        tag_offset: u32,
+        error_offset: u32,
+        success_instructions: Vec<Instruction>,
+        failure_mode: FallibleFailureMode,
+    },
+    LoadStoredOutcomePayload {
+        destination: ComposedOutcomeDestination,
+        source: AggregateLocation,
+        offset: u32,
     },
     TailCall {
         target: CallTarget,

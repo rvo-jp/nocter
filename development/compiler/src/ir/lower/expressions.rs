@@ -26,6 +26,7 @@ use super::functions::{
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
+use super::outcome_values::lower_stored_fallible_expression;
 use super::types::{
     return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
     scalar_or_view_type_from_type_expr_with_resolver,

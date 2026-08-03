@@ -234,6 +234,14 @@ pub(super) fn lower_i32_fallible_expression_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::I32(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -261,6 +269,14 @@ pub(super) fn lower_u8_fallible_expression_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::U8(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -288,6 +304,14 @@ pub(super) fn lower_usize_fallible_expression_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Usize(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -315,6 +339,14 @@ pub(super) fn lower_str_fallible_expression_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Str(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -342,6 +374,14 @@ pub(super) fn lower_slice_fallible_expression_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Slice(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -370,6 +410,14 @@ pub(super) fn lower_bool_fallible_expression_to_location(
     diagnostic_code: &'static str,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_fallible_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Bool(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;

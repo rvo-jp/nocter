@@ -20,6 +20,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::CallAggregate { arguments, .. }
         | Instruction::CallDirectAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
+        | Instruction::CallStoredOutcome { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
@@ -99,6 +100,18 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => max_call_argument_count(success_instructions)
+            .max(max_call_argument_count(outcome_instructions)),
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => max_call_argument_count(success_instructions)
+            .max(failure_mode_max_call_argument_count(failure_mode)),
         Instruction::While {
             condition_instructions,
             body_instructions,
@@ -161,6 +174,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }

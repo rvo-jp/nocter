@@ -33,6 +33,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::CallComposedOutcome { .. }
+        | Instruction::CallStoredOutcome { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
         | Instruction::ReadSlice { .. }
@@ -70,6 +71,22 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         } => {
             function_clobbers_parameter_registers(then_instructions)
                 || function_clobbers_parameter_registers(else_instructions)
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            function_clobbers_parameter_registers(success_instructions)
+                || function_clobbers_parameter_registers(outcome_instructions)
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            function_clobbers_parameter_registers(success_instructions)
+                || failure_mode_clobbers_parameter_registers(failure_mode)
         }
         Instruction::While {
             condition_instructions,
@@ -140,6 +157,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         | Instruction::RemainderUsize { .. }
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue
@@ -170,6 +188,15 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         } => {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            let _ = (success_instructions, outcome_instructions);
+            true
+        }
+        Instruction::CheckStoredFallible { .. } => true,
         Instruction::While {
             condition_instructions,
             body_instructions,
@@ -199,6 +226,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::CallComposedOutcome { .. }
+        | Instruction::CallStoredOutcome { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
@@ -229,6 +257,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::LoadUsizeFromPointer { .. }
         | Instruction::LoadBoolFromPointer { .. }
         | Instruction::LoadStrFromPointer { .. } => false,
+        Instruction::LoadStoredOutcomePayload { .. } => true,
         Instruction::CopyAggregate {
             destination,
             source,

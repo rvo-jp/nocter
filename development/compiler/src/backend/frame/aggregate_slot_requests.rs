@@ -73,6 +73,16 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             Ok(())
         }
         Instruction::CopyAggregateRange { .. } => Ok(()),
+        Instruction::CallStoredOutcome {
+            destination,
+            storage,
+            ..
+        } => {
+            if let AggregateLocation::Slot(slot_index) = destination {
+                record_aggregate_slot_request(*slot_index, storage.layout, requests)?;
+            }
+            Ok(())
+        }
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -80,6 +90,22 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         } => {
             record_instruction_list_aggregate_slot_requests(then_instructions, requests)?;
             record_instruction_list_aggregate_slot_requests(else_instructions, requests)
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(success_instructions, requests)?;
+            record_instruction_list_aggregate_slot_requests(outcome_instructions, requests)
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(success_instructions, requests)?;
+            record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
         Instruction::While {
             condition_instructions,
@@ -161,6 +187,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateI32Indexed { .. }
         | Instruction::LoadAggregateU8Indexed { .. }
         | Instruction::LoadAggregateBoolIndexed { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::RegionEnter { .. }

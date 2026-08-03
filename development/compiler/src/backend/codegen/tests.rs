@@ -20,6 +20,7 @@ mod control_flow;
 mod entry_validation;
 mod io_runtime;
 mod memory_stores;
+mod outcome_values;
 mod region_runtime;
 mod symbols;
 mod views;

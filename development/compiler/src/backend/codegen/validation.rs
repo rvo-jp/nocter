@@ -485,6 +485,15 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                     diagnostics,
                 );
             }
+            Instruction::CallStoredOutcome { target, .. } => {
+                let symbol = FunctionSymbol::from_call_target(target);
+                if !return_types.contains_key(&symbol) {
+                    diagnostics.push(Diagnostic::error(
+                        "E9002",
+                        format!("stored outcome call target `{target:?}` is missing"),
+                    ));
+                }
+            }
             Instruction::TailCall { target, .. } => {
                 validate_tail_call_return_shape(
                     target,
@@ -506,6 +515,42 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 );
                 validate_instruction_list_call_return_shapes(
                     else_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::IfStoredOutcomeTag {
+                success_instructions,
+                outcome_instructions,
+                ..
+            } => {
+                validate_instruction_list_call_return_shapes(
+                    success_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+                validate_instruction_list_call_return_shapes(
+                    outcome_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CheckStoredFallible {
+                success_instructions,
+                failure_mode,
+                ..
+            } => {
+                validate_instruction_list_call_return_shapes(
+                    success_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
                     current_return_type,
                     return_types,
                     diagnostics,
@@ -561,6 +606,7 @@ pub(super) fn instruction_call_arguments(instruction: &Instruction) -> Option<&[
         | Instruction::CallVoid { arguments, .. }
         | Instruction::CallFallibleVoid { arguments, .. }
         | Instruction::CallComposedOutcome { arguments, .. }
+        | Instruction::CallStoredOutcome { arguments, .. }
         | Instruction::TailCall { arguments, .. } => Some(arguments),
         _ => None,
     }

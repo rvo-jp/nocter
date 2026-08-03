@@ -10,3 +10,4 @@ mod optional_aggregates;
 mod optional_borrows;
 mod optional_cleanup;
 mod optional_scalars;
+mod stored_values;

@@ -737,6 +737,11 @@ pub(super) fn record_instruction_scalar_locals(
             record_failure_mode_scalar_locals(outer_mode, highest_local_index);
             record_failure_mode_scalar_locals(inner_mode, highest_local_index);
         }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
         Instruction::If {
             condition,
             then_instructions,
@@ -746,6 +751,43 @@ pub(super) fn record_instruction_scalar_locals(
             record_instruction_list_scalar_locals(then_instructions, highest_local_index);
             record_instruction_list_scalar_locals(else_instructions, highest_local_index);
         }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_scalar_locals(success_instructions, highest_local_index);
+            record_instruction_list_scalar_locals(outcome_instructions, highest_local_index);
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_scalar_locals(success_instructions, highest_local_index);
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::LoadStoredOutcomePayload { destination, .. } => match destination {
+            crate::ir::ComposedOutcomeDestination::I32(location) => {
+                record_i32_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::U8(location) => {
+                record_u8_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Usize(location)
+            | crate::ir::ComposedOutcomeDestination::Borrow(location) => {
+                record_usize_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Bool(location) => {
+                record_bool_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Str(location) => {
+                record_str_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Slice(location) => {
+                record_slice_location(*location, highest_local_index)
+            }
+        },
         Instruction::While {
             condition_instructions,
             condition,

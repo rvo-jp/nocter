@@ -22,6 +22,7 @@ mod frames;
 mod instructions;
 mod io_runtime;
 mod locations;
+mod outcome_values;
 mod outcomes;
 mod process_arguments;
 mod process_context;

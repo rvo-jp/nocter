@@ -668,7 +668,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn aggregate_slot_load_offset(
+    pub(in crate::backend::codegen) fn aggregate_slot_load_offset(
         &self,
         source: AggregateLocation,
         offset: u32,
@@ -706,7 +706,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn aggregate_slot_field_offset(
+    pub(in crate::backend::codegen) fn aggregate_slot_field_offset(
         &self,
         slot_index: usize,
         offset: u32,

@@ -397,6 +397,14 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
                 && instruction_list_ends_execution(then_instructions)
                 && instruction_list_ends_execution(else_instructions)
         }
+        Some(Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        }) => {
+            instruction_list_ends_execution(success_instructions)
+                && instruction_list_ends_execution(outcome_instructions)
+        }
         Some(Instruction::While { .. }) => false,
         Some(
             Instruction::WriteStr { .. }
@@ -503,7 +511,10 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallFallibleAggregate { .. }
             | Instruction::CallVoid { .. }
             | Instruction::CallFallibleVoid { .. }
-            | Instruction::CallComposedOutcome { .. },
+            | Instruction::CallComposedOutcome { .. }
+            | Instruction::CallStoredOutcome { .. }
+            | Instruction::CheckStoredFallible { .. }
+            | Instruction::LoadStoredOutcomePayload { .. },
         )
         | None => false,
     }

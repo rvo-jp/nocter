@@ -11,6 +11,7 @@ use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation,
 };
+use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{
@@ -249,6 +250,7 @@ mod drop_obligation;
 mod drop_queries;
 mod enum_variants;
 mod locals;
+mod outcome_values;
 mod type_queries;
 
 use call_targets::UniqueCallTargets;
@@ -407,6 +409,14 @@ pub(super) struct AggregateLocal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OutcomeLocal {
+    pub(super) slot_index: usize,
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload_type: Type,
+    pub(super) is_copy: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PendingAggregateDrop {
     pub(super) name: String,
     pub(super) slot_index: usize,
@@ -553,6 +563,7 @@ enum LocalKind {
         drop_obligation: DropObligation,
         drop_kind: Option<AggregateDrop>,
     },
+    Outcome(OutcomeLocal),
 }
 
 impl LocalKind {
@@ -561,7 +572,7 @@ impl LocalKind {
             Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
-            Self::Aggregate { .. } => 0,
+            Self::Aggregate { .. } | Self::Outcome(_) => 0,
         }
     }
 }

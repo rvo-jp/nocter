@@ -11,6 +11,7 @@ mod imported_calls;
 mod interpolation;
 mod literal_packs;
 mod literals;
+mod outcome_values;
 mod reachability;
 mod regions;
 mod typed_literals;

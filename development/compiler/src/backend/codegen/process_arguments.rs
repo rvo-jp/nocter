@@ -305,6 +305,9 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
                 || failure_mode_uses_process_arguments(outer_mode)
                 || failure_mode_uses_process_arguments(inner_mode)
         }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            scalar_arguments_use_process_arguments(arguments)
+        }
         Instruction::If {
             condition,
             then_instructions,
@@ -313,6 +316,22 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
             bool_value_uses_process_arguments(condition)
                 || instructions_use_process_arguments(then_instructions)
                 || instructions_use_process_arguments(else_instructions)
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            instructions_use_process_arguments(success_instructions)
+                || instructions_use_process_arguments(outcome_instructions)
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            instructions_use_process_arguments(success_instructions)
+                || failure_mode_uses_process_arguments(failure_mode)
         }
         Instruction::While {
             condition_instructions,
@@ -336,6 +355,7 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnOptionalNone
+        | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::Return => false,
     }
 }

@@ -89,6 +89,9 @@ fn collect_reachable_call_targets(
                 collect_failure_mode_reachable_call_targets(outer_mode, targets);
                 collect_failure_mode_reachable_call_targets(inner_mode, targets);
             }
+            Instruction::CallStoredOutcome { target, .. } => {
+                targets.push_back(target.clone());
+            }
             Instruction::If {
                 then_instructions,
                 else_instructions,
@@ -96,6 +99,22 @@ fn collect_reachable_call_targets(
             } => {
                 collect_reachable_call_targets(then_instructions, targets);
                 collect_reachable_call_targets(else_instructions, targets);
+            }
+            Instruction::IfStoredOutcomeTag {
+                success_instructions,
+                outcome_instructions,
+                ..
+            } => {
+                collect_reachable_call_targets(success_instructions, targets);
+                collect_reachable_call_targets(outcome_instructions, targets);
+            }
+            Instruction::CheckStoredFallible {
+                success_instructions,
+                failure_mode,
+                ..
+            } => {
+                collect_reachable_call_targets(success_instructions, targets);
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
             Instruction::While {
                 condition_instructions,
@@ -203,6 +222,7 @@ fn collect_reachable_call_targets(
             | Instruction::Break
             | Instruction::Continue
             | Instruction::Return => {}
+            Instruction::LoadStoredOutcomePayload { .. } => {}
         }
     }
 }

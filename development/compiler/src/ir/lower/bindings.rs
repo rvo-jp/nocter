@@ -54,8 +54,8 @@ use super::literals::{
 use super::regions::CleanupScopeMark;
 use super::types::{
     parameter_type_from_type_expr_with_resolver, return_type_expr_is_top_level_optional,
-    scalar_or_view_type_from_type_expr, top_level_optional_success_abi_value_with_resolver,
-    view_element_type_from_type_expr,
+    return_type_from_type_expr_with_resolver, scalar_or_view_type_from_type_expr,
+    top_level_optional_success_abi_value_with_resolver, view_element_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, ValueLayout, abi_value_from_type_expr, abi_value_from_type_expr_with_resolver,
@@ -70,6 +70,7 @@ use crate::ir::{
     I32Location, I32Value, Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
     StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
 use crate::resolve::ResolveOutput;
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -82,6 +83,7 @@ mod identifier_assignments;
 mod index_assignments;
 mod optional_assignments;
 mod otherwise_bindings;
+mod outcome_values;
 mod payload_field_assignments;
 mod pointer_take_bindings;
 mod scalar_bindings;
@@ -98,6 +100,7 @@ use identifier_assignments::*;
 use index_assignments::*;
 use optional_assignments::*;
 use otherwise_bindings::*;
+use outcome_values::*;
 use payload_field_assignments::*;
 use pointer_take_bindings::*;
 use scalar_bindings::*;
@@ -124,6 +127,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_interpolated_string_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_outcome_local_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -275,6 +282,17 @@ pub(super) fn lower_i32_optional_otherwise_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::I32(destination),
+        context,
+        move |expression, context| {
+            lower_i32_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower i32 stored `otherwise` fallbacks that produce i32 or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -298,6 +316,17 @@ pub(super) fn lower_u8_optional_otherwise_to_location(
     destination: U8Location,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::U8(destination),
+        context,
+        move |expression, context| {
+            lower_u8_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower u8 stored `otherwise` fallbacks that produce u8 or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -320,6 +349,17 @@ pub(super) fn lower_usize_optional_otherwise_to_location(
     destination: UsizeLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Usize(destination),
+        context,
+        move |expression, context| {
+            lower_usize_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower usize stored `otherwise` fallbacks that produce usize or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -342,6 +382,17 @@ pub(super) fn lower_bool_optional_otherwise_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Bool(destination),
+        context,
+        move |expression, context| {
+            lower_bool_expression_to_location(expression, destination, context, "E8008")
+        },
+        "IR can only lower bool stored `otherwise` fallbacks that produce bool or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -364,6 +415,17 @@ pub(super) fn lower_str_optional_otherwise_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Str(destination),
+        context,
+        move |expression, context| {
+            lower_str_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower &str stored `otherwise` fallbacks that produce &str or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -386,6 +448,17 @@ pub(super) fn lower_slice_optional_otherwise_to_location(
     destination: SliceLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Slice(destination),
+        context,
+        move |expression, context| {
+            lower_slice_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower slice stored `otherwise` fallbacks that produce a slice or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };

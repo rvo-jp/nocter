@@ -133,6 +133,13 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 include_value_parameters,
             );
         }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            record_scalar_arguments_parameter_spill_requests(
+                arguments,
+                requests,
+                include_value_parameters,
+            );
+        }
         Instruction::If {
             condition,
             then_instructions,
@@ -149,6 +156,38 @@ pub(super) fn record_instruction_parameter_spill_requests(
             );
             record_instruction_list_parameter_spill_requests(
                 else_instructions,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(
+                success_instructions,
+                requests,
+                include_value_parameters,
+            );
+            record_instruction_list_parameter_spill_requests(
+                outcome_instructions,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(
+                success_instructions,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                failure_mode,
                 requests,
                 include_value_parameters,
             );
@@ -826,6 +865,7 @@ pub(super) fn record_instruction_parameter_spill_requests(
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue
