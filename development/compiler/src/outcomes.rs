@@ -22,12 +22,13 @@ pub(crate) struct OutcomeShape {
 
 impl OutcomeShape {
     pub(crate) fn is_supported_callable_shape(&self) -> bool {
-        match self.layers.as_slice() {
-            [] | [OutcomeLayer::Optional] | [OutcomeLayer::Fallible] => true,
-            [OutcomeLayer::Fallible, OutcomeLayer::Optional]
-            | [OutcomeLayer::Optional, OutcomeLayer::Fallible] => true,
-            _ => false,
-        }
+        matches!(
+            self.layers.as_slice(),
+            [] | [OutcomeLayer::Optional]
+                | [OutcomeLayer::Fallible]
+                | [OutcomeLayer::Fallible, OutcomeLayer::Optional]
+                | [OutcomeLayer::Optional, OutcomeLayer::Fallible]
+        )
     }
 }
 

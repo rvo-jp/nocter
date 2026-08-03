@@ -1,5 +1,4 @@
-// check-valid: `std/process.env` is check-only until runtime environment
-// lowering is promoted.
+// v0.3.0 Phase 5: executable environment lookup with an absence fallback.
 use std/process.env
 
 func main(): i32! {

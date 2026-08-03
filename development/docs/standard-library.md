@@ -14,7 +14,7 @@ authority for public API semantics; this document adds no specification rules.
 | `mem` | `Layout`, `RawBuffer`, `Allocator`, page boundary | complete layout/grow/free contract |
 | `os` | target-gated syscall boundary | restricted to allocator internals |
 | `prelude` | implicit common declarations | unchanged for v0.2.0 |
-| `process` | exit/abort/cwd/args; env is check-only | maintained where allocator completion requires it |
+| `process` | exit/abort/cwd/args; env is check-only | v0.2.0 historical process surface |
 | `ptr` | restricted pointer primitives | retained within the `pub(nocter)` trust boundary |
 | `string` | owned UTF-8 bytes | common allocator and failure-atomic growth |
 | `vec` | owned generic sequence | non-copy initialized-prefix drop and pop |
@@ -157,7 +157,7 @@ state.
 Packaged-home tests observe scalar and move-only source order, exact readonly element addresses,
 byte order, source-loan retention, mutation visibility, failed-growth state preservation, region
 escape rejection, and cleanup across exhaustion and early exits. Remaining later work includes
-spread, environment retrieval, rich path APIs, collection `for`, iterator interfaces/adapters,
+spread, rich path APIs, collection `for`, iterator interfaces/adapters,
 Unicode text APIs, and general allocator plugins.
 
 ## Phase 3 Formatting and Interpolation
@@ -195,3 +195,20 @@ buildable concrete instantiation statically calls the public inherent method.
 Repository-home and packaged-home tests reject mutation while the returned element is live. A
 packaged native test observes the concrete element and subsequent ordinary vector cleanup, proving
 that the abstraction is not check-only and introduces no runtime interface representation.
+
+## Phase 5 Process Context
+
+The completed Phase 5 implementation captures `argc`, `argv`, and `envp` at the Darwin entry
+boundary and retains them in compiler-reserved callee-saved registers. Target primitives expose
+only counts and bounded indexed views; `std/process` owns UTF-8 validation, exact environment-name
+matching, allocation policy, and public errors.
+
+`args()` returns an ambiently allocated `Vec<&str>` whose elements borrow process-lifetime storage.
+`env(name)` distinguishes present, absent, and invalid text through the structural `&str?!` ABI.
+`cwd()` allocates its owned result in the current aborting allocation context, while `try_cwd`
+retains explicit recoverable allocation. Both close temporary descriptors and release scratch
+buffers on every supported exit path.
+
+Native repository and packaged-home tests cover multi-entry argv, malformed argument bytes,
+present and absent environment entries, malformed requested names and environment bytes, ambient
+cwd, explicit recoverable cwd, renamed imports, region escape rejection, and LSP provenance.

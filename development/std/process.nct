@@ -273,6 +273,6 @@ pub func cwd_failed(): error {
 pub func invalid_encoding(): error {
     return Error.new(
         "std.process.invalid_encoding",
-        "process context contains invalid UTF-8 text",
+        "process text or requested environment name is invalid",
     )
 }

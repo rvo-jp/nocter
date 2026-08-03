@@ -518,7 +518,7 @@ Not adopted in v0.2.0:
 
 Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not entry function parameters.
 
-Initial public surface:
+Released v0.2.0 public surface:
 
 ```nct
 pub func args(): Vec<&str>!
@@ -538,7 +538,7 @@ v0.2.0 distribution status:
   source-level validation, while `build` and `run` reject them during v0.2.0
   buildability validation.
 
-Rules:
+v0.2.0 rules:
 
 - Entry function type parameters and value parameters, such as `func main<T>(): i32!` and `func main(args: Vec<&str>): i32!`, are not part of v0.2.0.
 - The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
@@ -573,7 +573,7 @@ errors, but allocation failure terminates. A recoverable-memory variant, if
 needed, takes a `TryAllocator` explicitly and preserves the same OS error
 identity.
 
-v0.3.0 Phase 5 adopts the executable process-context surface below:
+v0.3.0 Phase 5 implements the executable process-context surface below on `develop`:
 
 ```nct
 pub func args(): Vec<&str>! from current | static
@@ -582,8 +582,26 @@ pub func cwd(): String! from current
 pub func try_cwd(allocator: &+TryAllocator): String! from allocator
 ```
 
-This direction is not part of the released v0.2.0 runtime until the Phase 5 native and packaged-
-home gates pass.
+v0.3.0 Phase 5 rules:
+
+- the generated Darwin entry boundary retains `argc`, `argv`, and `envp` before entering ordinary
+  Nocter code
+- `args()` allocates its `Vec` in the current aborting allocation context; its `&str` elements view
+  process-lifetime storage
+- `args()` returns `"std.process.invalid_encoding"` if any argument is not valid UTF-8
+- `env(name)` returns a process-lifetime view for an exact present name and successful `none` for an
+  absent name
+- an empty name, a name containing NUL or `=`, or invalid UTF-8 in a requested name or host entry
+  returns `"std.process.invalid_encoding"`
+- `cwd()` returns current-context-owned `String` storage; allocation failure terminates, while OS
+  and encoding failures remain recoverable
+- `try_cwd(allocator)` derives its result from `allocator`; allocator and OS failures remain
+  recoverable and do not publish a partial result
+- compiler buildability and lowering depend on resolved outcome shapes and declaration identities,
+  not the spelling `std/process.env`
+
+These rules are implemented in the v0.3.0 development line but are not retroactively part of the
+released v0.2.0 runtime.
 
 Example:
 

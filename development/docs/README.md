@@ -5,15 +5,15 @@ This directory contains implementation design and completion criteria. The publi
 those rules here.
 
 The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
-**Phase 2: Explicit Iteration and Collection Access**, and **Phase 3: Owned String Interpolation and
-Formatting**, and **Phase 4: Public Provenance Contracts and Generic Interface Bounds** are complete
-on `develop`. **Phase 5: Nested Outcomes and Executable Process Context** is active. Do not use
+**Phase 2: Explicit Iteration and Collection Access**, **Phase 3: Owned String Interpolation and
+Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
+Nested Outcomes and Executable Process Context** are complete on `develop`. No later v0.3.0 phase
+is active. Do not use
 `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 4 records and the active
-  Phase 5 gate; the single
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 5 records and the single
   entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries

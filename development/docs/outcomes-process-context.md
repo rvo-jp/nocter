@@ -29,8 +29,10 @@ OutcomeShape
 
 Aliases and generic substitutions are resolved before construction. Buildability, IR, backend,
 analysis, and LSP consume this shape; none reparses type spelling. The initial executable composed
-surface contains one optional and one fallible layer in either explicit order. Deeper recursion is
-rejected by shape capability, not by a standard-library name.
+model contains one optional and one fallible layer in either explicit order. Phase 5's executable
+source consumer is the preferred fallible-optional `T?!` order; the ABI classifier retains the
+reverse order for future consumers. Deeper recursion is rejected by shape capability, not by a
+standard-library name.
 
 ## Native ABI
 
@@ -79,18 +81,20 @@ which branch is selected.
 
 ## Process Runtime
 
-The low-level entry shim already captures `argc` and `argv`. Phase 5 extends the same process-
-context owner with `envp` and exposes narrow target primitives for entry count and indexed entry
-views. `std/process` performs name matching, separator handling, and UTF-8 validation in ordinary
-Nocter source. The compiler does not provide an `env(name)` primitive.
+The low-level entry shim captures Darwin's `argc`, `argv`, and `envp` registers into dedicated
+callee-saved process-context registers before calling user code. Narrow target primitives expose
+argument count and indexed views plus environment count and indexed name/value subviews.
+`std/process` performs exact name matching and UTF-8 validation in ordinary Nocter source. The
+compiler does not provide an `env(name)` primitive.
 
 Process-context views live for the program duration and are never freed by user code. `env` returns
 successful absence when no exact name matches. An invalid requested name or invalid host entry
 returns `std.process.invalid_encoding`; it must not masquerade as absence.
 
-`cwd` keeps one recoverable implementation core. `try_cwd` receives a `TryAllocator`; normal `cwd`
-uses the current aborting allocation context and adapts allocation-only failures through the
-established abort path. Both surfaces preserve OS and encoding failures.
+`try_cwd` receives a `TryAllocator`; normal `cwd` uses the current aborting allocation context.
+Both surfaces share the target OS path retrieval helpers and deterministic descriptor/buffer
+cleanup while keeping their allocation failure policies distinct. Both preserve OS and encoding
+failures.
 
 ## Editor Boundary
 

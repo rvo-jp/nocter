@@ -240,8 +240,8 @@ Rules:
 
 Adopted: optional and fallible type constructors may be composed explicitly.
 
-The v0.3.0 Phase 5 implementation direction promotes composed callable returns to native execution.
-Until that gate passes, v0.2.0 remains the released build boundary.
+v0.3.0 Phase 5 implements fallible-optional callable returns and immediate consumers on `develop`.
+v0.2.0 remains the released build boundary until a later release publishes this work.
 
 Preferred source spelling:
 
@@ -257,6 +257,9 @@ Rules:
 - `T?` means an optional value.
 - Prefer `T?!` in official style.
 - `expr?` on `T?!` unwraps only the fallible layer and produces `T?`.
+- `expr catch error { ... }` on `T?!` handles only failure and leaves the optional success layer.
+- `otherwise` applied after that `catch` handles only successful absence; it does not enter the
+  catch block.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
 - In a function returning `T?!`, a compatible function body result or `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
@@ -288,6 +291,16 @@ let maybe_config = load_config()?
 let config = maybe_config otherwise { return none }
 
 use(config)
+```
+
+Handling failure and absence independently:
+
+```nct
+let home = env("HOME") catch error {
+    return report(error)
+} otherwise {
+    "unknown"
+}
 ```
 
 ### Optional Propagation

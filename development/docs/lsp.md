@@ -145,6 +145,17 @@ protocol layer does not parse `from`, inspect interface names, or repeat conform
   recovered compiler run to establish every identity
 - JSON-RPC tests verify exact hover and definition ranges for a bound method call
 
+## Completed v0.3.0 Phase 5 Integration
+
+Nested-outcome and process tooling uses normalized callable signatures and provenance facts from
+analysis. Protocol code does not recognize `env`, reinterpret `?!`, or synthesize a `from` clause.
+
+- hover on an imported or aliased process lookup shows the normalized `(&str)?!` return
+- callable hover includes the exact `from static` contract and static result provenance
+- the hover range covers the imported alias or callable name, not an enclosing module/type prefix
+- malformed and incomplete consumers continue through the ordinary recovery pipeline
+- JSON-RPC tests verify exact normalized hover content and alias source range
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -191,7 +202,9 @@ incomplete zero-argument iterator calls through direct and JSON-RPC queries. Pha
 owned result/effect/origin hover, interpolation-part types, and cursor-preserving completion and
 signature recovery through direct and JSON-RPC queries. Phase 4 tests cover normalized provenance
 labels, eligible-origin and bound-method completion, specialized signature help, interface-targeted
-definition/references, semantic classification, recovery, and protocol source ranges.
+definition/references, semantic classification, recovery, and protocol source ranges. Phase 5
+tests cover nested outcome normalization, exact `from static` display, static result provenance,
+and aliased callable hover ranges.
 
 ## Deferred Features
 

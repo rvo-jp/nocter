@@ -4188,7 +4188,7 @@ func main(): i32! {
     assert!(output.stdout.is_empty());
     assert_eq!(
         output.stderr,
-        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
+        b"std.process.invalid_encoding: process text or requested environment name is invalid\n"
     );
 }
 
@@ -4283,7 +4283,7 @@ func main(): i32! {
     assert!(output.stdout.is_empty());
     assert_eq!(
         output.stderr,
-        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
+        b"std.process.invalid_encoding: process text or requested environment name is invalid\n"
     );
 }
 
@@ -4308,7 +4308,7 @@ func main(): i32! {
     assert!(output.stdout.is_empty());
     assert_eq!(
         output.stderr,
-        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
+        b"std.process.invalid_encoding: process text or requested environment name is invalid\n"
     );
 }
 

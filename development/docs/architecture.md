@@ -111,6 +111,13 @@ and records bound calls; analysis expands only reachable concrete specialization
 target from that callable index without searching interface or method spellings. See
 [Public Provenance Contracts and Generic Interface Bounds](provenance-contracts.md).
 
+Phase 5 normalizes callable optional/fallible layers in the shared `outcomes` model. Buildability,
+IR type conversion, backend ABI validation, and analysis consume that structure instead of module
+or declaration spellings. The Darwin entry shim owns the process-context registers; narrow IR
+values expose argument and environment views, while ordinary `std/process` source owns UTF-8,
+matching, allocation policy, and public errors. See
+[Nested Outcomes and Executable Process Context](outcomes-process-context.md).
+
 ## LSP Boundary
 
 `driver/lsp` owns transport, document state, and protocol conversion. `analysis` derives semantic
