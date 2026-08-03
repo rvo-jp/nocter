@@ -51,6 +51,7 @@ pub(super) fn record_usize_value_parameter_spill_requests(
     match value {
         UsizeValue::Const(_)
         | UsizeValue::ProcessArgCount
+        | UsizeValue::ProcessEnvironmentCount
         | UsizeValue::CurrentAllocationState
         | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(UsizeLocation::Parameter(index)) => {
@@ -124,7 +125,9 @@ pub(super) fn record_str_value_parameter_spill_requests(
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
         }
-        StrValue::ProcessArg { index } => {
+        StrValue::ProcessArg { index }
+        | StrValue::ProcessEnvironmentName { index }
+        | StrValue::ProcessEnvironmentValue { index } => {
             record_usize_value_parameter_spill_requests(index, requests);
         }
     }

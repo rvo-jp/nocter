@@ -8,9 +8,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            if primitive_arg_raw_call(call, context) {
-                let (mut instructions, value) =
-                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
+            if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
+            {
+                let (mut instructions, value) = if primitive_arg_raw_call(call, context) {
+                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                } else {
+                    lower_env_entry_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                };
                 instructions.push(Instruction::SetStr { destination, value });
                 return Ok(instructions);
             }
@@ -163,9 +167,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            if primitive_arg_raw_call(call, context) {
-                let (instructions, value) =
-                    lower_arg_raw_primitive_call_to_value(call, context, temporaries)?;
+            if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
+            {
+                let (instructions, value) = if primitive_arg_raw_call(call, context) {
+                    lower_arg_raw_primitive_call_to_value(call, context, temporaries)?
+                } else {
+                    lower_env_entry_raw_primitive_call_to_value(call, context, temporaries)?
+                };
                 return Ok(LoweredStrValue {
                     instructions,
                     value,

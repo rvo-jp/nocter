@@ -210,8 +210,14 @@ pub(in crate::ir::lower) fn lower_usize_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
-            if primitive_arg_count_raw_call(call, context) {
-                let (mut instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+            if primitive_arg_count_raw_call(call, context)
+                || primitive_env_count_raw_call(call, context)
+            {
+                let (mut instructions, value) = if primitive_arg_count_raw_call(call, context) {
+                    lower_arg_count_raw_primitive_call_to_word(call)?
+                } else {
+                    lower_env_count_raw_primitive_call_to_word(call)?
+                };
                 instructions.push(Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value,
@@ -249,9 +255,13 @@ pub(in crate::ir::lower) fn lower_str_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
-            if primitive_arg_raw_call(call, context) {
-                let (mut instructions, value) =
-                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
+            if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
+            {
+                let (mut instructions, value) = if primitive_arg_raw_call(call, context) {
+                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                } else {
+                    lower_env_entry_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                };
                 instructions.push(Instruction::SetStr {
                     destination: StrLocation::Return,
                     value,

@@ -480,8 +480,14 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     value,
                 });
             }
-            if primitive_arg_count_raw_call(call, context) {
-                let (instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+            if primitive_arg_count_raw_call(call, context)
+                || primitive_env_count_raw_call(call, context)
+            {
+                let (instructions, value) = if primitive_arg_count_raw_call(call, context) {
+                    lower_arg_count_raw_primitive_call_to_word(call)?
+                } else {
+                    lower_env_count_raw_primitive_call_to_word(call)?
+                };
                 return Ok(LoweredUsizeValue {
                     instructions,
                     value,

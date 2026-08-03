@@ -389,7 +389,7 @@ pub(super) fn u8_value_uses_process_arguments(value: &crate::ir::U8Value) -> boo
 
 pub(super) fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
     match value {
-        UsizeValue::ProcessArgCount => true,
+        UsizeValue::ProcessArgCount | UsizeValue::ProcessEnvironmentCount => true,
         UsizeValue::Const(_)
         | UsizeValue::Location(_)
         | UsizeValue::CurrentAllocationState
@@ -423,7 +423,9 @@ pub(super) fn bool_value_uses_process_arguments(value: &crate::ir::BoolValue) ->
 
 pub(super) fn str_value_uses_process_arguments(value: &StrValue) -> bool {
     match value {
-        StrValue::ProcessArg { .. } => true,
+        StrValue::ProcessArg { .. }
+        | StrValue::ProcessEnvironmentName { .. }
+        | StrValue::ProcessEnvironmentValue { .. } => true,
         StrValue::StaticBytes(_) | StrValue::Location(_) => false,
         StrValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }

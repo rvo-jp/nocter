@@ -96,6 +96,7 @@ func main(): i32 {
     let first = arg_probe(0)
     return 0
 }
+
 "#,
         &[(
             "std/process.nct",
@@ -124,6 +125,72 @@ pub func arg_probe(index: usize): &str {
             },
         }
     ));
+}
+
+#[test]
+fn lowers_process_environment_primitives_to_structural_ir_values() {
+    let fixture = analyze_text_fixture_with_nocter_home_files(
+        r#"use std/process.{env_count_probe, env_name_probe, env_value_probe}
+
+func main(): i32 {
+    let count = env_count_probe()
+    let name = env_name_probe(0)
+    let value = env_value_probe(0)
+    return 0
+}
+"#,
+        &[(
+            "std/process.nct",
+            r#"#target("arm64-darwin")
+pub(nocter) primitive env_count_raw(): usize
+#target("arm64-darwin")
+pub(nocter) primitive env_name_raw(index: usize): &str
+#target("arm64-darwin")
+pub(nocter) primitive env_value_raw(index: usize): &str
+
+pub func env_count_probe(): usize { return env_count_raw() }
+pub func env_name_probe(index: usize): &str { return env_name_raw(index) }
+pub func env_value_probe(index: usize): &str { return env_value_raw(index) }
+"#,
+        )],
+    );
+    let ir = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+
+    let count = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "env_count_probe")
+        .unwrap();
+    assert!(matches!(
+        &count.instructions[0],
+        Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::ProcessEnvironmentCount,
+        }
+    ));
+
+    for (function_name, expected_name) in [("env_name_probe", true), ("env_value_probe", false)] {
+        let function = ir
+            .functions
+            .iter()
+            .find(|function| function.name == function_name)
+            .unwrap();
+        let Instruction::SetStr {
+            destination: StrLocation::Return,
+            value,
+        } = &function.instructions[0]
+        else {
+            panic!("{function:?}");
+        };
+        assert_eq!(
+            matches!(value, StrValue::ProcessEnvironmentName { .. }),
+            expected_name
+        );
+        assert_eq!(
+            matches!(value, StrValue::ProcessEnvironmentValue { .. }),
+            !expected_name
+        );
+    }
 }
 
 #[test]

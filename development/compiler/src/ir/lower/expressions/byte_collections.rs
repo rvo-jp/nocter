@@ -66,7 +66,7 @@ pub(super) fn byte_collection_call_kind(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
-    if primitive_arg_raw_call(call, context) {
+    if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context) {
         return Some(ByteCollectionKind::Str);
     }
     if primitive_str_from_raw_parts_call(call, context) {
@@ -170,7 +170,10 @@ pub(super) fn lower_byte_collection_len_expression_to_value(
             let value = match source.value {
                 StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
                 StrValue::Location(location) => UsizeValue::StrLen(location),
-                value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }) => {
+                value @ (StrValue::ProcessArg { .. }
+                | StrValue::ProcessEnvironmentName { .. }
+                | StrValue::ProcessEnvironmentValue { .. }
+                | StrValue::SliceIndex { .. }) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: temporary,
@@ -193,7 +196,10 @@ pub(super) fn lower_byte_collection_len_expression_to_value(
                 }
                 SliceValue::StrBytes(StrValue::Location(location)) => UsizeValue::StrLen(location),
                 SliceValue::StrBytes(
-                    value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }),
+                    value @ (StrValue::ProcessArg { .. }
+                    | StrValue::ProcessEnvironmentName { .. }
+                    | StrValue::ProcessEnvironmentValue { .. }
+                    | StrValue::SliceIndex { .. }),
                 ) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {

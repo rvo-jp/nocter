@@ -56,6 +56,7 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         if capture_process_stack {
             self.encoder.emit_add_x_sp_imm(XReg::X19, 0);
+            self.encoder.emit_mov_x(XReg::X22, XReg::X2);
         }
         if initialize_allocation_context {
             emit_mov_u64_to_x(&mut self.encoder, XReg::X20, 0);

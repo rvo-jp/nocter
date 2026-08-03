@@ -816,5 +816,32 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             parameters: PROCESS_ARG_RAW_PARAMETERS,
             return_type: "&str",
         },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "env_count_raw",
+            generics: &[],
+            parameters: &[],
+            return_type: "usize",
+        },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "env_name_raw",
+            generics: &[],
+            parameters: PROCESS_ARG_RAW_PARAMETERS,
+            return_type: "&str",
+        },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "env_value_raw",
+            generics: &[],
+            parameters: PROCESS_ARG_RAW_PARAMETERS,
+            return_type: "&str",
+        },
     ]
 }

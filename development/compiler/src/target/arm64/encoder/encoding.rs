@@ -33,6 +33,7 @@ pub(in crate::target::arm64::encoder) const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]
 pub(in crate::target::arm64::encoder) const SUB_SP_IMM_BASE: u32 = 0xd100_0000;
 pub(in crate::target::arm64::encoder) const SUBS_W_BASE: u32 = 0x6b00_0000;
+pub(in crate::target::arm64::encoder) const SUBS_W_IMM_BASE: u32 = 0x7100_0000;
 pub(in crate::target::arm64::encoder) const SUBS_X_BASE: u32 = 0xeb00_0000;
 pub(in crate::target::arm64::encoder) const MOVZ_X_BASE: u32 = 0xd280_0000;
 pub(in crate::target::arm64::encoder) const MOVK_X_BASE: u32 = 0xf280_0000;

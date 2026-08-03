@@ -289,7 +289,7 @@ fn distributed_std_public_api_passes_check() {
 use std/fmt.{try_append_bool, try_append_i32, try_append_str, try_append_string, try_append_u8, try_append_usize}
 use std/io.{File, open, print, read, stderr, stdout, write, write_text}
 use std/mem.{Allocator, Layout, RawBuffer, TryAllocator, alloc, alloc_layout, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, grow, invalid_argument, layout, layout_align, layout_size, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
-use std/process.{abort, args, cwd, env, exit}
+use std/process.{abort, args, cwd, env, exit, try_cwd}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
 use std/vec.Vec
@@ -391,8 +391,12 @@ func file_write_text(file: &+File, text: &str): void! {
     return
 }
 
-func process_cwd(allocator: &+TryAllocator): String! {
-    return cwd(allocator)?
+func process_cwd(): String! {
+    return cwd()?
+}
+
+func process_try_cwd(allocator: &+TryAllocator): String! {
+    return try_cwd(allocator)?
 }
 
 func process_args_shape(): Vec<&str>! {
@@ -4155,43 +4159,97 @@ func main(): i32! {
 }
 
 #[test]
-fn distributed_std_process_env_is_check_only_for_build() {
-    let project = TempProject::new("distributed-home-process-env-check-only-build");
+fn distributed_std_process_env_renamed_import_builds_to_macho() {
+    let project = TempProject::new("distributed-home-process-env-renamed-build");
     let source = project.write_source(
-        "process_env_check_only.nct",
+        "process_env_renamed.nct",
         r#"use std/process.env as lookup
 
 func main(): i32! {
-    let value = lookup("HOME")?
+    let value = lookup("HOME")? otherwise { return 0 }
+    if value.len() == 0 { return 1 }
     return 0
 }
 "#,
     );
-    let executable = project.root().join("process_env_check_only");
+    let executable = project.root().join("process_env_renamed");
 
     let output = nocter_build(&project, &source, &executable);
 
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_env_observes_present_and_absent_entries() {
+    let project = TempProject::new("distributed-home-process-env-runtime");
+    let source = project.write_source(
+        "process_env_runtime.nct",
+        r#"use std/process.env as lookup
+
+func main(): i32! {
+    let present = lookup("NOCTER_PHASE5_ENV")? otherwise { return 1 }
+    if present != "héllo" { return 2 }
+    let absent = lookup("NOCTER_PHASE5_MISSING")? otherwise { return 0 }
+    if absent.len() == 0 { return 3 }
+    return 4
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", distributed_home())
+        .env("NOCTER_PHASE5_ENV", "héllo")
+        .env_remove("NOCTER_PHASE5_MISSING")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_env_rejects_invalid_utf8_value() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let project = TempProject::new("distributed-home-process-env-invalid-utf8");
+    let source = project.write_source(
+        "process_env_invalid_utf8.nct",
+        r#"use std/process.env
+
+func main(): i32! {
+    let value = env("NOCTER_PHASE5_INVALID")? otherwise { return 2 }
+    return 3
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", distributed_home())
+        .env(
+            "NOCTER_PHASE5_INVALID",
+            OsString::from_vec(vec![0x66, 0x80, 0x6f]),
+        )
+        .output()
+        .unwrap();
+
     assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("check-only `std/process.env` calls"),
-        "expected env check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let value = lookup(\"HOME\")?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("nested fallible or optional return types"),
-        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.process.invalid_encoding: process context contains invalid UTF-8 text\n"
     );
 }
 
@@ -4202,12 +4260,44 @@ fn distributed_std_process_cwd_returns_current_directory() {
     let source = project.write_source(
         "process_cwd.nct",
         r#"use std/io.print
-use std/mem.page_try_allocator
 use std/process.cwd
 
 func main(): void! {
+    let value = cwd()?
+    print(value.view())?
+    return
+}
+
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let expected = project.root().canonicalize().unwrap();
+    assert_eq!(text(&output.stdout), expected.display().to_string());
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_try_cwd_uses_explicit_allocator() {
+    let project = TempProject::new("distributed-home-process-try-cwd-run");
+    let source = project.write_source(
+        "process_try_cwd.nct",
+        r#"use std/io.print
+use std/mem.page_try_allocator
+use std/process.try_cwd
+
+func main(): void! {
     var allocator = page_try_allocator()
-    let value = cwd(&+allocator)?
+    let value = try_cwd(&+allocator)?
     print(value.view())?
     return
 }

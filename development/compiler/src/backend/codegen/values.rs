@@ -372,7 +372,7 @@ fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {
         XReg::X15 => Some(WReg::W15),
         XReg::X16 => Some(WReg::W16),
         XReg::X17 => Some(WReg::W17),
-        XReg::X8 | XReg::X19 | XReg::X20 | XReg::X21 | XReg::X30 => None,
+        XReg::X8 | XReg::X19 | XReg::X20 | XReg::X21 | XReg::X22 | XReg::X30 => None,
     }
 }
 

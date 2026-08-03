@@ -633,6 +633,89 @@ fn lsp_command_serves_v0_editor_features() {
 }
 
 #[test]
+fn lsp_hover_preserves_nested_process_result_and_static_provenance() {
+    let project = TempProject::new("cli-lsp-process-env-hover");
+    project.write_nocter_home_file(
+        "std/process.nct",
+        r#"pub func env(name: &str): &str?! from static {
+    return none
+}
+"#,
+    );
+    let source_text = r#"use std/process.env as lookup
+
+func main(): i32! {
+    let value = lookup("HOME")? otherwise { return 0 }
+    return 0
+}
+"#;
+    let source = project.write_source("process_env_hover.nct", source_text);
+    let uri = file_uri(&source);
+    let call_start = source_text.rfind("lookup").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, call_start);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": { "line": line, "character": character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    let hover_text = hover["contents"]["value"].as_str().unwrap();
+    assert!(
+        hover_text.contains("func lookup(name: &str): (&str)?! from static")
+            && hover_text.contains("Result provenance:** static storage"),
+        "{hover_text}"
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(line));
+    assert_eq!(hover["range"]["start"]["character"], json!(character));
+    assert_eq!(
+        hover["range"]["end"]["character"],
+        json!(character + "lookup".len())
+    );
+}
+
+#[test]
 fn lsp_command_exposes_generic_bound_and_provenance_source_ranges() {
     let project = TempProject::new("cli-lsp-bound-provenance-ranges");
     let source_text = r#"interface Read<T> {
@@ -1061,6 +1144,14 @@ impl TempProject {
         let path = self.root.join(name);
         fs::write(&path, text).unwrap();
         path
+    }
+
+    fn write_nocter_home_file(&self, relative: &str, text: &str) {
+        let path = self.nocter_home().join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
     }
 
     fn write_nocter_home(&self) {

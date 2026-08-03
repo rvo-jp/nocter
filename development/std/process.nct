@@ -6,10 +6,12 @@
 use std/error.Error
 use std/mem.RawBuffer
 use std/mem.TryAllocator
+use std/mem.alloc
 use std/mem.alloc_pages
 use std/mem.bytes_mut as raw_bytes_mut
 use std/mem.free_pages
-use std/mem.page_try_allocator
+use std/mem.free
+use std/mem.page_allocator
 use std/mem.try_alloc
 use std/mem.try_free
 use std/os.darwin_f_getpath
@@ -26,6 +28,7 @@ use std/ptr.from_addr
 use std/ptr.store_u8_to_ptr
 use std/ptr.str_from_raw_parts
 use std/string.String
+use std/string.bytes as string_bytes
 use std/vec.Vec
 
 #target("arm64-darwin")
@@ -36,6 +39,15 @@ pub(nocter) primitive arg_count_raw(): usize
 
 #target("arm64-darwin")
 pub(nocter) primitive arg_raw(index: usize): &str
+
+#target("arm64-darwin")
+pub(nocter) primitive env_count_raw(): usize
+
+#target("arm64-darwin")
+pub(nocter) primitive env_name_raw(index: usize): &str
+
+#target("arm64-darwin")
+pub(nocter) primitive env_value_raw(index: usize): &str
 
 #target("arm64-darwin")
 pub(nocter) func open_current_directory(): usize! {
@@ -53,6 +65,22 @@ pub(nocter) func open_current_directory(): usize! {
 }
 
 #target("arm64-darwin")
+pub(nocter) func open_current_directory_aborting(): usize! {
+    let allocation_size: usize = 2
+    var allocator = page_allocator()
+    var path = alloc(&+allocator, allocation_size, 1)
+    copy_str_to_ptr(path.ptr, 0, ".")
+    store_u8_to_ptr(path.ptr, allocation_size - 1, 0)
+
+    let result = syscall3(darwin_sys_open(), addr(path.ptr), 0, 0)
+    free(&+allocator, move path)
+    if result.errno != 0 {
+        return cwd_failed()
+    }
+    return result.value
+}
+
+#target("arm64-darwin")
 pub(nocter) func close_fd_word(fd: usize): void {
     let result = syscall1(darwin_sys_close(), fd)
     return
@@ -60,10 +88,10 @@ pub(nocter) func close_fd_word(fd: usize): void {
 
 #target("arm64-darwin")
 pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
-    let bytes = raw_bytes_mut(buffer)
+    let raw_bytes = raw_bytes_mut(buffer)
     var index: usize = 0
     while index < buffer.len {
-        if bytes[index] == 0 {
+        if raw_bytes[index] == 0 {
             return index
         }
         index = index + 1
@@ -85,23 +113,58 @@ pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
     return cwd_path_len(buffer)?
 }
 
-pub func args(): Vec<&str>! {
-    var allocator = page_try_allocator()
+pub func args(): Vec<&str>! from current | static {
     let count: usize = arg_count_raw()
-    var values: Vec<&str> = Vec.try_with_capacity(&+allocator, count)?
+    var values: Vec<&str> = Vec.with_capacity(count)
     var index: usize = 0
     while index < count {
-        values.try_push(arg_raw(index))?
+        let value = arg_raw(index)
+        if !valid_utf8(value) {
+            return invalid_encoding()
+        }
+        values.push(value)
         index = index + 1
     }
     return move values
 }
 
-pub func env(name: &str): &str?! {
-    return Error.new("std.process.unsupported", "process environment is not implemented")
+pub func env(name: &str): &str?! from static {
+    if !valid_environment_name(name) {
+        return invalid_encoding()
+    }
+    let count = env_count_raw()
+    var index: usize = 0
+    while index < count {
+        let entry_name = env_name_raw(index)
+        let entry_value = env_value_raw(index)
+        if !valid_utf8(entry_name) || !valid_utf8(entry_value) {
+            return invalid_encoding()
+        }
+        if entry_name == name {
+            return entry_value
+        }
+        index = index + 1
+    }
+    return none
 }
 
-pub func cwd(allocator: &+TryAllocator): String! {
+pub func cwd(): String! from current {
+    let fd = open_current_directory_aborting()?
+    var allocator = page_allocator()
+    var buffer = alloc(&+allocator, darwin_max_path_len(), 1)
+    let len = fill_cwd_path(fd, &+buffer) catch error {
+        free(&+allocator, move buffer)
+        close_fd_word(fd)
+        return error
+    }
+    let view = str_from_raw_parts(buffer.ptr, len)
+    let value = String.copy(view)
+    free(&+allocator, move buffer)
+    close_fd_word(fd)
+    return move value
+}
+
+pub func try_cwd(allocator: &+TryAllocator): String! from allocator {
     let fd = open_current_directory() catch error {
         return error
     }
@@ -125,6 +188,76 @@ pub func cwd(allocator: &+TryAllocator): String! {
     return move value
 }
 
+pub(nocter) func valid_environment_name(name: &str): bool {
+    if name.len() == 0 || !valid_utf8(name) {
+        return false
+    }
+    let name_bytes = string_bytes(name)
+    var index: usize = 0
+    while index < name_bytes.len() {
+        if name_bytes[index] == 0 || name_bytes[index] == 61 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+pub(nocter) func valid_utf8(value: &str): bool {
+    let value_bytes = string_bytes(value)
+    var index: usize = 0
+    while index < value_bytes.len() {
+        let first = value_bytes[index]
+        if first <= 127 {
+            index = index + 1
+        } else if first >= 194 && first <= 223 {
+            if index + 1 >= value_bytes.len() || !utf8_continuation(value_bytes[index + 1]) {
+                return false
+            }
+            index = index + 2
+        } else if first >= 224 && first <= 239 {
+            if index + 2 >= value_bytes.len() {
+                return false
+            }
+            let second = value_bytes[index + 1]
+            let second_valid = if first == 224 {
+                second >= 160 && second <= 191
+            } else if first == 237 {
+                second >= 128 && second <= 159
+            } else {
+                utf8_continuation(second)
+            }
+            if !second_valid || !utf8_continuation(value_bytes[index + 2]) {
+                return false
+            }
+            index = index + 3
+        } else if first >= 240 && first <= 244 {
+            if index + 3 >= value_bytes.len() {
+                return false
+            }
+            let second = value_bytes[index + 1]
+            let second_valid = if first == 240 {
+                second >= 144 && second <= 191
+            } else if first == 244 {
+                second >= 128 && second <= 143
+            } else {
+                utf8_continuation(second)
+            }
+            if !second_valid || !utf8_continuation(value_bytes[index + 2]) || !utf8_continuation(value_bytes[index + 3]) {
+                return false
+            }
+            index = index + 4
+        } else {
+            return false
+        }
+    }
+    return true
+}
+
+pub(nocter) func utf8_continuation(value: u8): bool {
+    return value >= 128 && value <= 191
+}
+
 pub func exit(code: i32): never {
     exit_raw(code)
 }
@@ -135,4 +268,11 @@ pub func abort(): never {
 
 pub func cwd_failed(): error {
     return Error.new("std.process.cwd_failed", "current working directory is not available")
+}
+
+pub func invalid_encoding(): error {
+    return Error.new(
+        "std.process.invalid_encoding",
+        "process context contains invalid UTF-8 text",
+    )
 }

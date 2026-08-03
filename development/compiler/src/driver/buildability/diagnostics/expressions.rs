@@ -386,15 +386,6 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             );
         }
         Expr::Call(expression) => {
-            let check_only_std_call = unsupported_check_only_std_call_diagnostic(
-                sources,
-                expression,
-                resolved,
-                nocter_home,
-            );
-            if let Some(diagnostic) = &check_only_std_call {
-                diagnostics.push(diagnostic.clone());
-            }
             let unsupported_std_vec_element_call = unsupported_std_vec_element_call_diagnostic(
                 sources,
                 expression,
@@ -477,8 +468,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                     diagnostics,
                 );
             }
-            if check_only_std_call.is_none()
-                && unsupported_std_vec_element_call.is_none()
+            if unsupported_std_vec_element_call.is_none()
                 && let Some(target) = call_target_for_call(
                     expression,
                     resolved,

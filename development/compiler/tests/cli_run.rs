@@ -29,6 +29,8 @@ mod imports;
 mod optional_fallible;
 #[path = "cli_run/payload_enums.rs"]
 mod payload_enums;
+#[path = "cli_run/process_context.rs"]
+mod process_context;
 #[path = "cli_run/scalars.rs"]
 mod scalars;
 #[path = "cli_run/slices_strings_pointers.rs"]

@@ -132,6 +132,11 @@ impl Encoder {
         self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
     }
 
+    pub(crate) fn emit_cmp_w_imm(&mut self, rn: WReg, value: u32) {
+        debug_assert!(value <= 0x0fff);
+        self.emit_word(SUBS_W_IMM_BASE | (value << 10) | (rn.bits() << 5) | WZR_BITS);
+    }
+
     pub(crate) fn emit_cmp_w_zero(&mut self, rn: WReg) {
         self.emit_word(SUBS_W_BASE | (WZR_BITS << 16) | (rn.bits() << 5) | WZR_BITS);
     }

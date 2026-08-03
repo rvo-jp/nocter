@@ -735,6 +735,7 @@ pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
     ProcessArgCount,
+    ProcessEnvironmentCount,
     CurrentAllocationState,
     CurrentAllocationKind,
     U8ZeroExtend(Box<U8Value>),
@@ -847,6 +848,12 @@ pub(crate) enum StrValue {
     StaticBytes(Vec<u8>),
     Location(StrLocation),
     ProcessArg {
+        index: UsizeValue,
+    },
+    ProcessEnvironmentName {
+        index: UsizeValue,
+    },
+    ProcessEnvironmentValue {
         index: UsizeValue,
     },
     SliceIndex {

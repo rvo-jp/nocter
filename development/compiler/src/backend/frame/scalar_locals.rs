@@ -889,6 +889,7 @@ pub(super) fn record_usize_value(value: &UsizeValue, highest_local_index: &mut O
     match value {
         UsizeValue::Const(_)
         | UsizeValue::ProcessArgCount
+        | UsizeValue::ProcessEnvironmentCount
         | UsizeValue::CurrentAllocationState
         | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
@@ -960,7 +961,11 @@ pub(super) fn record_str_value(value: &StrValue, highest_local_index: &mut Optio
             record_slice_location(*source, highest_local_index);
             record_usize_value(index, highest_local_index);
         }
-        StrValue::ProcessArg { index } => record_usize_value(index, highest_local_index),
+        StrValue::ProcessArg { index }
+        | StrValue::ProcessEnvironmentName { index }
+        | StrValue::ProcessEnvironmentValue { index } => {
+            record_usize_value(index, highest_local_index);
+        }
     }
 }
 

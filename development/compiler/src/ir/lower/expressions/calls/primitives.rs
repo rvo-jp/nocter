@@ -170,6 +170,13 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_count_raw_call(
     matches!(context.primitive_name_for_call(call), Some("arg_count_raw"))
 }
 
+pub(in crate::ir::lower::expressions) fn primitive_env_count_raw_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("env_count_raw"))
+}
+
 pub(in crate::ir::lower::expressions) fn primitive_current_allocation_state_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -195,6 +202,16 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_raw_call(
     context: &LoweringContext,
 ) -> bool {
     matches!(context.primitive_name_for_call(call), Some("arg_raw"))
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_env_entry_raw_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("env_name_raw" | "env_value_raw")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_copy_str_to_ptr_call(
@@ -435,6 +452,17 @@ pub(in crate::ir::lower::expressions) fn lower_arg_count_raw_primitive_call_to_w
     Ok((Vec::new(), UsizeValue::ProcessArgCount))
 }
 
+pub(in crate::ir::lower::expressions) fn lower_env_count_raw_primitive_call_to_word(
+    call: &CallExpr,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    if !call.arguments.is_empty() {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`env_count_raw` requires no arguments",
+        ));
+    }
+    Ok((Vec::new(), UsizeValue::ProcessEnvironmentCount))
+}
+
 pub(in crate::ir::lower::expressions) fn lower_arg_raw_primitive_call_to_value(
     call: &CallExpr,
     context: &LoweringContext,
@@ -451,6 +479,33 @@ pub(in crate::ir::lower::expressions) fn lower_arg_raw_primitive_call_to_value(
         index.instructions,
         StrValue::ProcessArg { index: index.value },
     ))
+}
+
+pub(in crate::ir::lower::expressions) fn lower_env_entry_raw_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, StrValue), Vec<Diagnostic>> {
+    let primitive_name = context.primitive_name_for_call(call).ok_or_else(|| {
+        unsupported_pointer_primitive_diagnostic("expected environment primitive")
+    })?;
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires one `usize` index argument"
+        )));
+    }
+
+    let index = lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let value = match primitive_name {
+        "env_name_raw" => StrValue::ProcessEnvironmentName { index: index.value },
+        "env_value_raw" => StrValue::ProcessEnvironmentValue { index: index.value },
+        _ => {
+            return Err(unsupported_pointer_primitive_diagnostic(
+                "expected indexed environment primitive",
+            ));
+        }
+    };
+    Ok((index.instructions, value))
 }
 
 pub(in crate::ir::lower::expressions) fn lower_copy_str_to_ptr_primitive_call(

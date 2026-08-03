@@ -56,6 +56,9 @@ impl EntryEmitter {
             UsizeValue::ProcessArgCount => {
                 self.encoder.emit_ldr_x_imm(destination, XReg::X19, 0);
             }
+            UsizeValue::ProcessEnvironmentCount => {
+                self.emit_process_environment_count_to_x(destination)?;
+            }
             UsizeValue::CurrentAllocationState => {
                 self.encoder.emit_mov_x(destination, XReg::X20);
             }
@@ -409,7 +412,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn emit_index_in_bounds_check(
+    pub(in crate::backend::codegen) fn emit_index_in_bounds_check(
         &mut self,
         index: XReg,
         len: XReg,
@@ -573,6 +576,22 @@ impl EntryEmitter {
                 };
                 self.emit_process_arg_to_x_pair(index, destination, len_scratch)?;
             }
+            StrValue::ProcessEnvironmentName { index } => {
+                let len_scratch = if destination == XReg::X8 {
+                    XReg::X17
+                } else {
+                    XReg::X8
+                };
+                self.emit_process_environment_name_to_x_pair(index, destination, len_scratch)?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                let len_scratch = if destination == XReg::X8 {
+                    XReg::X17
+                } else {
+                    XReg::X8
+                };
+                self.emit_process_environment_value_to_x_pair(index, destination, len_scratch)?;
+            }
         }
         Ok(())
     }
@@ -609,6 +628,12 @@ impl EntryEmitter {
             }
             StrValue::ProcessArg { index } => {
                 self.emit_process_arg_to_x_pair(index, XReg::X16, destination)?;
+            }
+            StrValue::ProcessEnvironmentName { index } => {
+                self.emit_process_environment_name_to_x_pair(index, XReg::X16, destination)?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                self.emit_process_environment_value_to_x_pair(index, XReg::X16, destination)?;
             }
         }
         Ok(())
@@ -656,6 +681,20 @@ impl EntryEmitter {
             }
             StrValue::ProcessArg { index } => {
                 self.emit_process_arg_to_x_pair(index, ptr_destination, len_destination)?;
+            }
+            StrValue::ProcessEnvironmentName { index } => {
+                self.emit_process_environment_name_to_x_pair(
+                    index,
+                    ptr_destination,
+                    len_destination,
+                )?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                self.emit_process_environment_value_to_x_pair(
+                    index,
+                    ptr_destination,
+                    len_destination,
+                )?;
             }
         }
 
