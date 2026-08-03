@@ -11,7 +11,7 @@
 //! elements until copyability can be expressed directly in a generic constraint.
 
 use std/error.Error
-use std/iter.{Iterable, IntoIterator, ViewIter}
+use std/iter.{ExactSizeIterator, Iterable, IntoIterator, Iterator, ViewIter}
 use std/mem.{RawBuffer, TryAllocator, alloc, allocation_abort_raw, current_allocator}
 use std/mem.{empty_page_buffer, try_alloc, try_grow_owned}
 use std/ptr.addr
@@ -124,6 +124,29 @@ pub func Vec.from_slice<T>(values: &[T]): Vec<T> {
     while index < values.len() {
         result.push(values[index])
         index = index + 1
+    }
+    return move result
+}
+
+/// Consumes an iterator and grows a Vec without an intermediate collection.
+pub func Vec.from_iter<T, I: Iterator<T>>(iterator: I): Vec<T> from current {
+    var result: Vec<T> = Vec.empty()
+    for item in iterator {
+        result.push(move item)
+    }
+    return move result
+}
+
+/// Consumes an exact iterator after reserving its initial reported remainder.
+pub func Vec.from_exact_iter<T, I: Iterator<T> + ExactSizeIterator<T>>(
+    iterator: I,
+): Vec<T> from current {
+    var source = move iterator
+    let initial_len: usize = source.remaining_len()
+    var result: Vec<T> = Vec.empty()
+    result.reserve(initial_len)
+    for item in source {
+        result.push(move item)
     }
     return move result
 }

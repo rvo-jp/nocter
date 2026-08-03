@@ -584,15 +584,38 @@ pub(super) fn lower_aggregate_field_to_location(
             context,
             temporaries,
         ),
-        AbiType::Outcome { layout } => lower_outcome_field_to_location(
-            *layout,
-            expression,
-            destination,
-            offset,
-            context,
-            temporaries,
-        )?
-        .ok_or_else(|| unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)),
+        AbiType::Outcome { layout } => {
+            let expression_type =
+                context
+                    .expression_type_expr(expression.span())
+                    .ok_or_else(|| {
+                        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                    })?;
+            let shape = outcome_shape_with_resolver(&expression_type, resolved, |source| {
+                context.resolved_source(source)
+            });
+            let storage = context
+                .abi_value_for_type_expr(&shape.payload)
+                .and_then(|payload| shape.storage_layout(payload.layout))
+                .filter(|storage| storage.layout == *layout)
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            lower_outcome_field_to_location(
+                &storage,
+                expression,
+                destination,
+                offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })
+        }
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
@@ -669,6 +692,20 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
         .zip(struct_layout.fields.iter())
         .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout)))
         .collect::<HashMap<_, _>>();
+    let literal_type = context.specialize_type_expr(&literal.ty);
+    let outcome_fields = aggregate_fields_from_type_expr_with_resolver(
+        &literal_type,
+        literal.span.source,
+        resolved,
+        |source| context.resolved_source(source),
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|field| match field.kind {
+        AggregateFieldKind::Outcome { storage, .. } => Some((field.name, storage)),
+        _ => None,
+    })
+    .collect::<HashMap<_, _>>();
 
     let mut instructions = Vec::new();
     for field in &literal.fields {
@@ -758,6 +795,27 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 ));
             };
             instructions.append(&mut payload_instructions);
+        } else if let (AbiType::Outcome { .. }, Some(storage)) =
+            (field_type, outcome_fields.get(field.name.as_str()))
+        {
+            let Some(mut outcome_instructions) = lower_outcome_field_to_location(
+                storage,
+                &field.value,
+                destination,
+                nested_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?
+            else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            instructions.append(&mut outcome_instructions);
         } else {
             instructions.extend(lower_aggregate_field_to_location(
                 field_type,

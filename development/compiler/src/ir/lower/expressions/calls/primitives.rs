@@ -712,7 +712,10 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
         context.resolved_source(source)
     });
     if let Ok(value) = value
-        && matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        && matches!(
+            value.ty,
+            AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
+        )
         && supported_aggregate_copy_layout(value.layout)
     {
         let (value_instructions, source) = lower_aggregate_store_value_source(
@@ -762,17 +765,28 @@ fn lower_aggregate_store_value_source(
             )
         }
         Expr::Identifier(identifier) => {
-            let Some(local) = context.aggregate_local(&identifier.name) else {
+            let source = context
+                .aggregate_local(&identifier.name)
+                .map(|local| (local.layout, AggregateLocation::Slot(local.slot_index)))
+                .or_else(|| {
+                    context.outcome_local(&identifier.name).and_then(|local| {
+                        local.is_live.then_some((
+                            local.storage.layout,
+                            AggregateLocation::Slot(local.slot_index),
+                        ))
+                    })
+                });
+            let Some((source_layout, source)) = source else {
                 return Err(unsupported_pointer_primitive_diagnostic(
                     "`store_value_to_ptr` requires an aggregate source value",
                 ));
             };
-            if local.layout != layout {
+            if source_layout != layout {
                 return Err(unsupported_pointer_primitive_diagnostic(
                     "`store_value_to_ptr` aggregate source layout does not match pointer element layout",
                 ));
             }
-            Ok((Vec::new(), AggregateLocation::Slot(local.slot_index)))
+            Ok((Vec::new(), source))
         }
         Expr::StructLiteral(literal) => {
             let slot_index = temporaries.next_aggregate_slot();

@@ -1,0 +1,88 @@
+//! Prefix-limiting and prefix-skipping owning iterator adapters.
+
+use std/iter.{ExactSizeIterator, Iterator}
+
+/// Yields at most `remaining` items from `source`.
+pub struct TakeIter<T, I> {
+    source: I
+    remaining: usize
+}
+
+/// Constructs an owning prefix-limiting adapter.
+pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> {
+    return TakeIter<T, I> {
+        source: move source,
+        remaining: limit,
+    }
+}
+
+impl<T, I: Iterator<T>> TakeIter<T, I> {
+    /// Advances while the limit and source both have an item.
+    pub method &+self.next(): T? {
+        if self.remaining == 0 {
+            return none
+        }
+        let item = self.source.next() otherwise {
+            self.remaining = 0
+            return none
+        }
+        self.remaining = self.remaining - 1
+        return move item
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> TakeIter<T, I> {
+    /// Returns the smaller of the limit and source remainder.
+    pub method &self.remaining_len(): usize {
+        let source_remaining: usize = self.source.remaining_len()
+        if source_remaining < self.remaining {
+            return source_remaining
+        }
+        return self.remaining
+    }
+}
+
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I>
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I>
+
+/// Discards at most `remaining_to_skip` source items before yielding.
+pub struct SkipIter<T, I> {
+    source: I
+    remaining_to_skip: usize
+}
+
+/// Constructs an owning prefix-skipping adapter.
+pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> {
+    return SkipIter<T, I> {
+        source: move source,
+        remaining_to_skip: count,
+    }
+}
+
+impl<T, I: Iterator<T>> SkipIter<T, I> {
+    /// Discards the requested prefix lazily, then transfers the next item.
+    pub method &+self.next(): T? {
+        while self.remaining_to_skip != 0 {
+            let skipped = self.source.next() otherwise {
+                self.remaining_to_skip = 0
+                return none
+            }
+            self.remaining_to_skip = self.remaining_to_skip - 1
+        }
+        return self.source.next() otherwise { return none }
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> SkipIter<T, I> {
+    /// Returns the exact suffix after the pending skip count.
+    pub method &self.remaining_len(): usize {
+        let source_remaining: usize = self.source.remaining_len()
+        if source_remaining <= self.remaining_to_skip {
+            return 0
+        }
+        return source_remaining - self.remaining_to_skip
+    }
+}
+
+impl<T, I: Iterator<T>> Iterator<T> for SkipIter<T, I>
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for SkipIter<T, I>

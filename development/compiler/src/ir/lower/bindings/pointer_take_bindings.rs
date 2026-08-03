@@ -160,6 +160,87 @@ pub(super) fn lower_pointer_take_binding(
             context.mark_aggregate_local_initialized(&statement.name);
             Ok(Some(instructions))
         }
+        AbiType::Outcome { layout } => {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_binding_diagnostic(
+                    "IR cannot lower a specialized pointer-take outcome without resolved type information",
+                ));
+            };
+            let shape = outcome_shape_with_resolver(&ty, resolved, |source| {
+                context.resolved_source(source)
+            });
+            let payload_abi =
+                abi_value_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .map_err(|_| {
+                    unsupported_binding_diagnostic(
+                        "IR cannot lay out a specialized pointer-take outcome payload",
+                    )
+                })?;
+            let storage = shape.storage_layout(payload_abi.layout).ok_or_else(|| {
+                unsupported_binding_diagnostic(
+                    "IR cannot represent a specialized pointer-take outcome shape",
+                )
+            })?;
+            if storage.layout != layout {
+                return Err(unsupported_binding_diagnostic(
+                    "IR pointer-take outcome storage disagrees with its ABI layout",
+                ));
+            }
+            let payload_type =
+                return_type_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+                    context.resolved_source(source)
+                })
+                .ok_or_else(|| {
+                    unsupported_binding_diagnostic(
+                        "IR cannot represent a specialized pointer-take outcome payload",
+                    )
+                })?;
+            let is_copy = matches!(
+                payload_type,
+                Type::I32
+                    | Type::U8
+                    | Type::Usize
+                    | Type::Bool
+                    | Type::Str
+                    | Type::Slice { .. }
+                    | Type::Borrow { .. }
+            ) || type_expr_is_copy_aggregate_value_with_resolver(
+                &shape.payload,
+                resolved,
+                |source| context.resolved_source(source),
+            );
+            let drop_kind = context
+                .aggregate_drop_for_type_expr(&shape.payload)
+                .map(|payload| {
+                    AggregateDrop::Outcome(OutcomeDrop {
+                        storage: storage.clone(),
+                        payload: Box::new(payload),
+                    })
+                });
+            let slot_index = context.reserve_aggregate_slot_index();
+            let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            instructions.extend(lower_take_value_at_ptr_primitive_call(
+                call,
+                PointerTakeDestination::Aggregate {
+                    location: AggregateLocation::Slot(slot_index),
+                    layout,
+                },
+                context,
+                &mut temporaries,
+            )?);
+            context.define_outcome_local_at_slot(
+                statement.name.clone(),
+                slot_index,
+                storage,
+                payload_type,
+                is_copy,
+                drop_kind,
+            );
+            Ok(Some(instructions))
+        }
         AbiType::SliceView
         | AbiType::I8
         | AbiType::I16
@@ -167,7 +248,6 @@ pub(super) fn lower_pointer_take_binding(
         | AbiType::U16
         | AbiType::U32
         | AbiType::U64
-        | AbiType::Isize
-        | AbiType::Outcome { .. } => Ok(None),
+        | AbiType::Isize => Ok(None),
     }
 }

@@ -563,6 +563,10 @@ fn aggregate_field_matches_borrow_inner(kind: &AggregateFieldKind, inner: &Type)
                 layout: expected, ..
             },
         ) => layout == expected,
+        (AggregateFieldKind::Outcome { storage, .. }, Type::Aggregate { layout })
+        | (AggregateFieldKind::Outcome { storage, .. }, Type::DirectAggregate { layout, .. }) => {
+            storage.layout == *layout
+        }
         _ => false,
     }
 }

@@ -1,0 +1,21 @@
+//! Consuming terminal iterator operations.
+
+use std/iter.Iterator
+
+/// Consumes `source` and returns the number of yielded items.
+pub func count<T, I: Iterator<T>>(source: I): usize {
+    var total: usize = 0
+    for item in source {
+        total = total + 1
+    }
+    return total
+}
+
+/// Consumes `source` and returns its last item, or `none` when empty.
+pub func last<T, I: Iterator<T>>(source: I): T? {
+    var result: T? = none
+    for item in source {
+        result = move item
+    }
+    return move result
+}

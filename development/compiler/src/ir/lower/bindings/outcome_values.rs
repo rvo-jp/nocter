@@ -318,6 +318,9 @@ pub(super) fn lower_outcome_local_binding(
     let Expr::Call(call) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
+    if primitive_take_value_at_ptr_call(call, context) {
+        return Ok(None);
+    }
     let Some(return_type) = context
         .expression_type_expr(call.span)
         .or_else(|| context.call_return_type_expr(call))
@@ -416,6 +419,106 @@ pub(super) fn lower_outcome_local_binding(
     Ok(Some(instructions))
 }
 
+pub(super) fn lower_direct_outcome_local_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if matches!(unwrap_group(&statement.initializer), Expr::Call(_)) {
+        return Ok(None);
+    }
+    let Some(annotation) = statement.ty.as_ref() else {
+        return Ok(None);
+    };
+    let annotation = context.specialize_type_expr(annotation);
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+    let shape = outcome_shape_with_resolver(&annotation, resolved, |source| {
+        context.resolved_source(source)
+    });
+    if shape.layers.is_empty() || !shape.is_supported_callable_shape() {
+        return Ok(None);
+    }
+    let payload_abi = abi_value_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+        context.resolved_source(source)
+    })
+    .map_err(|error| {
+        vec![Diagnostic::error(
+            "E8008",
+            format!("cannot lay out stored outcome payload: {error:?}"),
+        )]
+    })?;
+    let storage = shape.storage_layout(payload_abi.layout).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E8008",
+            "stored outcome has an unsupported layer shape",
+        )]
+    })?;
+    let payload_type =
+        return_type_from_type_expr_with_resolver(&shape.payload, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E8008",
+                "stored outcome payload is not supported by native lowering",
+            )]
+        })?;
+    let slot_index = context.reserve_aggregate_slot_index();
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let Some(mut instructions) = lower_outcome_field_to_location(
+        &storage,
+        &statement.initializer,
+        AggregateLocation::Slot(slot_index),
+        0,
+        "E8008",
+        "stored outcome initializers",
+        resolved,
+        context,
+        &mut temporaries,
+    )?
+    else {
+        return Ok(None);
+    };
+    instructions.insert(
+        0,
+        Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: storage.layout,
+        },
+    );
+    let is_copy =
+        matches!(
+            payload_type,
+            Type::I32
+                | Type::U8
+                | Type::Usize
+                | Type::Bool
+                | Type::Str
+                | Type::Slice { .. }
+                | Type::Borrow { .. }
+        ) || type_expr_is_copy_aggregate_value_with_resolver(&shape.payload, resolved, |source| {
+            context.resolved_source(source)
+        });
+    let drop_kind = context
+        .aggregate_drop_for_type_expr(&shape.payload)
+        .map(|payload| {
+            AggregateDrop::Outcome(OutcomeDrop {
+                storage: storage.clone(),
+                payload: Box::new(payload),
+            })
+        });
+    context.define_outcome_local_at_slot(
+        statement.name.clone(),
+        slot_index,
+        storage,
+        payload_type,
+        is_copy,
+        drop_kind,
+    );
+    Ok(Some(instructions))
+}
+
 pub(super) fn lower_outcome_assignment(
     target: &crate::ast::IdentifierExpr,
     value: &Expr,
@@ -431,10 +534,9 @@ pub(super) fn lower_outcome_assignment(
         )]);
     }
 
-    if let Some((source_name, moved)) = outcome_identifier_initializer(value) {
-        let Some(source) = context.outcome_local(source_name) else {
-            return Ok(None);
-        };
+    if let Some((source_name, moved)) = outcome_identifier_initializer(value)
+        && let Some(source) = context.outcome_local(source_name)
+    {
         if source.storage != destination.storage || !source.is_live || (!moved && !source.is_copy) {
             return Err(vec![Diagnostic::error(
                 "E8008",
@@ -456,6 +558,42 @@ pub(super) fn lower_outcome_assignment(
                 layout: destination.storage.layout,
             },
         ];
+        instructions.extend(lower_outcome_replacement_drop(&destination, context)?);
+        instructions.push(Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(destination.slot_index),
+            source: AggregateLocation::Slot(replacement_slot),
+            layout: destination.storage.layout,
+        });
+        return Ok(Some(instructions));
+    }
+
+    if !matches!(unwrap_group(value), Expr::Call(_)) {
+        let Some((_root_source, resolved)) = context.resolved_calls() else {
+            return Ok(None);
+        };
+        let replacement_slot = context.reserve_aggregate_slot_index();
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let Some(mut instructions) = lower_outcome_field_to_location(
+            &destination.storage,
+            value,
+            AggregateLocation::Slot(replacement_slot),
+            0,
+            "E8008",
+            "stored outcome assignments",
+            resolved,
+            context,
+            &mut temporaries,
+        )?
+        else {
+            return Ok(None);
+        };
+        instructions.insert(
+            0,
+            Instruction::ReserveAggregateSlot {
+                slot_index: replacement_slot,
+                layout: destination.storage.layout,
+            },
+        );
         instructions.extend(lower_outcome_replacement_drop(&destination, context)?);
         instructions.push(Instruction::CopyAggregate {
             destination: AggregateLocation::Slot(destination.slot_index),

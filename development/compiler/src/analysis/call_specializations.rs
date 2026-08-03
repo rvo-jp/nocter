@@ -364,8 +364,13 @@ fn iteration_method_call_specialization(
     analysis: &CompileUnitAnalysis,
     method: &crate::typecheck::TypecheckIterationMethod,
 ) -> Option<MethodCallSpecialization> {
-    let (_file, impl_, _declaration) =
-        method_declaration_for_span(analysis, method.declaration_span)?;
+    let Some((_file, impl_, _declaration)) =
+        method_declaration_for_span(analysis, method.declaration_span)
+    else {
+        return interface_method_name_for_span(analysis, method.declaration_span)
+            .is_some()
+            .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
+    };
     let substitutions = impl_substitutions_for_self_ty(impl_, &method.self_ty)?;
     let generic_parameters = impl_
         .generics

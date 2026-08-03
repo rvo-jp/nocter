@@ -382,6 +382,9 @@ pub(in crate::ir::lower) fn lower_i32_value(
             .i32_location(&identifier.name)
             .map(I32Value::Location)
             .ok_or_else(unsupported_i32_expression_diagnostic),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            lower_i32_value(&unary.operand, context)
+        }
         Expr::Group(group) => lower_i32_value(&group.expression, context),
         _ => lower_i32_literal(expression).map(I32Value::Const),
     }
@@ -401,6 +404,9 @@ pub(in crate::ir::lower) fn lower_u8_value(
             .payloadless_enum_variant_tag(member)
             .map(U8Value::Const)
             .ok_or_else(unsupported_u8_expression_diagnostic),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            lower_u8_value(&unary.operand, context)
+        }
         Expr::Group(group) => lower_u8_value(&group.expression, context),
         _ => lower_u8_literal(expression).map(U8Value::Const),
     }
@@ -416,6 +422,9 @@ pub(in crate::ir::lower) fn lower_usize_value(
             .usize_location(&identifier.name)
             .map(UsizeValue::Location)
             .ok_or_else(unsupported_usize_expression_diagnostic),
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            lower_usize_value(&unary.operand, context)
+        }
         Expr::Group(group) => lower_usize_value(&group.expression, context),
         _ => lower_usize_literal(expression).map(UsizeValue::Const),
     }

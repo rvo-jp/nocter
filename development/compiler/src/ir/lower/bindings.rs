@@ -9,7 +9,7 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_progress,
-    lower_aggregate_struct_literal_to_location_with_temporaries,
+    lower_aggregate_struct_literal_to_location_with_temporaries, lower_outcome_field_to_location,
     lower_payload_enum_constructor_to_location,
     lower_payload_enum_constructor_to_location_with_progress,
     payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
@@ -40,8 +40,8 @@ use super::expressions::{
     lower_str_expression_to_value, lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
     lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
-    lower_void_expression_statement, push_store_slice_view_to_aggregate_field,
-    push_store_str_view_to_aggregate_field,
+    lower_void_expression_statement, primitive_take_value_at_ptr_call,
+    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
@@ -138,6 +138,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_outcome_local_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_direct_outcome_local_binding(statement, context)? {
         return Ok(instructions);
     }
 

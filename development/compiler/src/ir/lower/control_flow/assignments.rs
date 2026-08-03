@@ -48,6 +48,7 @@ pub(super) fn nonterminal_assignment_target_allowed(
         || assignment_targets_whole_scalar_or_view_local(statement, context)
         || compound_assignment_targets_scalar_integer_local(statement, context)
         || assignment_targets_whole_aggregate_local(statement, context)
+        || assignment_targets_whole_outcome_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
         || assignment_targets_direct_slice_index(statement, context)
 }
@@ -113,6 +114,19 @@ fn assignment_targets_whole_aggregate_local(
         return false;
     };
     context.aggregate_local(&identifier.name).is_some()
+}
+
+fn assignment_targets_whole_outcome_local(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    context.outcome_local(&identifier.name).is_some()
 }
 
 pub(super) fn outer_aggregate_assignment_before_function_exit_allowed(

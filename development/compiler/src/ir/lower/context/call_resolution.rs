@@ -208,6 +208,12 @@ impl<'a> LoweringContext<'a> {
         method: &crate::typecheck::TypecheckIterationMethod,
     ) -> Option<CallTarget> {
         let resolution = self.call_resolution.as_ref()?;
+        if let Some(target) = self
+            .function_names
+            .unique_target_for_name(&method.target_name)
+        {
+            return Some(target.clone());
+        }
         Some(call_target_for_source(
             method.declaration_span.source,
             resolution.root_source,

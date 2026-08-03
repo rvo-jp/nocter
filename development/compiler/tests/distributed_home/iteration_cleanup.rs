@@ -222,6 +222,65 @@ fn distributed_std_owned_iterator_break_drops_the_full_remaining_range() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_chain_break_drops_current_then_unconsumed_suffix_once() {
+    let project = TempProject::new("distributed-home-chain-break-cleanup-run");
+    let source = project.write_source(
+        "chain_break_cleanup_run.nct",
+        &token_program(
+            r#"    let source = chain(
+        once(Token { label: "A" }),
+        once(Token { label: "B" }),
+    )
+    for token in source {
+        drop token
+        break
+    }
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"AB");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_last_drops_discarded_items_and_returns_final_owner_once() {
+    let project = TempProject::new("distributed-home-last-cleanup-run");
+    let source = project.write_source(
+        "last_cleanup_run.nct",
+        &token_program(
+            r#"    let final = last(chain(
+        once(Token { label: "A" }),
+        once(Token { label: "B" }),
+    )) otherwise { return 1 }
+    drop final
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"AB");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_builder_drops_transferred_items_in_vector_order() {
+    let project = TempProject::new("distributed-home-vec-builder-cleanup-run");
+    let source = project.write_source(
+        "vec_builder_cleanup_run.nct",
+        &token_program(
+            r#"    let values: Vec<Token> = Vec.from_iter(chain(
+        once(Token { label: "A" }),
+        once(Token { label: "B" }),
+    ))
+    return 42"#,
+        ),
+    );
+
+    assert_token_run(&project, &source, b"BA");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_owned_iterator_propagation_drops_the_remaining_range() {
     let project = TempProject::new("distributed-home-owned-iterator-propagation-cleanup-run");
     let source = project.write_source(
@@ -273,6 +332,9 @@ func main(): i32 {
 fn token_program(main_body: &str) -> String {
     format!(
         r#"use std/io.print
+use std/iter/chain.chain
+use std/iter/ops.last
+use std/iter/sources.once
 use std/vec.Vec
 
 struct Token {{

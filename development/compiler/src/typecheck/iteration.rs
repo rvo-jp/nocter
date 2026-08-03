@@ -3,7 +3,9 @@
 use super::calls::method_applies_to_receiver;
 use super::copyability::non_copy_owned_type_kind;
 use super::expressions::expression_type;
-use super::interface_bounds::implemented_interface_types;
+use super::interface_bounds::{
+    implemented_interface_types, interface_symbols_for_generic_parameter,
+};
 use super::model::{Type, TypeEnvironment};
 use crate::ast::{CollectionForStmt, Expr, MethodReceiverMode, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -79,9 +81,15 @@ pub(super) fn resolve_sequence_spread(
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let source_type = expression_type(&unary.operand, resolved, environment);
             let iteration = if let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved)
+                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             {
-                resolve_direct_iteration(source_type, iterator_interface, runtime, resolved)?
+                resolve_direct_iteration(
+                    source_type,
+                    iterator_interface,
+                    runtime,
+                    resolved,
+                    environment,
+                )?
             } else {
                 resolve_converted_iteration(
                     CollectionIterationSourceMode::OwnedConversion,
@@ -106,11 +114,13 @@ pub(super) fn resolve_sequence_spread(
             )?,
         ),
     };
-    let exact_interface =
-        implemented_protocol_type(&iteration.iterator_type, &runtime.exact_size, resolved)
-            .ok_or_else(|| {
-                CollectionIterationError::MissingExactSize(iteration.iterator_type.clone())
-            })?;
+    let exact_interface = implemented_protocol_type(
+        &iteration.iterator_type,
+        &runtime.exact_size,
+        resolved,
+        environment,
+    )
+    .ok_or_else(|| CollectionIterationError::MissingExactSize(iteration.iterator_type.clone()))?;
     let exact_item = protocol_item_type(&exact_interface)
         .ok_or(CollectionIterationError::MalformedConformance)?;
     if exact_item != &iteration.item_type {
@@ -138,6 +148,7 @@ pub(super) fn resolve_sequence_spread(
             &iteration.iterator_type,
             &runtime.exact_size,
             resolved,
+            environment,
         )?,
         iteration,
         pack_item_type,
@@ -179,9 +190,15 @@ pub(super) fn resolve_collection_iteration(
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let source_type = expression_type(&unary.operand, resolved, environment);
             if let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved)
+                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             {
-                resolve_direct_iteration(source_type, iterator_interface, runtime, resolved)
+                resolve_direct_iteration(
+                    source_type,
+                    iterator_interface,
+                    runtime,
+                    resolved,
+                    environment,
+                )
             } else {
                 resolve_converted_iteration(
                     CollectionIterationSourceMode::OwnedConversion,
@@ -196,11 +213,17 @@ pub(super) fn resolve_collection_iteration(
         expression => {
             let source_type = expression_type(expression, resolved, environment);
             let Some(iterator_interface) =
-                implemented_protocol_type(&source_type, &runtime.iterator, resolved)
+                implemented_protocol_type(&source_type, &runtime.iterator, resolved, environment)
             else {
                 return Err(CollectionIterationError::AmbiguousCollection(source_type));
             };
-            resolve_direct_iteration(source_type, iterator_interface, runtime, resolved)
+            resolve_direct_iteration(
+                source_type,
+                iterator_interface,
+                runtime,
+                resolved,
+                environment,
+            )
         }
     }
 }
@@ -218,7 +241,7 @@ fn resolve_converted_iteration(
         return Err(CollectionIterationError::UnresolvedSource);
     }
     let conversion_interface =
-        implemented_protocol_type(&source_type, conversion_protocol, resolved)
+        implemented_protocol_type(&source_type, conversion_protocol, resolved, environment)
             .ok_or_else(|| CollectionIterationError::MissingConversion(source_type.clone()))?;
     let Type::Generic { arguments, .. } = conversion_interface else {
         return Err(CollectionIterationError::MalformedConformance);
@@ -226,8 +249,9 @@ fn resolve_converted_iteration(
     let [item_type, iterator_type] = arguments.as_slice() else {
         return Err(CollectionIterationError::MalformedConformance);
     };
-    let iterator_interface = implemented_protocol_type(iterator_type, &runtime.iterator, resolved)
-        .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
+    let iterator_interface =
+        implemented_protocol_type(iterator_type, &runtime.iterator, resolved, environment)
+            .ok_or_else(|| CollectionIterationError::MissingIterator(iterator_type.clone()))?;
     let iterator_item = protocol_item_type(&iterator_interface)
         .ok_or(CollectionIterationError::MalformedConformance)?;
     if iterator_item != item_type {
@@ -246,8 +270,9 @@ fn resolve_converted_iteration(
             &source_type,
             conversion_protocol,
             resolved,
+            environment,
         )?),
-        step: resolve_concrete_method(iterator_type, &runtime.iterator, resolved)?,
+        step: resolve_concrete_method(iterator_type, &runtime.iterator, resolved, environment)?,
     })
 }
 
@@ -256,6 +281,7 @@ fn resolve_direct_iteration(
     iterator_interface: Type,
     runtime: &IterationRuntime,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
 ) -> Result<CollectionIterationResolution, CollectionIterationError> {
     let item_type = protocol_item_type(&iterator_interface)
         .ok_or(CollectionIterationError::MalformedConformance)?
@@ -266,7 +292,7 @@ fn resolve_direct_iteration(
         iterator_type: source_type.clone(),
         item_type,
         conversion: None,
-        step: resolve_concrete_method(&source_type, &runtime.iterator, resolved)?,
+        step: resolve_concrete_method(&source_type, &runtime.iterator, resolved, environment)?,
     })
 }
 
@@ -284,7 +310,21 @@ fn implemented_protocol_type(
     actual: &Type,
     protocol: &IterationProtocol,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
 ) -> Option<Type> {
+    let parameter = match actual {
+        Type::Parameter(parameter) => Some(parameter.as_str()),
+        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => {
+            Some(parameter.as_str())
+        }
+        _ => None,
+    };
+    if let Some(parameter) = parameter {
+        return interface_symbols_for_generic_parameter(parameter, environment, resolved)
+            .into_iter()
+            .map(|(_, bound)| bound)
+            .find(|bound| protocol_type_matches(bound, protocol, resolved));
+    }
     implemented_interface_types(actual, resolved)
         .into_iter()
         .find(|implemented| protocol_type_matches(implemented, protocol, resolved))
@@ -302,7 +342,28 @@ fn resolve_concrete_method(
     receiver_type: &Type,
     protocol: &IterationProtocol,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
 ) -> Result<IterationMethodResolution, CollectionIterationError> {
+    let parameter = match receiver_type {
+        Type::Parameter(parameter) => Some(parameter.as_str()),
+        Type::Named(parameter) if environment.generic_bounds(parameter).is_some() => {
+            Some(parameter.as_str())
+        }
+        _ => None,
+    };
+    if let Some(parameter) = parameter {
+        let method = interface_symbols_for_generic_parameter(parameter, environment, resolved)
+            .into_iter()
+            .find(|(symbol, _)| symbol.canonical_name == protocol.interface_canonical_name)
+            .and_then(|(symbol, _)| {
+                symbol
+                    .methods
+                    .iter()
+                    .find(|method| method.name == protocol.method_name)
+            })
+            .ok_or(CollectionIterationError::MalformedConformance)?;
+        return Ok(iteration_method(receiver_type, method));
+    }
     let symbol = receiver_type
         .nominal_name()
         .and_then(|name| resolved.type_symbol_by_canonical_name(name))

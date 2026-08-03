@@ -184,10 +184,16 @@ pub(super) fn lower_aggregate_field_assignment(
             let mut temporaries = TemporaryAllocator::new(context)?;
             let replacement_slot = temporaries.next_aggregate_slot();
             let Some(mut instructions) = super::super::aggregates::lower_outcome_field_to_location(
-                storage.layout,
+                &storage,
                 value,
                 AggregateLocation::Slot(replacement_slot),
                 0,
+                "E8011",
+                "field assignments",
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(unsupported_assignment_diagnostic)?,
                 context,
                 &mut temporaries,
             )?
