@@ -84,7 +84,7 @@ interface declaration identity.
   across module boundaries.
 - `typecheck/interface_bounds` owns generic-receiver lookup and conformance substitution.
 - `typecheck/facts` records bound-call targets and specializations; `analysis/call_specializations`
-  redirects reachable concrete calls to inherent implementations.
+  redirects reachable concrete calls to conformance implementation members.
 - `analysis` presents compiler facts; protocol code only converts source ranges and labels.
 
 Contract validation is covariant in safety: an implementation may return storage that outlives the
@@ -95,8 +95,8 @@ Unknown provenance never satisfies an explicit contract.
 
 Generic source is checked against the interface method signature. Each reachable concrete
 specialization must have explicit conformance to the canonical interface instantiation. The
-conformance target's public inherent method is then lowered through the ordinary method call path.
-No vtable, witness table, runtime type identity, or name-based backend lookup is introduced.
+selected conformance member is lowered through the ordinary static method call path. No vtable,
+witness table, runtime type identity, or name-based backend lookup is introduced.
 
 ## Editor Contract
 

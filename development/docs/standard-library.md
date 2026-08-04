@@ -186,10 +186,10 @@ pub interface Sequence<T> {
 pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
 ```
 
-`Vec<T>` explicitly conforms to `Sequence<T>` and its inherent `get` method declares `from self`.
-`first` is allocation-free: it forwards the element borrow and keeps the original sequence loan
-active until the result's last use. Generic checking uses the interface signature, while each
-buildable concrete instantiation statically calls the public inherent method.
+`Vec<T>` explicitly conforms to `Sequence<T>` and its implementation member `get` declares
+`from self`. `first` is allocation-free: it forwards the element borrow and keeps the original
+sequence loan active until the result's last use. Generic checking uses the interface signature,
+while each buildable concrete instantiation statically calls the conformance member.
 
 Repository-home and packaged-home tests reject mutation while the returned element is live. A
 packaged native test observes the concrete element and subsequent ordinary vector cleanup, proving

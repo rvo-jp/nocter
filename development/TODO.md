@@ -17,10 +17,9 @@ chronological implementation history.
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
-  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`,
-  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`, and
-  `v0.3.0 Stabilization`
-- active milestone gate: none
+  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
+  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
+- active milestone gate: `v0.3.0 Stabilization` (body-bearing interface implementations)
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -86,6 +85,9 @@ with warnings denied, public documentation generation, local release packaging, 
 `doctor`, and archive inspection pass from `develop`. The distributed runtime suite passes all 199
 Phase 0 through Phase 10 integration cases.
 
-No required stabilization item remains. The next state-changing operation is an explicit v0.3.0
-release-preparation decision covering version metadata, release notes, final packaging, tagging,
-and publication; stabilization intentionally did not perform that operation.
+The previous qualification is retained as a checkpoint, but the stabilization gate is reopened.
+The active task replaces structural matching against public inherent methods with canonical
+members declared in `impl Interface for Type { ... }`. Parser, resolver, typecheck,
+specialization, lowering, ownership, analysis, LSP, the distributed standard library, and packaged
+execution must share the implementation member's declaration identity. No compatibility path for
+brace-less conformance or inherent-method satisfaction will remain.

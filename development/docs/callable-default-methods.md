@@ -106,7 +106,7 @@ aborting allocation context through the existing vector builder.
 
 ## Verification
 
-Focused tests cover required/default conformance, inherent override, generic and concrete lookup,
+Focused tests cover required/default conformance, conformance-body override, generic and concrete lookup,
 default ambiguity, method-generic scope, zero/one/two-parameter closures, every capture mode,
 move-only cleanup, closure provenance and allocation effects, map/filter order, exact-size
 preservation, terminal collection, region escape, incomplete editor input, and repository plus

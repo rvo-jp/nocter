@@ -49,13 +49,14 @@ pub method self.map<U, F: CallMut<T, U>>(transform: F): MapIter<T, U, Self, F> {
 }
 ```
 
-Method lookup first considers an applicable inherent method. Otherwise it considers default
-methods from interfaces to which the receiver explicitly conforms, or from the bounds of a generic
-receiver. Two applicable defaults with the same name are ambiguous. Declaration or import order
-never selects one. The selected default declaration is statically specialized and called directly.
+Method lookup considers inherent methods and members or defaults from interfaces to which the
+receiver explicitly conforms, or from the bounds of a generic receiver. Two applicable declarations
+with the same name are ambiguous across those categories. Declaration or import order never selects
+one. The selected declaration is statically specialized and called directly.
 
-An inherent method with the same compatible signature is an explicit override. It also satisfies a
-required method of the same interface. A default method cannot itself establish conformance.
+A required method is implemented in the body of `impl Interface for Type { ... }`. A conformance
+member with the same name as a default is its explicit override. Inherent methods neither satisfy
+required methods nor override defaults. A default method cannot itself establish conformance.
 
 ## Closure Expressions
 

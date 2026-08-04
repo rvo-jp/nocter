@@ -111,30 +111,36 @@ impl Count {
 // error: Count is a type alias, not a nominal type
 ```
 
-`impl Interface for Type` declares explicit conformance to an interface. It is
-not an inherent impl block and cannot contain members.
+The released v0.2.0 form `impl Interface for Type` declares structural conformance and cannot
+contain members. The adopted v0.3.0 form replaces it with a body-bearing declaration whose braces
+are mandatory and whose members own the interface implementation:
 
 ```nct
-impl Printable for User
-impl Printable for User {}
-```
-
-Generic conformance declarations use the same impl generic parameter list:
-
-```nct
-impl<T> Source<T> for Box<T>
-```
-
-The implementing methods are ordinary public inherent methods on the target
-type.
-
-```nct
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 0
     }
 }
 ```
+
+Generic interface implementations use the same impl generic parameter list:
+
+```nct
+impl<T> Source<T> for Box<T> {
+    method &self.read(): T {
+        return self.value
+    }
+}
+```
+
+The interface declaration owns visibility. An implementation member therefore omits `pub` and is
+not an inherent method. Required methods must appear with bodies. A default method may be omitted
+or overridden by a same-name implementation member. An empty body is valid only when the interface
+has no unimplemented required method.
+
+An interface implementation cannot contain extra methods, associated functions, literals, or a
+`drop` member. An inherent method never establishes or overrides conformance. Brace-less
+conformance declarations are not part of the adopted v0.3.0 surface.
 
 Initial receiver forms:
 
@@ -206,7 +212,8 @@ func read<S: Source<i32>>(source: &S): i32 {
 ```
 
 Lookup on `S` searches only the canonical `Source<i32>` contract. Each concrete specialization
-requires explicit conformance and statically resolves to the matching public inherent method.
+requires explicit conformance and statically resolves to the matching member of the body-bearing
+interface implementation.
 Phase 9 extends this to a finite capability set while retaining static dispatch:
 
 ```nct
@@ -219,10 +226,12 @@ The set is resolved by specialized interface declaration identity. If two distin
 the requested method name, the call is ambiguous even when their displayed signatures match.
 Runtime interface objects and `where` clauses remain unavailable.
 
-Concrete-receiver lookup order remains:
+Concrete-receiver lookup in the adopted v0.3.0 model is:
 
-1. inherent method on a concrete nominal receiver type
-2. no candidate, producing a compile error
+1. collect the applicable inherent method and accessible conformance members or defaults
+2. select the sole candidate
+3. diagnose ambiguity across inherent and conformance categories rather than using declaration or
+   import order
 
 Bounded generic-receiver lookup in v0.3.0 Phase 9 is separate:
 
@@ -230,7 +239,7 @@ Bounded generic-receiver lookup in v0.3.0 Phase 9 is separate:
 2. search only accessible methods declared by those interfaces
 3. typecheck against the specialized interface signature
 4. require explicit conformance for every reachable concrete specialization
-5. lower directly to the matching public inherent method
+5. lower directly to the matching conformance member or specialized default declaration
 
 The compiler never falls back to an inherent method merely because it has the same name as a
 missing bound method.
@@ -328,11 +337,12 @@ pub interface Counter {
 }
 ```
 
-An explicit `impl Interface for Type` must satisfy every bodyless method. Default bodies are checked
-with `Self` constrained by their declaring interface and are statically specialized at use sites.
-An applicable inherent method takes precedence and acts as an explicit override. If two proven
-interfaces supply an otherwise applicable default with the same name, the call is ambiguous.
-Import or declaration order never resolves that ambiguity.
+An explicit `impl Interface for Type { ... }` must implement every bodyless method in its own body.
+Default bodies are checked with `Self` constrained by their declaring interface and are statically
+specialized at use sites. A conformance member with the same name is an explicit override. An
+inherent member cannot implement or override an interface member. If inherent and conformance
+members, or two applicable conformances, supply the same call name, lookup is ambiguous. Import or
+declaration order never resolves that ambiguity.
 
 See [Callable Values and Interface Default Methods](18-callables-default-methods.md) for the Phase
 10 callable and lookup contract.
