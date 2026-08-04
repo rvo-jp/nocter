@@ -60,8 +60,9 @@ mod utility;
 
 use aggregate_arguments::{
     lower_aggregate_argument_source, lower_tracked_array_argument_source,
-    lower_tracked_interpolation_argument_source, lower_tracked_payload_argument_source,
-    lower_tracked_spread_argument_source, lower_tracked_struct_argument_source,
+    lower_tracked_closure_argument_source, lower_tracked_interpolation_argument_source,
+    lower_tracked_payload_argument_source, lower_tracked_spread_argument_source,
+    lower_tracked_struct_argument_source,
 };
 pub(in crate::ir::lower) use arguments::lower_call_arguments_with_explicit_types;
 pub(super) use arguments::{call_arguments_require_stack, lower_call_arguments};

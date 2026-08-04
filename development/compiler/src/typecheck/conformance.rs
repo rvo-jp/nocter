@@ -29,6 +29,11 @@ fn satisfies_inner(
     resolved: &ResolveOutput,
     active: &mut HashSet<(String, String)>,
 ) -> bool {
+    if let Type::Closure(closure) = actual
+        && super::closures::closure_satisfies_callable_bound(closure, bound, resolved)
+    {
+        return true;
+    }
     let key = (actual.display(), bound.display());
     if !active.insert(key.clone()) {
         return false;

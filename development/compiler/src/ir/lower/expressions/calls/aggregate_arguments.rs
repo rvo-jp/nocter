@@ -1,5 +1,48 @@
 use super::*;
 
+pub(super) fn lower_tracked_closure_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    _callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Expr::Closure(closure) = unwrap_group(argument) else {
+        return Ok(None);
+    };
+    let Some(parameter_type_expr @ TypeExpr::Closure(_)) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let slot_index = temporaries.next_aggregate_slot();
+    evaluation.sync_temporaries(temporaries)?;
+    let instructions = crate::ir::lower::closures::lower_closure_to_slot(
+        closure,
+        parameter_type_expr,
+        slot_index,
+        evaluation.context(),
+        temporaries,
+    )?;
+    let actual_layout = evaluation
+        .context()
+        .abi_value_for_type_expr(parameter_type_expr)
+        .map(|value| value.layout);
+    if actual_layout != Some(expected_layout) {
+        return Err(vec![Diagnostic::error(
+            "E8015",
+            "closure argument layout does not match its specialized callable parameter",
+        )]);
+    }
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
 pub(super) fn lower_tracked_spread_argument_source(
     argument: &Expr,
     parameter_type: &Type,
@@ -467,6 +510,7 @@ pub(super) fn lower_tracked_array_argument_source(
 
 pub(super) fn lower_aggregate_argument_source(
     argument: &Expr,
+    is_owned_method_receiver: bool,
     parameter_type: &Type,
     parameter_type_expr: Option<&TypeExpr>,
     callee_name: &str,
@@ -518,7 +562,11 @@ pub(super) fn lower_aggregate_argument_source(
     match unwrap_group(argument) {
         Expr::Identifier(identifier) => lower_aggregate_local_argument_source(
             &identifier.name,
-            AggregateValueUse::ImplicitCopy,
+            if is_owned_method_receiver {
+                AggregateValueUse::ExplicitMove
+            } else {
+                AggregateValueUse::ImplicitCopy
+            },
             expected_layout,
             parameter_type,
             callee_name,

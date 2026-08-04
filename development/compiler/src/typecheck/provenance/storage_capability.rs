@@ -25,6 +25,15 @@ fn type_contains_pointer(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        Type::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode != crate::ast::ClosureCaptureMode::Move
+                || type_expr_contains_pointer(
+                    &capture.ty,
+                    resolved,
+                    &HashMap::new(),
+                    resolving_names,
+                )
+        }),
         Type::Pointer(_) => true,
         Type::Named(name) => {
             type_symbol_contains_pointer(name, resolved, &HashMap::new(), resolving_names)
@@ -106,6 +115,10 @@ fn type_expr_contains_pointer(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode != crate::ast::ClosureCaptureMode::Move
+                || type_expr_contains_pointer(&capture.ty, resolved, substitutions, resolving_names)
+        }),
         TypeExpr::Pointer(_) => true,
         TypeExpr::Borrow(borrow) => {
             type_expr_contains_pointer(&borrow.inner, resolved, substitutions, resolving_names)

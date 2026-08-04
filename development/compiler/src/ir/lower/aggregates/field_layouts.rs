@@ -73,6 +73,19 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(closure) => Some(
+            closure
+                .captures
+                .iter()
+                .map(|capture| StructFieldSignature {
+                    name: capture.name.clone(),
+                    name_span: capture.ty.span(),
+                    ty: capture.ty.clone(),
+                    visibility: crate::ast::Visibility::Private,
+                    is_accessible: true,
+                })
+                .collect(),
+        ),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
@@ -330,6 +343,19 @@ where
         AbiType::U64 => Some(AggregateFieldKind::U64),
         AbiType::U8 => Some(AggregateFieldKind::U8),
         AbiType::Bool => Some(AggregateFieldKind::Bool),
+        AbiType::Borrow => {
+            let TypeExpr::Borrow(borrow) = source_ty? else {
+                return None;
+            };
+            Some(AggregateFieldKind::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: return_type_from_type_expr_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                )?,
+            })
+        }
         AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
         AbiType::Array { element, length } => {

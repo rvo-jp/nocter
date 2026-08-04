@@ -3,24 +3,25 @@
 //! ViewIter retains the source view itself so element borrows preserve the
 //! view's storage origin. Iterator names are ordinary standard-library APIs.
 
-/// Advances a mutable iterator and returns one item, or `none` at exhaustion.
-pub interface Iterator<T> {
-    pub method &+self.next(): T?
-}
-
-/// Reports the exact number of values that the iterator has not yielded yet.
-pub interface ExactSizeIterator<T> {
-    pub method &self.remaining_len(): usize
-}
-
-/// Creates a readonly iterator whose yielded values retain the collection origin.
-pub interface Iterable<T, I> {
-    pub method &self.iter(): I
-}
-
-/// Transfers a collection into an owning iterator.
-pub interface IntoIterator<T, I> {
-    pub method self.into_iter(): I
+pub use std/iter/core.{
+    ExactSizeIterator,
+    ChainIter,
+    EnumerateIter,
+    FilterIter,
+    FoldStep,
+    Indexed,
+    IntoIterator,
+    Iterable,
+    Iterator,
+    MapIter,
+    SkipIter,
+    TakeIter,
+    chain,
+    enumerate,
+    filter,
+    map,
+    skip,
+    take,
 }
 
 /// A forward cursor over readonly borrows into contiguous storage.

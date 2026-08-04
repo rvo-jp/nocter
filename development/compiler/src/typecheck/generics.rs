@@ -282,6 +282,15 @@ fn check_type_expr(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match ty {
+        TypeExpr::Closure(closure) => {
+            for capture in &closure.captures {
+                check_type_expr(sources, &capture.ty, resolved, scope, diagnostics);
+            }
+            for parameter in &closure.parameters {
+                check_type_expr(sources, parameter, resolved, scope, diagnostics);
+            }
+            check_type_expr(sources, &closure.return_type, resolved, scope, diagnostics);
+        }
         TypeExpr::Reference(reference) => {
             if reference.name == "Self" {
                 if !scope.allows_self_type() {

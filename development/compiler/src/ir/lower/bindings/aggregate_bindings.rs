@@ -477,7 +477,12 @@ pub(super) fn lower_aggregate_move_binding(
     let Some(source) = context.aggregate_local(&identifier.name) else {
         return Ok(None);
     };
-    if !supported_aggregate_copy_layout(source.layout) {
+    let is_zero_sized_closure = source.layout.size == 0
+        && matches!(
+            context.local_binding_type_expr_for_identifier(identifier),
+            Some(TypeExpr::Closure(_))
+        );
+    if !supported_aggregate_copy_layout(source.layout) && !is_zero_sized_closure {
         return Err(unsupported_binding_diagnostic(
             "IR v0 can only lower aggregate move bindings for supported aggregate layouts",
         ));

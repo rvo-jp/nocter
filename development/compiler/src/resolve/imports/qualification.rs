@@ -219,6 +219,30 @@ fn qualify_type_expr(
     imported_type_names: &[ImportedTypeName],
 ) {
     match ty {
+        TypeExpr::Closure(closure) => {
+            for capture in &mut closure.captures {
+                qualify_type_expr(
+                    &mut capture.ty,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            for parameter in &mut closure.parameters {
+                qualify_type_expr(
+                    parameter,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            qualify_type_expr(
+                &mut closure.return_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
         TypeExpr::Reference(reference) => {
             if local_type_names.iter().any(|name| name == &reference.name) {
                 reference.name = format!("{import_path}.{}", reference.name);

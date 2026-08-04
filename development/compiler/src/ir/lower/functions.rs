@@ -96,7 +96,7 @@ mod diagnostics;
 mod entrypoints;
 mod otherwise_returns;
 mod outcome_returns;
-mod parameters;
+pub(super) mod parameters;
 mod payload_patterns;
 mod return_scopes;
 mod scope_drops;

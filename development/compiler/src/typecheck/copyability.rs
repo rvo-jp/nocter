@@ -224,6 +224,17 @@ fn type_expr_is_copy_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        TypeExpr::Closure(closure) => closure
+            .captures
+            .iter()
+            .map(|capture| match capture.mode {
+                crate::ast::ClosureCaptureMode::ReadonlyBorrow => Some(true),
+                crate::ast::ClosureCaptureMode::ReadwriteBorrow => Some(false),
+                crate::ast::ClosureCaptureMode::Move => {
+                    type_expr_is_copy_inner(&capture.ty, resolved, substitutions, resolving_names)
+                }
+            })
+            .try_fold(true, |all, copy| copy.map(|copy| all && copy)),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => Some(true),
@@ -301,6 +312,12 @@ fn type_is_copy_maybe_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        Type::Closure(closure) => type_expr_is_copy_inner(
+            &TypeExpr::Closure(closure.clone()),
+            resolved,
+            &HashMap::new(),
+            resolving_names,
+        ),
         Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => Some(true),
         Type::View {
             is_readwrite: false,

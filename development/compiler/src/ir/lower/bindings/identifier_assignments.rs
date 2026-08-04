@@ -5,6 +5,10 @@ pub(super) fn lower_identifier_assignment(
     value: &Expr,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_i32_closure_capture_assignment(identifier, value, context)? {
+        return Ok(instructions);
+    }
+
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());

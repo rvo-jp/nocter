@@ -38,6 +38,32 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_i32()?;
+        if let Some(instructions) =
+            lower_i32_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredI32Value {
+                instructions,
+                value: I32Value::Location(destination),
+            });
+        }
+    }
+    if let Expr::Identifier(identifier) = expression
+        && context.closure_capture_field(&identifier.name).is_some()
+    {
+        let destination = temporaries.next_i32()?;
+        let instructions =
+            lower_i32_closure_capture_to_location(identifier, destination, context, temporaries)?
+                .ok_or_else(unsupported_i32_expression_diagnostic)?;
+        return Ok(LoweredI32Value {
+            instructions,
+            value: I32Value::Location(destination),
+        });
+    }
     match expression {
         Expr::Call(call) => {
             let temporary = temporaries.next_i32()?;

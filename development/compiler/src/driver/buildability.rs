@@ -279,6 +279,48 @@ impl<'a> CallableIndex<'a> {
             }
         }
 
+        for specialization in call_specializations.methods.values().flatten() {
+            let TypeExpr::Closure(closure_ty) = &specialization.self_ty else {
+                continue;
+            };
+            let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
+                continue;
+            };
+            let Some(expression) =
+                crate::ast::closure_expression_by_span(&file.ast, closure_ty.span)
+            else {
+                continue;
+            };
+            let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
+                continue;
+            };
+            let Some(receiver_mode) = file
+                .resolved
+                .trusted_declarations
+                .callable_runtime()
+                .and_then(|runtime| {
+                    runtime.receiver_mode_for_method(specialization.declaration_span)
+                })
+            else {
+                continue;
+            };
+            let target = call_target_for_source(
+                specialization.declaration_span.source,
+                root_source,
+                specialization.target_name.clone(),
+            );
+            definitions.insert(
+                target,
+                IndexedCallable::new_closure(
+                    expression,
+                    plan,
+                    receiver_mode,
+                    file,
+                    &resolved_sources,
+                ),
+            );
+        }
+
         Self {
             definitions,
             names,
@@ -436,8 +478,34 @@ impl<'a> IndexedCallable<'a> {
             issues,
         }
     }
+
+    fn new_closure(
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
+    ) -> Self {
+        let issues = closures::closure_signature_issues(
+            expression,
+            &plan,
+            receiver_mode,
+            &file.resolved,
+            resolved_sources,
+        );
+        Self {
+            span: expression.span,
+            body: &expression.body,
+            return_type: Some((*plan.ty.return_type).clone()),
+            substitutions: HashMap::new(),
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+            issues,
+        }
+    }
 }
 
+mod closures;
 mod diagnostics;
 mod fixed_arrays;
 mod runtime_support;

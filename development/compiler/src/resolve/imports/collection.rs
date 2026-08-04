@@ -596,6 +596,12 @@ impl Resolver<'_> {
             if !imported.is_visible_to(import_source.access) {
                 continue;
             }
+            if !self
+                .collected_hidden_type_dependencies
+                .insert((imported_ast.span.source, type_name.imported_name.clone()))
+            {
+                continue;
+            }
             let imported = filter_importable_symbol_for_access(imported, import_source.access);
             let nested_local_type_names = imported.local_type_names.clone();
             let nested_imported_type_names = imported.imported_type_names.clone();

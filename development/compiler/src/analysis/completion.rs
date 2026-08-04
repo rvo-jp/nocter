@@ -615,6 +615,7 @@ fn literal_owner<'a>(
     target: &TypeExpr,
 ) -> Option<ValueMemberOwner<'a>> {
     match target {
+        TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             Some(ValueMemberOwner {
@@ -1050,6 +1051,7 @@ fn value_member_owner<'a>(
     ty: &TypeExpr,
 ) -> Option<ValueMemberOwner<'a>> {
     match ty {
+        TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             Some(ValueMemberOwner {

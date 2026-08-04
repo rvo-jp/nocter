@@ -1,9 +1,10 @@
-use crate::ast::{BindingKind, TypeExpr};
+use crate::ast::{BindingKind, ClosureTypeExpr, TypeExpr};
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Type {
+    Closure(ClosureTypeExpr),
     I32,
     Primitive(String),
     StrData,
@@ -42,6 +43,7 @@ pub(super) enum Type {
 impl Type {
     pub(super) fn display(&self) -> String {
         match self {
+            Type::Closure(closure) => closure.identity_name(),
             Type::I32 => "i32".to_string(),
             Type::Primitive(name) => name.clone(),
             Type::StrData => "str".to_string(),
@@ -80,6 +82,7 @@ impl Type {
 
     pub(super) fn nominal_name(&self) -> Option<&str> {
         match self {
+            Type::Closure(_) => None,
             Type::Named(name) | Type::Generic { name, .. } => Some(name),
             _ => None,
         }
@@ -91,6 +94,7 @@ impl Type {
 
     pub(super) fn is_unknown_or_unresolved(&self) -> bool {
         match self {
+            Type::Closure(_) => false,
             Type::Unknown | Type::Unresolved(_) => true,
             Type::ArrayData { element } => element.is_unknown_or_unresolved(),
             Type::View { element, .. } => element.is_unknown_or_unresolved(),
@@ -116,6 +120,7 @@ impl Type {
 
     pub(super) fn first_unsized_part(&self) -> Option<&Type> {
         match self {
+            Type::Closure(_) => None,
             Type::StrData | Type::ArrayData { .. } => Some(self),
             Type::View { element, .. } | Type::Array { element, .. } => {
                 element.first_unsized_part()

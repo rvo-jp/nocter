@@ -40,6 +40,7 @@ mod byte_collections;
 mod byte_view_values;
 mod call_arguments;
 mod calls;
+mod closure_captures;
 mod control_flow_values;
 mod diagnostics;
 mod fallible;
@@ -48,6 +49,7 @@ mod fixed_arrays;
 mod integer_values;
 mod predicates;
 mod returns;
+mod scalar_borrows;
 mod scalar_values;
 mod statement_effects;
 mod temporaries;
@@ -61,6 +63,7 @@ pub(in crate::ir::lower) use borrow_values::*;
 use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
+pub(super) use closure_captures::*;
 use control_flow_values::*;
 use diagnostics::*;
 use fallible::*;
@@ -68,6 +71,7 @@ pub(super) use fixed_array_accesses::*;
 use fixed_arrays::*;
 pub(super) use integer_values::*;
 pub(super) use returns::*;
+use scalar_borrows::*;
 use scalar_values::*;
 use statement_effects::*;
 use utility::*;
@@ -78,8 +82,8 @@ use crate::abi::{
     array_element_stride,
 };
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfIsStmt, IfStmt, IndexExpr,
-    Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
+    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IdentifierExpr, IfIsStmt, IfStmt,
+    IndexExpr, Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{

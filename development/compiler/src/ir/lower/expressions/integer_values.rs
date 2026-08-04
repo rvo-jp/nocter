@@ -12,6 +12,22 @@ pub(in crate::ir::lower) fn lower_i32_expression_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression {
+        if let Some(instructions) =
+            lower_i32_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(instructions);
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_i32_closure_capture_to_location(
+            identifier,
+            destination,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;

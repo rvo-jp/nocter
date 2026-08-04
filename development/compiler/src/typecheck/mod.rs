@@ -57,11 +57,11 @@ use sized::*;
 pub(crate) use default_methods::completion_candidates_for_type_expr as default_method_completion_candidates;
 pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
-    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
-    TypecheckInterpolationPlan, TypecheckIterationMethod, TypecheckMethodReceiverKind,
-    TypecheckPayloadBindingMode, TypecheckScalarViewKind, TypecheckSequenceSpreadMode,
-    TypecheckSequenceSpreadPlan, TypecheckSliceElementKind, collect_typecheck_facts,
-    type_expr_presentation_label, type_symbol_presentation_label,
+    TypecheckClosurePlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
+    TypecheckFacts, TypecheckInterpolationPlan, TypecheckIterationMethod,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
+    collect_typecheck_facts, type_expr_presentation_label, type_symbol_presentation_label,
 };
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{

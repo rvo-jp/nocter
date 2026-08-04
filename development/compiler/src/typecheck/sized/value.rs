@@ -69,6 +69,10 @@ fn first_unsized_generic_argument(
     self_type: Option<&Type>,
 ) -> Option<Type> {
     match ty {
+        TypeExpr::Closure(closure) => closure
+            .captures
+            .iter()
+            .find_map(|capture| first_unsized_value_part(&capture.ty, resolved, self_type)),
         TypeExpr::Reference(_) => interface_type_part(ty, resolved, self_type),
         TypeExpr::Generic(generic) => interface_type_part(ty, resolved, self_type).or_else(|| {
             generic

@@ -372,6 +372,41 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
     resolved_sources: ResolvedSources<'a>,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
+    lower_method_function_with_prologue(
+        method,
+        self_ty,
+        substitutions,
+        name,
+        sources,
+        target,
+        function_signatures,
+        function_names,
+        root_source,
+        resolved,
+        typecheck_facts,
+        resolved_sources,
+        error_payloads,
+        |_| Ok(Vec::new()),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
+    method: &MethodDecl,
+    self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
+    name: String,
+    sources: &SourceMap,
+    target: CallTarget,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &'a ResolveOutput,
+    typecheck_facts: &'a TypecheckFacts,
+    resolved_sources: ResolvedSources<'a>,
+    error_payloads: ErrorPayloads,
+    prologue: impl FnOnce(&mut LoweringContext<'a>) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
+) -> Result<Function, Vec<Diagnostic>> {
     let Some(body) = &method.body else {
         return Err(attach_primary_span_if_absent(
             vec![Diagnostic::error(
@@ -444,6 +479,7 @@ pub(in crate::ir::lower) fn lower_method_function<'a>(
     .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
+    instructions.extend(prologue(&mut context)?);
     instructions.extend(lower_callable_body(
         &name,
         body,

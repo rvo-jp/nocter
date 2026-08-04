@@ -8,6 +8,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
     pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
     pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
+    pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
@@ -77,6 +78,10 @@ impl TypecheckFacts {
         &self,
     ) -> impl Iterator<Item = (&ByteSpan, &TypecheckSequenceSpreadPlan)> {
         self.sequence_spread_plans.iter()
+    }
+
+    pub(crate) fn closure_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckClosurePlan> {
+        self.closure_plans.get(&expression_span)
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -307,6 +312,13 @@ impl TypecheckFacts {
             .min_by_key(|(span, _)| (span.len(), span.start))
             .map(|(span, target)| (*span, *target))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckClosurePlan {
+    pub(crate) expression_span: ByteSpan,
+    pub(crate) ty: crate::ast::ClosureTypeExpr,
+    pub(crate) target_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -564,7 +576,7 @@ impl FunctionCallSpecialization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MethodCallSpecialization {
     pub(crate) declaration_span: ByteSpan,
-    pub(super) method_name: String,
+    pub(crate) method_name: String,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
     pub(super) generic_parameters: Vec<String>,

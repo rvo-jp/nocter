@@ -150,6 +150,15 @@ impl TypecheckFactCollector<'_> {
         ty: &TypeExpr,
     ) {
         match ty {
+            TypeExpr::Closure(closure) => {
+                for capture in &closure.captures {
+                    self.collect_type_expr_references(&capture.ty);
+                }
+                for parameter in &closure.parameters {
+                    self.collect_type_expr_references(parameter);
+                }
+                self.collect_type_expr_references(&closure.return_type);
+            }
             TypeExpr::Reference(ty) => {
                 self.record_type_reference(&ty.name, ty.span);
             }

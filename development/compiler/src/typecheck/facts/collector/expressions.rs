@@ -21,11 +21,23 @@ impl TypecheckFactCollector<'_> {
         );
         match expression {
             Expr::Closure(closure) => {
+                let closure_type = expression_type(expression, self.resolved, environment);
+                if let Type::Closure(ty) = &closure_type {
+                    self.record_closure_plan(closure, ty);
+                    self.record_expression_type(expression.span(), &closure_type);
+                }
                 let mut closure_environment = crate::typecheck::closures::environment_for_closure(
                     closure,
                     self.resolved,
                     environment,
                 );
+                for capture in &closure.captures {
+                    self.record_environment_binding(
+                        capture.name_span,
+                        &capture.name,
+                        &closure_environment,
+                    );
+                }
                 for parameter in &closure.parameters {
                     self.record_environment_binding(
                         parameter.name_span,
@@ -515,6 +527,21 @@ impl TypecheckFactCollector<'_> {
                 );
             }
         }
+    }
+
+    pub(in crate::typecheck::facts::collector) fn record_closure_plan(
+        &mut self,
+        expression: &crate::ast::ClosureExpr,
+        ty: &crate::ast::ClosureTypeExpr,
+    ) {
+        self.facts.closure_plans.insert(
+            expression.span,
+            TypecheckClosurePlan {
+                expression_span: expression.span,
+                ty: ty.clone(),
+                target_name: format!("{}.call", ty.identity_name()),
+            },
+        );
     }
 }
 

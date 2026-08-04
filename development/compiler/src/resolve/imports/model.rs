@@ -14,6 +14,7 @@ pub(super) struct ImportedTypeName {
     pub(super) local_name: String,
     pub(super) import_path: String,
     pub(super) imported_name: String,
+    pub(super) canonical_name: String,
     pub(super) path_span: ByteSpan,
 }
 
@@ -25,7 +26,7 @@ pub(super) struct ReexportLookup {
 
 impl ImportedTypeName {
     pub(super) fn qualified_name(&self) -> String {
-        format!("{}.{}", self.import_path, self.imported_name)
+        self.canonical_name.clone()
     }
 }
 

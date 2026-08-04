@@ -2,9 +2,10 @@ use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
     ambiguous_default_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
-    associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
-    generic_bound_not_satisfied_diagnostic, method_readwrite_receiver_requires_var_diagnostic,
-    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
+    associated_function_unknown_diagnostic, closure_callable_contract_diagnostic,
+    field_called_as_method_diagnostic, generic_bound_not_satisfied_diagnostic,
+    method_readwrite_receiver_requires_var_diagnostic, method_unknown_diagnostic,
+    non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::interface_bounds::{
@@ -285,7 +286,50 @@ pub(super) fn infer_generic_substitutions(
         .iter()
         .zip(signature.signature.parameters.iter())
     {
-        let actual = expression_type(argument, resolved, environment);
+        let actual = if let Expr::Closure(closure) = argument.without_groups()
+            && let TypeExpr::Reference(reference) = &parameter.ty
+            && let Some(contract) = super::closures::expected_callable_contract_for_generic(
+                &reference.name,
+                signature.signature,
+                &substitutions,
+                resolved,
+            ) {
+            let expected_parameters = contract
+                .parameters
+                .iter()
+                .all(|ty| !ty.is_unknown_or_unresolved())
+                .then_some(contract.parameters.as_slice());
+            let expected_return =
+                (!contract.return_type.is_unknown_or_unresolved()).then_some(&contract.return_type);
+            let Some(actual) = super::closures::infer_closure_type(
+                closure,
+                resolved,
+                environment,
+                expected_parameters,
+                expected_return,
+            ) else {
+                continue;
+            };
+            infer_type_expr_substitutions(
+                &parameter.ty,
+                &actual,
+                resolved,
+                signature.self_type.as_ref(),
+                &parameters,
+                &mut substitutions,
+            );
+            super::closures::infer_substitutions_from_closure_contract(
+                &contract,
+                &actual,
+                resolved,
+                signature.self_type.as_ref(),
+                &parameters,
+                &mut substitutions,
+            );
+            actual
+        } else {
+            expression_type(argument, resolved, environment)
+        };
         if actual.is_unknown_or_unresolved() {
             continue;
         }
@@ -387,6 +431,20 @@ fn check_generic_interface_bounds(
             let span =
                 generic_argument_evidence_span(call, &signature.signature.parameters, parameter)
                     .unwrap_or(call.span);
+            if let Type::Closure(closure) = actual
+                && let Some(expected_capability) =
+                    super::closures::callable_bound_capability(&bound_type, resolved)
+            {
+                diagnostics.push(closure_callable_contract_diagnostic(
+                    sources,
+                    span,
+                    closure,
+                    &bound_type,
+                    expected_capability,
+                    bound.span(),
+                ));
+                continue;
+            }
             diagnostics.push(generic_bound_not_satisfied_diagnostic(
                 sources,
                 span,
@@ -404,6 +462,11 @@ fn type_satisfies_bound_in_environment(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    if let Type::Closure(closure) = actual
+        && super::closures::closure_satisfies_callable_bound(closure, bound, resolved)
+    {
+        return true;
+    }
     if type_satisfies_interface_bound(actual, bound, resolved) {
         return true;
     }
@@ -432,6 +495,17 @@ fn generic_argument_evidence_span(
 
 fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
     match ty {
+        TypeExpr::Closure(closure) => {
+            closure
+                .captures
+                .iter()
+                .any(|capture| type_expr_mentions_parameter(&capture.ty, parameter))
+                || closure
+                    .parameters
+                    .iter()
+                    .any(|ty| type_expr_mentions_parameter(ty, parameter))
+                || type_expr_mentions_parameter(&closure.return_type, parameter)
+        }
         TypeExpr::Reference(reference) => reference.name == parameter,
         TypeExpr::Generic(generic) => {
             generic.name == parameter

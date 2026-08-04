@@ -182,6 +182,9 @@ fn redirect_interface_method_specialization(
     else {
         return specialization;
     };
+    if matches!(specialization.self_ty, TypeExpr::Closure(_)) {
+        return specialization;
+    }
     let Some((actual_span, impl_substitutions)) =
         inherent_method_span_for_self_type(analysis, &specialization.self_ty, method_name)
     else {
@@ -495,6 +498,9 @@ fn infer_impl_substitutions(
     substitutions: &mut HashMap<String, TypeExpr>,
 ) -> bool {
     match expected {
+        TypeExpr::Closure(expected) => {
+            matches!(actual, TypeExpr::Closure(actual) if expected.span == actual.span)
+        }
         TypeExpr::Reference(reference) if generic_parameters.contains(&reference.name) => {
             insert_impl_substitution(&reference.name, actual, substitutions)
         }

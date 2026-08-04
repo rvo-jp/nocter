@@ -162,6 +162,47 @@ func main(): i32 {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_callable_iterator_defaults_run() {
+    let project = TempProject::new("distributed-home-callable-iterator-defaults-run");
+    let source = project.write_source(
+        "callable_iterator_defaults_run.nct",
+        r#"use std/iter.{FoldStep, Iterator}
+use std/iter/sources.once
+
+func main(): i32 {
+    var total = 1
+    var mapped = once(4).map((&+total; value) {
+        total = total + value
+        total
+    })
+    if mapped.remaining_len() != 1 { return 1 }
+    let values = mapped.filter((value) { value >= 5 }).take(8).to_vec()
+    if total != 5 || values.len() != 1 || values.view()[0] != 5 { return 2 }
+
+    let found = once(7).find((value) { value == 7 }) otherwise { return 3 }
+    if found != 7 { return 4 }
+    if !once(8).any((value) { value == 8 }) { return 5 }
+    if !once(9).all((value) { value >= 9 }) { return 6 }
+
+    let folded = once(6).fold(4, (step) { step.accumulator + step.item })
+    if folded != 10 { return 7 }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_iterator_builder_cannot_escape_lexical_region() {
     let project = TempProject::new("distributed-home-iterator-builder-region-escape");

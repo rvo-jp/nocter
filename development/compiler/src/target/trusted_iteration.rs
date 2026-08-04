@@ -15,11 +15,11 @@ pub(crate) fn attach_iteration_runtime(
 }
 
 fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRuntime> {
-    let module = modules.get("std/iter")?;
+    let module = modules.get("std/iter/core")?;
     Some(IterationRuntime {
         iterator: find_interface(
             module,
-            "std/iter",
+            "std/iter/core",
             "Iterator",
             &["T"],
             "next",
@@ -28,7 +28,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         exact_size: find_interface(
             module,
-            "std/iter",
+            "std/iter/core",
             "ExactSizeIterator",
             &["T"],
             "remaining_len",
@@ -37,7 +37,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         readonly_conversion: find_interface(
             module,
-            "std/iter",
+            "std/iter/core",
             "Iterable",
             &["T", "I"],
             "iter",
@@ -46,7 +46,7 @@ fn iteration_runtime(modules: &HashMap<String, &AstFile>) -> Option<IterationRun
         )?,
         owned_conversion: find_interface(
             module,
-            "std/iter",
+            "std/iter/core",
             "IntoIterator",
             &["T", "I"],
             "into_iter",
@@ -69,25 +69,29 @@ fn find_interface(
         Item::Interface(declaration) if declaration.name == name => Some(declaration),
         _ => None,
     })?;
+    let method = declaration
+        .methods
+        .iter()
+        .find(|method| method.name == method_name)?;
     interface_shape_matches(
         declaration,
+        method,
         generic_parameters,
-        method_name,
         receiver_mode,
         return_type,
     )
     .then(|| IterationProtocol {
         interface_declaration: declaration.name_span,
         interface_canonical_name: format!("{module_name}.{name}"),
-        method_declaration: declaration.methods[0].name_span,
-        method_name: declaration.methods[0].name.clone(),
+        method_declaration: method.name_span,
+        method_name: method.name.clone(),
     })
 }
 
 fn interface_shape_matches(
     declaration: &InterfaceDecl,
+    method: &crate::ast::MethodDecl,
     generic_parameters: &[&str],
-    method_name: &str,
     receiver_mode: MethodReceiverMode,
     return_type: &str,
 ) -> bool {
@@ -104,14 +108,12 @@ fn interface_shape_matches(
             .parameters
             .iter()
             .all(|parameter| parameter.bounds.is_empty())
-        && declaration.methods.len() == 1
-        && declaration.methods[0].visibility == Visibility::Public
-        && declaration.methods[0].name == method_name
-        && declaration.methods[0].receiver.mode == receiver_mode
-        && declaration.methods[0].parameters.parameters.is_empty()
-        && crate::ast::type_expr_display_lossy(&declaration.methods[0].return_type) == return_type
-        && declaration.methods[0].result_provenance.is_none()
-        && declaration.methods[0].body.is_none()
+        && method.visibility == Visibility::Public
+        && method.receiver.mode == receiver_mode
+        && method.parameters.parameters.is_empty()
+        && crate::ast::type_expr_display_lossy(&method.return_type) == return_type
+        && method.result_provenance.is_none()
+        && method.body.is_none()
 }
 
 #[cfg(test)]
@@ -149,7 +151,7 @@ pub interface IntoIterator<T, I> {
 }
 "#,
         );
-        let modules = HashMap::from([("std/iter".to_string(), &iter)]);
+        let modules = HashMap::from([("std/iter/core".to_string(), &iter)]);
 
         let runtime = iteration_runtime(&modules).expect("expected runtime");
 
@@ -168,7 +170,7 @@ pub interface IntoIterator<T, I> {
             &mut sources,
             "pub interface Iterator<T> { pub method &self.next(): T? }\n",
         );
-        let modules = HashMap::from([("std/iter".to_string(), &iter)]);
+        let modules = HashMap::from([("std/iter/core".to_string(), &iter)]);
 
         assert!(iteration_runtime(&modules).is_none());
     }

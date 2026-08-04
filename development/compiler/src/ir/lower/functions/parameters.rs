@@ -17,7 +17,7 @@ pub(super) fn function_parameters(
         .collect()
 }
 
-pub(super) fn method_parameters(
+pub(in crate::ir::lower) fn method_parameters(
     method: &MethodDecl,
     self_ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,
@@ -254,7 +254,7 @@ pub(super) fn validate_parameter_slots_match_function_abi(
     )])
 }
 
-pub(super) fn resolved_function_signature(
+pub(in crate::ir::lower) fn resolved_function_signature(
     parameters: &[Parameter],
     return_type: TypeExpr,
 ) -> ResolvedFunctionSignature {

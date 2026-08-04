@@ -17,6 +17,16 @@ fn type_contains_readwrite_borrow_inner(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        Type::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
+                || (capture.mode == crate::ast::ClosureCaptureMode::Move
+                    && type_expr_contains_readwrite_borrow(
+                        &capture.ty,
+                        resolved,
+                        &HashMap::new(),
+                        resolving_names,
+                    ))
+        }),
         Type::View { is_readwrite, .. } => *is_readwrite,
         Type::Named(name) if name.starts_with("&+") => true,
         Type::Named(name) if name.starts_with('&') => false,
@@ -108,6 +118,16 @@ fn type_expr_contains_readwrite_borrow(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
+                || (capture.mode == crate::ast::ClosureCaptureMode::Move
+                    && type_expr_contains_readwrite_borrow(
+                        &capture.ty,
+                        resolved,
+                        substitutions,
+                        resolving_names,
+                    ))
+        }),
         TypeExpr::Borrow(borrow) => borrow.is_readwrite,
         TypeExpr::View(view) => view.is_readwrite,
         TypeExpr::Array(array) => type_expr_contains_readwrite_borrow(
@@ -181,6 +201,15 @@ pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        Type::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode != crate::ast::ClosureCaptureMode::Move
+                || type_expr_contains_borrow_like(
+                    &capture.ty,
+                    resolved,
+                    &HashMap::new(),
+                    resolving_names,
+                )
+        }),
         Type::Str | Type::View { .. } => true,
         Type::Named(name) if name.starts_with('&') => true,
         Type::Named(name) => {
@@ -265,6 +294,15 @@ pub(in crate::typecheck) fn type_expr_contains_borrow_like(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode != crate::ast::ClosureCaptureMode::Move
+                || type_expr_contains_borrow_like(
+                    &capture.ty,
+                    resolved,
+                    substitutions,
+                    resolving_names,
+                )
+        }),
         TypeExpr::Borrow(_) => true,
         TypeExpr::View(view) => {
             type_expr_contains_borrow_like(&view.element, resolved, substitutions, resolving_names)

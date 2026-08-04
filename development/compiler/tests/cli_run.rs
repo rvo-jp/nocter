@@ -11,6 +11,8 @@ mod aggregates;
 mod arrays;
 #[path = "cli_run/calls.rs"]
 mod calls;
+#[path = "cli_run/closures.rs"]
+mod closures;
 #[path = "cli_run/commands.rs"]
 mod commands;
 #[path = "cli_run/control_flow.rs"]

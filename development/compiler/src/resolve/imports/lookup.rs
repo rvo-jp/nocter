@@ -125,6 +125,13 @@ impl Resolver<'_> {
     }
 
     pub(super) fn imported_type_names(&self, ast: &AstFile) -> Vec<ImportedTypeName> {
+        if !self
+            .collecting_imported_type_names
+            .borrow_mut()
+            .insert(ast.span.source)
+        {
+            return Vec::new();
+        }
         let mut imported_type_names = Vec::new();
         for item in &ast.items {
             let Item::FromImport(import) = item else {
@@ -142,17 +149,26 @@ impl Resolver<'_> {
                 if !imported.is_visible_to(import_source.access) {
                     continue;
                 }
-                if !matches!(imported.kind, SymbolKind::Type(_)) {
+                let SymbolKind::Type(symbol) = &imported.kind else {
                     continue;
-                }
+                };
+                let canonical_name = if symbol.canonical_name.contains('.') {
+                    symbol.canonical_name.clone()
+                } else {
+                    format!("{}.{}", import.path.value, name.name)
+                };
                 imported_type_names.push(ImportedTypeName {
                     local_name: name.local_name().to_string(),
                     import_path: import.path.value.clone(),
                     imported_name: name.name.clone(),
+                    canonical_name,
                     path_span: import.path.span,
                 });
             }
         }
+        self.collecting_imported_type_names
+            .borrow_mut()
+            .remove(&ast.span.source);
         imported_type_names
     }
 }

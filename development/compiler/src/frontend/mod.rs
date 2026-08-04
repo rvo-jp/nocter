@@ -249,6 +249,10 @@ pub(crate) fn load_compile_unit(
         &trusted_modules,
         &mut trusted_declarations,
     );
+    crate::target::trusted_callable::attach_callable_runtime(
+        &trusted_modules,
+        &mut trusted_declarations,
+    );
 
     Ok(CompileUnit::new(
         root_ast,

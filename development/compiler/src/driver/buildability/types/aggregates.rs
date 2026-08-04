@@ -19,6 +19,9 @@ where
     let Ok(value) = abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver) else {
         return false;
     };
+    if matches!(ty, TypeExpr::Closure(_)) {
+        return matches!(value.ty, AbiType::Struct(_));
+    }
     match &value.ty {
         AbiType::Enum(_) => {
             type_expr_is_supported_payload_enum_value_with_resolver(ty, fallback_resolved, resolver)
@@ -72,6 +75,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(_) => false,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
@@ -195,6 +199,23 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (symbol, substitutions) = match ty {
+        TypeExpr::Closure(closure) => {
+            return closure.captures.iter().all(|capture| {
+                capture.mode != crate::ast::ClosureCaptureMode::Move
+                    || type_expr_has_supported_recursive_drop_with_resolver(
+                        &capture.ty,
+                        fallback_resolved,
+                        resolver,
+                        resolving_names,
+                    )
+                    || crate::abi::abi_value_from_type_expr_with_resolver(
+                        &capture.ty,
+                        fallback_resolved,
+                        resolver,
+                    )
+                    .is_ok()
+            });
+        }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
                 return false;
@@ -347,6 +368,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(_) => None,
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);

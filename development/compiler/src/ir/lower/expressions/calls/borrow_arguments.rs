@@ -522,6 +522,7 @@ fn lower_readonly_temporary_borrow_source(
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
             let (instructions, source) = lower_aggregate_argument_source(
                 expression,
+                false,
                 inner,
                 None,
                 callee_name,

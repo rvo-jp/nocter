@@ -211,6 +211,39 @@ pub(super) fn lower_aggregate_field_to_location(
             });
             Ok(instructions)
         }
+        AbiType::Borrow => {
+            let Expr::Borrow(borrow) = unwrap_field_value_group(expression) else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let Expr::Identifier(identifier) = unwrap_field_value_group(&borrow.expression) else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let inner_ty = context
+                .local_binding_type_expr_for_identifier(identifier)
+                .and_then(|ty| context.ir_type_for_type_expr(&ty))
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            let borrow_ty = Type::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: Box::new(inner_ty),
+            };
+            let pointer = temporaries.next_usize()?;
+            let mut instructions =
+                lower_borrow_expression_to_location(expression, pointer, &borrow_ty, context)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value: UsizeValue::Location(pointer),
+            });
+            Ok(instructions)
+        }
         AbiType::Array { .. } => {
             let expected_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -387,6 +420,9 @@ pub(super) fn lower_aggregate_field_to_location(
             let expected_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
+            if expected_layout.size == 0 {
+                return Ok(Vec::new());
+            }
 
             match expression {
                 Expr::StructLiteral(literal) => {
@@ -616,10 +652,6 @@ pub(super) fn lower_aggregate_field_to_location(
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })
         }
-        _ => Err(unsupported_aggregate_struct_literal_diagnostic(
-            diagnostic_code,
-            subject,
-        )),
     }
 }
 

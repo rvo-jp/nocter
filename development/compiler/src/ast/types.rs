@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 pub(crate) fn type_expr_display_lossy(ty: &TypeExpr) -> String {
     match ty {
+        TypeExpr::Closure(closure) => closure.identity_name(),
         TypeExpr::Reference(reference) => reference.name.clone(),
         TypeExpr::Generic(generic) => {
             let arguments = generic
@@ -39,6 +40,22 @@ pub(crate) fn substitute_type_expr_parameters(
     substitutions: &HashMap<String, TypeExpr>,
 ) -> TypeExpr {
     match ty {
+        TypeExpr::Closure(closure) => {
+            let mut closure = closure.clone();
+            for capture in &mut closure.captures {
+                capture.ty = substitute_type_expr_parameters(&capture.ty, substitutions);
+            }
+            closure.parameters = closure
+                .parameters
+                .iter()
+                .map(|parameter| substitute_type_expr_parameters(parameter, substitutions))
+                .collect();
+            closure.return_type = Box::new(substitute_type_expr_parameters(
+                &closure.return_type,
+                substitutions,
+            ));
+            TypeExpr::Closure(closure)
+        }
         TypeExpr::Reference(reference) => substitutions
             .get(&reference.name)
             .cloned()

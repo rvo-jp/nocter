@@ -5,11 +5,11 @@ use super::context::{
 };
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
-    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_i32_expression_to_word, lower_macos_syscall_primitive_call_to_location,
-    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_word,
-    lower_usize_expression_to_word, push_store_slice_view_to_aggregate_field,
-    push_store_str_view_to_aggregate_field,
+    lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments_with_temporaries,
+    lower_catch_failure_mode, lower_i32_expression_to_word,
+    lower_macos_syscall_primitive_call_to_location, lower_slice_expression_to_value,
+    lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
 use super::functions::propagating_failure_mode;
 use super::literals::{

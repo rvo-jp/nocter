@@ -206,6 +206,7 @@ fn conformance_key(interface_type: &Type, target_type: &Type) -> (String, String
 
 fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> String {
     match ty {
+        Type::Closure(closure) => closure.identity_name(),
         Type::I32 => "i32".to_string(),
         Type::Primitive(name) => name.clone(),
         Type::StrData => "str".to_string(),

@@ -48,6 +48,7 @@ pub(super) struct LoweringContext<'a> {
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
+    closure_capture_fields: HashMap<String, AggregateFieldAccess>,
     temporary_aggregate_drops: Vec<PendingAggregateDrop>,
     pub(in crate::ir::lower) region_cleanups: Vec<super::regions::RegionCleanup>,
     pub(in crate::ir::lower) allocation_context_restores:
@@ -81,6 +82,7 @@ impl<'a> Clone for LoweringContext<'a> {
             reserved_local_abi_words: self.reserved_local_abi_words,
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
+            closure_capture_fields: self.closure_capture_fields.clone(),
             temporary_aggregate_drops: self.temporary_aggregate_drops.clone(),
             region_cleanups: self.region_cleanups.clone(),
             allocation_context_restores: self.allocation_context_restores.clone(),
@@ -544,6 +546,10 @@ pub(super) enum AggregateFieldKind {
     U8,
     Usize,
     Bool,
+    Borrow {
+        is_readwrite: bool,
+        inner: Type,
+    },
     Str,
     Slice(SliceTypeInfo),
     Array {

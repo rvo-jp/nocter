@@ -628,6 +628,27 @@ fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringCont
 
 fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::Identifier(identifier) => {
+            context.i32_location(&identifier.name).is_some()
+                || context
+                    .borrow_parameter(&identifier.name)
+                    .is_some_and(|borrow| borrow.inner == Type::I32)
+                || context
+                    .borrow_local(&identifier.name)
+                    .is_some_and(|(_, _, inner)| inner == &Type::I32)
+                || context
+                    .closure_capture_field(&identifier.name)
+                    .is_some_and(|field| {
+                        matches!(
+                            &field.kind,
+                            AggregateFieldKind::I32
+                                | AggregateFieldKind::Borrow {
+                                    inner: Type::I32,
+                                    ..
+                                }
+                        )
+                    })
+        }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::I32),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression(&binary.left, context)

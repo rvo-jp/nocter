@@ -50,6 +50,14 @@ pub(in crate::ir::lower) fn type_expr_is_copy_aggregate_value_with_resolver<'a, 
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    if matches!(ty, TypeExpr::Closure(_)) {
+        return type_expr_is_copy_value_inner(
+            ty,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        );
+    }
     let shape = outcome_shape_with_resolver(ty, fallback_resolved, &resolver);
     if !shape.layers.is_empty() {
         let payload_is_scalar_or_view =
@@ -255,6 +263,16 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(closure) => closure.captures.iter().all(|capture| match capture.mode {
+            crate::ast::ClosureCaptureMode::ReadonlyBorrow => true,
+            crate::ast::ClosureCaptureMode::ReadwriteBorrow => false,
+            crate::ast::ClosureCaptureMode::Move => type_expr_is_copy_value_inner(
+                &capture.ty,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ),
+        }),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => true,

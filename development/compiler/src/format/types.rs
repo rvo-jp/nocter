@@ -4,6 +4,7 @@ use crate::ast::TypeExpr;
 impl Formatter {
     pub(super) fn format_type(&mut self, ty: &TypeExpr) {
         match ty {
+            TypeExpr::Closure(ty) => self.write(&ty.identity_name()),
             TypeExpr::Reference(ty) => self.write(&ty.name),
             TypeExpr::Generic(ty) => {
                 self.write(&ty.name);

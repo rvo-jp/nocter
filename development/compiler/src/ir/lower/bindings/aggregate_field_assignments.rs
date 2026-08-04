@@ -120,6 +120,7 @@ pub(super) fn lower_aggregate_field_assignment(
             });
             Ok(lowered.instructions)
         }
+        AggregateFieldKind::Borrow { .. } => Err(unsupported_assignment_diagnostic()),
         AggregateFieldKind::Str => {
             if let Some(instructions) =
                 lower_str_otherwise_aggregate_field_assignment(value, destination, offset, context)?

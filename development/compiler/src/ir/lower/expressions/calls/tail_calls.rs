@@ -22,6 +22,10 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
         lower_call_arguments(call, &target, &callee_name, context, &mut temporaries)?;
 
     if fallible_success_tail_call_requires_normal_call(&target, context)
+        || call
+            .arguments
+            .iter()
+            .any(|argument| context.expression_contains_borrow(argument.span()))
         || arguments
             .iter()
             .any(tail_call_argument_requires_current_frame)

@@ -28,7 +28,8 @@ pub use symbols::{
 use module_index::ModuleIndex;
 
 use crate::ast::{AstFile, Item};
-use crate::source::{ByteSpan, SourceMap};
+use crate::source::{ByteSpan, SourceId, SourceMap};
+use std::cell::RefCell;
 use std::collections::HashSet;
 
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
@@ -57,6 +58,8 @@ pub fn resolve_compile_unit(
         prelude_sources,
         output: ResolveOutput::new(access),
         synthetic_prelude_symbol_spans: HashSet::new(),
+        collected_hidden_type_dependencies: HashSet::new(),
+        collecting_imported_type_names: RefCell::new(HashSet::new()),
         collecting_synthetic_prelude: false,
     };
 
@@ -101,5 +104,7 @@ struct Resolver<'a> {
     prelude_sources: &'a PreludeSourceMap,
     output: ResolveOutput,
     synthetic_prelude_symbol_spans: HashSet<ByteSpan>,
+    collected_hidden_type_dependencies: HashSet<(SourceId, String)>,
+    collecting_imported_type_names: RefCell<HashSet<SourceId>>,
     collecting_synthetic_prelude: bool,
 }

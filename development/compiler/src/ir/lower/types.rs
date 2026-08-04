@@ -18,6 +18,7 @@ pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput
 
 pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
     match ty {
+        TypeExpr::Closure(_) => ty.clone(),
         TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
         TypeExpr::Reference(_) => ty.clone(),
         TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {

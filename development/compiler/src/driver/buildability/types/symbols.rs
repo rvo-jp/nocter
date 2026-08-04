@@ -53,6 +53,7 @@ where
 }
 pub(in crate::driver::buildability) fn type_expr_symbol_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
+        TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
         TypeExpr::Pointer(_)

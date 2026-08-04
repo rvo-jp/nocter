@@ -20,6 +20,16 @@ impl LoweringContext<'_> {
             .ok()
     }
 
+    pub(in crate::ir::lower) fn expression_contains_borrow(
+        &self,
+        expression_span: crate::source::ByteSpan,
+    ) -> bool {
+        self.expression_type_expr(expression_span)
+            .as_ref()
+            .and_then(|ty| self.abi_value_for_type_expr(ty))
+            .is_some_and(|value| value.ty.contains_borrow())
+    }
+
     pub(in crate::ir::lower) fn ir_type_for_type_expr(
         &self,
         ty: &TypeExpr,

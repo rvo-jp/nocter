@@ -1,6 +1,7 @@
 mod aggregates;
 mod allocation_contexts;
 mod bindings;
+mod closures;
 mod collection_for;
 mod context;
 mod control_flow;
@@ -219,6 +220,12 @@ enum IndexedDeclaration<'a> {
         declaration: &'a LiteralDecl,
         specialization: LiteralSpecialization,
     },
+    Closure {
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        name: String,
+    },
 }
 
 impl<'a> FunctionIndex<'a> {
@@ -423,6 +430,47 @@ impl<'a> FunctionIndex<'a> {
                 }
             }
         }
+        for specialization in call_specializations.methods.values().flatten() {
+            let TypeExpr::Closure(closure_ty) = &specialization.self_ty else {
+                continue;
+            };
+            let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
+                continue;
+            };
+            let Some(expression) =
+                crate::ast::closure_expression_by_span(&file.ast, closure_ty.span)
+            else {
+                continue;
+            };
+            let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
+                continue;
+            };
+            let Some(receiver_mode) = file
+                .resolved
+                .trusted_declarations
+                .callable_runtime()
+                .and_then(|runtime| {
+                    runtime.receiver_mode_for_method(specialization.declaration_span)
+                })
+            else {
+                continue;
+            };
+            let target = call_target_for_source(
+                specialization.declaration_span.source,
+                root_source,
+                specialization.target_name.clone(),
+            );
+            definitions.insert(
+                target,
+                IndexedCallable::new_closure(
+                    expression,
+                    plan,
+                    receiver_mode,
+                    specialization.target_name.clone(),
+                    file,
+                ),
+            );
+        }
         Self {
             definitions,
             resolved_sources,
@@ -558,6 +606,25 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
+    fn new_closure(
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                name,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
     fn imported_call_diagnostics(
         &self,
         sources: &SourceMap,
@@ -591,6 +658,14 @@ impl<'a> IndexedCallable<'a> {
                 imported_calls::imported_call_diagnostics_for_block(
                     sources,
                     &declaration.body,
+                    root_source,
+                    self.resolved,
+                )
+            }
+            IndexedDeclaration::Closure { expression, .. } => {
+                imported_calls::imported_call_diagnostics_for_block(
+                    sources,
+                    &expression.body,
                     root_source,
                     self.resolved,
                 )
@@ -702,6 +777,26 @@ impl<'a> IndexedCallable<'a> {
             } => functions::lower_literal_function(
                 declaration,
                 specialization,
+                sources,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+                self.typecheck_facts,
+                resolved_sources,
+                error_payloads,
+            ),
+            IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                name,
+            } => closures::lower_closure_function(
+                expression,
+                plan,
+                *receiver_mode,
+                name.clone(),
                 sources,
                 target,
                 function_signatures,
@@ -876,6 +971,18 @@ impl<'a> IndexedCallable<'a> {
                     }
                 })
             }
+            IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                ..
+            } => closures::closure_function_signature(
+                expression,
+                plan,
+                *receiver_mode,
+                self.resolved,
+                resolved_sources,
+            ),
         }
     }
 
@@ -902,6 +1009,7 @@ impl<'a> IndexedCallable<'a> {
             } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Method { .. } => None,
             IndexedDeclaration::Literal { .. } => None,
+            IndexedDeclaration::Closure { .. } => None,
         }
     }
 }
@@ -1046,6 +1154,7 @@ impl IndexedDeclaration<'_> {
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
             IndexedDeclaration::Method { declaration, .. } => declaration.span,
             IndexedDeclaration::Literal { declaration, .. } => declaration.span,
+            IndexedDeclaration::Closure { expression, .. } => expression.span,
         }
     }
 }

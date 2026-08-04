@@ -406,6 +406,7 @@ pub(super) fn type_label(
 
 pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
     match ty {
+        Type::Closure(closure) => closure.identity_name(),
         Type::I32 => "i32".to_string(),
         Type::Primitive(name) => name.clone(),
         Type::StrData => "str".to_string(),

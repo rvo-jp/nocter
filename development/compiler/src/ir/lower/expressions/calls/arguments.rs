@@ -149,7 +149,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
             }
             Type::Aggregate { .. } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_spread_argument_source(
+                    lower_tracked_closure_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -157,6 +157,15 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_spread_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else if let Some(lowered) = lower_tracked_interpolation_argument_source(
                     argument,
@@ -197,6 +206,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                 } else {
                     lower_aggregate_argument_source(
                         argument,
+                        is_method_receiver,
                         parameter_type,
                         parameter_type_expr.as_ref(),
                         callee_name,
@@ -218,7 +228,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
             }
             Type::DirectAggregate { layout, words } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_spread_argument_source(
+                    lower_tracked_closure_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -226,6 +236,15 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_spread_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else if let Some(lowered) = lower_tracked_interpolation_argument_source(
                     argument,
@@ -266,6 +285,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                 } else {
                     lower_aggregate_argument_source(
                         argument,
+                        is_method_receiver,
                         parameter_type,
                         parameter_type_expr.as_ref(),
                         callee_name,

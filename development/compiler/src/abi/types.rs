@@ -182,6 +182,26 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(closure) => {
+            let fields = closure
+                .captures
+                .iter()
+                .map(|capture| {
+                    let ty = sized_abi_type_kind(
+                        abi_type_kind_from_type_expr(
+                            &capture.ty,
+                            fallback_resolved,
+                            resolver,
+                            substitutions,
+                            resolving_names,
+                        )?,
+                        &capture.ty,
+                    )?;
+                    Ok(AbiField::new(capture.name.clone(), ty))
+                })
+                .collect::<Result<Vec<_>, AbiTypeError>>()?;
+            Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
+        }
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" => Ok(AbiTypeKind::Value(AbiType::Bool)),
             "u8" => Ok(AbiTypeKind::Value(AbiType::U8)),

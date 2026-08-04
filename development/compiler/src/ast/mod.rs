@@ -17,7 +17,10 @@ pub use literals::*;
 pub use provenance::*;
 pub use receivers::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
-pub(crate) use visit::{visit_expression, visit_file_expressions};
+pub(crate) use visit::{
+    closure_expression_by_span, visit_block_expressions_without_nested_closures, visit_expression,
+    visit_file_expressions,
+};
 
 use crate::source::ByteSpan;
 
@@ -256,6 +259,7 @@ pub struct Parameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
+    Closure(ClosureTypeExpr),
     Reference(TypeReference),
     Generic(GenericType),
     Pointer(PointerType),
@@ -809,6 +813,7 @@ impl GenericParamList {
 impl TypeExpr {
     pub fn span(&self) -> ByteSpan {
         match self {
+            TypeExpr::Closure(ty) => ty.span,
             TypeExpr::Reference(ty) => ty.span,
             TypeExpr::Generic(ty) => ty.span,
             TypeExpr::Pointer(ty) => ty.span,

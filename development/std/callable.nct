@@ -1,0 +1,20 @@
+//! Statically specialized callable capabilities.
+//!
+//! Closure values implement these compiler-validated interfaces according to
+//! the access required by their body. No interface object or runtime dispatch
+//! is involved.
+
+/// Invokes a callback repeatedly through readonly captured state.
+pub interface Call<Input, Output> {
+    pub method &self.call(value: Input): Output
+}
+
+/// Invokes a callback repeatedly while permitting captured-state mutation.
+pub interface CallMut<Input, Output> {
+    pub method &+self.call_mut(value: Input): Output
+}
+
+/// Consumes a callback, permitting its body to consume captured state.
+pub interface CallOnce<Input, Output> {
+    pub method self.call_once(value: Input): Output
+}
