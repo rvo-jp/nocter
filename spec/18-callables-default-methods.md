@@ -41,7 +41,7 @@ the interface's required methods, other unambiguous default methods, and ordinar
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub method self.map<U, F: CallMut<T, U>>(transform: F): MapIter<T, U, Self, F> {
+pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> {
     return MapIter<T, U, Self, F> {
         source: move self,
         transform: move transform,
@@ -103,10 +103,40 @@ derived storage cannot escape that region.
 
 ## Callable Capability
 
-Closure values have anonymous concrete types. They participate in generic code through trusted
-standard callable interfaces with readonly, mutable repeated, or consuming receivers. Calls are
-statically specialized; Phase 10 does not define an erased callable object, heap-boxed closure,
-code-pointer ABI, vtable, or runtime interface dispatch.
+Closure values have anonymous concrete types. Built-in structural callable contracts let generic
+code state how it may invoke such a value:
+
+```nct
+func inspect<F: &func(value: i32): bool>(callback: F, value: i32): bool {
+    return callback(value)
+}
+
+func transform<F: &+func(value: i32): i32>(callback: F, value: i32): i32 {
+    var callable = move callback
+    return callable(value)
+}
+
+func finish<F: func(value: i32): i32>(callback: F, value: i32): i32 {
+    return callback(value)
+}
+```
+
+- `&func(Input): Output` permits repeated invocation through readonly access
+- `&+func(Input): Output` permits repeated invocation through readwrite access; the called place
+  must be writable
+- `func(Input): Output` permits one consuming invocation; the called value is moved by the call
+
+Parameter names are optional. A named parameter may be referenced by a result provenance clause,
+for example `&func(text: &str): &str from text`. A generic parameter may have interface bounds and
+one callable contract, but multiple callable contracts are ambiguous and rejected.
+
+The invocation surface is identical for all three capabilities: `callback(arguments)`. There are
+no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
+to their generated target.
+
+Callable contracts currently appear as generic bounds. They do not define a sized stored type or
+an erased parameter ABI. Phase 10 therefore still does not define an erased callable object,
+heap-boxed closure, code-pointer ABI, vtable, or runtime interface dispatch.
 
 A closure that consumes captured state may be called only through a consuming capability. Iterator
 adapters require a mutable repeated callback, so consuming a capture from their callback body is a

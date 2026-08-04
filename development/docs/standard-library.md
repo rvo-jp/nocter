@@ -273,9 +273,10 @@ defaults include `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`,
 `std/iter/core`; keeping their inherent implementations beside the declarations avoids a module
 cycle and preserves Nocter's same-module implementation rule.
 
-Callbacks use the trusted `CallMut` contract and explicit-capture closure values. Adapters allocate
-nothing; `to_vec` is the explicit allocation boundary and inherits the current allocation context.
-`map` conditionally preserves `ExactSizeIterator`, while `filter` never claims exact cardinality.
-Packaged-home tests cover scalar and move-only chains, source order, exact-size behavior, early-exit
-cleanup, capture and argument result provenance, lexical-region escape rejection, and callback
-allocation in the active context.
+Callbacks use the built-in mutable repeated contract `&+func(Input): Output` and direct
+`callback(...)` invocation. No `std/callable` protocol declarations or `call_mut` forwarding
+methods exist. Adapters allocate nothing; `to_vec` is the explicit allocation boundary and
+inherits the current allocation context. `map` conditionally preserves `ExactSizeIterator`, while
+`filter` never claims exact cardinality. Packaged-home tests cover scalar and move-only chains,
+source order, exact-size behavior, early-exit cleanup, capture and argument result provenance,
+lexical-region escape rejection, and callback allocation in the active context.

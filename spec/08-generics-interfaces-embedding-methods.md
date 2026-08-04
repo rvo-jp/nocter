@@ -391,12 +391,17 @@ GenericParameter  = Name
 ```
 
 Generic bounds are not part of v0.2.0. Nocter v0.3.0 Phase 4 adds one interface bound; Phase 9 adds
-a finite `+`-separated set:
+a finite `+`-separated set. The v0.3.0 stabilization contract also permits one built-in callable
+contract in that set:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
-GenericParameter  = Name [":" InterfaceBound ("+" InterfaceBound)*]
+GenericParameter  = Name [":" Bound ("+" Bound)*]
+Bound             = InterfaceBound | CallableContract
 InterfaceBound    = Type
+CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
+CallableParameters = [CallableParameter ("," CallableParameter)*]
+CallableParameter = [Name ":"] Type
 ```
 
 ```nct
@@ -405,10 +410,11 @@ func inspect<T: Readable<i32>>(value: &T): i32 {
 }
 ```
 
-Every bound must resolve to an interface with the declared type arity and visibility. Bound order
-is formatting information; semantics use a set of specialized interface declaration identities.
-Duplicate identities are invalid. `where` clauses, interface inheritance, and runtime interface
-values remain unavailable.
+Every nominal bound must resolve to an interface with the declared type arity and visibility. Bound
+order is formatting information; semantics use a set of specialized interface declaration
+identities plus at most one structural callable contract. Duplicate interface identities and
+multiple callable contracts are invalid. `where` clauses, interface inheritance, erased callable
+values, and runtime interface values remain unavailable.
 
 Phase 9 also permits a conformance declaration's generic parameters to carry bounds. Such a
 conditional conformance exists for a concrete target only when all specialized bounds hold:

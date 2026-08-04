@@ -150,6 +150,47 @@ pub func identity<T>(value: T): T {
 }
 
 #[test]
+fn returns_builtin_callable_signature_help_for_direct_invocation() {
+    let project = TempProject::new("lsp-signature-help-builtin-callable");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"func invoke<F: &+func(value: i32): i32>(callback: F, input: i32): i32 {
+    var callable = move callback
+    return callable(input)
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        text,
+        text.rfind("input)").expect("expected callable argument"),
+    );
+
+    let response = server.signature_help_response(
+        json!(2),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("&+func callable(value: i32): i32")
+    );
+    assert_eq!(response["result"]["activeParameter"], json!(0));
+}
+
+#[test]
 fn typed_literal_signature_help_reports_the_specialized_element_pack() {
     let project = TempProject::new("lsp-typed-literal-signature-help");
     let home = project.write_nocter_home();

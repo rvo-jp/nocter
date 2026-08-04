@@ -57,22 +57,27 @@ binding that is not listed is rejected. Duplicate captures, capture/parameter co
 incompatible capture capability, and capture after move are source-backed diagnostics.
 
 The compiler assigns each closure expression a stable declaration identity. Its anonymous concrete
-type owns its capture fields and one generated call target. The value is statically specialized
-through a trusted callable interface conformance; there is no heap box, erased environment, code
-pointer ABI, vtable, or spelling-based `call` lookup.
+type owns its capture fields and one generated call target. A generic bound states the structural
+contract as `&func(Input): Output`, `&+func(Input): Output`, or `func(Input): Output`. The value is
+statically specialized through a dedicated callable-call fact; there is no heap box, erased
+environment, code pointer ABI, vtable, standard-library protocol identity, or spelling-based
+`call` lookup.
 
-Readonly call, mutable repeated call, and consuming call are separate receiver capabilities.
-Iterator adapters use mutable repeated call. A closure satisfies that capability only when its body
-does not consume captured state.
+Readonly repeated call, mutable repeated call, and consuming call are separate capabilities. Direct
+source invocation is always `callback(...)`. A readwrite call requires a writable callable place;
+a consuming call moves that place. Iterator adapters use mutable repeated call. A closure satisfies
+that capability only when its body does not consume captured state.
 
 ## Shared Closure Facts
 
 Typecheck records a compact immutable closure plan containing the source span, normalized anonymous
-closure type, and generated call target. The anonymous type carries ordered capture modes and field
-types plus specialized parameter and return types. Ordinary compiler facts remain the owners of
-their domains: ownership tracks capture moves and loans, provenance tracks aggregate fields and
-call results, allocation analysis follows the generated target, and IR materializes the closure
-aggregate once before invoking that target directly.
+closure type, and generated call target. A separate callable-call fact owns the checked signature,
+capability, concrete anonymous type, and static specialization. Keeping it separate from method
+specialization preserves the closure declaration's source identity and prevents built-in calls from
+becoming synthetic method calls. Ordinary compiler facts remain the owners of their domains:
+ownership tracks capture moves and loans, provenance tracks aggregate fields and call results,
+allocation analysis follows the generated target, and IR materializes the closure aggregate once
+before invoking that target directly.
 
 This split prevents a second ownership or effect model from accumulating inside closure support.
 Recursive concrete drop-dependency discovery follows the closure and iterator field graph, so
@@ -102,6 +107,8 @@ aborting allocation context through the existing vector builder.
 | closure AST and recovery | focused modules under `ast` and `parser` |
 | closure local/capture identity | `resolve/closures` |
 | closure plans and contextual inference | `typecheck/closures` |
+| structural callable contracts and direct-call validation | `typecheck/callables` |
+| callable-call signature and specialization facts | `typecheck/facts/callables` |
 | capture loans, moves, and cleanup | existing `typecheck/ownership` consuming closure plans |
 | anonymous layout and static invocation | focused `ir/lower/closures` support |
 | nested concrete cleanup reachability | `analysis/drop_dependencies` |
