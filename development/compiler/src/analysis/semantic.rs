@@ -47,21 +47,28 @@ pub(crate) fn classified_identifiers_for_single_file_text(
         return Some(identifiers);
     }
 
-    let recovery = super::collection_for_recovery::collection_for_document_recovery(text)?;
-    let inserted_end = recovery.insertion_start + recovery.insertion_len;
-    let mut identifiers = classify_single_file_text(&recovery.text)?;
-    identifiers.retain_mut(|identifier| {
-        if identifier.end_byte <= recovery.insertion_start {
-            return true;
+    if let Some(recovery) = super::collection_for_recovery::collection_for_document_recovery(text) {
+        let recovered_text = super::delimiter_recovery::close_unmatched_braces(&recovery.text)
+            .unwrap_or(recovery.text);
+        if let Some(mut identifiers) = classify_single_file_text(&recovered_text) {
+            let inserted_end = recovery.insertion_start + recovery.insertion_len;
+            identifiers.retain_mut(|identifier| {
+                if identifier.end_byte <= recovery.insertion_start {
+                    return true;
+                }
+                if identifier.start_byte >= inserted_end {
+                    identifier.start_byte -= recovery.insertion_len;
+                    identifier.end_byte -= recovery.insertion_len;
+                    return true;
+                }
+                false
+            });
+            return Some(identifiers);
         }
-        if identifier.start_byte >= inserted_end {
-            identifier.start_byte -= recovery.insertion_len;
-            identifier.end_byte -= recovery.insertion_len;
-            return true;
-        }
-        false
-    });
-    Some(identifiers)
+    }
+
+    let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+    classify_single_file_text(&recovered)
 }
 
 fn classify_single_file_text(text: &str) -> Option<Vec<ClassifiedIdentifier>> {
@@ -505,6 +512,32 @@ mod tests {
             }),
             "identifiers: {identifiers:#?}"
         );
+    }
+
+    #[test]
+    fn semantic_identifiers_survive_an_unclosed_member_body() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+"#;
+        let identifiers = classified_identifiers_for_single_file_text(text)
+            .expect("expected recovered semantic identifiers");
+
+        let drop_keyword = identifier_starting_at(
+            &identifiers,
+            text.find("drop &+self").expect("expected drop declaration"),
+        )
+        .expect("expected drop semantic token");
+        assert_eq!(drop_keyword.kind, SemanticTokenKind::Method);
+
+        let receiver = identifier_starting_at(
+            &identifiers,
+            text.find("self {").expect("expected receiver"),
+        )
+        .expect("expected receiver semantic token");
+        assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
     }
 
     #[test]

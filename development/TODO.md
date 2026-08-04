@@ -62,6 +62,13 @@ share those declaration identities. Sequence-spread hover likewise carries the p
 through typecheck facts instead of deriving three bytes from an expression span. Paired analysis and
 JSON-RPC tests cover destructor keyword/receiver separation and protocol selection ranges.
 
-The active audit is malformed-input resilience and recovery across parser, analysis, and LSP
-request boundaries. Subsequent loops cover packaging qualification and responsibility hotspots
-against the stabilization gate.
+Malformed-input recovery now preserves outline symbols, semantic tokens, go-to-definition, and
+references while trailing function or member blocks are unclosed. The fallback appends only
+syntactically missing braces, so original document offsets remain stable; collection-for recovery
+also composes with trailing block recovery before its insertion map is applied. Supported
+text-document requests now reject absent or ill-typed document/position parameters with JSON-RPC
+`-32602` and continue serving later requests.
+
+The active audit is structural and panic resilience in compiler-owned control paths. Subsequent
+loops cover packaging qualification and final responsibility hotspots against the stabilization
+gate.

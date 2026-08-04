@@ -60,6 +60,46 @@ fn handles_initialize_request() {
 }
 
 #[test]
+fn rejects_invalid_text_document_request_params_and_keeps_serving() {
+    let uri = "file:///tmp/nocter-invalid-request-params.nct";
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "textDocument/hover",
+        "params": { "textDocument": { "uri": uri } }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "textDocument/documentSymbol",
+        "params": { "position": { "line": 0, "character": 0 } }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 4, "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": "invalid" }
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 5, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+
+    for id in [2, 3, 4] {
+        let response = response_with_id(&messages, id);
+        assert_eq!(response["error"]["code"], json!(-32602), "{response:#?}");
+    }
+    assert_eq!(response_with_id(&messages, 5)["result"], Value::Null);
+}
+
+#[test]
 fn returns_specialized_signature_help_for_imported_generic_call() {
     let project = TempProject::new("lsp-signature-help-generic-import");
     let home = project.write_nocter_home();
@@ -2442,6 +2482,69 @@ fn returns_document_symbols_for_top_level_declarations() {
     );
     assert_eq!(symbols[2]["name"], json!("main"));
     assert_eq!(symbols[2]["kind"], json!(LSP_SYMBOL_KIND_FUNCTION));
+}
+
+#[test]
+fn document_features_recover_an_unclosed_member_body() {
+    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n";
+    let uri = "file:///tmp/nocter-unclosed-document-features.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let symbols = server
+        .document_symbol_response(json!(11), Some(&json!({ "textDocument": { "uri": uri } })));
+    let drop_symbol = &symbols["result"][1]["children"][0];
+    assert_eq!(drop_symbol["name"], json!("drop"));
+    assert_eq!(drop_symbol["selectionRange"]["start"]["line"], json!(3));
+    assert_eq!(
+        drop_symbol["selectionRange"]["start"]["character"],
+        json!(4)
+    );
+
+    let semantic = server
+        .semantic_tokens_response(json!(12), Some(&json!({ "textDocument": { "uri": uri } })));
+    assert!(
+        semantic["result"]["data"]
+            .as_array()
+            .is_some_and(|data| !data.is_empty()),
+        "expected recovered semantic tokens: {semantic:#?}"
+    );
+}
+
+#[test]
+fn navigation_recovers_an_unclosed_function_body() {
+    let text = "func main(): i32 {\n    let code = 0\n    return code + code\n";
+    let uri = "file:///tmp/nocter-unclosed-navigation.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
+    let params = json!({
+        "textDocument": { "uri": uri },
+        "position": reference,
+        "context": { "includeDeclaration": true }
+    });
+
+    let definition = server.definition_response(json!(13), Some(&params));
+    let link = definition_link(&definition);
+    assert_eq!(link["targetSelectionRange"]["start"]["line"], json!(1));
+    assert_eq!(link["targetSelectionRange"]["start"]["character"], json!(8));
+
+    let references = server.references_response(json!(14), Some(&params));
+    assert_eq!(references["result"].as_array().map(Vec::len), Some(3));
 }
 
 #[test]

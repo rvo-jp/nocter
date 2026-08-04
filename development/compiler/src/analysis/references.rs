@@ -40,6 +40,17 @@ pub(crate) fn reference_spans_for_text(
     offset: usize,
     include_declaration: bool,
 ) -> Option<Vec<ByteSpan>> {
+    reference_spans_for_complete_text(text, offset, include_declaration).or_else(|| {
+        let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+        reference_spans_for_complete_text(&recovered, offset, include_declaration)
+    })
+}
+
+fn reference_spans_for_complete_text(
+    text: &str,
+    offset: usize,
+    include_declaration: bool,
+) -> Option<Vec<ByteSpan>> {
     let parsed = parse_single_file_text("references.nct", text)?;
     let resolved = resolve_single_file_ast("references.nct", text, parsed.source, &parsed.ast);
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
@@ -392,6 +403,17 @@ mod tests {
     use crate::analysis::test_support::{
         analyze_namespace_import_text, analyze_text, span_fragments_from_sources,
     };
+
+    #[test]
+    fn reference_query_survives_an_unclosed_function_body() {
+        let text = "func main(): i32 {\n    let code = 0\n    return code + code\n";
+        let offset = text.find("code =").expect("expected declaration");
+
+        let spans =
+            reference_spans_for_text(text, offset, true).expect("expected recovered references");
+
+        assert_eq!(span_fragments(text, &spans), vec!["code", "code", "code"]);
+    }
 
     #[test]
     fn reference_query_finds_local_binding_references() {

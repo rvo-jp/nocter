@@ -70,6 +70,13 @@ pub(crate) fn definition_target_for_ast(
 }
 
 pub(crate) fn definition_target_for_text(text: &str, offset: usize) -> Option<SourceTarget> {
+    definition_target_for_complete_text(text, offset).or_else(|| {
+        let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+        definition_target_for_complete_text(&recovered, offset)
+    })
+}
+
+fn definition_target_for_complete_text(text: &str, offset: usize) -> Option<SourceTarget> {
     let parsed = parse_single_file_text("definition.nct", text)?;
     let resolved = resolve_single_file_for_definition(text, parsed.source, &parsed.ast);
 
@@ -177,6 +184,25 @@ mod tests {
     use crate::analysis::test_support::{
         analyze_import_text, analyze_namespace_import_text, analyze_text,
     };
+
+    #[test]
+    fn definition_query_survives_an_unclosed_function_body() {
+        let text = "func main(): i32 {\n    let code = 0\n    return code\n";
+        let reference = text.rfind("code").expect("expected reference");
+
+        let target = definition_target_for_text(text, reference)
+            .expect("expected recovered definition target");
+
+        assert_eq!(
+            &text[target.focus_span.start..target.focus_span.end],
+            "code"
+        );
+        assert_eq!(
+            &text[target.declaration_span.start..target.declaration_span.end],
+            "code"
+        );
+        assert_eq!(target.declaration_span.start, text.find("code =").unwrap());
+    }
 
     #[test]
     fn definition_query_keeps_the_whole_module_path_as_its_origin() {

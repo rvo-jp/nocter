@@ -14,6 +14,7 @@ mod locations;
 mod protocol;
 mod recovery;
 mod references;
+mod request_validation;
 mod semantic;
 mod signature_help;
 mod symbols;
@@ -154,6 +155,23 @@ impl LspServer {
                     "error": {
                         "code": -32600,
                         "message": "server is shutting down"
+                    }
+                }),
+            )?;
+            return Ok(None);
+        }
+
+        if request_validation::supported_text_document_params_are_valid(method, params)
+            == Some(false)
+        {
+            write_message(
+                writer,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": format!("invalid params for `{method}`")
                     }
                 }),
             )?;

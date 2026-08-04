@@ -26,7 +26,10 @@ pub(crate) struct DocumentSymbolInfo {
 }
 
 pub(crate) fn document_symbols_for_text(text: &str) -> Option<Vec<DocumentSymbolInfo>> {
-    let parsed = parse_single_file_text("document-symbols.nct", text)?;
+    let parsed = parse_single_file_text("document-symbols.nct", text).or_else(|| {
+        let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+        parse_single_file_text("document-symbols.nct", &recovered)
+    })?;
 
     Some(document_symbols_for_ast(text, &parsed.ast))
 }
@@ -233,6 +236,25 @@ impl Token {
         assert_eq!(drop_symbol.kind, DocumentSymbolKind::Method);
         assert_eq!(
             &text[drop_symbol.selection_span.start..drop_symbol.selection_span.end],
+            "drop"
+        );
+    }
+
+    #[test]
+    fn document_symbols_survive_an_unclosed_member_body() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+"#;
+        let symbols = document_symbols_for_text(text).expect("expected recovered document symbols");
+
+        assert_eq!(symbols[0].name, "Token");
+        assert_eq!(symbols[1].children[0].name, "drop");
+        assert_eq!(
+            &text[symbols[1].children[0].selection_span.start
+                ..symbols[1].children[0].selection_span.end],
             "drop"
         );
     }
