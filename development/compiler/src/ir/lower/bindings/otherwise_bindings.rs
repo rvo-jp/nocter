@@ -11,7 +11,7 @@ pub(super) fn optional_success_scalar_binding_kind(
 
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower annotated `otherwise` bindings without resolved type information",
+            "native lowering cannot lower annotated `otherwise` bindings without resolved type information",
         ));
     };
     Ok(
@@ -55,7 +55,7 @@ pub(super) fn lower_otherwise_terminal_block(
             lower_never_expression_with_scope_drops(result, context)?
         else {
             return Err(unsupported_binding_diagnostic(
-                "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+                "native lowering can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
             ));
         };
         instructions.extend(terminating_instructions);
@@ -64,7 +64,7 @@ pub(super) fn lower_otherwise_terminal_block(
 
     let Some((terminal, leading)) = block.statements.split_last() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower empty `otherwise` fallback blocks",
+            "native lowering cannot lower empty `otherwise` fallback blocks",
         ));
     };
 
@@ -89,7 +89,7 @@ pub(super) fn lower_otherwise_terminal_block(
                 lower_never_expression_with_scope_drops(&statement.expression, context)?
             else {
                 return Err(unsupported_binding_diagnostic(
-                    "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+                    "native lowering can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
                 ));
             };
             instructions.extend(terminating_instructions);
@@ -112,7 +112,7 @@ pub(super) fn lower_otherwise_terminal_block(
             Ok(instructions)
         }
         _ => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
+            "native lowering can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
         )),
     }
 }
@@ -134,12 +134,12 @@ pub(super) fn lower_otherwise_leading_statement(
         Stmt::Expression(statement) => {
             lower_void_expression_statement(&statement.expression, context)?.ok_or_else(|| {
                 unsupported_binding_diagnostic(
-                    "IR v0 can only lower `otherwise` leading expression statements that make effect-only calls",
+                    "native lowering can only lower `otherwise` leading expression statements that make effect-only calls",
                 )
             })
         }
         _ => Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower this statement inside `otherwise` fallback blocks",
+            "native lowering cannot lower this statement inside `otherwise` fallback blocks",
         )),
     }
 }
@@ -151,7 +151,7 @@ pub(super) fn lower_otherwise_loop_control_statement(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(loop_control) = loop_control else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower `break` and `continue` inside `otherwise` fallback blocks when the binding is inside a nonterminal loop",
+            "native lowering can only lower `break` and `continue` inside `otherwise` fallback blocks when the binding is inside a nonterminal loop",
         ));
     };
 
@@ -269,7 +269,7 @@ pub(super) fn lower_otherwise_scalar_binding(
 
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower `otherwise` bindings without resolved call information",
+            "native lowering cannot lower `otherwise` bindings without resolved call information",
         ));
     };
     let Some(return_type) = context.call_return_type_expr(call) else {
@@ -464,7 +464,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_i32_expression_to_location(expression, destination, context)
                 },
-                "IR v0 can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
+                "native lowering can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
             )?;
             let instructions = lower_fallible_i32_normal_call(
                 call,
@@ -485,7 +485,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_u8_expression_to_location(expression, destination, context)
                 },
-                "IR v0 can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
+                "native lowering can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
             )?;
             let instructions = lower_fallible_u8_normal_call(
                 call,
@@ -506,7 +506,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_usize_expression_to_location(expression, destination, context)
                 },
-                "IR v0 can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
+                "native lowering can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
             )?;
             let instructions = lower_fallible_usize_normal_call(
                 call,
@@ -538,7 +538,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                         context,
                     )
                 },
-                "IR v0 can only lower borrow `otherwise` fallbacks that produce a matching borrow or exit",
+                "native lowering can only lower borrow `otherwise` fallbacks that produce a matching borrow or exit",
             )?;
             let instructions = lower_fallible_borrow_normal_call(
                 call,
@@ -559,7 +559,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_bool_expression_to_location(expression, destination, context, "E8008")
                 },
-                "IR v0 can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
+                "native lowering can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
             )?;
             let instructions = lower_fallible_bool_normal_call(
                 call,
@@ -580,7 +580,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_str_expression_to_location(expression, destination, context)
                 },
-                "IR v0 can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
+                "native lowering can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
             )?;
             let instructions = lower_fallible_str_normal_call(
                 call,
@@ -601,7 +601,7 @@ pub(super) fn lower_otherwise_scalar_call_binding(
                 |expression, context| {
                     lower_slice_expression_to_location(expression, destination, context)
                 },
-                "IR v0 can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
+                "native lowering can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
             )?;
             let instructions = lower_fallible_slice_normal_call(
                 call,
@@ -634,7 +634,7 @@ pub(super) fn lower_otherwise_aggregate_binding(
 
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower aggregate `otherwise` bindings without resolved call information",
+            "native lowering cannot lower aggregate `otherwise` bindings without resolved call information",
         ));
     };
     let Some(return_type) = context.call_return_type_expr(call) else {
@@ -728,6 +728,6 @@ pub(super) fn lower_otherwise_aggregate_failure_mode(
             lower_aggregate_member_value_assignment(destination, 0, layout, expression, context)
                 .map_err(|_| unsupported_diagnostic())
         },
-        "IR v0 can only lower aggregate `otherwise` fallback blocks with supported aggregate values or exits",
+        "native lowering can only lower aggregate `otherwise` fallback blocks with supported aggregate values or exits",
     )
 }

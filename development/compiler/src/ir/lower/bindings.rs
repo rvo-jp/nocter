@@ -331,7 +331,7 @@ pub(super) fn lower_i32_optional_otherwise_to_location(
         move |expression, context| {
             lower_i32_expression_to_location(expression, fallback_destination, context)
         },
-        "IR v0 can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
+        "native lowering can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_i32_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -364,7 +364,7 @@ pub(super) fn lower_u8_optional_otherwise_to_location(
         move |expression, context| {
             lower_u8_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
+        "native lowering can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_u8_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -397,7 +397,7 @@ pub(super) fn lower_usize_optional_otherwise_to_location(
         move |expression, context| {
             lower_usize_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
+        "native lowering can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_usize_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -430,7 +430,7 @@ pub(super) fn lower_bool_optional_otherwise_to_location(
         move |expression, context| {
             lower_bool_expression_to_location(expression, destination, context, "E8008")
         },
-        "IR v0 can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
+        "native lowering can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_bool_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -463,7 +463,7 @@ pub(super) fn lower_str_optional_otherwise_to_location(
         move |expression, context| {
             lower_str_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
+        "native lowering can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_str_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -496,7 +496,7 @@ pub(super) fn lower_slice_optional_otherwise_to_location(
         move |expression, context| {
             lower_slice_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
+        "native lowering can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_slice_normal_call(call, destination, context, &mut temporaries, failure_mode)

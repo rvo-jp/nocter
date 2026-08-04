@@ -143,7 +143,7 @@ fn build_command_rejects_unimplemented_reserved_target() {
         "expected unimplemented target error, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("use `--target arm64-darwin`"),
+        stderr.contains("use the currently supported target `--target arm64-darwin`"),
         "stderr:\n{stderr}"
     );
 }
@@ -194,7 +194,7 @@ fn check_json_reports_target_parse_error_as_diagnostic_envelope() {
     );
     assert_eq!(
         json["diagnostics"][0]["help"],
-        "use `--target arm64-darwin` with Nocter v0"
+        "use the currently supported target `--target arm64-darwin`"
     );
 }
 

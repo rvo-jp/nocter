@@ -154,13 +154,15 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
         (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
             diagnostic_code,
             format!(
-                "IR v0 can only lower never function `{function_name}` returns from `never` calls"
+                "native lowering can only lower never function `{function_name}` returns from `never` calls"
             ),
         )]),
         (Type::Void, None) => Ok(vec![Instruction::Return]),
         (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
             diagnostic_code,
-            format!("IR v0 cannot lower value returns from void function `{function_name}`"),
+            format!(
+                "native lowering cannot lower value returns from void function `{function_name}`"
+            ),
         )]),
         (Type::I32, None) => Err(unsupported_bare_return_diagnostic(
             diagnostic_code,

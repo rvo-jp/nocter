@@ -30,10 +30,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_return_expression_diagn
         typecheck_facts,
         generic_substitutions,
     ) {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 return subset",
+            "`otherwise` fallback blocks outside supported return control flow",
             "end runtime-shipped `otherwise` return fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
@@ -99,10 +99,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_binding_initializer_dia
         typecheck_facts,
         generic_substitutions,
     ) {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 binding subset",
+            "`otherwise` fallback blocks outside supported binding control flow",
             "end runtime-shipped `otherwise` binding fallbacks with a value, direct `return`, loop-local `break`/`continue`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
@@ -170,10 +170,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_assignment_value_diagno
         typecheck_facts,
         generic_substitutions,
     ) {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 assignment subset",
+            "`otherwise` fallback blocks outside supported assignment control flow",
             "end runtime-shipped `otherwise` assignment fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
@@ -239,10 +239,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_scalar_view_value_expre
         typecheck_facts,
         generic_substitutions,
     ) {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 scalar/view value subset",
+            "`otherwise` fallback blocks outside supported scalar or view control flow",
             "end runtime-shipped scalar/view `otherwise` value fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
@@ -308,10 +308,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_aggregate_value_express
         typecheck_facts,
         generic_substitutions,
     ) {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             expression.fallback.span,
-            "`otherwise` fallback blocks outside the v0 aggregate value subset",
+            "`otherwise` fallback blocks outside supported aggregate control flow",
             "end runtime-shipped aggregate `otherwise` fallbacks with a value, direct `return`, or supported `never` expression until broader fallback lowering is promoted",
         ));
     }
@@ -366,10 +366,10 @@ pub(in crate::driver::buildability) fn collect_otherwise_runtime_value_diagnosti
         return;
     }
 
-    diagnostics.push(unsupported_v0_build_diagnostic(
+    diagnostics.push(unsupported_native_build_diagnostic(
         sources,
         expression.value.span(),
-        "`otherwise` values outside the v0 runtime subset",
+        "`otherwise` values outside supported runtime representations",
         "apply runtime-shipped `otherwise` directly to a call returning a top-level optional value",
     ));
 }

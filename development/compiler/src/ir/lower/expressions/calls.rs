@@ -28,7 +28,7 @@ use super::{
     lower_bool_expression_to_value_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_value, lower_slice_expression_to_value, lower_str_expression_to_value,
     lower_u8_expression_to_value, lower_usize_expression_to_value,
-    unsupported_non_tail_call_diagnostic,
+    unavailable_call_target_diagnostic,
 };
 use crate::abi::{
     ARGUMENT_REGISTER_COUNT, AbiType, ValueLayout, abi_value_from_type_expr_with_resolver,

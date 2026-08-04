@@ -46,7 +46,7 @@ pub(super) fn lower_entry_function(
         return Err(attach_primary_span_if_absent(
             vec![Diagnostic::error(
                 "E8001",
-                "IR v0 can only lower a non-generic zero-parameter entry function",
+                "native lowering can only lower a non-generic zero-parameter entry function",
             )],
             sources,
             span,
@@ -103,7 +103,7 @@ fn entry_return_type_is_supported(ty: &Type) -> bool {
 fn unsupported_entry_return_type_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8001",
-        "IR v0 can only lower entry function return type `i32`, `usize`, `i32!`, `usize!`, `void`, or `void!`",
+        "native lowering can only lower entry function return type `i32`, `usize`, `i32!`, `usize!`, `void`, or `void!`",
     )]
 }
 
@@ -1027,6 +1027,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
+        "native lowering can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

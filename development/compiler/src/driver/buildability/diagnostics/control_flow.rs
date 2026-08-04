@@ -113,7 +113,7 @@ pub(in crate::driver::buildability) fn collect_terminal_control_condition_move_d
         return;
     }
 
-    diagnostics.push(unsupported_v0_build_diagnostic(
+    diagnostics.push(unsupported_native_build_diagnostic(
         sources,
         span,
         "explicit aggregate moves in control-flow conditions",

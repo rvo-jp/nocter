@@ -463,7 +463,7 @@ pub(in crate::ir::lower) fn lower_bool_value(
     diagnostic_code: &'static str,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(_) => Err(unsupported_scalar_call_value_diagnostic()),
         Expr::BoolLiteral(literal) => match literal.value.as_str() {
             "true" => Ok(BoolValue::Const(true)),
             "false" => Ok(BoolValue::Const(false)),

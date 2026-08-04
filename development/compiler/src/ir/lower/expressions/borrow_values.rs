@@ -13,7 +13,7 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
         inner,
     } = borrow_type
     else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unsupported_borrow_expression_diagnostic());
     };
     let expression = match unwrap_group(expression) {
         Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
@@ -73,7 +73,7 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
     let source_expression = match expression {
         Expr::Borrow(borrow) if borrow.is_readwrite == *is_readwrite => &borrow.expression,
         Expr::Identifier(_) => expression,
-        _ => return Err(unsupported_non_tail_call_diagnostic()),
+        _ => return Err(unsupported_borrow_expression_diagnostic()),
     };
     let (mut instructions, source) = lower_borrow_source_from_expression(
         source_expression,
@@ -106,7 +106,7 @@ fn lower_outcome_borrow_expression(
         return Ok(instructions);
     }
     let Expr::Call(call) = unwrap_group(expression) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unsupported_borrow_expression_diagnostic());
     };
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_borrow_normal_call(call, destination, context, &mut temporaries, failure_mode)

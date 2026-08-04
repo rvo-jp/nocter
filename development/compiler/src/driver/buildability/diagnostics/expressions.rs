@@ -70,7 +70,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             }
         }
         Expr::ArrayLiteral(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
+            diagnostics.push(unsupported_native_build_diagnostic(
                 sources,
                 expression.span,
                 "array literals",
@@ -256,10 +256,10 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     expression.catch_block.span,
-                    "`catch` blocks outside the v0 runtime subset",
+                    "`catch` blocks outside supported runtime control flow",
                     "end runtime-shipped `catch` blocks with a direct `return` or supported effect-only/never expression statement until broader catch control-flow lowering is promoted",
                 ));
             }
@@ -325,7 +325,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 generic_substitutions,
                 resolved_sources,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     expression.operator_span,
                     "operations on storage-only scalar values",
@@ -367,7 +367,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 generic_substitutions,
                 resolved_sources,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     expression.as_span,
                     "conversions from computed storage-only scalar values",
@@ -380,7 +380,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 generic_substitutions,
                 resolved_sources,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     expression.as_span,
                     "computed values converted to storage-only scalar types",
@@ -706,7 +706,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 generic_substitutions,
                 resolved_sources,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     expression.span,
                     "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions",
@@ -742,7 +742,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             );
         }
         Expr::If(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
+            diagnostics.push(unsupported_native_build_diagnostic(
                 sources,
                 expression.span,
                 "`if` expressions",
@@ -802,7 +802,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             )
             .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
             .unwrap_or_else(|| {
-                unsupported_v0_build_diagnostic(
+                unsupported_native_build_diagnostic(
                     sources,
                     expression.span,
                     "`if is` expressions",
@@ -864,7 +864,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
             )
             .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
             .unwrap_or_else(|| {
-                unsupported_v0_build_diagnostic(
+                unsupported_native_build_diagnostic(
                     sources,
                     expression.span,
                     "`match` expressions",

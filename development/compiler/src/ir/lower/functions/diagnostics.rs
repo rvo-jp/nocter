@@ -7,7 +7,9 @@ pub(super) fn unsupported_bare_return_diagnostic(
 ) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        format!("IR v0 cannot lower bare returns from {return_label} function `{function_name}`"),
+        format!(
+            "native lowering cannot lower bare returns from {return_label} function `{function_name}`"
+        ),
     )]
 }
 
@@ -18,7 +20,9 @@ pub(super) fn unsupported_return_diagnostic(
 ) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        format!("IR v0 cannot lower {return_label} returns from function `{function_name}`"),
+        format!(
+            "native lowering cannot lower {return_label} returns from function `{function_name}`"
+        ),
     )]
 }
 
@@ -37,7 +41,7 @@ pub(super) fn unsupported_terminal_aggregate_if_diagnostic(function_name: &str) 
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches contain supported leading statements followed by aggregate returns or nested terminal aggregate `if` branches"
+            "native lowering can only lower terminal aggregate `if` branches in function `{function_name}` when both branches contain supported leading statements followed by aggregate returns or nested terminal aggregate `if` branches"
         ),
     )]
 }
@@ -73,7 +77,7 @@ pub(super) fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<D
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{function_name}` bodies containing leading scalar local bindings, scalar assignments, or effect-only call statements followed by `return`"
+            "native lowering can only lower function `{function_name}` bodies containing leading scalar local bindings, scalar assignments, or effect-only call statements followed by `return`"
         ),
     )]
 }

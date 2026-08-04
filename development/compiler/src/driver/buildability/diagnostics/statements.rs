@@ -18,7 +18,7 @@ pub(in crate::driver::buildability) fn unsupported_expression_statement_diagnost
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         expression.span(),
         "value-producing expression statements",
@@ -162,7 +162,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
         if is_buildable {
             return None;
         }
-        return Some(unsupported_v0_build_diagnostic(
+        return Some(unsupported_native_build_diagnostic(
             sources,
             index.span,
             "fixed array index assignment targets outside scalar/view element locals or aggregate fields",
@@ -182,7 +182,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         index.object.span(),
         "index assignment targets outside supported slice values",

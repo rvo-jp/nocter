@@ -1052,7 +1052,7 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         typecheck_facts,
         generic_substitutions,
     ) {
-        return Some(unsupported_v0_build_diagnostic(
+        return Some(unsupported_native_build_diagnostic(
             sources,
             statement.value.span(),
             "fixed array literal assignments whose element initialization can exit early",
@@ -1061,13 +1061,13 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
     }
 
     Some(match unwrap_group_expr(&statement.value) {
-        Expr::ArrayLiteral(_) => unsupported_v0_build_diagnostic(
+        Expr::ArrayLiteral(_) => unsupported_native_build_diagnostic(
             sources,
             statement.value.span(),
             "fixed array assignments outside supported literal values",
             "match the target fixed array length and use `i32`, `u8`, `usize`, `bool`, or `&str` elements until broader fixed array element storage is promoted",
         ),
-        _ => unsupported_v0_build_diagnostic(
+        _ => unsupported_native_build_diagnostic(
             sources,
             statement.target.span(),
             "fixed array assignments outside supported replacement values",

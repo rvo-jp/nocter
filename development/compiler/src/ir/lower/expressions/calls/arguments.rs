@@ -37,7 +37,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
+                "native lowering cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
                 argument_count,
                 parameter_types.len(),
             ),
@@ -318,7 +318,7 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
-                        "IR v0 can only lower scalar call arguments for function `{callee_name}`, got `{}`",
+                        "native lowering can only lower scalar call arguments for function `{callee_name}`, got `{}`",
                         describe_type(parameter_type),
                     ),
                 )]);
@@ -406,7 +406,7 @@ fn lower_error_argument(
 fn unsupported_error_argument_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 cannot lower error argument for function `{callee_name}`"),
+        format!("native lowering cannot lower error argument for function `{callee_name}`"),
     )]
 }
 
@@ -448,7 +448,9 @@ fn unwrap_copy_move_argument(expression: &Expr) -> &Expr {
 fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 call argument ABI word count overflows for function `{callee_name}`"),
+        format!(
+            "native lowering call argument ABI word count overflows for function `{callee_name}`"
+        ),
     )]
 }
 
@@ -460,7 +462,7 @@ fn call_argument_abi_word_count_mismatch_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 lowered call arguments for function `{callee_name}` into {actual} ABI words, but the resolved signature expects {expected}"
+            "native lowering produced {actual} argument ABI words for function `{callee_name}`, but the resolved signature expects {expected}"
         ),
     )]
 }

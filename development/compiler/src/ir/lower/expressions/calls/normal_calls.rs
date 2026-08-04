@@ -7,7 +7,7 @@ pub(in crate::ir::lower::expressions) fn lower_i32_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_normal_call_return_type(&target, &callee_name, context)?;
@@ -41,7 +41,7 @@ pub(in crate::ir::lower) fn lower_fallible_i32_normal_call(
     }
 
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_i32_normal_call_return_type(&target, &callee_name, context)?;
@@ -65,7 +65,7 @@ pub(in crate::ir::lower::expressions) fn lower_usize_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_usize_normal_call_return_type(&target, &callee_name, context)?;
@@ -99,7 +99,7 @@ pub(in crate::ir::lower) fn lower_fallible_usize_normal_call(
     }
 
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_usize_normal_call_return_type(&target, &callee_name, context)?;
@@ -123,7 +123,7 @@ pub(in crate::ir::lower::expressions) fn lower_borrow_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
     validate_borrow_normal_call_return_type(&target, &callee_name, context)?;
     let (mut instructions, arguments) =
@@ -144,7 +144,7 @@ pub(in crate::ir::lower) fn lower_fallible_borrow_normal_call(
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
     validate_outcome_borrow_normal_call_return_type(&target, &callee_name, context)?;
     let (mut instructions, arguments) =
@@ -165,7 +165,7 @@ pub(in crate::ir::lower::expressions) fn lower_u8_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_u8_normal_call_return_type(&target, &callee_name, context)?;
@@ -189,7 +189,7 @@ pub(in crate::ir::lower) fn lower_fallible_u8_normal_call(
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_u8_normal_call_return_type(&target, &callee_name, context)?;
@@ -213,7 +213,7 @@ pub(in crate::ir::lower::expressions) fn lower_bool_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_bool_normal_call_return_type(&target, &callee_name, context)?;
@@ -237,7 +237,7 @@ pub(in crate::ir::lower) fn lower_fallible_bool_normal_call(
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_bool_normal_call_return_type(&target, &callee_name, context)?;
@@ -261,7 +261,7 @@ pub(in crate::ir::lower::expressions) fn lower_str_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_str_normal_call_return_type(&target, &callee_name, context)?;
@@ -285,7 +285,7 @@ pub(in crate::ir::lower) fn lower_fallible_str_normal_call(
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_str_normal_call_return_type(&target, &callee_name, context)?;
@@ -309,7 +309,7 @@ pub(in crate::ir::lower::expressions) fn lower_slice_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_slice_normal_call_return_type(&target, &callee_name, context)?;
@@ -333,7 +333,7 @@ pub(in crate::ir::lower) fn lower_fallible_slice_normal_call(
     failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_outcome_slice_normal_call_return_type(&target, &callee_name, context)?;
@@ -356,7 +356,7 @@ pub(in crate::ir::lower::expressions) fn lower_void_normal_call(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
 
     validate_void_normal_call_return_type(&target, &callee_name, context)?;
@@ -402,7 +402,7 @@ pub(in crate::ir::lower::expressions) fn lower_fallible_void_normal_call(
     }
 
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
-        return Err(unsupported_non_tail_call_diagnostic());
+        return Err(unavailable_call_target_diagnostic());
     };
     validate_outcome_void_normal_call_return_type(&target, &callee_name, context)?;
 

@@ -14,7 +14,7 @@ pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower primitive `syscall{arity}` with {} `usize` arguments",
+                "native lowering can only lower primitive `syscall{arity}` with {} `usize` arguments",
                 arity + 1
             ),
         )]);
@@ -900,7 +900,7 @@ pub(in crate::ir::lower::expressions) fn lower_close_fd_raw_primitive_call(
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `close_fd_raw` with argument `(i32)`",
+            "native lowering can only lower primitive `close_fd_raw` with argument `(i32)`",
         )]);
     }
 
@@ -918,7 +918,7 @@ pub(in crate::ir::lower::expressions) fn lower_exit_raw_primitive_call(
         if !call.arguments.is_empty() {
             return Err(vec![Diagnostic::error(
                 "E8006",
-                "IR v0 can only lower primitive `allocation_abort_raw` without arguments",
+                "native lowering can only lower primitive `allocation_abort_raw` without arguments",
             )]);
         }
         return Ok(vec![Instruction::ProcessExit {
@@ -928,7 +928,7 @@ pub(in crate::ir::lower::expressions) fn lower_exit_raw_primitive_call(
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `exit_raw` with argument `(i32)`",
+            "native lowering can only lower primitive `exit_raw` with argument `(i32)`",
         )]);
     }
 
@@ -949,7 +949,7 @@ pub(in crate::ir::lower::expressions) fn lower_read_bytes_raw_primitive_call(
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `read_bytes_raw` with arguments `(i32, &+[u8])`",
+            "native lowering can only lower primitive `read_bytes_raw` with arguments `(i32, &+[u8])`",
         )]);
     };
 
@@ -976,7 +976,7 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `open_read_raw` with argument `(*u8)`",
+            "native lowering can only lower primitive `open_read_raw` with argument `(*u8)`",
         )]);
     }
 
@@ -1006,7 +1006,7 @@ fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usi
 fn unsupported_macos_syscall_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 cannot lower macOS syscall primitive: {reason}"),
+        format!("native lowering cannot lower macOS syscall primitive: {reason}"),
     )]
 }
 
@@ -1063,7 +1063,7 @@ fn unsupported_pointer_primitive_diagnostic(reason: impl Into<String>) -> Vec<Di
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower pointer primitive call: {}",
+            "native lowering cannot lower pointer primitive call: {}",
             reason.into()
         ),
     )]
@@ -1077,7 +1077,7 @@ pub(in crate::ir::lower::expressions) fn lower_write_text_raw_primitive_call(
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `write_text_raw` with arguments `(i32, &str)`",
+            "native lowering can only lower primitive `write_text_raw` with arguments `(i32, &str)`",
         )]);
     };
 
@@ -1100,7 +1100,7 @@ pub(in crate::ir::lower::expressions) fn lower_write_bytes_raw_primitive_call(
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `write_bytes_raw` with arguments `(i32, &[u8])`",
+            "native lowering can only lower primitive `write_bytes_raw` with arguments `(i32, &[u8])`",
         )]);
     };
 

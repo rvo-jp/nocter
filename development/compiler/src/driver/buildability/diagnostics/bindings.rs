@@ -73,7 +73,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
             typecheck_facts,
             generic_substitutions,
         ) {
-            return Some(unsupported_v0_build_diagnostic(
+            return Some(unsupported_native_build_diagnostic(
                 sources,
                 statement.initializer.span(),
                 "fixed array literal bindings whose element initialization can exit early",
@@ -81,13 +81,13 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
             ));
         }
         return Some(match unwrap_group_expr(&statement.initializer) {
-            Expr::ArrayLiteral(_) => unsupported_v0_build_diagnostic(
+            Expr::ArrayLiteral(_) => unsupported_native_build_diagnostic(
                 sources,
                 statement.initializer.span(),
                 "fixed array local bindings outside supported literal values",
                 "match the fixed array length and use `i32`, `u8`, `usize`, `bool`, or `&str` elements until broader fixed array element storage is promoted",
             ),
-            _ => unsupported_v0_build_diagnostic(
+            _ => unsupported_native_build_diagnostic(
                 sources,
                 statement.name_span,
                 "fixed array local bindings outside supported initialization",
@@ -113,7 +113,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         if type_expr_is_top_level_optional_with_resolver(&ty, resolved, &source_resolver)
             || type_expr_is_top_level_fallible_with_resolver(&ty, resolved, &source_resolver)
         {
-            return Some(unsupported_v0_build_diagnostic(
+            return Some(unsupported_native_build_diagnostic(
                 sources,
                 statement.name_span,
                 "stored optional or fallible local values",
@@ -122,7 +122,7 @@ pub(in crate::driver::buildability) fn unsupported_local_binding_type_diagnostic
         }
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         statement.name_span,
         "local bindings with unsupported value types",

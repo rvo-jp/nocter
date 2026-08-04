@@ -48,7 +48,7 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower unloaded imported function calls yet"
+        "the native compiler cannot lower unloaded imported function calls yet"
     );
     assert_eq!(
         diagnostics[0].help.as_deref(),
@@ -1453,7 +1453,7 @@ func main(): i32 {
             diagnostics.iter().any(|diagnostic| {
                 diagnostic.code == "E0435"
                     && diagnostic.message
-                        == "Nocter v0 build cannot lower fixed array assignments outside supported replacement values yet"
+                        == "the native compiler cannot lower fixed array assignments outside supported replacement values yet"
             }),
             "{diagnostics:?}"
         );
@@ -1697,7 +1697,7 @@ func source(): i32! {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower `catch` blocks outside the v0 runtime subset yet"
+        "the native compiler cannot lower `catch` blocks outside supported runtime control flow yet"
     );
 }
 
@@ -1891,7 +1891,7 @@ func source(): i32? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower `otherwise` fallback blocks outside the v0 binding subset yet"
+        "the native compiler cannot lower `otherwise` fallback blocks outside supported binding control flow yet"
     );
 }
 
@@ -1975,7 +1975,7 @@ func empty<T>(): T? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        "the native compiler cannot lower generic function calls without concrete type arguments yet"
     );
 }
 
@@ -2028,7 +2028,7 @@ func empty<T>(): T? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        "the native compiler cannot lower generic function calls without concrete type arguments yet"
     );
     assert_eq!(
         diagnostics[0].help.as_deref(),

@@ -44,8 +44,13 @@ editor integration.
 
 ## Current Objective
 
-Qualify v0.3.0 as one stable release without expanding its feature set. The first structural audit
-must preserve optional and fallible outcome identity through IR instead of recovering the layer in
-individual lowering paths. Subsequent loops enforce the checked-to-buildable-to-native boundary,
-then audit ownership, cleanup, packaged runtime behavior, editor facts, malformed-input resilience,
-diagnostic terminology, and responsibility hotspots against the stabilization gate.
+Qualify v0.3.0 as one stable release without expanding its feature set. Optional and fallible
+outcome identity is now preserved through IR, including stored borrow payloads and contextual
+generic specialization. User-facing compiler diagnostics no longer describe implementation limits
+as a bare `v0` contract, and call-lowering failures distinguish unavailable targets from borrow and
+scalar materialization failures.
+
+The active audit is ownership, allocation, and region cleanup symmetry across normal completion,
+`return`, `break`, `continue`, propagation, recovery, and trap edges. Subsequent loops cover packaged
+runtime behavior, editor facts, malformed-input resilience, and responsibility hotspots against the
+stabilization gate.

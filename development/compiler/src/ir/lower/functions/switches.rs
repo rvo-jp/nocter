@@ -172,13 +172,13 @@ pub(super) fn payload_view_binding_loads(
     let len_index = index.checked_add(1).ok_or_else(|| {
         payload_binding_overflow_diagnostic(
             diagnostic_code,
-            "IR v0 cannot lower payload enum bindings with overflowing local indexes",
+            "native lowering cannot lower payload enum bindings with overflowing local indexes",
         )
     })?;
     let len_offset = payload_offset.checked_add(8).ok_or_else(|| {
         payload_binding_overflow_diagnostic(
             diagnostic_code,
-            "IR v0 cannot lower payload enum bindings with overflowing payload offsets",
+            "native lowering cannot lower payload enum bindings with overflowing payload offsets",
         )
     })?;
     Ok(vec![
@@ -924,13 +924,13 @@ pub(super) fn payloadless_switch_target_name(statement: &SwitchStmt) -> String {
 pub(super) fn unsupported_if_is_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless `if is` branches or tag-only payload enum `if is` branches over supported enum pattern targets",
+        "native lowering can only lower payloadless `if is` branches or tag-only payload enum `if is` branches over supported enum pattern targets",
     )]
 }
 
 pub(super) fn unsupported_switch_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower payloadless enum `match` statements or tag-only payload enum `match` statements over supported enum pattern targets",
+        "native lowering can only lower payloadless enum `match` statements or tag-only payload enum `match` statements over supported enum pattern targets",
     )]
 }

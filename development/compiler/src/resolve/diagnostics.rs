@@ -39,8 +39,7 @@ pub(super) fn duplicate_visible_name_diagnostic(
             span: Some(span),
         });
     }
-    diagnostic.help =
-        Some("choose a distinct name; Nocter v0 does not allow shadowing".to_string());
+    diagnostic.help = Some("choose a distinct name; shadowing is not supported".to_string());
     diagnostic
 }
 
@@ -61,9 +60,8 @@ pub(super) fn prelude_name_collision_diagnostic(
             span: Some(span),
         });
     }
-    diagnostic.help = Some(
-        "choose a distinct name; Nocter v0 does not allow shadowing prelude names".to_string(),
-    );
+    diagnostic.help =
+        Some("choose a distinct name; shadowing prelude names is not supported".to_string());
     diagnostic
 }
 
@@ -131,7 +129,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
         });
     }
     diagnostic.help =
-        Some("choose a distinct member name; Nocter v0 does not support overloads".to_string());
+        Some("choose a distinct member name; overloads are not supported".to_string());
     diagnostic
 }
 
@@ -154,7 +152,7 @@ pub(super) fn duplicate_interface_method_name_diagnostic(
         });
     }
     diagnostic.help =
-        Some("choose a distinct method name; Nocter v0 does not support overloads".to_string());
+        Some("choose a distinct method name; overloads are not supported".to_string());
     diagnostic
 }
 

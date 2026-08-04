@@ -26,7 +26,7 @@ pub(super) fn callable_function_signature_issues(
     {
         issues.push(BuildabilityIssue {
             span: function.return_type.span(),
-            construct: "function return types outside the v0 runtime ABI subset",
+            construct: "function return types outside the supported runtime ABI",
             help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, a supported static `error` payload helper, or a fallible form with a non-`error` success type",
         });
     }
@@ -57,7 +57,7 @@ pub(super) fn callable_method_signature_issues(
     if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver) {
         issues.push(BuildabilityIssue {
             span: method.return_type.span(),
-            construct: "method return types outside the v0 runtime ABI subset",
+            construct: "method return types outside the supported runtime ABI",
             help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, or a fallible form with a non-`error` success type",
         });
     }
@@ -80,7 +80,7 @@ pub(super) fn callable_parameter_issues(
             }
             Some(BuildabilityIssue {
                 span: parameter.span,
-                construct: "function or method parameters outside the v0 runtime ABI subset",
+                construct: "function or method parameters outside the supported runtime ABI",
                 help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or supported aggregate value parameters",
             })
         })

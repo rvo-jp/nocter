@@ -162,7 +162,7 @@ fn lower_reachable_functions(
             return Err(vec![Diagnostic::error(
                 "E8006",
                 format!(
-                    "IR v0 cannot find reachable function target `{}`",
+                    "native lowering cannot find reachable function target `{}`",
                     describe_call_target(&target)
                 ),
             )]);

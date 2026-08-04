@@ -131,7 +131,7 @@ pub(super) fn scalar_binding_kind(
         Some(ty) => {
             let Some((_root_source, resolved)) = context.resolved_calls() else {
                 return Err(unsupported_binding_diagnostic(
-                    "IR v0 cannot lower annotated local bindings without resolved type information",
+                    "native lowering cannot lower annotated local bindings without resolved type information",
                 ));
             };
             let ty = context.specialize_type_expr(ty);

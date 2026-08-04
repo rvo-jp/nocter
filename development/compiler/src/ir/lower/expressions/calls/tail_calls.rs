@@ -11,7 +11,7 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower direct function calls in tail return position",
+            "native lowering can only lower direct function calls in tail return position",
         )]);
     };
 
@@ -130,7 +130,7 @@ fn unsupported_non_tail_return_call_diagnostic(callee_name: &str) -> Vec<Diagnos
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower return call to function `{callee_name}` without tail-call support for this return type"
+            "native lowering cannot lower return call to function `{callee_name}` without tail-call support for this return type"
         ),
     )]
 }

@@ -123,7 +123,7 @@ pub(super) fn lower_otherwise_scalar_return_call_to_return(
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower `otherwise` returns for scalar success types",
+            "native lowering can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -217,7 +217,7 @@ pub(super) fn lower_otherwise_scalar_return_call_to_temporary(
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower `otherwise` returns for scalar success types",
+            "native lowering can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -264,7 +264,7 @@ pub(super) fn append_scope_drops_then_restore_scalar_return(
         | Type::ComposedOutcome { .. } => {
             return Err(vec![Diagnostic::error(
                 "E8007",
-                "IR v0 can only restore `otherwise` returns for scalar success types",
+                "native lowering can only restore `otherwise` returns for scalar success types",
             )]);
         }
     };
@@ -293,7 +293,7 @@ pub(super) fn scalar_return_temporary_abi_words(
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only restore `otherwise` returns for scalar success types",
+            "native lowering can only restore `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -514,6 +514,6 @@ pub(super) fn unsupported_otherwise_fallback_diagnostic(
 ) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower `otherwise` fallback blocks with local bindings, assignments, drops, effect-only calls, and a value, `return`, or `never` tail",
+        "native lowering can only lower `otherwise` fallback blocks with local bindings, assignments, drops, effect-only calls, and a value, `return`, or `never` tail",
     )]
 }

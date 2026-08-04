@@ -194,7 +194,7 @@ impl DropStateAllocator for TemporaryAllocator {
 fn invalid_struct_initialization_state_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 cannot establish struct field initialization state",
+        "native lowering cannot establish struct field initialization state",
     )]
 }
 

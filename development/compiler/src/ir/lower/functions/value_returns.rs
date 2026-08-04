@@ -177,7 +177,7 @@ pub(super) fn lower_leading_bindings(
                     return Err(attach_primary_span_if_absent(
                         vec![Diagnostic::error(
                             "E8007",
-                            "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or effect-only call statements before `return`",
+                            "native lowering can only lower leading scalar local bindings, scalar assignments, drop statements, or effect-only call statements before `return`",
                         )],
                         sources,
                         statement.span,
@@ -342,7 +342,7 @@ pub(super) fn lower_leading_bindings(
                 return Err(attach_primary_span_if_absent(
                     vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
+                        "native lowering can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
                     )],
                     sources,
                     statement.span(),

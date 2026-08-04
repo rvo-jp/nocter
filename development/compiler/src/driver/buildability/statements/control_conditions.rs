@@ -19,7 +19,7 @@ pub(in crate::driver::buildability) fn collect_control_condition_move_diagnostic
         return;
     };
 
-    diagnostics.push(unsupported_v0_build_diagnostic(
+    diagnostics.push(unsupported_native_build_diagnostic(
         sources,
         span,
         "explicit aggregate moves in control-flow conditions",
@@ -106,7 +106,7 @@ pub(in crate::driver::buildability) fn collect_nonterminal_control_block_aggrega
                     generic_substitutions,
                     &local_bindings,
                 ) {
-                    diagnostics.push(unsupported_v0_build_diagnostic(
+                    diagnostics.push(unsupported_native_build_diagnostic(
                         sources,
                         span,
                         "explicit outer aggregate moves inside non-terminal control flow",
@@ -127,7 +127,7 @@ pub(in crate::driver::buildability) fn collect_nonterminal_control_block_aggrega
                     generic_substitutions,
                     &local_bindings,
                 ) {
-                    diagnostics.push(unsupported_v0_build_diagnostic(
+                    diagnostics.push(unsupported_native_build_diagnostic(
                         sources,
                         span,
                         "explicit outer aggregate moves inside non-terminal control flow",
@@ -144,7 +144,7 @@ pub(in crate::driver::buildability) fn collect_nonterminal_control_block_aggrega
                     generic_substitutions,
                     &local_bindings,
                 ) {
-                    diagnostics.push(unsupported_v0_build_diagnostic(
+                    diagnostics.push(unsupported_native_build_diagnostic(
                         sources,
                         span,
                         "explicit outer aggregate moves inside non-terminal control flow",
@@ -163,7 +163,7 @@ pub(in crate::driver::buildability) fn collect_nonterminal_control_block_aggrega
                         generic_substitutions,
                     ) =>
             {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.span,
                     "explicit outer aggregate drops inside non-terminal control flow",
@@ -183,7 +183,7 @@ pub(in crate::driver::buildability) fn collect_nonterminal_control_block_aggrega
             &local_bindings,
         )
     {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             span,
             "explicit outer aggregate moves inside non-terminal control-flow results",

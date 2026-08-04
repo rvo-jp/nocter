@@ -19,7 +19,7 @@ pub(in crate::driver::buildability) fn unsupported_field_member_value_diagnostic
     let field_ty = substitute_type_expr_parameters(&field_ty, generic_substitutions);
     match member_field_value_type_is_buildable(&field_ty, resolved, resolved_sources)? {
         true => None,
-        false => Some(unsupported_v0_build_diagnostic(
+        false => Some(unsupported_native_build_diagnostic(
             sources,
             expression.member_span,
             "field member values outside supported scalar/view or aggregate types",
@@ -104,7 +104,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
         if is_buildable {
             return None;
         }
-        return Some(unsupported_v0_build_diagnostic(
+        return Some(unsupported_native_build_diagnostic(
             sources,
             expression.span,
             "fixed array indexing outside scalar/view element local or aggregate-field reads",
@@ -122,7 +122,7 @@ pub(in crate::driver::buildability) fn unsupported_slice_index_diagnostic(
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         expression.span,
         "slice indexing outside scalar, `&str`, and copy aggregate elements",

@@ -1046,7 +1046,7 @@ fn unsupported_aggregate_argument_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower `{}` arguments for function `{callee_name}` from supported aggregate locals, struct literals, or aggregate calls",
+            "native lowering can only lower `{}` arguments for function `{callee_name}` from supported aggregate locals, struct literals, or aggregate calls",
             describe_type(parameter_type),
         ),
     )]

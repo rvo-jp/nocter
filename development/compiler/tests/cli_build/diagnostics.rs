@@ -605,7 +605,7 @@ func main(): i32 {
         "expected buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`catch` blocks outside the v0 runtime subset"),
+        stderr.contains("`catch` blocks outside supported runtime control flow"),
         "expected catch block construct, got:\n{stderr}"
     );
     assert!(
@@ -1202,7 +1202,7 @@ func consume(texts: [Text; 1]): void {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        stderr.contains("function or method parameters outside the supported runtime ABI"),
         "expected unsupported parameter diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -1210,7 +1210,7 @@ func consume(texts: [Text; 1]): void {
         "expected parameter source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        !stderr.contains("the native compiler cannot lower array literals yet"),
         "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
     );
     assert!(
@@ -1261,7 +1261,7 @@ func main(): i32 {
         "expected field member source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        !stderr.contains("the native compiler cannot lower array literals yet"),
         "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
     );
     assert!(
@@ -1303,11 +1303,11 @@ func value(): u16 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        stderr.contains("function or method parameters outside the supported runtime ABI"),
         "expected parameter diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2314,7 +2314,7 @@ func dynamic_message(): &str {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2375,7 +2375,7 @@ func main(): i32! {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2438,7 +2438,7 @@ func main(): i32! {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("method return types outside the v0 runtime ABI subset"),
+        stderr.contains("method return types outside the supported runtime ABI"),
         "expected method return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2498,7 +2498,7 @@ func dynamic_message(): &str {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(

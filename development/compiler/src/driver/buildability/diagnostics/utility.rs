@@ -7,7 +7,7 @@ pub(in crate::driver::buildability) fn unwrap_group_expr(expression: &Expr) -> &
     }
 }
 
-pub(in crate::driver::buildability) fn unsupported_v0_build_diagnostic(
+pub(in crate::driver::buildability) fn unsupported_native_build_diagnostic(
     sources: &SourceMap,
     span: ByteSpan,
     construct: &str,
@@ -15,7 +15,7 @@ pub(in crate::driver::buildability) fn unsupported_v0_build_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0435",
-        format!("Nocter v0 build cannot lower {construct} yet"),
+        format!("the native compiler cannot lower {construct} yet"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(help.to_string());
@@ -27,7 +27,7 @@ pub(in crate::driver::buildability) fn unsupported_payload_binding_diagnostic(
     span: ByteSpan,
     control: &str,
 ) -> Diagnostic {
-    unsupported_v0_build_diagnostic(
+    unsupported_native_build_diagnostic(
         sources,
         span,
         &format!(

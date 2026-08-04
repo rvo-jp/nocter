@@ -425,7 +425,7 @@ pub(in crate::ir::lower) fn lower_i32_value(
     context: &LoweringContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(_) => Err(unsupported_scalar_call_value_diagnostic()),
         Expr::Identifier(identifier) => context
             .i32_location(&identifier.name)
             .map(I32Value::Location)
@@ -443,7 +443,7 @@ pub(in crate::ir::lower) fn lower_u8_value(
     context: &LoweringContext,
 ) -> Result<U8Value, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(_) => Err(unsupported_scalar_call_value_diagnostic()),
         Expr::Identifier(identifier) => context
             .u8_location(&identifier.name)
             .map(U8Value::Location)
@@ -465,7 +465,7 @@ pub(in crate::ir::lower) fn lower_usize_value(
     context: &LoweringContext,
 ) -> Result<UsizeValue, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(_) => Err(unsupported_scalar_call_value_diagnostic()),
         Expr::Identifier(identifier) => context
             .usize_location(&identifier.name)
             .map(UsizeValue::Location)

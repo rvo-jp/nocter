@@ -190,7 +190,7 @@ pub(in crate::ir::lower) fn lower_function<'a>(
             vec![Diagnostic::error(
                 "E8007",
                 format!(
-                    "IR v0 can only lower function `{}` with concrete generic arguments, got `{}`",
+                    "native lowering can only lower function `{}` with concrete generic arguments, got `{}`",
                     name, function.name
                 ),
             )],
@@ -411,7 +411,7 @@ pub(in crate::ir::lower) fn lower_method_function_with_prologue<'a>(
         return Err(attach_primary_span_if_absent(
             vec![Diagnostic::error(
                 "E8007",
-                format!("IR v0 can only lower method `{name}` with a body"),
+                format!("native lowering can only lower method `{name}` with a body"),
             )],
             sources,
             method.span,

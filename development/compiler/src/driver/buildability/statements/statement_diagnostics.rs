@@ -188,7 +188,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
@@ -451,7 +451,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
                 .unwrap_or_else(|| {
-                    unsupported_v0_build_diagnostic(
+                    unsupported_native_build_diagnostic(
                         sources,
                         statement.pattern_span,
                         "`if is` pattern branches",
@@ -561,7 +561,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
                 .unwrap_or_else(|| {
-                    unsupported_v0_build_diagnostic(
+                    unsupported_native_build_diagnostic(
                         sources,
                         statement.span,
                         "`match` statements",
@@ -659,7 +659,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
         }
         Stmt::ForRange(statement) => {
             if !range_for_binding_type_is_buildable(statement, typecheck_facts) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.range_span,
                     "range `for` loops outside i32/usize bounds",

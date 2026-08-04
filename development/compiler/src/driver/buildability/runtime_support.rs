@@ -700,7 +700,7 @@ pub(super) fn unsupported_std_vec_element_call_diagnostic(
             "move owned elements into a Vec with `push`; `from_slice` duplicates every source element",
         ),
     };
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources, call.span, feature, help,
     ))
 }
@@ -780,7 +780,7 @@ pub(super) fn unsupported_null_from_addr_call_diagnostic(
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         argument.span(),
         "null raw pointer construction",

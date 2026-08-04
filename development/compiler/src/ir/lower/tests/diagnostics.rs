@@ -401,7 +401,7 @@ func mirrors_enabled(): i32 {
     assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
         diagnostics[0].message,
-        "IR v0 cannot lower tail call from function `mirrors_enabled` returning `i32` to function `enabled` returning `bool`"
+        "native lowering cannot lower tail call from function `mirrors_enabled` returning `i32` to function `enabled` returning `bool`"
     );
 }
 
@@ -436,7 +436,7 @@ func uses_answer(): i32 {
     assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
         diagnostics[0].message,
-        "IR v0 call return ABI mismatch for function `answer`: expected callee success return to use `1 direct ABI word`, got `2 direct ABI words`"
+        "native lowering call return ABI mismatch for function `answer`: expected callee success return to use `1 direct ABI word`, got `2 direct ABI words`"
     );
 }
 

@@ -330,7 +330,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
     Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower unresolved imported function call `{call_name}`; the imported declaration must be loaded before backend call-target lowering"
+            "native lowering cannot lower unresolved imported function call `{call_name}`; the imported declaration must be loaded before backend call-target lowering"
         ),
     )
 }

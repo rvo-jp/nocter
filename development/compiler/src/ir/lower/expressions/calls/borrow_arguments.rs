@@ -579,7 +579,7 @@ fn unsupported_borrow_argument_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower `{}` arguments from scalar local bindings for function `{callee_name}`",
+            "native lowering can only lower `{}` arguments from scalar local bindings for function `{callee_name}`",
             describe_type(parameter_type),
         ),
     )]

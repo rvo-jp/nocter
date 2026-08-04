@@ -68,7 +68,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values, storage-only integer literals, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "native lowering can only lower aggregate {subject} from struct literals whose fields are supported scalar/view values, storage-only integer literals, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

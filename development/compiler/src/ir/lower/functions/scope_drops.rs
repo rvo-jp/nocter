@@ -445,7 +445,7 @@ pub(in crate::ir::lower) fn drop_parameter_matches_local(
 pub(in crate::ir::lower) fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        format!("IR v0 cannot lower drop statement for binding `{name}`"),
+        format!("native lowering cannot lower drop statement for binding `{name}`"),
     )]
 }
 

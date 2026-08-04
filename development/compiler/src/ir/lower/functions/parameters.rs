@@ -249,7 +249,7 @@ pub(super) fn validate_parameter_slots_match_function_abi(
     Err(vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 lowered parameters for function `{function_name}` into {actual} ABI words, but the resolved ABI expects {expected}"
+            "native lowering produced {actual} parameter ABI words for function `{function_name}`, but the resolved ABI expects {expected}"
         ),
     )])
 }
@@ -632,7 +632,7 @@ pub(super) fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, scalar borrow parameters, aggregate borrow parameters, and supported aggregate value parameters for function `{function_name}`"
+            "native lowering can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, scalar borrow parameters, aggregate borrow parameters, and supported aggregate value parameters for function `{function_name}`"
         ),
     )]
 }
@@ -653,7 +653,7 @@ pub(super) fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Dia
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, `void`, `never`, aggregates, or a fallible form of those types"
+            "native lowering can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, `void`, `never`, aggregates, or a fallible form of those types"
         ),
     )]
 }

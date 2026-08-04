@@ -21,7 +21,7 @@ pub(super) fn validate_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `i32`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning `i32`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -48,7 +48,7 @@ pub(super) fn validate_usize_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `usize`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning `usize`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -73,7 +73,7 @@ pub(super) fn validate_borrow_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -100,7 +100,7 @@ pub(super) fn validate_u8_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `u8`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning `u8`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -127,7 +127,7 @@ pub(super) fn validate_bool_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `bool`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning `bool`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -154,7 +154,7 @@ pub(super) fn validate_str_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `&str`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning `&str`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -181,7 +181,7 @@ pub(super) fn validate_slice_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning a slice, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower normal calls returning a slice, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -196,7 +196,7 @@ pub(super) fn validate_void_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower expression statements calling functions with known `void` return type, got function `{callee_name}`"
+                "native lowering can only lower expression statements calling functions with known `void` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -213,7 +213,7 @@ pub(super) fn validate_void_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower expression statements calling functions returning `void`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower expression statements calling functions returning `void`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -228,7 +228,7 @@ pub(super) fn validate_outcome_void_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated call statements with known `void!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated call statements with known `void!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -242,7 +242,7 @@ pub(super) fn validate_outcome_void_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated call statements returning `void!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated call statements returning `void!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -257,7 +257,7 @@ pub(super) fn validate_outcome_borrow_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower optional borrow calls with known return type, got function `{callee_name}`"
+                "native lowering can only lower optional borrow calls with known return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -269,7 +269,7 @@ pub(super) fn validate_outcome_borrow_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower optional borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower optional borrow calls returning a borrow, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -284,7 +284,7 @@ pub(super) fn validate_outcome_i32_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known `i32!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known `i32!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -298,7 +298,7 @@ pub(super) fn validate_outcome_i32_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning `i32!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning `i32!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -313,7 +313,7 @@ pub(super) fn validate_outcome_usize_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known `usize!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known `usize!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -327,7 +327,7 @@ pub(super) fn validate_outcome_usize_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning `usize!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning `usize!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -342,7 +342,7 @@ pub(super) fn validate_outcome_u8_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known `u8!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known `u8!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -356,7 +356,7 @@ pub(super) fn validate_outcome_u8_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning `u8!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning `u8!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -371,7 +371,7 @@ pub(super) fn validate_outcome_bool_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known `bool!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known `bool!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -385,7 +385,7 @@ pub(super) fn validate_outcome_bool_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning `bool!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning `bool!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -400,7 +400,7 @@ pub(super) fn validate_outcome_str_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known `&str!` return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known `&str!` return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -414,7 +414,7 @@ pub(super) fn validate_outcome_str_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning `&str!`, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning `&str!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -429,7 +429,7 @@ pub(super) fn validate_outcome_slice_normal_call_return_type(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower propagated calls with known slice fallible return type, got function `{callee_name}`"
+                "native lowering can only lower propagated calls with known slice fallible return type, got function `{callee_name}`"
             ),
         )]);
     };
@@ -443,7 +443,7 @@ pub(super) fn validate_outcome_slice_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower propagated calls returning a slice fallible type, got function `{callee_name}` returning `{}`",
+            "native lowering can only lower propagated calls returning a slice fallible type, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])
@@ -465,7 +465,7 @@ pub(super) fn validate_tail_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower tail call from function `{}` returning `{}` to function `{callee_name}` returning `{}`",
+            "native lowering cannot lower tail call from function `{}` returning `{}` to function `{callee_name}` returning `{}`",
             context.function_name(),
             describe_type(context.return_type()),
             describe_type(callee_return_type),
@@ -492,7 +492,7 @@ fn validate_call_success_return_passing(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 call return ABI mismatch for function `{callee_name}`: expected callee success return to use `{}`, got `{}`",
+            "native lowering call return ABI mismatch for function `{callee_name}`: expected callee success return to use `{}`, got `{}`",
             expected.description(),
             actual.description(),
         ),

@@ -11,7 +11,7 @@ pub(super) fn lower_str_literal(expression: &Expr) -> Result<StrValue, Vec<Diagn
         Expr::Group(group) => lower_str_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower string literals as `&str` values",
+            "native lowering can only lower string literals as `&str` values",
         )]),
     }
 }
@@ -33,7 +33,7 @@ pub(super) fn lower_i32_literal(expression: &Expr) -> Result<i32, Vec<Diagnostic
         Expr::Group(group) => lower_i32_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower integer literal returns",
+            "native lowering can only lower integer literal returns",
         )]),
     }
 }
@@ -44,7 +44,7 @@ pub(super) fn lower_usize_literal(expression: &Expr) -> Result<u64, Vec<Diagnost
         Expr::Group(group) => lower_usize_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower integer literal returns",
+            "native lowering can only lower integer literal returns",
         )]),
     }
 }
@@ -57,7 +57,7 @@ pub(super) fn lower_u8_literal(expression: &Expr) -> Result<u8, Vec<Diagnostic>>
         Expr::Group(group) => lower_u8_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower u8 literal values",
+            "native lowering can only lower u8 literal values",
         )]),
     }
 }
@@ -69,7 +69,7 @@ pub(super) fn lower_u16_literal(expression: &Expr) -> Result<u16, Vec<Diagnostic
         Expr::TypeConversion(conversion) => lower_u16_literal(&conversion.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower integer literal returns",
+            "native lowering can only lower integer literal returns",
         )]),
     }
 }
@@ -146,7 +146,7 @@ fn lower_unsigned_integer_literal(expression: &Expr) -> Result<u32, Vec<Diagnost
         Expr::TypeConversion(conversion) => lower_unsigned_integer_literal(&conversion.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower integer literal returns",
+            "native lowering can only lower integer literal returns",
         )]),
     }
 }
@@ -195,20 +195,20 @@ fn literal_base_and_digits(text: &str) -> (u32, &str) {
 fn integer_out_of_range_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8003",
-        "IR v0 integer literal return is outside the `i32` range",
+        "native lowering integer literal return is outside the `i32` range",
     )]
 }
 
 fn storage_integer_literal_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8003",
-        "IR v0 can only lower storage-only integer field values from literals",
+        "native lowering can only lower storage-only integer field values from literals",
     )]
 }
 
 fn storage_integer_out_of_range_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8003",
-        "IR v0 storage-only integer literal is outside the target type range",
+        "native lowering storage-only integer literal is outside the target type range",
     )]
 }

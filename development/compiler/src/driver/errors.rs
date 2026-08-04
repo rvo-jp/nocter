@@ -19,7 +19,8 @@ pub(super) fn command_line_diagnostic(message: impl Into<String>) -> Diagnostic 
 
 pub(super) fn target_selection_diagnostic(message: impl Into<String>) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(TARGET_SELECTION_ERROR, message);
-    diagnostic.help = Some("use `--target arm64-darwin` with Nocter v0".to_string());
+    diagnostic.help =
+        Some("use the currently supported target `--target arm64-darwin`".to_string());
     diagnostic
 }
 
