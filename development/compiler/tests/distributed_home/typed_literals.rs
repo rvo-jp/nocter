@@ -92,8 +92,8 @@ struct Stream {
     done: bool
 }
 
-impl Stream {
-    pub method &+self.next(): i32? {
+impl Iterator<i32> for Stream {
+    method &+self.next(): i32? {
         if self.done {
             return none
         }
@@ -101,8 +101,6 @@ impl Stream {
         return 1
     }
 }
-
-impl Iterator<i32> for Stream
 
 func main(): i32 {
     let stream = Stream { done: false }
@@ -287,20 +285,22 @@ struct AllocatingIter {
     end: usize
 }
 
-impl AllocatingCollection {
-    pub method self.into_iter(): AllocatingIter {
+impl IntoIterator<usize, AllocatingIter> for AllocatingCollection {
+    method self.into_iter(): AllocatingIter {
         let scratch = Vec [0]
         drop scratch
         return AllocatingIter { next_value: 0, end: self.end }
     }
 }
 
-impl AllocatingIter {
-    pub method &self.remaining_len(): usize {
+impl ExactSizeIterator<usize> for AllocatingIter {
+    method &self.remaining_len(): usize {
         return self.end - self.next_value
     }
+}
 
-    pub method &+self.next(): usize? {
+impl Iterator<usize> for AllocatingIter {
+    method &+self.next(): usize? {
         if self.next_value >= self.end {
             return none
         }
@@ -309,10 +309,6 @@ impl AllocatingIter {
         return current
     }
 }
-
-impl IntoIterator<usize, AllocatingIter> for AllocatingCollection
-impl Iterator<usize> for AllocatingIter
-impl ExactSizeIterator<usize> for AllocatingIter
 
 func run(source: AllocatingCollection): void {
     let values = Vec [...move source]

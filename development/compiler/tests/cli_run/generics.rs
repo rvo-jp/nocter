@@ -395,30 +395,27 @@ struct Value {
     value: i32
 }
 
-impl Value {
-    pub method &self.read(): i32 {
+impl Read for Value {
+    method &self.read(): i32 {
         return self.value
-    }
-
-    pub method &self.size(): i32 {
-        return 1
     }
 }
 
-impl Read for Value
-impl Size for Value
+impl Size for Value {
+    method &self.size(): i32 {
+        return 1
+    }
+}
 
 struct Adapter<T> {
     value: T
 }
 
-impl<T: Read> Adapter<T> {
-    pub method &self.read(): i32 {
+impl<T: Read> Read for Adapter<T> {
+    method &self.read(): i32 {
         return self.value.read()
     }
 }
-
-impl<T: Read> Read for Adapter<T>
 
 func inspect<T: Read + Size>(value: &T): i32 {
     return value.read() + value.size()
@@ -464,7 +461,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -503,13 +500,11 @@ copy struct Number {
     value: i32
 }
 
-impl Number {
-    pub method &self.value(): i32 {
+impl Value for Number {
+    method &self.value(): i32 {
         return self.value
     }
 }
-
-impl Value for Number
 
 func main(): i32 {
     let number = Number { value: 41 }
@@ -545,7 +540,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func read<T: Value>(value: &T): i32 {
     return value.value()
@@ -571,7 +566,7 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_generic_bound_dispatches_to_inherent_default_override() {
+fn run_command_generic_bound_dispatches_to_explicit_default_replacement() {
     let project = TempProject::new("cli-run-interface-default-override");
     let source = project.write_source(
         "interface_default_override.nct",
@@ -585,13 +580,11 @@ copy struct Unit {
     marker: i32
 }
 
-impl Unit {
-    pub method &self.value(): i32 {
+impl Value for Unit {
+    method &self.value(): i32 {
         return 42
     }
 }
-
-impl Value for Unit
 
 func read<T: Value>(value: &T): i32 {
     return value.value()
@@ -631,7 +624,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Identity for Unit
+impl Identity for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -667,7 +660,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value<i32> for Unit
+impl Value<i32> for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

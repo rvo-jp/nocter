@@ -53,8 +53,8 @@ struct PlainIter {
     end: i32
 }
 
-impl PlainIter {
-    pub method &+self.next(): i32? {
+impl Iterator<i32> for PlainIter {
+    method &+self.next(): i32? {
         if self.next_value == self.end {
             return none
         }
@@ -63,8 +63,6 @@ impl PlainIter {
         return value
     }
 }
-
-impl Iterator<i32> for PlainIter
 
 struct ReportedIter {
     next_value: i32
@@ -72,8 +70,8 @@ struct ReportedIter {
     reported: usize
 }
 
-impl ReportedIter {
-    pub method &+self.next(): i32? {
+impl Iterator<i32> for ReportedIter {
+    method &+self.next(): i32? {
         if self.next_value == self.end {
             return none
         }
@@ -82,13 +80,13 @@ impl ReportedIter {
         return value
     }
 
-    pub method &self.remaining_len(): usize {
+}
+
+impl ExactSizeIterator<i32> for ReportedIter {
+    method &self.remaining_len(): usize {
         return self.reported
     }
 }
-
-impl Iterator<i32> for ReportedIter
-impl ExactSizeIterator<i32> for ReportedIter
 
 func main(): i32 {
     var prefix = take(chain(once(3), once(4)), 2)

@@ -531,6 +531,34 @@ func main(): i32 {
 }
 
 #[test]
+fn workspace_hover_presents_conformance_member_with_concrete_receiver() {
+    let text = r#"interface Lookup<V> {
+    pub method &self.get(): &V from self
+}
+
+struct Box<T> { value: T }
+
+impl<T> Lookup<T> for Box<T> {
+    method &self.get(): &T from self {
+        return &self.value
+    }
+}
+
+func main(box: &Box<i32>): &i32 from box {
+    return box.get()
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("get()").expect("expected concrete call");
+
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected conformance method hover");
+
+    assert_eq!(hover.label, "method &Box<i32>.get(): &i32 from self");
+}
+
+#[test]
 fn workspace_hover_preserves_complete_capability_set() {
     let text = r#"interface Readable {
     pub method &self.read(): i32

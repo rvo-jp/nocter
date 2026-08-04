@@ -950,6 +950,42 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
 }
 
 #[test]
+fn member_completion_targets_conformance_member_implementation() {
+    let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count { value: i32 }
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let count = Count { value: 7 }
+    return count.measure()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("count.measure").unwrap() + "count.".len();
+
+    let item = completion_items_for_file_analysis_at_offset(file, offset)
+        .into_iter()
+        .find(|item| item.label == "measure")
+        .expect("expected conformance method completion");
+
+    assert_eq!(item.detail.as_deref(), Some("method &Count.measure(): i32"));
+    let declaration_start = text.find("method &self.measure(): i32 {").unwrap() + 13;
+    assert_eq!(
+        item.declaration_span.map(|span| span.start),
+        Some(declaration_start)
+    );
+}
+
+#[test]
 fn member_completion_combines_unambiguous_capability_set_members() {
     let text = r#"interface Readable {
     pub method &self.read(): i32

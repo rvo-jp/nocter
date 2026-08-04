@@ -24,7 +24,7 @@ pub(super) fn candidates<'a>(
 ) -> Vec<(&'a TypeSymbol, &'a MethodSignature)> {
     method_candidates(receiver, Some(name), use_source, resolved)
         .into_iter()
-        .map(|candidate| (candidate.owner, candidate.method))
+        .map(|candidate| (candidate.dispatch_owner, candidate.method))
         .collect()
 }
 
@@ -37,7 +37,7 @@ pub(super) fn implementation_for_interface<'a>(
     let mut candidates = interface_method_candidates(receiver, resolved)
         .into_iter()
         .filter(|candidate| {
-            candidate.owner.canonical_name == interface_canonical_name
+            candidate.contract_owner.canonical_name == interface_canonical_name
                 && candidate.method.name == method_name
         });
     let candidate = candidates.next()?;
@@ -69,8 +69,11 @@ pub(crate) fn completion_candidates_for_type_expr<'a>(
         .filter_map(|candidate| {
             let mut substitutions = HashMap::from([("Self".to_string(), receiver.clone())]);
             if let Type::Generic { arguments, .. } = &candidate.interface_type {
-                for (parameter, argument) in
-                    candidate.owner.generic_parameters.iter().zip(arguments)
+                for (parameter, argument) in candidate
+                    .contract_owner
+                    .generic_parameters
+                    .iter()
+                    .zip(arguments)
                 {
                     substitutions.insert(
                         parameter.clone(),
@@ -93,7 +96,8 @@ pub(crate) fn completion_candidates_for_type_expr<'a>(
 }
 
 struct InterfaceMethodCandidate<'a> {
-    owner: &'a TypeSymbol,
+    contract_owner: &'a TypeSymbol,
+    dispatch_owner: &'a TypeSymbol,
     conformance: &'a InterfaceConformance,
     contract: &'a MethodSignature,
     method: &'a MethodSignature,
@@ -121,7 +125,7 @@ fn method_candidates<'a>(
         .collect::<Vec<_>>();
     candidates.sort_by_key(|candidate| {
         (
-            candidate.owner.canonical_name.as_str(),
+            candidate.contract_owner.canonical_name.as_str(),
             candidate.method.name_span.source.raw(),
             candidate.method.name_span.start,
         )
@@ -134,18 +138,25 @@ fn interface_method_candidates<'a>(
     receiver: &Type,
     resolved: &'a ResolveOutput,
 ) -> Vec<InterfaceMethodCandidate<'a>> {
+    let Some(receiver_owner) = receiver
+        .nominal_name()
+        .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+    else {
+        return Vec::new();
+    };
     implemented_interface_conformances(receiver, resolved)
         .into_iter()
         .filter_map(|(conformance, interface_type)| {
-            let owner = resolved.type_symbol_by_canonical_name(interface_type.nominal_name()?)?;
-            (owner.kind == TypeSymbolKind::Interface).then_some((
-                owner,
+            let contract_owner =
+                resolved.type_symbol_by_canonical_name(interface_type.nominal_name()?)?;
+            (contract_owner.kind == TypeSymbolKind::Interface).then_some((
+                contract_owner,
                 conformance,
                 interface_type,
             ))
         })
-        .flat_map(|(owner, conformance, interface_type)| {
-            owner.methods.iter().filter_map(move |contract| {
+        .flat_map(|(contract_owner, conformance, interface_type)| {
+            contract_owner.methods.iter().filter_map(move |contract| {
                 let implementation = conformance
                     .methods
                     .iter()
@@ -153,7 +164,12 @@ fn interface_method_candidates<'a>(
                 let method =
                     implementation.or_else(|| contract.has_default_body.then_some(contract))?;
                 Some(InterfaceMethodCandidate {
-                    owner,
+                    contract_owner,
+                    dispatch_owner: if implementation.is_some() {
+                        receiver_owner
+                    } else {
+                        contract_owner
+                    },
                     conformance,
                     contract,
                     method,

@@ -405,7 +405,7 @@ pub copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 pub func make(): Unit {
     return Unit { marker: 0 }

@@ -994,18 +994,17 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method &self.read(): &U from self {
+impl<T> Read<T> for Box<T> {
+    method &self.read(): &T from self {
         return &self.value
-    }
-
-    pub method &self.measure(): usize {
-        return 1
     }
 }
 
-impl<T> Read<T> for Box<T>
-impl<T> Measure for Box<T>
+impl<T> Measure for Box<T> {
+    method &self.measure(): usize {
+        return 1
+    }
+}
 
 func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
     return value.read()
@@ -1149,7 +1148,7 @@ fn lsp_command_serves_closures_default_methods_and_incomplete_bodies() {
 }
 
 copy struct Unit { marker: i32 }
-impl Identity for Unit
+impl Identity for Unit {}
 
 func main(): i32 {
     let factor = 2

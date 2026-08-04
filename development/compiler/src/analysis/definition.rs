@@ -464,4 +464,37 @@ func read<T: Measure>(value: &T): i32 {
         assert_eq!(&text[span.start..span.end], "measure");
         assert_eq!(span.start, text.find("measure():").unwrap());
     }
+
+    #[test]
+    fn definition_query_resolves_concrete_call_to_conformance_member() {
+        let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count { value: i32 }
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let count = Count { value: 7 }
+    return count.measure()
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("measure()").expect("expected concrete call");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected conformance member definition");
+
+        assert_eq!(&text[span.start..span.end], "measure");
+        assert_eq!(
+            span.start,
+            text.find("method &self.measure(): i32 {").unwrap() + 13
+        );
+    }
 }

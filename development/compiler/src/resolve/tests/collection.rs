@@ -154,6 +154,12 @@ impl Measure for Count {
     assert_eq!(method.name, "measure");
     assert!(!method.has_default_body);
     assert_eq!(method.impl_target_ty.as_ref(), Some(&conformance.target_ty));
+    assert_eq!(
+        output
+            .method_signature_by_name_span(method.name_span)
+            .map(|resolved| resolved.name.as_str()),
+        Some("measure")
+    );
 }
 
 #[test]

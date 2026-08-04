@@ -161,6 +161,12 @@ impl ResolveOutput {
                 SymbolKind::Type(type_symbol) => type_symbol
                     .methods
                     .iter()
+                    .chain(
+                        type_symbol
+                            .interface_conformances
+                            .iter()
+                            .flat_map(|conformance| &conformance.methods),
+                    )
                     .find(|method| method.name_span == name_span),
                 SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_) => {
                     None
