@@ -49,6 +49,14 @@ pub(crate) fn region_facts(file: &FileAnalysis) -> Vec<RegionAnalysisFact> {
                     }
                 }
             }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    collect_block(file, &function.body, None, &mut facts);
+                }
+                for (_, literal) in construct.literals() {
+                    collect_block(file, &literal.body, None, &mut facts);
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

@@ -1,6 +1,8 @@
 //! Shared, exhaustive expression traversal for compiler analyses.
 
-use super::{AstFile, Block, Expr, ImplMember, InterpolatedStringPart, Item, Stmt};
+use super::{
+    AstFile, Block, ConstructMemberDecl, Expr, ImplMember, InterpolatedStringPart, Item, Stmt,
+};
 use crate::source::ByteSpan;
 
 pub(crate) fn closure_expression_by_span(
@@ -42,6 +44,18 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                 }
             }
             Item::Literal(literal) => visit_block_expressions(&literal.body, visitor),
+            Item::Construct(construct) => {
+                for member in &construct.members {
+                    match &member.declaration {
+                        ConstructMemberDecl::Function(function) => {
+                            visit_block_expressions(&function.body, visitor)
+                        }
+                        ConstructMemberDecl::Literal(literal) => {
+                            visit_block_expressions(&literal.body, visitor)
+                        }
+                    }
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)

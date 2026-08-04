@@ -135,6 +135,38 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
             literal.shape_span,
             Vec::new(),
         )),
+        Item::Construct(construct) => Some(document_symbol(
+            format!(
+                "construct {}",
+                source_fragment(text, construct.target.span())
+            ),
+            DocumentSymbolKind::Class,
+            construct.span,
+            construct.target.span(),
+            construct
+                .members
+                .iter()
+                .map(|member| match &member.declaration {
+                    crate::ast::ConstructMemberDecl::Function(function) => document_symbol(
+                        function.member_name.clone(),
+                        DocumentSymbolKind::Function,
+                        member.span,
+                        function.member_name_span,
+                        Vec::new(),
+                    ),
+                    crate::ast::ConstructMemberDecl::Literal(literal) => document_symbol(
+                        match literal.shape {
+                            crate::ast::LiteralShape::Sequence => "literal []".to_string(),
+                            crate::ast::LiteralShape::String => "literal \"\"".to_string(),
+                        },
+                        DocumentSymbolKind::Function,
+                        member.span,
+                        literal.shape_span,
+                        Vec::new(),
+                    ),
+                })
+                .collect(),
+        )),
     }
 }
 

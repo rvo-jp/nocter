@@ -98,30 +98,48 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
             }
         }
         Item::Literal(literal) => {
-            push_hover_symbol(
-                text,
-                literal.shape_span,
-                literal.span.start,
-                function_like_header(text, literal.span, Some(literal.body.span.start)),
-                symbols,
-            );
-            collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
-            if let Some(capture) = &literal.capture {
-                push_hover_symbol(
-                    text,
-                    capture.name_span,
-                    capture.span.start,
-                    format!(
-                        "literal pack {}: {}",
-                        capture.name,
-                        source_fragment(text, capture.element_type.span())
-                    ),
-                    symbols,
-                );
+            collect_literal_hover_symbols(text, literal, symbols);
+        }
+        Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                push_function_hover_symbol(text, function, symbols);
+                collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+                collect_block_hover_symbols(text, &function.body, symbols);
             }
-            collect_block_hover_symbols(text, &literal.body, symbols);
+            for (_, literal) in construct.literals() {
+                collect_literal_hover_symbols(text, literal, symbols);
+            }
         }
     }
+}
+
+fn collect_literal_hover_symbols(
+    text: &str,
+    literal: &crate::ast::LiteralDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        literal.shape_span,
+        literal.span.start,
+        function_like_header(text, literal.span, Some(literal.body.span.start)),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
+    if let Some(capture) = &literal.capture {
+        push_hover_symbol(
+            text,
+            capture.name_span,
+            capture.span.start,
+            format!(
+                "literal pack {}: {}",
+                capture.name,
+                source_fragment(text, capture.element_type.span())
+            ),
+            symbols,
+        );
+    }
+    collect_block_hover_symbols(text, &literal.body, symbols);
 }
 
 pub(in crate::analysis::hover) fn collect_struct_hover_symbols(

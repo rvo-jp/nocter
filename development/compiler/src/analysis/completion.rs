@@ -271,6 +271,24 @@ fn result_provenance_completion_items(
                     ));
                 }
             }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    if clause_contains_offset(function.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            None,
+                            &function.parameters.parameters,
+                        ));
+                    }
+                }
+                for (_, literal) in construct.literals() {
+                    if clause_contains_offset(literal.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            None,
+                            &literal.parameters.parameters,
+                        ));
+                    }
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::TypeAlias(_)

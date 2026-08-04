@@ -76,41 +76,59 @@ pub(super) fn check_sized_value_types(
                 check_impl(sources, impl_, resolved, diagnostics);
             }
             Item::Literal(literal) => {
-                let environment = environment_for_literal(literal, resolved);
-                let self_type = environment.self_type();
-                for parameter in &literal.parameters.parameters {
-                    check_parameter_type(
-                        sources,
-                        parameter,
-                        "literal parameter",
-                        resolved,
-                        self_type,
-                        diagnostics,
-                    );
+                check_literal(sources, literal, resolved, diagnostics);
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let self_type = function_self_type(function, resolved);
+                    check_function(sources, function, resolved, self_type.as_ref(), diagnostics);
                 }
-                if let Some(capture) = &literal.capture {
-                    check_value_type(
-                        sources,
-                        &capture.element_type,
-                        "literal element capture",
-                        resolved,
-                        self_type,
-                        diagnostics,
-                    );
+                for (_, literal) in construct.literals() {
+                    check_literal(sources, literal, resolved, diagnostics);
                 }
-                check_value_type(
-                    sources,
-                    &literal.return_type,
-                    "literal return type",
-                    resolved,
-                    self_type,
-                    diagnostics,
-                );
-                check_block(sources, &literal.body, resolved, self_type, diagnostics);
             }
             Item::Import(_) | Item::FromImport(_) | Item::TypeAlias(_) => {}
         }
     }
+}
+
+fn check_literal(
+    sources: &SourceMap,
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let environment = environment_for_literal(literal, resolved);
+    let self_type = environment.self_type();
+    for parameter in &literal.parameters.parameters {
+        check_parameter_type(
+            sources,
+            parameter,
+            "literal parameter",
+            resolved,
+            self_type,
+            diagnostics,
+        );
+    }
+    if let Some(capture) = &literal.capture {
+        check_value_type(
+            sources,
+            &capture.element_type,
+            "literal element capture",
+            resolved,
+            self_type,
+            diagnostics,
+        );
+    }
+    check_value_type(
+        sources,
+        &literal.return_type,
+        "literal return type",
+        resolved,
+        self_type,
+        diagnostics,
+    );
+    check_block(sources, &literal.body, resolved, self_type, diagnostics);
 }
 
 fn check_function(

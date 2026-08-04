@@ -28,6 +28,14 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
                 .as_ref()
                 .and_then(|body| module_path_in_block_at_offset(body, offset))
         }),
+        Item::Construct(construct) => construct
+            .functions()
+            .find_map(|(_, function)| module_path_in_block_at_offset(&function.body, offset))
+            .or_else(|| {
+                construct
+                    .literals()
+                    .find_map(|(_, literal)| module_path_in_block_at_offset(&literal.body, offset))
+            }),
         Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => None,
     }
 }

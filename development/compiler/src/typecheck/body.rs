@@ -90,16 +90,23 @@ pub(super) fn check_body_expressions(
                 }
             }
             Item::Literal(literal) => {
-                let mut environment =
-                    super::environments::environment_for_literal(literal, resolved);
-                check_block_expressions(
-                    sources,
-                    &literal.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    0,
-                );
+                check_literal_body_expressions(sources, literal, resolved, diagnostics);
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let mut environment = environment_for_function(function, resolved);
+                    check_block_expressions(
+                        sources,
+                        &function.body,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        0,
+                    );
+                }
+                for (_, literal) in construct.literals() {
+                    check_literal_body_expressions(sources, literal, resolved, diagnostics);
+                }
             }
             Item::Import(_)
             | Item::FromImport(_)
@@ -109,6 +116,23 @@ pub(super) fn check_body_expressions(
             | Item::Enum(_) => {}
         }
     }
+}
+
+fn check_literal_body_expressions(
+    sources: &SourceMap,
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = super::environments::environment_for_literal(literal, resolved);
+    check_block_expressions(
+        sources,
+        &literal.body,
+        resolved,
+        diagnostics,
+        &mut environment,
+        0,
+    );
 }
 
 fn check_impl_member_expressions(

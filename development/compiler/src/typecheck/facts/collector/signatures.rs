@@ -13,7 +13,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => None,
+            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) | Item::Construct(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -95,6 +95,24 @@ impl TypecheckFactCollector<'_> {
                     self.collect_type_expr_references(&capture.element_type);
                 }
                 self.collect_type_expr_references(&literal.return_type);
+            }
+            Item::Construct(construct) => {
+                self.collect_type_expr_references(&construct.target);
+                for (_, function) in construct.functions() {
+                    self.with_generic_scope(&function.generics, |collector| {
+                        collector.collect_generic_param_type_references(&function.generics);
+                        collector
+                            .collect_parameter_type_references(&function.parameters.parameters);
+                        collector.collect_type_expr_references(&function.return_type);
+                    });
+                }
+                for (_, literal) in construct.literals() {
+                    self.collect_parameter_type_references(&literal.parameters.parameters);
+                    if let Some(capture) = &literal.capture {
+                        self.collect_type_expr_references(&capture.element_type);
+                    }
+                    self.collect_type_expr_references(&literal.return_type);
+                }
             }
         }
     }

@@ -226,6 +226,20 @@ impl SemanticIdentifierCollector<'_> {
                 crate::ast::Item::Literal(item) => {
                     collect_provenance_parameter_spans(item.result_provenance.as_ref(), &mut spans);
                 }
+                crate::ast::Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        collect_provenance_parameter_spans(
+                            function.result_provenance.as_ref(),
+                            &mut spans,
+                        );
+                    }
+                    for (_, literal) in construct.literals() {
+                        collect_provenance_parameter_spans(
+                            literal.result_provenance.as_ref(),
+                            &mut spans,
+                        );
+                    }
+                }
                 crate::ast::Item::Import(_)
                 | crate::ast::Item::FromImport(_)
                 | crate::ast::Item::TypeAlias(_)

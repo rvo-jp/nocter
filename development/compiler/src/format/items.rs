@@ -1,9 +1,10 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
-    LiteralDecl, LiteralShape, MethodDecl, MethodReceiver, Parameter, ParameterList, PrimitiveDecl,
-    ResultProvenanceClause, StructDecl, StructField, TypeAliasDecl, Visibility,
+    AstFile, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant,
+    FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
+    ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
+    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
+    TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -29,7 +30,79 @@ impl Formatter {
             Item::Interface(item) => self.format_interface_decl(item),
             Item::Impl(item) => self.format_impl_decl(item),
             Item::Literal(item) => self.format_literal_decl(item),
+            Item::Construct(item) => self.format_construct_decl(item),
         }
+    }
+
+    fn format_construct_decl(&mut self, item: &ConstructDecl) {
+        self.write("construct ");
+        self.format_type(&item.target);
+        if item.members.is_empty() {
+            self.write(" {}");
+            return;
+        }
+        self.write(" {");
+        self.newline();
+        self.newline();
+        let owner_generic_count = match &item.target {
+            TypeExpr::Generic(generic) => generic.arguments.len(),
+            _ => 0,
+        };
+        self.indented(|formatter| {
+            for (index, member) in item.members.iter().enumerate() {
+                if index > 0 {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                formatter.format_construct_member(member, owner_generic_count);
+                formatter.newline();
+            }
+        });
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn format_construct_member(&mut self, member: &ConstructMember, owner_generic_count: usize) {
+        self.write("pub ");
+        if member.is_default() {
+            self.write("default ");
+        }
+        match &member.declaration {
+            ConstructMemberDecl::Function(function) => {
+                self.write("func ");
+                self.write(&function.member_name);
+                self.format_generic_params(&function.generics.parameters[owner_generic_count..]);
+                self.format_parameters(&function.parameters);
+                self.write(": ");
+                self.format_type(&function.return_type);
+                self.format_result_provenance(function.result_provenance.as_ref());
+                self.write(" ");
+                self.format_block(&function.body);
+            }
+            ConstructMemberDecl::Literal(literal) => self.format_construct_literal(literal),
+        }
+    }
+
+    fn format_construct_literal(&mut self, item: &LiteralDecl) {
+        self.write("literal ");
+        self.write(match item.shape {
+            LiteralShape::Sequence => "[]",
+            LiteralShape::String => "\"\"",
+        });
+        self.write("(");
+        if let Some(capture) = &item.capture {
+            self.write("...");
+            self.write(&capture.name);
+            self.write(": ");
+            self.format_type(&capture.element_type);
+        } else {
+            self.write_comma_separated(&item.parameters.parameters, Self::format_parameter);
+        }
+        self.write("): ");
+        self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
+        self.write(" ");
+        self.format_block(&item.body);
     }
 
     fn format_literal_decl(&mut self, item: &LiteralDecl) {
@@ -309,12 +382,16 @@ impl Formatter {
     }
 
     fn format_generics(&mut self, generics: &GenericParamList) {
-        if generics.parameters.is_empty() {
+        self.format_generic_params(&generics.parameters);
+    }
+
+    fn format_generic_params(&mut self, parameters: &[GenericParam]) {
+        if parameters.is_empty() {
             return;
         }
 
         self.write("<");
-        self.write_comma_separated(&generics.parameters, Self::format_generic_param);
+        self.write_comma_separated(parameters, Self::format_generic_param);
         self.write(">");
     }
 

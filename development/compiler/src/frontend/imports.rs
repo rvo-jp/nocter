@@ -45,6 +45,14 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
                 }
             }
         }
+        Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                collect_block_import_paths(&function.body, paths);
+            }
+            for (_, literal) in construct.literals() {
+                collect_block_import_paths(&literal.body, paths);
+            }
+        }
         Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
     }
 }

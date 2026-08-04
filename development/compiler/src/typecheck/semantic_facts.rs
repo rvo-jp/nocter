@@ -124,6 +124,26 @@ pub(crate) fn collect_callable_semantic_facts(
                         &mut facts,
                     );
                 }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        insert_fact(
+                            function.member_name_span,
+                            &function.return_type,
+                            source.resolved,
+                            &summaries,
+                            &mut facts,
+                        );
+                    }
+                    for (_, literal) in construct.literals() {
+                        insert_fact(
+                            literal.span,
+                            &literal.return_type,
+                            source.resolved,
+                            &summaries,
+                            &mut facts,
+                        );
+                    }
+                }
             }
         }
     }

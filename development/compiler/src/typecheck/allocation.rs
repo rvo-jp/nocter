@@ -62,6 +62,9 @@ pub(super) fn infer_callable_allocation_effects(
                             matches!(member, ImplMember::Method(method) if method.body.is_some())
                         })
                         .count(),
+                    Item::Construct(construct) => {
+                        construct.functions().count() + construct.literals().count()
+                    }
                     _ => 0,
                 }
                 })
@@ -149,6 +152,36 @@ pub(super) fn infer_callable_allocation_effects(
                         {
                             summaries.set_needs_current_allocation_context(callable);
                             changed = true;
+                        }
+                    }
+                    Item::Construct(construct) => {
+                        for (_, function) in construct.functions() {
+                            let callable = CallableId::declared_at(function.member_name_span);
+                            if !summaries.needs_current_allocation_context(callable)
+                                && block_needs_current_allocation_context(
+                                    &function.body,
+                                    source.resolved,
+                                    &mut environment_for_function(function, source.resolved),
+                                    summaries,
+                                )
+                            {
+                                summaries.set_needs_current_allocation_context(callable);
+                                changed = true;
+                            }
+                        }
+                        for (_, literal) in construct.literals() {
+                            let callable = CallableId::declared_at(literal.span);
+                            if !summaries.needs_current_allocation_context(callable)
+                                && block_needs_current_allocation_context(
+                                    &literal.body,
+                                    source.resolved,
+                                    &mut environment_for_literal(literal, source.resolved),
+                                    summaries,
+                                )
+                            {
+                                summaries.set_needs_current_allocation_context(callable);
+                                changed = true;
+                            }
                         }
                     }
                     Item::Import(_)

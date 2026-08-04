@@ -2,6 +2,7 @@
 
 mod closures;
 mod collection_for;
+mod constructs;
 mod cursor;
 mod expressions;
 mod items;

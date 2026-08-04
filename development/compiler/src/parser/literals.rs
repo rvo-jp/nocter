@@ -11,8 +11,20 @@ impl Parser<'_> {
         &mut self,
         visibility: Visibility,
     ) -> ParseResult<crate::ast::Item> {
+        self.parse_literal_decl_data(visibility, None)
+            .map(crate::ast::Item::Literal)
+    }
+
+    pub(super) fn parse_literal_decl_data(
+        &mut self,
+        visibility: Visibility,
+        target: Option<TypeExpr>,
+    ) -> ParseResult<LiteralDecl> {
         let keyword = self.expect_keyword(Keyword::Literal, "`literal`")?;
-        let target = self.parse_type()?;
+        let target = match target {
+            Some(target) => target,
+            None => self.parse_type()?,
+        };
 
         let (shape, shape_span, parameters, capture) = if self.at_punctuation("[") {
             let open = self.bump();
@@ -56,7 +68,7 @@ impl Parser<'_> {
         let body = self.parse_block();
         self.literal_pack_capture = previous_capture;
         let body = body?;
-        Ok(crate::ast::Item::Literal(LiteralDecl {
+        Ok(LiteralDecl {
             span: self.span(keyword.span.start, body.span.end),
             visibility,
             keyword_span: keyword.span,
@@ -68,7 +80,7 @@ impl Parser<'_> {
             return_type,
             result_provenance,
             body,
-        }))
+        })
     }
 
     fn parse_literal_sequence_parameters(

@@ -104,6 +104,22 @@ impl Parser<'_> {
             return self.parse_literal_decl(visibility);
         }
 
+        if self.at_keyword(Keyword::Construct) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to construct declarations");
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            if visibility != Visibility::Private {
+                self.error_current("`construct` declarations do not use visibility modifiers");
+                return Err(());
+            }
+            return self.parse_construct_decl();
+        }
+
         if self.at_keyword(Keyword::Type) {
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations");
@@ -228,7 +244,7 @@ impl Parser<'_> {
         }))
     }
 
-    pub(super) fn parse_visibility(&mut self) -> ParseResult<Visibility> {
+    pub(in crate::parser) fn parse_visibility(&mut self) -> ParseResult<Visibility> {
         if self.match_keyword(Keyword::Pub).is_none() {
             return Ok(Visibility::Private);
         }

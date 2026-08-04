@@ -61,18 +61,15 @@ pub(in crate::typecheck) fn check_ownership_states(
                 }
             }
             Item::Literal(literal) => {
-                let mut environment = environment_for_literal(literal, resolved);
-                let mut ownership = OwnershipState::default();
-                ownership.define_parameters(&literal.parameters.parameters, &environment, resolved);
-                check_block_ownership(
-                    sources,
-                    &literal.body,
-                    resolved,
-                    summaries,
-                    diagnostics,
-                    &mut environment,
-                    &mut ownership,
-                );
+                check_literal_ownership(sources, literal, resolved, summaries, diagnostics);
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    check_function_ownership(sources, function, resolved, summaries, diagnostics);
+                }
+                for (_, literal) in construct.literals() {
+                    check_literal_ownership(sources, literal, resolved, summaries, diagnostics);
+                }
             }
             Item::Import(_)
             | Item::FromImport(_)
@@ -82,6 +79,48 @@ pub(in crate::typecheck) fn check_ownership_states(
             | Item::Enum(_) => {}
         }
     }
+}
+
+fn check_function_ownership(
+    sources: &SourceMap,
+    function: &crate::ast::FunctionDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = environment_for_function(function, resolved);
+    let mut ownership = OwnershipState::default();
+    ownership.define_parameters(&function.parameters.parameters, &environment, resolved);
+    check_block_ownership(
+        sources,
+        &function.body,
+        resolved,
+        summaries,
+        diagnostics,
+        &mut environment,
+        &mut ownership,
+    );
+}
+
+fn check_literal_ownership(
+    sources: &SourceMap,
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = environment_for_literal(literal, resolved);
+    let mut ownership = OwnershipState::default();
+    ownership.define_parameters(&literal.parameters.parameters, &environment, resolved);
+    check_block_ownership(
+        sources,
+        &literal.body,
+        resolved,
+        summaries,
+        diagnostics,
+        &mut environment,
+        &mut ownership,
+    );
 }
 
 fn check_impl_member_ownership(

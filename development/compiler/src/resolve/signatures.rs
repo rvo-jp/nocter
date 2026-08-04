@@ -74,12 +74,18 @@ pub(super) fn top_level_associated_function_signatures<'a>(
     ast: &'a AstFile,
     type_name: &'a str,
 ) -> impl Iterator<Item = AssociatedFunctionSignature> + 'a {
-    ast.items.iter().filter_map(move |item| {
-        let crate::ast::Item::Function(function) = item else {
-            return None;
+    ast.items.iter().flat_map(move |item| {
+        let functions: Box<dyn Iterator<Item = &FunctionDecl>> = match item {
+            crate::ast::Item::Function(function) => Box::new(std::iter::once(function)),
+            crate::ast::Item::Construct(construct) => {
+                Box::new(construct.functions().map(|(_, function)| function))
+            }
+            _ => Box::new(std::iter::empty()),
         };
-        let owner = function.owner.as_ref()?;
-        (owner.name == type_name).then(|| associated_function_signature(function))
+        functions.filter_map(move |function| {
+            let owner = function.owner.as_ref()?;
+            (owner.name == type_name).then(|| associated_function_signature(function))
+        })
     })
 }
 

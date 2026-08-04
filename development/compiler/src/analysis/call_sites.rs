@@ -40,6 +40,14 @@ fn call_in_item_at_offset(
                 .as_ref()
                 .and_then(|body| call_in_block_at_offset(body, offset, region))
         }),
+        Item::Construct(construct) => construct
+            .functions()
+            .find_map(|(_, function)| call_in_block_at_offset(&function.body, offset, region))
+            .or_else(|| {
+                construct
+                    .literals()
+                    .find_map(|(_, literal)| call_in_block_at_offset(&literal.body, offset, region))
+            }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

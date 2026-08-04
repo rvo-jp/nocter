@@ -138,6 +138,31 @@ func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&
 }
 
 #[test]
+fn formats_construct_declarations_stably() {
+    assert_formats_stably(
+        r#"construct Vec<T>{pub default literal [](...items:T):Self{return Self.empty()}
+pub func new():Self{return make()}
+pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
+"#,
+        r#"construct Vec<T> {
+
+    pub default literal [](...items: T): Self {
+        return Self.empty()
+    }
+
+    pub func new(): Self {
+        return make()
+    }
+
+    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+        return Self.new()
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn formats_type_and_data_declarations() {
     assert_formats_stably(
         r#"pub(nocter) type Path= [u8]

@@ -17,7 +17,7 @@ function highlightCode(source, language = "") {
 
 function highlightNocterCode(source) {
     const pattern = /\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|&\+|\.{3}|\b[A-Za-z_][A-Za-z0-9_]*\b|\b\d+\b|[{}()[\]:=.+*/<>,&?!]/g;
-    const keywords = new Set(["use", "struct", "interface", "impl", "enum", "literal", "func", "method", "pub", "primitive", "let", "var", "move", "as", "otherwise", "match", "return", "if", "else", "for", "in"]);
+    const keywords = new Set(["use", "struct", "interface", "impl", "enum", "literal", "construct", "func", "method", "pub", "primitive", "let", "var", "move", "as", "otherwise", "match", "return", "if", "else", "for", "in"]);
     const types = new Set(["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "str", "bool", "void", "never", "Self"]);
     let output = "";
     let lastIndex = 0;

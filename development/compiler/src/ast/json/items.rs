@@ -172,6 +172,82 @@ impl Item {
                     children,
                 )
             }
+            Item::Construct(item) => {
+                let mut children = vec![item.target.to_json(sources)];
+                children.extend(item.members.iter().map(|member| {
+                    let mut member_children = Vec::new();
+                    if member.is_default() {
+                        member_children.push(JsonAstNode::new(
+                            "default_modifier",
+                            member
+                                .default_span
+                                .and_then(|span| json_span(sources, span)),
+                            Vec::new(),
+                        ));
+                    }
+                    let (kind, value, declaration_span) = match &member.declaration {
+                        ConstructMemberDecl::Function(function) => {
+                            member_children.extend([
+                                function.generics.to_json(sources),
+                                function.parameters.to_json(sources),
+                                function.return_type.to_json(sources),
+                            ]);
+                            if let Some(provenance) = &function.result_provenance {
+                                member_children.push(provenance.to_json(sources));
+                            }
+                            member_children.push(function.body.to_json(sources));
+                            (
+                                "construct_function_member",
+                                function.member_name.clone(),
+                                function.span,
+                            )
+                        }
+                        ConstructMemberDecl::Literal(literal) => {
+                            let mut parameters = literal
+                                .parameters
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.to_json(sources))
+                                .collect::<Vec<_>>();
+                            if let Some(capture) = &literal.capture {
+                                parameters.push(JsonAstNode::with_value(
+                                    "literal_capture",
+                                    capture.name.clone(),
+                                    json_span(sources, capture.span),
+                                    vec![capture.element_type.to_json(sources)],
+                                ));
+                            }
+                            member_children.extend([
+                                JsonAstNode::new(
+                                    "literal_parameter_list",
+                                    json_span(sources, literal.parameters.span),
+                                    parameters,
+                                ),
+                                literal.return_type.to_json(sources),
+                            ]);
+                            if let Some(provenance) = &literal.result_provenance {
+                                member_children.push(provenance.to_json(sources));
+                            }
+                            member_children.push(literal.body.to_json(sources));
+                            (
+                                "construct_literal_member",
+                                match literal.shape {
+                                    LiteralShape::Sequence => "sequence".to_string(),
+                                    LiteralShape::String => "string".to_string(),
+                                },
+                                literal.span,
+                            )
+                        }
+                    };
+                    JsonAstNode::with_value(
+                        kind,
+                        value,
+                        json_span(sources, declaration_span),
+                        member_children,
+                    )
+                }));
+                JsonAstNode::new("construct_decl", json_span(sources, item.span), children)
+            }
         }
     }
 }

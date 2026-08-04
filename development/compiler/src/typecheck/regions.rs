@@ -61,6 +61,14 @@ pub(super) fn check_region_statements(
             | Item::Struct(_)
             | Item::Enum(_) => {}
             Item::Literal(_) => {}
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    check_block(sources, &function.body, None, &mut tree, diagnostics);
+                }
+                for (_, literal) in construct.literals() {
+                    check_block(sources, &literal.body, None, &mut tree, diagnostics);
+                }
+            }
         }
     }
 }

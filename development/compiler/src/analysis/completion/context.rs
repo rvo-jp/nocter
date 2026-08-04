@@ -29,6 +29,14 @@ fn completion_context_in_item_at_offset(
                 .as_ref()
                 .and_then(|body| completion_context_in_block_at_offset(body, offset))
         }),
+        Item::Construct(construct) => construct
+            .functions()
+            .find_map(|(_, function)| completion_context_in_block_at_offset(&function.body, offset))
+            .or_else(|| {
+                construct.literals().find_map(|(_, literal)| {
+                    completion_context_in_block_at_offset(&literal.body, offset)
+                })
+            }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)

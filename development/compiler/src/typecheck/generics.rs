@@ -144,6 +144,33 @@ pub(super) fn check_generic_type_arities(
                     }
                 }
             }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let scope = GenericScope::new(&function.generics).with_self_type();
+                    check_generic_bounds(
+                        sources,
+                        &function.generics,
+                        resolved,
+                        &scope,
+                        diagnostics,
+                    );
+                    check_parameters(
+                        sources,
+                        &function.parameters.parameters,
+                        resolved,
+                        &scope,
+                        diagnostics,
+                    );
+                    check_type_expr(
+                        sources,
+                        &function.return_type,
+                        resolved,
+                        &scope,
+                        diagnostics,
+                    );
+                    check_block(sources, &function.body, resolved, &scope, diagnostics);
+                }
+            }
             Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => {}
         }
     }

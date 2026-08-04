@@ -10,7 +10,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => None,
+            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) | Item::Construct(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -79,6 +79,41 @@ impl TypecheckFactCollector<'_> {
                     &mut environment,
                     Some(return_type.success_type()),
                 );
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    self.with_generic_scope(&function.generics, |collector| {
+                        let mut environment =
+                            environment_for_function(function, collector.resolved);
+                        collector.record_parameter_bindings(
+                            &function.parameters.parameters,
+                            &environment,
+                        );
+                        let return_type = type_expr_to_type_in_environment(
+                            &function.return_type,
+                            collector.resolved,
+                            &environment,
+                        );
+                        collector.collect_block_facts(
+                            &function.body,
+                            &mut environment,
+                            Some(return_type.success_type()),
+                        );
+                    });
+                }
+                for (_, literal) in construct.literals() {
+                    let mut environment = environment_for_literal(literal, self.resolved);
+                    let return_type = type_expr_to_type_in_environment(
+                        &literal.return_type,
+                        self.resolved,
+                        &environment,
+                    );
+                    self.collect_block_facts(
+                        &literal.body,
+                        &mut environment,
+                        Some(return_type.success_type()),
+                    );
+                }
             }
             Item::Import(_)
             | Item::FromImport(_)

@@ -10,7 +10,7 @@ impl Parser<'_> {
             .map(Item::Function)
     }
 
-    pub(super) fn parse_function_decl_data(
+    pub(in crate::parser) fn parse_function_decl_data(
         &mut self,
         visibility: Visibility,
         target: Option<TargetDirective>,

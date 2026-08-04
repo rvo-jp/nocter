@@ -9,10 +9,15 @@ use crate::source::ByteSpan;
 impl Resolver<'_> {
     pub(super) fn collect_literal_definitions(&mut self, ast: &AstFile) {
         for item in &ast.items {
-            let crate::ast::Item::Literal(literal) = item else {
-                continue;
-            };
-            self.collect_literal_definition(ast, literal);
+            match item {
+                crate::ast::Item::Literal(literal) => self.collect_literal_definition(ast, literal),
+                crate::ast::Item::Construct(construct) => {
+                    for (_, literal) in construct.literals() {
+                        self.collect_literal_definition(ast, literal);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
@@ -169,13 +174,24 @@ pub(super) fn attach_literal_definitions_to_symbol(
     ast: &AstFile,
     target_name: &str,
 ) {
-    symbol.literals.extend(ast.items.iter().filter_map(|item| {
-        let crate::ast::Item::Literal(literal) = item else {
-            return None;
-        };
-        (literal_target_name(&literal.target) == Some(target_name))
-            .then(|| literal_signature(literal))
-    }));
+    for item in &ast.items {
+        match item {
+            crate::ast::Item::Literal(literal)
+                if literal_target_name(&literal.target) == Some(target_name) =>
+            {
+                symbol.literals.push(literal_signature(literal));
+            }
+            crate::ast::Item::Construct(construct) => {
+                symbol
+                    .literals
+                    .extend(construct.literals().filter_map(|(_, literal)| {
+                        (literal_target_name(&literal.target) == Some(target_name))
+                            .then(|| literal_signature(literal))
+                    }));
+            }
+            _ => {}
+        }
+    }
 }
 
 fn literal_signature(literal: &LiteralDecl) -> LiteralSignature {

@@ -3,6 +3,7 @@
 mod callables;
 mod closures;
 mod collection_for;
+mod constructs;
 mod documentation;
 mod json;
 mod literals;
@@ -14,6 +15,7 @@ mod visit;
 pub use callables::*;
 pub use closures::*;
 pub use collection_for::*;
+pub use constructs::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
 pub use provenance::*;
@@ -44,6 +46,7 @@ pub enum Item {
     Interface(InterfaceDecl),
     Impl(ImplDecl),
     Literal(LiteralDecl),
+    Construct(ConstructDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -786,6 +789,7 @@ impl Item {
             Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
             Item::Literal(item) => item.span,
+            Item::Construct(item) => item.span,
         }
     }
 }

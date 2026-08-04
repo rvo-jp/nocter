@@ -194,14 +194,38 @@ impl Resolver<'_> {
                     }
                 }
                 Item::Literal(_) => {}
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.output
+                            .diagnostics
+                            .extend(generic_parameter_name_diagnostics(
+                                self.sources,
+                                &format!("construction function `{}`", function.name),
+                                &function.generics,
+                            ));
+                        self.output
+                            .diagnostics
+                            .extend(duplicate_parameter_name_diagnostics(
+                                self.sources,
+                                &format!("construction function `{}`", function.name),
+                                &function.parameters.parameters,
+                            ));
+                    }
+                }
             }
         }
 
         for item in &ast.items {
-            if let Item::Function(function) = item
-                && function.owner.is_some()
-            {
-                self.collect_top_level_associated_function(function);
+            match item {
+                Item::Function(function) if function.owner.is_some() => {
+                    self.collect_top_level_associated_function(function);
+                }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.collect_top_level_associated_function(function);
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -283,7 +307,7 @@ impl Resolver<'_> {
         );
     }
 
-    fn collect_top_level_associated_function(&mut self, function: &FunctionDecl) {
+    pub(super) fn collect_top_level_associated_function(&mut self, function: &FunctionDecl) {
         let Some(owner) = &function.owner else {
             return;
         };

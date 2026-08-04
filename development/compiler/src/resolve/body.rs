@@ -16,10 +16,7 @@ impl Resolver<'_> {
         for item in &ast.items {
             match item {
                 Item::Function(function) => {
-                    let mut scope = Scope::new();
-                    self.define_parameters(&function.parameters.parameters, &mut scope);
-                    self.resolve_result_provenance(function.result_provenance.as_ref(), &scope);
-                    self.resolve_block(&function.body, &mut scope);
+                    self.resolve_function_body(function);
                 }
                 Item::Primitive(primitive) => {
                     let mut scope = Scope::new();
@@ -35,18 +32,15 @@ impl Resolver<'_> {
                     }
                 }
                 Item::Literal(literal) => {
-                    let mut scope = Scope::new();
-                    self.define_parameters(&literal.parameters.parameters, &mut scope);
-                    if let Some(capture) = &literal.capture {
-                        self.define_local_name(
-                            capture.name.clone(),
-                            capture.name_span,
-                            LocalSymbolKind::LiteralCapture,
-                            &mut scope,
-                        );
+                    self.resolve_literal_body(literal);
+                }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.resolve_function_body(function);
                     }
-                    self.resolve_result_provenance(literal.result_provenance.as_ref(), &scope);
-                    self.resolve_block(&literal.body, &mut scope);
+                    for (_, literal) in construct.literals() {
+                        self.resolve_literal_body(literal);
+                    }
                 }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
@@ -56,6 +50,28 @@ impl Resolver<'_> {
                 | Item::Enum(_) => {}
             }
         }
+    }
+
+    fn resolve_function_body(&mut self, function: &crate::ast::FunctionDecl) {
+        let mut scope = Scope::new();
+        self.define_parameters(&function.parameters.parameters, &mut scope);
+        self.resolve_result_provenance(function.result_provenance.as_ref(), &scope);
+        self.resolve_block(&function.body, &mut scope);
+    }
+
+    fn resolve_literal_body(&mut self, literal: &crate::ast::LiteralDecl) {
+        let mut scope = Scope::new();
+        self.define_parameters(&literal.parameters.parameters, &mut scope);
+        if let Some(capture) = &literal.capture {
+            self.define_local_name(
+                capture.name.clone(),
+                capture.name_span,
+                LocalSymbolKind::LiteralCapture,
+                &mut scope,
+            );
+        }
+        self.resolve_result_provenance(literal.result_provenance.as_ref(), &scope);
+        self.resolve_block(&literal.body, &mut scope);
     }
 
     fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {

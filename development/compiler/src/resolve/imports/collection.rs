@@ -467,7 +467,8 @@ impl Resolver<'_> {
                 | Item::Import(_)
                 | Item::FromImport(_)
                 | Item::Impl(_)
-                | Item::Literal(_) => {}
+                | Item::Literal(_)
+                | Item::Construct(_) => {}
             }
         }
     }
