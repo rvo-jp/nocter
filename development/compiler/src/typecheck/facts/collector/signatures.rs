@@ -13,7 +13,14 @@ impl TypecheckFactCollector<'_> {
                     function_declaration_hover_label(function, self.resolved),
                 );
                 if let Some(owner) = &function.owner {
-                    self.record_type_reference(&owner.name, owner.name_span);
+                    self.record_type_reference(
+                        &owner.name,
+                        owner.name_span,
+                        TypeExpr::Reference(TypeReference {
+                            span: owner.name_span,
+                            name: owner.name.clone(),
+                        }),
+                    );
                 }
                 self.collect_generic_param_type_references(&function.generics);
                 self.collect_parameter_type_references(&function.parameters.parameters);
@@ -65,6 +72,10 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Item::Interface(interface) => {
+                self.facts.declaration_hover_labels.insert(
+                    interface.name_span,
+                    interface_declaration_hover_label(interface, self.resolved),
+                );
                 self.collect_generic_param_type_references(&interface.generics);
                 for method in &interface.methods {
                     self.facts.declaration_hover_labels.insert(
@@ -76,6 +87,7 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Impl(impl_) => {
                 let self_type = impl_self_type(impl_, self.resolved);
+                self.collect_generic_param_type_references(&impl_.generics);
                 if let Some(interface_ty) = &impl_.interface_ty {
                     self.collect_type_expr_references(interface_ty);
                 }
@@ -121,6 +133,7 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         method: &MethodDecl,
     ) {
+        self.collect_generic_param_type_references(&method.generics);
         self.collect_parameter_type_references(&method.parameters.parameters);
         self.collect_type_expr_references(&method.return_type);
     }
@@ -166,10 +179,10 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&closure.return_type);
             }
             TypeExpr::Reference(ty) => {
-                self.record_type_reference(&ty.name, ty.span);
+                self.record_type_reference(&ty.name, ty.span, TypeExpr::Reference(ty.clone()));
             }
             TypeExpr::Generic(ty) => {
-                self.record_type_reference(&ty.name, ty.name_span);
+                self.record_type_reference(&ty.name, ty.name_span, TypeExpr::Generic(ty.clone()));
                 for argument in &ty.arguments {
                     self.collect_type_expr_references(argument);
                 }

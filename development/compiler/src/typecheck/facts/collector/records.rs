@@ -51,6 +51,7 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         name: &str,
         span: ByteSpan,
+        contextual_type: TypeExpr,
     ) {
         let (symbol_name_span, symbol_declaration_span) =
             match self.resolved.symbols.symbol_by_name(name) {
@@ -63,6 +64,7 @@ impl TypecheckFactCollector<'_> {
         self.facts.type_references.push(TypeReferenceFact {
             name: name.to_string(),
             span,
+            contextual_type,
             symbol_name_span,
             symbol_declaration_span,
         });
@@ -99,7 +101,14 @@ impl TypecheckFactCollector<'_> {
         variant_name: &str,
         variant_name_span: ByteSpan,
     ) {
-        self.record_type_reference(enum_name, enum_name_span);
+        self.record_type_reference(
+            enum_name,
+            enum_name_span,
+            TypeExpr::Reference(TypeReference {
+                span: enum_name_span,
+                name: enum_name.to_string(),
+            }),
+        );
 
         let Some(owner) = self.resolved.type_symbol_by_name(enum_name) else {
             return;

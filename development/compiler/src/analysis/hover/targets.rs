@@ -96,13 +96,20 @@ pub(in crate::analysis::hover) fn type_reference_hover_for_file_analysis(
     let reference = file.typecheck_facts.type_reference_at_offset(offset)?;
     let declaration_span = reference.symbol_declaration_span?;
     let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
-    let (label, documentation) = resolved_symbol_hover_contents(sources, analysis, symbol)
-        .unwrap_or_else(|| {
+    let (declaration_label, documentation) =
+        resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
             (
                 symbol_hover_label_for_sources(sources, symbol),
                 None::<String>,
             )
         });
+    let label = crate::analysis::presentation::type_reference_presentation(
+        symbol,
+        &reference.contextual_type,
+        &file.resolved,
+    )
+    .map(|presentation| presentation.render())
+    .unwrap_or(declaration_label);
 
     Some(HoverInfo {
         span: reference.span,

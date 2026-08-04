@@ -410,6 +410,51 @@ fn workspace_hover_uses_typecheck_facts_for_type_reference() {
 }
 
 #[test]
+fn workspace_hover_presents_contextual_interface_type_applications() {
+    let text = r#"interface Iterator<T> {
+    pub method &self.next(): T?
+}
+
+interface ExactSizeIterator<T> {}
+
+struct Indexed<T> { value: T }
+struct EnumerateIter<T, I> { source: I }
+
+pub func filter<T, I: Iterator<T>>(source: I): I {
+    return source
+}
+
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I> {}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let iterator_offset = text.find("I: Iterator").unwrap() + "I: ".len();
+    let iterator = hover_for_file_analysis(&sources, &analysis, file, iterator_offset)
+        .expect("expected function-bound hover");
+    assert_eq!(iterator.label, "interface Iterator<T>");
+    assert_eq!(&text[iterator.span.start..iterator.span.end], "Iterator");
+
+    let impl_bound_offset = text.find("I: ExactSizeIterator").unwrap() + "I: ".len();
+    let impl_bound = hover_for_file_analysis(&sources, &analysis, file, impl_bound_offset)
+        .expect("expected impl-bound hover");
+    assert_eq!(impl_bound.label, "interface ExactSizeIterator<T>");
+    assert_eq!(
+        &text[impl_bound.span.start..impl_bound.span.end],
+        "ExactSizeIterator"
+    );
+
+    let implemented_offset = text.rfind(">> ExactSizeIterator").unwrap() + ">> ".len();
+    let implemented = hover_for_file_analysis(&sources, &analysis, file, implemented_offset)
+        .expect("expected implemented-interface hover");
+    assert_eq!(implemented.label, "interface ExactSizeIterator<Indexed<T>>");
+    assert_eq!(
+        &text[implemented.span.start..implemented.span.end],
+        "ExactSizeIterator"
+    );
+}
+
+#[test]
 fn workspace_hover_reports_transitive_allocation_effects() {
     let text = r#"primitive allocate(): usize
 

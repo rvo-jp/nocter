@@ -109,6 +109,17 @@ pub(super) fn enum_declaration_hover_label(enum_: &EnumDecl, resolved: &ResolveO
     )
 }
 
+pub(super) fn interface_declaration_hover_label(
+    interface: &crate::ast::InterfaceDecl,
+    resolved: &ResolveOutput,
+) -> String {
+    format!(
+        "interface {}{}",
+        interface.name,
+        generic_parameters_label(&interface.generics, resolved, None)
+    )
+}
+
 fn declared_member_owner_label(name: &str, generics: &GenericParamList) -> String {
     generic_type_owner_name(
         name,

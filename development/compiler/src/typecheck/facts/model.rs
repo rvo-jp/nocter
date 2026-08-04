@@ -542,6 +542,7 @@ pub(crate) enum TypecheckMethodReceiverKind {
 pub(crate) struct TypeReferenceFact {
     pub(crate) name: String,
     pub(crate) span: ByteSpan,
+    pub(crate) contextual_type: TypeExpr,
     pub(crate) symbol_name_span: Option<ByteSpan>,
     pub(crate) symbol_declaration_span: Option<ByteSpan>,
 }

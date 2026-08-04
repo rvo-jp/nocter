@@ -18,6 +18,7 @@ pub(crate) mod iteration;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
+pub(crate) mod presentation;
 pub(crate) mod provenance;
 pub(crate) mod references;
 mod region_recovery;
