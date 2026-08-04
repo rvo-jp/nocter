@@ -17,9 +17,10 @@ chronological implementation history.
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
-  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
-  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
-- active milestone gate: `v0.3.0 Stabilization`
+  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`,
+  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`, and
+  `v0.3.0 Stabilization`
+- active milestone gate: none
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -80,5 +81,11 @@ The final diagnostic audit replaces every remaining user-facing bare `v0` bounda
 source with a stable syntax, ownership, ABI, formatter, or native-backend capability statement.
 Exact records such as `v0.2.0` and `v0.3.0 Phase 8` remain versioned intentionally.
 
-The active task is clean-worktree release qualification: full verification, public documentation
-generation, local release packaging, installed-home doctor, and archive inspection.
+Clean-worktree release qualification is complete. The full compiler verification suite, Clippy
+with warnings denied, public documentation generation, local release packaging, installed-home
+`doctor`, and archive inspection pass from `develop`. The distributed runtime suite passes all 199
+Phase 0 through Phase 10 integration cases.
+
+No required stabilization item remains. The next state-changing operation is an explicit v0.3.0
+release-preparation decision covering version metadata, release notes, final packaging, tagging,
+and publication; stabilization intentionally did not perform that operation.
