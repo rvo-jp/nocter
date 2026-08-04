@@ -8,6 +8,16 @@ pub(super) fn lower_identifier_assignment(
     if let Some(instructions) = lower_i32_closure_capture_assignment(identifier, value, context)? {
         return Ok(instructions);
     }
+    if let Some(instructions) = lower_u8_closure_capture_assignment(identifier, value, context)? {
+        return Ok(instructions);
+    }
+    if let Some(instructions) = lower_usize_closure_capture_assignment(identifier, value, context)?
+    {
+        return Ok(instructions);
+    }
+    if let Some(instructions) = lower_bool_closure_capture_assignment(identifier, value, context)? {
+        return Ok(instructions);
+    }
 
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {

@@ -259,6 +259,29 @@ func main(): i32 {
     }
 
     #[test]
+    fn definition_query_resolves_closure_parameters_and_captures() {
+        let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    return transform(3)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+
+        let parameter_offset = text.find("value *").expect("expected parameter use");
+        let parameter =
+            definition_span_for_file_analysis(&sources, &analysis, file, parameter_offset)
+                .expect("expected closure parameter definition");
+        assert_eq!(parameter.start, text.find("value: i32").unwrap());
+
+        let capture_offset = text.rfind("factor }").expect("expected capture use");
+        let capture = definition_span_for_file_analysis(&sources, &analysis, file, capture_offset)
+            .expect("expected closure capture definition");
+        assert_eq!(capture.start, text.find("&factor").unwrap() + 1);
+    }
+
+    #[test]
     fn definition_query_resolves_struct_field_references() {
         let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File { fd: 1 }\n    return file.fd\n}\n";
         let (sources, analysis) = analyze_text(text);

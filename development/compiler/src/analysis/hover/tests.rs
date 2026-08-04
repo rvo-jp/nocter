@@ -529,3 +529,30 @@ func inspect<T: Readable + Measurable>(value: &T): i32 {
         hover.label
     );
 }
+
+#[test]
+fn workspace_hover_presents_closure_parameters_and_capture_modes() {
+    let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    return 0
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let parameter_offset = text.find("value *").unwrap();
+    let parameter = hover_for_file_analysis(&sources, &analysis, file, parameter_offset)
+        .expect("expected closure parameter hover");
+    assert_eq!(parameter.label, "parameter value: i32");
+
+    let capture_offset = text.rfind("factor }").unwrap();
+    let capture = hover_for_file_analysis(&sources, &analysis, file, capture_offset)
+        .expect("expected closure capture hover");
+    assert_eq!(capture.label, "capture &factor: i32");
+
+    let binding_offset = text.find("transform =").unwrap();
+    let binding = hover_for_file_analysis(&sources, &analysis, file, binding_offset)
+        .expect("expected closure binding hover");
+    assert_eq!(binding.label, "let transform: closure (i32): i32");
+}

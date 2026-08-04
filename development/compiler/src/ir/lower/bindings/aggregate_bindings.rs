@@ -1,5 +1,57 @@
 use super::*;
 
+pub(super) fn lower_closure_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Closure(closure) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some(ty @ TypeExpr::Closure(_)) = context.binding_type_expr(statement.name_span) else {
+        return Err(unsupported_binding_diagnostic(
+            "closure binding is missing its inferred environment type",
+        ));
+    };
+    let Some((root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "closure binding requires resolved source information",
+        ));
+    };
+    let value = context.abi_value_for_type_expr(&ty).ok_or_else(|| {
+        unsupported_binding_diagnostic("closure binding has no concrete ABI layout")
+    })?;
+    validate_aggregate_binding_layout(value.layout)?;
+
+    let is_copy = type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    });
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
+    let fields =
+        aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .ok_or_else(|| {
+            unsupported_binding_diagnostic("closure capture fields have no concrete ABI layout")
+        })?;
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        value.layout,
+        is_copy,
+        drop_kind,
+        fields,
+    );
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let instructions = crate::ir::lower::closures::lower_closure_to_slot(
+        closure,
+        &ty,
+        slot_index,
+        context,
+        &mut temporaries,
+    )?;
+    context.mark_aggregate_local_initialized(statement.name.as_str());
+    Ok(Some(instructions))
+}
+
 pub(super) fn lower_aggregate_struct_literal_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,

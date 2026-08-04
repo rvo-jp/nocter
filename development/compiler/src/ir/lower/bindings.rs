@@ -25,9 +25,9 @@ use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
     expression_is_lowerable_bool_binding, fixed_array_element_access,
     fixed_array_element_indexed_access, lower_aggregate_member_field_access,
-    lower_bool_expression_to_location, lower_bool_expression_to_value,
-    lower_bool_expression_to_value_with_temporaries, lower_borrow_expression_to_location,
-    lower_call_arguments_to_scalar_arguments,
+    lower_bool_closure_capture_assignment, lower_bool_expression_to_location,
+    lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
+    lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_composed_outcome_call, lower_fallible_bool_normal_call,
     lower_fallible_borrow_normal_call, lower_fallible_i32_normal_call,
@@ -38,8 +38,9 @@ use super::expressions::{
     lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
     lower_slice_expression_to_location, lower_slice_expression_to_value,
     lower_str_expression_to_location, lower_str_expression_to_value,
-    lower_u8_expression_to_location, lower_u8_expression_to_word,
-    lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
+    lower_u8_closure_capture_assignment, lower_u8_expression_to_location,
+    lower_u8_expression_to_word, lower_u8_expression_to_word_with_temporaries,
+    lower_usize_closure_capture_assignment, lower_usize_expression_to_location,
     lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
     lower_void_expression_statement, primitive_take_value_at_ptr_call,
     push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
@@ -160,6 +161,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_typed_literal_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_closure_binding(statement, context)? {
         return Ok(instructions);
     }
 

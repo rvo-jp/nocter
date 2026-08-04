@@ -407,6 +407,32 @@ mod tests {
     }
 
     #[test]
+    fn reference_query_distinguishes_capture_from_outer_binding() {
+        let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    return transform(3)
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let capture_offset = text.find("&factor").unwrap() + 1;
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, capture_offset, true);
+        let fragments = span_fragments(text, &spans);
+
+        assert_eq!(fragments, vec!["factor", "factor"]);
+        assert_eq!(spans[0].start, text.find("factor =").unwrap());
+        assert_eq!(spans[1].start, capture_offset);
+
+        let body_offset = text.rfind("factor }").unwrap();
+        let body_spans = reference_spans_for_file_analysis(&analysis, file, body_offset, true);
+        assert_eq!(span_fragments(text, &body_spans), vec!["factor", "factor"]);
+        assert_eq!(body_spans[0].start, capture_offset);
+        assert_eq!(body_spans[1].start, body_offset);
+    }
+
+    #[test]
     fn reference_query_finds_top_level_function_references() {
         let text = "func answer(): i32 {\n    return 1\n}\n\nfunc main(): i32 {\n    return answer() + answer()\n}\n";
         let (_sources, analysis) = analyze_text(text);

@@ -605,6 +605,46 @@ impl File {
     }
 
     #[test]
+    fn analysis_classifies_closure_parameters_and_capture_modes() {
+        let text = r#"func main(): i32 {
+    let base = 1
+    var total = 2
+    let owned = 3
+    let transform = (&base, &+total, move owned; value: i32): i32 {
+        total = total + value
+        return base + total + owned
+    }
+    return transform(4)
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+
+        for lexeme in ["base", "owned"] {
+            let tokens = identifiers_for_lexeme(text, &identifiers, lexeme);
+            assert!(tokens.len() >= 2, "expected capture tokens for {lexeme}");
+            assert!(tokens.iter().all(|token| {
+                token.kind == SemanticTokenKind::Variable
+                    && token.modifiers & SEMANTIC_READONLY_MODIFIER != 0
+            }));
+        }
+
+        let total_tokens = identifiers_for_lexeme(text, &identifiers, "total");
+        assert!(total_tokens.len() >= 3);
+        assert!(total_tokens.iter().all(|token| {
+            token.kind == SemanticTokenKind::Variable
+                && token.modifiers & SEMANTIC_READONLY_MODIFIER == 0
+        }));
+
+        let value_tokens = identifiers_for_lexeme(text, &identifiers, "value");
+        assert!(value_tokens.len() >= 2);
+        assert!(value_tokens.iter().all(|token| {
+            token.kind == SemanticTokenKind::Parameter
+                && token.modifiers & SEMANTIC_READONLY_MODIFIER != 0
+        }));
+    }
+
+    #[test]
     fn analysis_classifies_generic_bounds_and_provenance_origins() {
         let text = r#"interface Lookup<V> {
     pub method &self.get(): &V from self

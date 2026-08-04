@@ -406,7 +406,23 @@ pub(super) fn type_label(
 
 pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
     match ty {
-        Type::Closure(closure) => closure.identity_name(),
+        Type::Closure(closure) => {
+            let capability = match closure.capability {
+                crate::ast::ClosureCallableCapability::Readonly => "closure",
+                crate::ast::ClosureCallableCapability::Readwrite => "closure mut",
+                crate::ast::ClosureCallableCapability::Consuming => "closure once",
+            };
+            let parameters = closure
+                .parameters
+                .iter()
+                .map(crate::ast::type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "{capability} ({parameters}): {}",
+                crate::ast::type_expr_display_lossy(&closure.return_type)
+            )
+        }
         Type::I32 => "i32".to_string(),
         Type::Primitive(name) => name.clone(),
         Type::StrData => "str".to_string(),

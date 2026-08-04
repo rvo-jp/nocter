@@ -126,6 +126,22 @@ pub(in crate::ir::lower) fn lower_u8_expression_to_location(
     destination: U8Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression {
+        if let Some(instructions) =
+            lower_u8_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(instructions);
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_u8_closure_capture_to_location(
+            identifier,
+            destination,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -216,6 +232,22 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
     destination: UsizeLocation,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression {
+        if let Some(instructions) =
+            lower_usize_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(instructions);
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_usize_closure_capture_to_location(
+            identifier,
+            destination,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;

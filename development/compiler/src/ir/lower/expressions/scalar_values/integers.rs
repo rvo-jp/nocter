@@ -223,6 +223,29 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_u8()?;
+        if let Some(instructions) =
+            lower_u8_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredU8Value {
+                instructions,
+                value: U8Value::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_u8_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredU8Value {
+                instructions,
+                value: U8Value::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Call(call) => {
             let temporary = temporaries.next_u8()?;
@@ -469,6 +492,29 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_usize()?;
+        if let Some(instructions) =
+            lower_usize_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_usize_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Call(call) => {
             if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {

@@ -6,6 +6,26 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        if let Some(instructions) =
+            lower_bool_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(instructions);
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_bool_closure_capture_to_location(
+            identifier,
+            destination,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
     match expression {
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_location(
@@ -243,6 +263,25 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
     diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression {
+        let destination = temporaries.next_bool()?;
+        if let Some(instructions) =
+            lower_bool_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredBoolValue {
+                instructions,
+                value: BoolValue::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_bool_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredBoolValue {
+                instructions,
+                value: BoolValue::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_value_with_temporaries(

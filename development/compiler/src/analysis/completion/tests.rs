@@ -174,6 +174,34 @@ func other(hidden: i32): i32 {
 }
 
 #[test]
+fn completion_candidates_include_closure_parameters_and_captures_only_inside_body() {
+    let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 {
+        return value + factor
+    }
+    return transform(3)
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let inside_offset = text.find("return value").unwrap();
+    let outside_offset = text.rfind("return transform").unwrap();
+
+    let inside = completion_items_for_file_analysis_at_offset(file, inside_offset);
+    for expected in ["value", "factor"] {
+        assert!(
+            inside.iter().any(|item| item.label == expected),
+            "expected `{expected}` in closure body: {inside:#?}"
+        );
+    }
+
+    let outside = completion_items_for_file_analysis_at_offset(file, outside_offset);
+    assert!(!outside.iter().any(|item| item.label == "value"));
+    assert!(outside.iter().any(|item| item.label == "factor"));
+}
+
+#[test]
 fn completion_preserves_stored_outcome_details() {
     let text = r#"func main(): i32 {
     let saved = lookup()

@@ -34,6 +34,10 @@ pub(in crate::analysis::hover) fn apply_typecheck_hover_facts(
         let Some(ty) = facts.binding_type_label(symbol.target.declaration_span) else {
             continue;
         };
+        if symbol.label.starts_with("capture ") {
+            symbol.label = format!("{}: {ty}", symbol.label);
+            continue;
+        }
         let Some(kind) = binding_hover_label_kind(&symbol.label) else {
             continue;
         };
@@ -464,7 +468,27 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
     symbols: &mut Vec<HoverSymbol>,
 ) {
     match expression {
-        Expr::Closure(expression) => collect_block_hover_symbols(text, &expression.body, symbols),
+        Expr::Closure(expression) => {
+            for capture in &expression.captures {
+                push_hover_symbol(
+                    text,
+                    capture.name_span,
+                    capture.span.start,
+                    format!("capture {}{}", capture.mode.source_prefix(), capture.name),
+                    symbols,
+                );
+            }
+            for parameter in &expression.parameters {
+                push_hover_symbol(
+                    text,
+                    parameter.name_span,
+                    parameter.span.start,
+                    format!("parameter {}", parameter.name),
+                    symbols,
+                );
+            }
+            collect_block_hover_symbols(text, &expression.body, symbols);
+        }
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_hover_symbols(text, element, symbols);
