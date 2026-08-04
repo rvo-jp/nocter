@@ -278,7 +278,7 @@ pub(super) fn unqualified_enum_variant_constructor_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0431",
-        format!("enum variant `{variant_name}` cannot be used unqualified in v0"),
+        format!("enum variant `{variant_name}` cannot be used unqualified"),
     );
     diagnostic.primary_span = sources.span_to_json(reference_span).ok().map(Box::new);
     if let Ok(span) = sources.span_to_json(variant_span) {
@@ -338,7 +338,7 @@ pub(super) fn missing_import_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0411",
-        format!("import `{import_path}` does not export `{name}` in v0"),
+        format!("import `{import_path}` does not export `{name}`"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(

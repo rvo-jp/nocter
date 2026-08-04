@@ -73,7 +73,7 @@ impl Parser<'_> {
             if self.at_ellipsis() {
                 self.error_at(
                     self.ellipsis_span(),
-                    "embedding declarations are not part of v0",
+                    "embedding declarations are not supported",
                 );
                 return Err(());
             }

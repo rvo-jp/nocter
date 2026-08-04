@@ -1,6 +1,6 @@
 //! Shared type normalization for IR lowering.
 //!
-//! Converts resolved AST type expressions into the limited IR type set used by v0 lowering.
+//! Converts resolved AST type expressions into the native lowerer's IR type set.
 
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr_with_resolver};
 use crate::ast::{

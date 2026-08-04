@@ -25,7 +25,7 @@ pub(in crate::typecheck) fn unsized_value_type_diagnostic(
             element.display()
         ),
         Type::Named(_) | Type::Generic { .. } => {
-            "use a concrete struct or enum that explicitly implements the interface; v0 interfaces are contracts only and have no runtime dispatch representation".to_string()
+            "use a concrete struct or enum that explicitly implements the interface; interfaces are contracts only and have no runtime dispatch representation".to_string()
         }
         _ => "put the unsized type behind a borrow or use an owning sized type".to_string(),
     });

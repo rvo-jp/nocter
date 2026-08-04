@@ -43,7 +43,7 @@ impl Parser<'_> {
             let visibility = self.parse_visibility()?;
             if self.at_keyword(Keyword::Func) {
                 self.error_current(
-                    "`func` declarations are written at top level as `func Type.name(...)` in v0",
+                    "associated `func` declarations are written at top level as `func Type.name(...)`",
                 );
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {

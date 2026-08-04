@@ -295,7 +295,9 @@ impl Parser<'_> {
                 return Err(());
             }
             if self.current().kind == TokenKind::Identifier && self.next_is_punctuation(":") {
-                self.error_current("named arguments are not part of v0");
+                self.error_current(
+                    "calls use positional arguments; named arguments are not supported",
+                );
                 return Err(());
             }
             arguments.push(self.parse_expression()?);
@@ -306,7 +308,7 @@ impl Parser<'_> {
             if self.at_punctuation(")") {
                 self.error_at(
                     comma.span,
-                    "trailing commas in single-line argument lists are not part of v0",
+                    "single-line argument lists cannot have a trailing comma",
                 );
                 return Err(());
             }

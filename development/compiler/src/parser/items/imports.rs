@@ -18,7 +18,7 @@ impl Parser<'_> {
 
         if self.match_keyword(Keyword::As).is_some() {
             if visibility != Visibility::Private {
-                self.error_current("namespace aliases cannot be re-exported in v0");
+                self.error_current("namespace aliases cannot be re-exported");
                 return Err(());
             }
             let alias = self.expect_name_identifier("expected import alias after `as`")?;
@@ -62,9 +62,7 @@ impl Parser<'_> {
             };
 
             if self.at_punctuation(".") {
-                self.error_current(
-                    "dotted module paths are not part of v0; use `/` between module path segments",
-                );
+                self.error_current("module paths use `/` between segments instead of `.`");
                 return Err(());
             }
 
@@ -77,7 +75,7 @@ impl Parser<'_> {
         }
 
         if visibility != Visibility::Private {
-            self.error_current("`pub use path` is not valid in v0; re-export explicit names");
+            self.error_current("`pub use path` is invalid; re-export explicit names");
             return Err(());
         }
         let end = path.span.end;
@@ -93,7 +91,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_imported_name(&mut self, message: &str) -> ParseResult<ImportedName> {
         if self.at_punctuation("*") {
-            self.error_current("wildcard imports are not part of v0");
+            self.error_current("wildcard imports are not supported");
             return Err(());
         }
         let name = self.expect_name_identifier(message)?;

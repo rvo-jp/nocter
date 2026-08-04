@@ -74,7 +74,7 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
                 sources,
                 expression.span,
                 "array literals",
-                "use scalar/view values or a std collection API once v0 array storage is promoted",
+                "use scalar/view values or a standard collection API",
             ));
             for element in &expression.elements {
                 collect_expression_diagnostics(

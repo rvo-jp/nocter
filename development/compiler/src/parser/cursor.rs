@@ -634,12 +634,10 @@ impl Parser<'_> {
 
 fn reserved_name_diagnostic(name: &str) -> Option<&'static str> {
     match name {
-        "_" => Some(
-            "`_` is reserved for discard or wildcard patterns and cannot be used as a name in v0",
-        ),
-        "Self" => {
-            Some("`Self` is reserved as contextual type syntax and cannot be used as a name in v0")
+        "_" => {
+            Some("`_` is reserved for discard or wildcard patterns and cannot be used as a name")
         }
+        "Self" => Some("`Self` is reserved as contextual type syntax and cannot be used as a name"),
         _ => None,
     }
 }

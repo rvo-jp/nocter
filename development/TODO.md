@@ -76,5 +76,9 @@ panic when partial editor facts violate an internal shape assumption. The parser
 EOF token-stream contract at entry and derives provenance bounds without an impossible-state
 `expect`.
 
-The active audit is packaging qualification and final responsibility hotspots against the
-stabilization gate.
+The final diagnostic audit replaces every remaining user-facing bare `v0` boundary in compiler
+source with a stable syntax, ownership, ABI, formatter, or native-backend capability statement.
+Exact records such as `v0.2.0` and `v0.3.0 Phase 8` remain versioned intentionally.
+
+The active task is clean-worktree release qualification: full verification, public documentation
+generation, local release packaging, installed-home doctor, and archive inspection.

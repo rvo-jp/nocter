@@ -13,13 +13,13 @@ impl Parser<'_> {
             }
 
             if let Some(token) = self.match_keyword(Keyword::Var) {
-                self.error_at(token.span, "`var` parameters are not part of v0");
+                self.error_at(token.span, "parameters cannot use `var`");
                 return Err(());
             }
             if self.at_ellipsis() {
                 self.error_at(
                     self.ellipsis_span(),
-                    "variadic parameters are not part of v0",
+                    "ordinary parameters cannot use variadic syntax",
                 );
                 return Err(());
             }
@@ -27,13 +27,13 @@ impl Parser<'_> {
             self.expect_punctuation(":", "`:`")?;
             let ty = self.parse_type()?;
             if self.at_punctuation("=") {
-                self.error_current("default parameters are not part of v0");
+                self.error_current("parameters cannot declare default values");
                 return Err(());
             }
             if self.at_ellipsis() {
                 self.error_at(
                     self.ellipsis_span(),
-                    "variadic parameters are not part of v0",
+                    "ordinary parameters cannot use variadic syntax",
                 );
                 return Err(());
             }
@@ -52,7 +52,7 @@ impl Parser<'_> {
             if self.at_punctuation(")") {
                 self.error_at(
                     comma.span,
-                    "trailing commas in single-line parameter lists are not part of v0",
+                    "single-line parameter lists cannot have a trailing comma",
                 );
                 return Err(());
             }

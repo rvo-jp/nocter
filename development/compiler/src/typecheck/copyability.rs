@@ -40,7 +40,7 @@ impl NonCopyOwnedValueKind {
                 "use copyable type arguments for `{type_name}` or write `move {source_name}` to transfer ownership"
             ),
             NonCopyOwnedValueKind::Enum => format!(
-                "payload-carrying enums are move-only in v0; write `move {source_name}` to transfer ownership"
+                "payload-carrying enums are move-only; write `move {source_name}` to transfer ownership"
             ),
             NonCopyOwnedValueKind::FixedArray => format!(
                 "make the fixed array element type copyable or write `move {source_name}` to transfer ownership"

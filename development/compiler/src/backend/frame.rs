@@ -399,7 +399,7 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 fn frame_too_large_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
-        format!("function stack frame is too large for backend v0: {reason}"),
+        format!("function stack frame is too large for the native backend: {reason}"),
     )]
 }
 

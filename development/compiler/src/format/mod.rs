@@ -40,7 +40,7 @@ pub fn format_source(sources: &SourceMap, source: SourceId) -> FormatOutput {
 
     if let Some(span) = first_comment_span(source, file.text()) {
         let mut diagnostic =
-            Diagnostic::error("E0601", "formatter v0 cannot safely preserve comments yet");
+            Diagnostic::error("E0601", "the formatter cannot safely preserve comments yet");
         diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
         diagnostic.help = Some(
             "remove comments before formatting, or wait for the comment-preserving formatter"

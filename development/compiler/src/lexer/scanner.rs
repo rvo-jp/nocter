@@ -106,7 +106,7 @@ impl Lexer<'_> {
                     self.error(
                         start,
                         self.index,
-                        "plain single-quoted character literals are not part of v0",
+                        "plain single-quoted character literals are not supported",
                     );
                 }
                 b'@' => {
@@ -115,7 +115,7 @@ impl Lexer<'_> {
                     self.error(
                         start,
                         self.index,
-                        "`@` is reserved and invalid in v0 source",
+                        "`@` is reserved and invalid in Nocter source",
                     );
                 }
                 b'.' if self.peek(1).is_some_and(|next| next.is_ascii_digit()) => {
@@ -238,7 +238,7 @@ impl Lexer<'_> {
             while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
                 self.index += 1;
             }
-            self.error(start, self.index, "float literals are not part of v0");
+            self.error(start, self.index, "float literals are not supported");
             return;
         }
 
@@ -249,7 +249,7 @@ impl Lexer<'_> {
                 while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
                     self.index += 1;
                 }
-                self.error(start, self.index, "float literals are not part of v0");
+                self.error(start, self.index, "float literals are not supported");
                 return;
             }
         }
@@ -261,11 +261,7 @@ impl Lexer<'_> {
             while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
                 self.index += 1;
             }
-            self.error(
-                start,
-                self.index,
-                "integer type suffixes are not part of v0",
-            );
+            self.error(start, self.index, "integer type suffixes are not supported");
             return;
         }
 
@@ -296,7 +292,7 @@ impl Lexer<'_> {
         while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
             self.index += 1;
         }
-        self.error(start, self.index, "float literals are not part of v0");
+        self.error(start, self.index, "float literals are not supported");
     }
 
     fn scan_string_literal(&mut self) {

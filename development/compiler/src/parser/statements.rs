@@ -530,9 +530,15 @@ impl Parser<'_> {
 
 fn deferred_drop_target_message(kind: TokenKind) -> Option<&'static str> {
     match kind {
-        TokenKind::Punctuation(".") => Some("`drop object.field` is not part of v0"),
-        TokenKind::Punctuation("[") => Some("`drop array[index]` is not part of v0"),
-        TokenKind::Punctuation("(") => Some("`drop make_value()` is not part of v0"),
+        TokenKind::Punctuation(".") => {
+            Some("`drop object.field` is invalid; `drop` requires a binding name")
+        }
+        TokenKind::Punctuation("[") => {
+            Some("`drop array[index]` is invalid; `drop` requires a binding name")
+        }
+        TokenKind::Punctuation("(") => {
+            Some("`drop make_value()` is invalid; `drop` requires a binding name")
+        }
         _ => None,
     }
 }

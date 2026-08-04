@@ -290,7 +290,7 @@ pub(super) fn aggregate_slots(
         })?;
         if align == 0 || !align.is_power_of_two() || align > STACK_ALIGNMENT {
             return Err(frame_too_large_diagnostic(
-                "aggregate slot alignment is not supported by backend v0",
+                "aggregate slot alignment is not supported by the native backend",
             ));
         }
 

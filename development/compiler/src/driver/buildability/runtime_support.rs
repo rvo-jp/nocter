@@ -784,7 +784,7 @@ pub(super) fn unsupported_null_from_addr_call_diagnostic(
         sources,
         argument.span(),
         "null raw pointer construction",
-        "`*T` is non-null in v0; use `none` for `*T?` absence or pass a non-zero trusted address",
+        "`*T` is non-null; use `none` for `*T?` absence or pass a non-zero trusted address",
     ))
 }
 

@@ -335,7 +335,7 @@ fn diagnoses_wildcard_imports_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("wildcard imports are not part of v0"),
+                .contains("wildcard imports are not supported"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -351,7 +351,7 @@ fn diagnoses_textual_include_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("textual include is not part of v0"),
+                .contains("textual include is not supported"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -371,7 +371,7 @@ fn diagnoses_dotted_import_paths_as_removed() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("dotted module paths are not part of v0"),
+                .contains("module paths use `/`"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -466,7 +466,7 @@ fn diagnoses_var_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("`var` parameters are not part of v0")
+            .contains("parameters cannot use `var`")
     );
 }
 
@@ -484,7 +484,7 @@ fn diagnoses_default_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("default parameters are not part of v0")
+            .contains("parameters cannot declare default values")
     );
 }
 
@@ -501,7 +501,7 @@ fn diagnoses_variadic_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("variadic parameters are not part of v0")
+            .contains("ordinary parameters cannot use variadic syntax")
     );
 }
 
@@ -518,7 +518,7 @@ fn diagnoses_prefix_variadic_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("variadic parameters are not part of v0")
+            .contains("ordinary parameters cannot use variadic syntax")
     );
 }
 
@@ -1181,7 +1181,7 @@ fn diagnoses_embedding_declarations_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("embedding declarations are not part of v0"),
+                .contains("embedding declarations are not supported"),
             "{source}: {:?}",
             output.diagnostics
         );

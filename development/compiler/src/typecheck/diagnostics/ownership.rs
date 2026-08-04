@@ -55,7 +55,7 @@ pub(in crate::typecheck) fn invalid_drop_target_diagnostic(
     let mut diagnostic = Diagnostic::error("E0386", message);
     diagnostic.primary_span = sources.span_to_json(name_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "`drop name` accepts initialized move-only owned bindings; copy values and plain borrow bindings are not explicitly dropped in v0"
+        "`drop name` accepts initialized move-only owned bindings; copy values and plain borrow bindings are not explicitly dropped"
             .to_string(),
     );
     diagnostic

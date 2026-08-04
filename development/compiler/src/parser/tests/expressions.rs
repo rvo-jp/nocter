@@ -313,7 +313,7 @@ fn diagnoses_named_arguments_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("named arguments are not part of v0")
+            .contains("calls use positional arguments")
     );
 }
 

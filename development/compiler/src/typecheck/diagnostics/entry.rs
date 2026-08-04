@@ -27,7 +27,7 @@ pub(in crate::typecheck) fn invalid_entry_function_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0303",
         format!(
-            "entry function `{}` must have no type parameters, no value parameters, and return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void` in v0",
+            "entry function `{}` must have no type parameters, no value parameters, and return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`",
             DEFAULT_ENTRY_NAME
         ),
     );
