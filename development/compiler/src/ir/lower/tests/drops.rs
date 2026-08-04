@@ -1344,7 +1344,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_return_never_expression_with_scope_cleanup() {
+fn lowers_return_never_expression_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -1388,12 +1388,6 @@ func abort(): never {
                     offset: 0,
                     value: i32_const(1),
                 },
-                Instruction::CallVoid {
-                    target: CallTarget::same_file("File.drop"),
-                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                        source: BorrowSource::AggregateSlot(0),
-                    })],
-                },
                 Instruction::TailCall {
                     target: CallTarget::same_file("abort"),
                     arguments: vec![],
@@ -1404,7 +1398,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_terminal_if_never_branch_with_scope_cleanup() {
+fn lowers_terminal_if_never_branch_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -1453,12 +1447,6 @@ func abort(): never {
                         destination: AggregateLocation::Slot(0),
                         offset: 0,
                         value: i32_const(1),
-                    },
-                    Instruction::CallVoid {
-                        target: CallTarget::same_file("File.drop"),
-                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                            source: BorrowSource::AggregateSlot(0),
-                        })],
                     },
                     Instruction::TailCall {
                         target: CallTarget::same_file("abort"),

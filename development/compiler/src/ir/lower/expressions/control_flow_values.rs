@@ -966,7 +966,7 @@ pub(super) fn lower_value_control_leading_statements(
                     return Err(unsupported_value_control_expression_diagnostic());
                 }
                 if let Some(terminating_instructions) =
-                    lower_never_expression_with_scope_drops(&statement.expression, context)?
+                    lower_never_expression(&statement.expression, context)?
                 {
                     instructions.extend(terminating_instructions);
                     mark_explicit_moves_in_expression(&statement.expression, context);

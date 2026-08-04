@@ -141,9 +141,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_fallback_to_loc
 ) -> Result<(Vec<Instruction>, bool), Vec<Diagnostic>> {
     if let Some(result) = &block.result {
         let mut instructions = lower_otherwise_return_leading_statements(block, context, "E8007")?;
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, context)?
-        {
+        if let Some(terminating_instructions) = lower_never_expression(result, context)? {
             instructions.extend(terminating_instructions);
             return Ok((instructions, true));
         }
@@ -190,7 +188,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_fallback_to_loc
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };

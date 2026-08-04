@@ -15,8 +15,7 @@ pub(super) fn lower_catch_block(
     match last {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression
-                && let Some(return_instructions) =
-                    lower_never_expression_with_scope_drops(expression, context)?
+                && let Some(return_instructions) = lower_never_expression(expression, context)?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -134,7 +133,7 @@ pub(super) fn lower_catch_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 if success_type == Type::Void
                     && let Some(void_instructions) =

@@ -291,10 +291,8 @@ pub(in crate::ir::lower::functions) fn lower_terminal_aggregate_return_block_wit
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Expression(statement)) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                &mut branch_context,
-            )?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, &mut branch_context)?
             else {
                 return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
             };
@@ -351,9 +349,7 @@ pub(in crate::ir::lower::functions) fn lower_terminal_aggregate_result_expressio
             Ok(instructions)
         }
         _ => {
-            if let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(expression, context)?
-            {
+            if let Some(terminating_instructions) = lower_never_expression(expression, context)? {
                 mark_explicit_moves_in_expression(expression, context);
                 return Ok(terminating_instructions);
             }

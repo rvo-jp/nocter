@@ -227,6 +227,11 @@ fn element_failure_restores_explicit_allocator_context_before_propagation() {
 use std/mem.page_allocator
 
 struct Numbers { count: usize }
+struct Token { value: i32 }
+
+impl Token {
+    drop &+self { return }
+}
 
 literal Numbers [](...items: i32): Self {
     return Numbers { count: items.len() }
@@ -236,6 +241,7 @@ func next(): i32! { return 2 }
 
 func main(): i32! {
     let arena = page_allocator()
+    let token = Token { value: 1 }
     let values = Numbers [1, next()?] using arena
     return 0
 }
@@ -247,18 +253,35 @@ func main(): i32! {
         .iter()
         .find(|function| function.target == CallTarget::same_file("main"))
         .unwrap();
-    assert!(main.instructions.iter().any(|instruction| matches!(
-        instruction,
-        Instruction::CallOutcomeI32 {
-            target,
-            failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
-            ..
-        } if target == &CallTarget::same_file("next")
-            && instructions.iter().any(|instruction| matches!(
+    let cleanup = main
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction {
+            Instruction::CallOutcomeI32 {
+                target,
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
+                ..
+            } if target == &CallTarget::same_file("next") => Some(instructions),
+            _ => None,
+        })
+        .expect("element propagation should carry scope cleanup");
+    let restore = cleanup
+        .iter()
+        .position(|instruction| {
+            matches!(instruction, Instruction::SetCurrentAllocationContext { .. })
+        })
+        .expect("element propagation should restore the ambient allocator");
+    let token_drop = cleanup
+        .iter()
+        .position(|instruction| {
+            matches!(
                 instruction,
-                Instruction::SetCurrentAllocationContext { .. }
-            ))
-    )));
+                Instruction::CallVoid { target, .. }
+                    if target == &CallTarget::same_file("Token.drop")
+            )
+        })
+        .expect("element propagation should drop outer owned locals");
+    assert!(restore < token_drop);
 }
 
 #[test]

@@ -18,7 +18,7 @@ use super::expressions::{
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, LoweredSwitchBlock,
     LoweredSwitchCondition, append_scope_end_drops_before_exit, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_never_expression, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
@@ -283,15 +283,13 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, &mut context)
-                    .map_err(|diagnostics| {
-                        attach_primary_span_if_absent(
-                            diagnostics,
-                            sources,
-                            statement.expression.span(),
-                        )
-                    })?
+            let Some(terminating_instructions) = lower_never_expression(
+                &statement.expression,
+                &mut context,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+            })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
@@ -376,8 +374,8 @@ fn lower_entry_body_result(
     }
 
     if return_type.success_type() == &Type::Void {
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+        if let Some(terminating_instructions) = lower_never_expression(expression, context)
+            .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, expression.span())
             })?
         {

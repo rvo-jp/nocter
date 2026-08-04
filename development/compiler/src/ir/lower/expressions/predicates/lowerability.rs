@@ -598,6 +598,8 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
         }
         Expr::Call(call) => {
             builtin_len_call_is_lowerable(call, context)
+                || primitive_current_allocation_state_call(call, context)
+                || primitive_current_allocation_kind_call(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Usize)
         }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {

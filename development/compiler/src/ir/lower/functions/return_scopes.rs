@@ -32,8 +32,7 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
     let function_name = context.function_name().to_string();
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) =
-            lower_never_expression_with_scope_drops(expression, context)?
+        && let Some(return_instructions) = lower_never_expression(expression, context)?
     {
         return Ok(return_instructions);
     }

@@ -869,6 +869,85 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn typed_literal_failure_restores_region_allocator_before_outer_drop() {
+    let project = TempProject::new("distributed-home-literal-override-drop-context-run");
+    let home = project.root().join(".nocter");
+    copy_tree(&distributed_home(), &home);
+    fs::write(
+        home.join("std/allocation_context_probe.nct"),
+        r#"use std/mem.current_allocator_kind
+use std/process.exit_raw
+
+pub func assert_region_allocator(): void {
+    if current_allocator_kind() != 1 {
+        exit_raw(91)
+    }
+    return
+}
+"#,
+    )
+    .unwrap();
+    let source = project.write_source(
+        "literal_override_drop_context.nct",
+        r#"use std/allocation_context_probe.assert_region_allocator
+use std/mem.page_allocator
+
+struct Numbers { count: usize }
+struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        assert_region_allocator()
+        return
+    }
+}
+
+literal Numbers [](...items: i32): Self {
+    return Numbers { count: items.len() }
+}
+
+func next(): i32! {
+    return Error.new("test.failure", "expected failure")
+}
+
+func operation(): i32! {
+    let region_allocator = page_allocator()
+    let root_allocator = page_allocator()
+    region temporary using region_allocator {
+        let token = Token { value: 1 }
+        let values = Numbers [next()?] using root_allocator
+    }
+    return 0
+}
+
+func main(): i32 {
+    return operation() catch expected_failure {
+        return 42
+    }
+}
+"#,
+    );
+
+    let output = Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", home)
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn sequence_spread_early_literal_exit_drops_owned_suffix_once() {
     let project = TempProject::new("distributed-home-sequence-spread-drop-run");
     let source = project.write_source(

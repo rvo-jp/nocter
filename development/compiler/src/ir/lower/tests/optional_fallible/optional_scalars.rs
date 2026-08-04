@@ -507,7 +507,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_optional_i32_otherwise_never_call_binding_with_scope_cleanup() {
+fn lowers_optional_i32_otherwise_never_call_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -563,13 +563,10 @@ func abort(): never {
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
                     failure_mode: OutcomeFailureMode::Handle {
-                        instructions: vec![
-                            drop_call.clone(),
-                            Instruction::TailCall {
-                                target: CallTarget::same_file("abort"),
-                                arguments: vec![],
-                            },
-                        ],
+                        instructions: vec![Instruction::TailCall {
+                            target: CallTarget::same_file("abort"),
+                            arguments: vec![],
+                        }],
                     },
                 },
                 Instruction::SetI32 {

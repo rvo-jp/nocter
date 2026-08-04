@@ -574,16 +574,13 @@ pub(in crate::ir::lower) fn lower_nonterminal_loop_block_statements(
                         statement.expression.span(),
                     ));
                 }
-                if let Some(terminating_instructions) =
-                    lower_never_expression_with_scope_drops(&statement.expression, context)
-                        .map_err(|diagnostics| {
-                            attach_primary_span_if_absent(
-                                diagnostics,
-                                sources,
-                                statement.expression.span(),
-                            )
-                        })?
-                {
+                if let Some(terminating_instructions) = lower_never_expression(
+                    &statement.expression,
+                    context,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })? {
                     instructions.extend(terminating_instructions);
                     ends_execution = true;
                 } else {
@@ -875,7 +872,7 @@ fn lower_nonterminal_block_result(
     }
 
     if let Some(terminating_instructions) =
-        lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+        lower_never_expression(expression, context).map_err(|diagnostics| {
             attach_primary_span_if_absent(diagnostics, sources, expression.span())
         })?
     {

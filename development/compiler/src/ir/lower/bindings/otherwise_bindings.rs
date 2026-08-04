@@ -51,9 +51,7 @@ pub(super) fn lower_otherwise_terminal_block(
             )?);
         }
 
-        let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, context)?
-        else {
+        let Some(terminating_instructions) = lower_never_expression(result, context)? else {
             return Err(unsupported_binding_diagnostic(
                 "native lowering can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
             ));
@@ -86,7 +84,7 @@ pub(super) fn lower_otherwise_terminal_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 return Err(unsupported_binding_diagnostic(
                     "native lowering can only lower `otherwise` fallback blocks ending in `return`, `break`, `continue`, or a `never` expression",
@@ -189,7 +187,7 @@ where
         }
 
         if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, &mut fallback_context)?
+            lower_never_expression(result, &mut fallback_context)?
         {
             instructions.extend(terminating_instructions);
             return Ok(OutcomeFailureMode::Handle { instructions });

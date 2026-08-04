@@ -3,6 +3,7 @@ use super::super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
 use super::super::types::{scalar_or_view_type_from_type_expr, view_element_type_from_type_expr};
+use super::{primitive_current_allocation_kind_call, primitive_current_allocation_state_call};
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, TypeConversionExpr,
     UnaryOperator,

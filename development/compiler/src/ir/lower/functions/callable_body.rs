@@ -162,13 +162,10 @@ pub(super) fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                context,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
-            })?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, context).map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
@@ -252,8 +249,8 @@ pub(super) fn lower_callable_body_result(
     }
 
     if return_type.success_type() == &Type::Void {
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+        if let Some(terminating_instructions) = lower_never_expression(expression, context)
+            .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, expression.span())
             })?
         {

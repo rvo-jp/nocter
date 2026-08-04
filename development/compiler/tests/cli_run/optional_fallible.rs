@@ -1971,8 +1971,8 @@ func maybe_answer(flag: bool): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_runs_optional_otherwise_never_scope_drop_before_trap() {
-    let project = TempProject::new("cli-run-optional-otherwise-never-cleanup");
+fn run_command_does_not_unwind_optional_otherwise_never_exit() {
+    let project = TempProject::new("cli-run-optional-otherwise-never-no-unwind");
     project.write_nocter_home_file(
         "std/log.nct",
         r#"use std/io.write_text_raw
@@ -2000,7 +2000,7 @@ pub func exit(code: i32): never {
 "#,
     );
     let source = project.write_source(
-        "optional_otherwise_never_cleanup.nct",
+        "optional_otherwise_never_no_unwind.nct",
         r#"use std/log.write
 use std/process.exit
 
@@ -2037,9 +2037,8 @@ func maybe_answer(): i32? {
         text(&output.stdout),
         text(&output.stderr)
     );
-    assert_eq!(
-        output.stdout,
-        b"drop\n",
+    assert!(
+        output.stdout.is_empty(),
         "status: {:?}\nstdout:\n{}\nstderr:\n{}",
         output.status.code(),
         text(&output.stdout),

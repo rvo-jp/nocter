@@ -50,7 +50,11 @@ generic specialization. User-facing compiler diagnostics no longer describe impl
 as a bare `v0` contract, and call-lowering failures distinguish unavailable targets from borrow and
 scalar materialization failures.
 
-The active audit is ownership, allocation, and region cleanup symmetry across normal completion,
-`return`, `break`, `continue`, propagation, recovery, and trap edges. Subsequent loops cover packaged
-runtime behavior, editor facts, malformed-input resilience, and responsibility hotspots against the
-stabilization gate.
+The ownership, allocation, and region cleanup audit now enforces allocator restoration before
+outer-owner destruction, reverse region release after destruction, and non-unwinding `never`
+termination independently of tail-call eligibility. Native and packaged-home probes cover normal,
+`return`, `break`, `continue`, propagation, recovery, and immediate termination edges.
+
+The active audit is editor identity, ranges, semantic facts, and incomplete-source recovery.
+Subsequent loops cover malformed-input resilience, packaging qualification, and responsibility
+hotspots against the stabilization gate.

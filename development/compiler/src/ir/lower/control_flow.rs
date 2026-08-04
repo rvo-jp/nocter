@@ -15,7 +15,7 @@ use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_never_expression, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     lowerable_switch_is_exhaustive, mark_explicit_moves_in_expression,
     mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,

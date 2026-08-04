@@ -4,11 +4,13 @@ pub(in crate::ir::lower) fn lower_scope_end_drop_instructions(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let pending = context.pending_aggregate_drops();
-    let mut instructions = Vec::new();
+    // Expression-local allocator overrides must end before destructors for outer lexical values
+    // run. A destructor with an allocation effect observes the surrounding allocation context,
+    // not the allocator selected only for the expression that is propagating a failure.
+    let mut instructions = context.allocation_context_restore_instructions();
     for drop_ in &pending {
         instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
     }
-    instructions.extend(context.allocation_context_restore_instructions());
     instructions.extend(context.all_region_cleanup_instructions());
     Ok(instructions)
 }
@@ -471,7 +473,7 @@ pub(in crate::ir::lower) fn lower_drop_statement(
     )
 }
 
-pub(in crate::ir::lower) fn lower_never_expression_with_scope_drops(
+pub(in crate::ir::lower) fn lower_never_expression(
     expression: &Expr,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
@@ -479,7 +481,9 @@ pub(in crate::ir::lower) fn lower_never_expression_with_scope_drops(
         return Ok(None);
     };
     mark_explicit_moves_in_expression(expression, context);
-    append_scope_end_drops_before_exit(instructions, context).map(Some)
+    // `never` is immediate termination, not a normal scope exit. In particular, whether the call
+    // can use tail-call lowering must not decide if caller-owned values are destroyed.
+    Ok(Some(instructions))
 }
 
 pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(

@@ -427,9 +427,7 @@ pub(super) fn lower_otherwise_return_block(
     if let Some(result) = &block.result {
         let mut instructions =
             lower_otherwise_return_leading_statements(block, context, diagnostic_code)?;
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, context)?
-        {
+        if let Some(terminating_instructions) = lower_never_expression(result, context)? {
             instructions.extend(terminating_instructions);
             return Ok(instructions);
         }
@@ -461,7 +459,7 @@ pub(super) fn lower_otherwise_return_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code));
             };

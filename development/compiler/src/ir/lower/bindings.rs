@@ -47,9 +47,9 @@ use super::expressions::{
 };
 use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
-    lower_aggregate_return_expression_to_location, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, replacement_drop_for_aggregate_slot,
+    lower_aggregate_return_expression_to_location, lower_drop_statement, lower_never_expression,
+    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
+    replacement_drop_for_aggregate_slot,
 };
 use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
