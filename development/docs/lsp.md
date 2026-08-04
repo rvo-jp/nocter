@@ -9,7 +9,8 @@ system for editors.
 open documents + filesystem
   -> compile-unit frontend
   -> resolver/typecheck facts
-  -> feature-specific analysis result
+  -> SemanticOccurrenceIndex
+  -> structured semantic presentation / feature query
   -> LSP protocol conversion
 ```
 
@@ -17,6 +18,40 @@ open documents + filesystem
 `analysis` provides compiler-owned result types for hover, completion, definition, and references.
 Resolver and typechecker decide visibility, type normalization, generic specialization, and
 ownership capability.
+
+### Semantic occurrence boundary
+
+Every resolved editor-facing spelling is projected into one immutable occurrence index per source
+file. An occurrence records:
+
+- its exact focus span
+- stable declaration, member, local, or generic-parameter identity
+- declaration/reference role and semantic kind
+- readonly state where it affects editor classification
+- a contextual type application when the spelling alone is insufficient, such as the
+  `ExactSizeIterator` in `ExactSizeIterator<Indexed<T>>`
+
+Hover, definition, references, and semantic tokens query this index rather than maintaining
+feature-specific cursor walkers. Resolver and typecheck maps remain authoritative; the index joins
+their identities by source span and does not perform name resolution.
+
+### Presentation boundary
+
+`analysis/presentation` converts resolved declarations and specialized type expressions into
+structured callable, literal, type, member, generic-parameter, and local presentations. Hover,
+completion detail, and signature help render those shared values. They do not copy source headers
+or independently reconstruct generic bounds, `Self`, import aliases, member owners, or result
+provenance.
+
+Declaration identity and displayed context are deliberately separate. A call through an import
+alias keeps the alias as its displayed name while using the target declaration for parameters,
+return type, documentation, effects, and provenance. A member keeps one member identity while its
+presentation may substitute a concrete receiver type.
+
+Syntax traversal remains available for documentation attachment and degraded results when parsing
+or semantic analysis cannot establish an identity. It is not an authoritative signature source.
+Incomplete-edit overlays always re-enter the compile-unit frontend and produce the same occurrence
+and presentation model before a result is accepted.
 
 ## Current Baseline
 
@@ -32,10 +67,12 @@ identity and visibility. Call-argument candidates use typechecker assignability 
 Incomplete calls, member expressions, imports, regions, and typed literals use temporary
 compile-unit recovery overlays separate from the authoritative document.
 
-Type-member presentation has one shared renderer across declaration hover, reference hover, and
-completion detail. Fields, variants, methods, and associated functions always include their visible
-owner as `Type.member`; generic completion substitutes the concrete owner and member types when
-typecheck establishes them. Canonical declaration identity remains internal and is not exposed as a
+Semantic presentation has one renderer per declaration family across declaration hover, reference
+hover, completion detail, and signature help. Types, fields, variants, methods, associated
+functions, drops, literals, generic parameters, and locals therefore use the same normalization
+rules. Fields, variants, methods, and associated functions always include their visible owner as
+`Type.member`; generic completion substitutes the concrete owner and member types when typecheck
+establishes them. Canonical declaration identity remains internal and is not exposed as a
 repository or module path.
 
 ## Released v0.2.0 Capabilities

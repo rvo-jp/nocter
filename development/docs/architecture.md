@@ -136,6 +136,18 @@ declaration. See
 data for hover, completion, definition, references, and signature help from resolver/typechecker
 facts. See [LSP](lsp.md).
 
+Editor analysis has two shared internal boundaries. `SemanticOccurrenceIndex` maps source focus
+spans to resolver/typechecker identities, roles, kinds, readonly state, and contextual type
+applications. `analysis/presentation` maps those semantic values to normalized user-facing
+declarations. Navigation and semantic tokens consume the former; hover, completion detail, and
+signature help share the latter. A feature must not add its own name-resolution pass or render a
+canonical signature by slicing source text.
+
+Recovery overlays are temporary source inputs, not an alternate analysis system. A recovered file
+must pass through the ordinary compile-unit frontend and the same occurrence/presentation
+boundaries. Syntax-only fallback may attach documentation or provide a degraded result when no
+semantic identity exists, but it cannot override an established semantic result.
+
 ## Diagnostics
 
 - Malformed user source must not panic.
