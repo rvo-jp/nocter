@@ -716,6 +716,82 @@ func main(): i32! {
 }
 
 #[test]
+fn lsp_hover_presents_catch_binding_type() {
+    let project = TempProject::new("cli-lsp-catch-binding-hover");
+    let source_text = r#"func attempt(): i32! {
+    return 1
+}
+
+func main(): i32! {
+    let value = attempt() catch problem {
+        return problem
+    }
+    return value
+}
+"#;
+    let source = project.write_source("catch_binding_hover.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text
+        .find("problem {")
+        .expect("expected catch binding");
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": { "line": line, "character": character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(
+        hover["contents"]["value"].as_str(),
+        Some("```nocter\ncatch problem: error\n```")
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(line));
+    assert_eq!(hover["range"]["start"]["character"], json!(character));
+}
+
+#[test]
 fn lsp_preserves_stored_composed_outcomes_across_protocol_queries() {
     let project = TempProject::new("cli-lsp-stored-composed-outcome");
     let source_text = r#"func main(): i32 {

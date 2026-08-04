@@ -556,3 +556,37 @@ fn workspace_hover_presents_closure_parameters_and_capture_modes() {
         .expect("expected closure binding hover");
     assert_eq!(binding.label, "let transform: closure (i32): i32");
 }
+
+#[test]
+fn workspace_hover_presents_catch_binding_declaration_and_reference() {
+    let text = r#"func attempt(): i32! {
+    return 1
+}
+
+func main(): i32! {
+    let value = attempt() catch problem {
+        return problem
+    }
+    return value
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let declaration_offset = text.find("problem {").expect("expected catch binding");
+    let declaration = hover_for_file_analysis(&sources, &analysis, file, declaration_offset)
+        .expect("expected catch binding declaration hover");
+    assert_eq!(declaration.label, "catch problem: error");
+    assert_eq!(
+        &text[declaration.span.start..declaration.span.end],
+        "problem"
+    );
+
+    let reference_offset = text
+        .rfind("problem")
+        .expect("expected catch binding reference");
+    let reference = hover_for_file_analysis(&sources, &analysis, file, reference_offset)
+        .expect("expected catch binding reference hover");
+    assert_eq!(reference.label, "catch problem: error");
+    assert_eq!(&text[reference.span.start..reference.span.end], "problem");
+}

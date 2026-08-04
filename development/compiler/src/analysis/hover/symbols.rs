@@ -53,6 +53,8 @@ pub(in crate::analysis::hover) fn binding_hover_label_kind(label: &str) -> Optio
         Some("var")
     } else if label.starts_with("parameter ") {
         Some("parameter")
+    } else if label.starts_with("catch ") {
+        Some("catch")
     } else if label.starts_with("region ") {
         Some("region")
     } else {
@@ -520,6 +522,13 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
         }
         Expr::Catch(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
+            push_hover_symbol(
+                text,
+                expression.error_span,
+                expression.catch_span.start,
+                format!("catch {}", expression.error_name),
+                symbols,
+            );
             collect_block_hover_symbols(text, &expression.catch_block, symbols);
         }
         Expr::Borrow(expression) => {
