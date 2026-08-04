@@ -69,6 +69,7 @@ fn first_unsized_generic_argument(
     self_type: Option<&Type>,
 ) -> Option<Type> {
     match ty {
+        TypeExpr::Callable(callable) => Some(Type::Callable(callable.clone())),
         TypeExpr::Closure(closure) => closure
             .captures
             .iter()

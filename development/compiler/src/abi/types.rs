@@ -182,6 +182,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) => Err(AbiTypeError::UnsupportedType(type_expr_display_lossy(ty))),
         TypeExpr::Closure(closure) => {
             let fields = closure
                 .captures

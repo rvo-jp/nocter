@@ -1,5 +1,6 @@
 //! Source-level abstract syntax tree definitions.
 
+mod callables;
 mod closures;
 mod collection_for;
 mod documentation;
@@ -10,6 +11,7 @@ mod receivers;
 mod types;
 mod visit;
 
+pub use callables::*;
 pub use closures::*;
 pub use collection_for::*;
 pub use json::{AstEnvelope, JsonAstNode};
@@ -261,6 +263,7 @@ pub struct Parameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
+    Callable(CallableTypeExpr),
     Closure(ClosureTypeExpr),
     Reference(TypeReference),
     Generic(GenericType),
@@ -815,6 +818,7 @@ impl GenericParamList {
 impl TypeExpr {
     pub fn span(&self) -> ByteSpan {
         match self {
+            TypeExpr::Callable(ty) => ty.span,
             TypeExpr::Closure(ty) => ty.span,
             TypeExpr::Reference(ty) => ty.span,
             TypeExpr::Generic(ty) => ty.span,

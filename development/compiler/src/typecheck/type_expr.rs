@@ -48,6 +48,45 @@ pub(super) fn infer_type_expr_substitutions(
     substitutions: &mut HashMap<String, Type>,
 ) {
     match expected {
+        TypeExpr::Callable(expected_callable) => {
+            let Type::Callable(actual_callable) = actual else {
+                return;
+            };
+            for (expected, actual) in expected_callable
+                .parameters
+                .iter()
+                .zip(&actual_callable.parameters)
+            {
+                let actual = type_expr_to_type_with_substitutions(
+                    &actual.ty,
+                    resolved,
+                    self_type,
+                    substitutions,
+                );
+                infer_type_expr_substitutions(
+                    &expected.ty,
+                    &actual,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+            let actual_return = type_expr_to_type_with_substitutions(
+                &actual_callable.return_type,
+                resolved,
+                self_type,
+                substitutions,
+            );
+            infer_type_expr_substitutions(
+                &expected_callable.return_type,
+                &actual_return,
+                resolved,
+                self_type,
+                parameters,
+                substitutions,
+            );
+        }
         TypeExpr::Closure(expected_closure) => {
             let Type::Closure(actual_closure) = actual else {
                 return;
@@ -204,6 +243,7 @@ fn type_expr_to_type_inner(
     resolving_aliases: &mut HashSet<String>,
 ) -> Type {
     match ty {
+        TypeExpr::Callable(callable) => Type::Callable(callable.clone()),
         TypeExpr::Closure(closure) => Type::Closure(closure.clone()),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "Self" => self_type

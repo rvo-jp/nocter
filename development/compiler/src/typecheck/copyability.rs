@@ -240,6 +240,7 @@ fn type_expr_is_copy_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        TypeExpr::Callable(_) => None,
         TypeExpr::Closure(closure) => closure
             .captures
             .iter()
@@ -328,6 +329,7 @@ fn type_is_copy_maybe_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        Type::Callable(_) => None,
         Type::Closure(closure) => type_expr_is_copy_inner(
             &TypeExpr::Closure(closure.clone()),
             resolved,

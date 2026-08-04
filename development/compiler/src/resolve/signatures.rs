@@ -188,7 +188,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
 
 pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
-        TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
         TypeExpr::Pointer(_)

@@ -137,6 +137,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) => false,
         TypeExpr::Closure(closure) => closure.captures.iter().all(|capture| match capture.mode {
             crate::ast::ClosureCaptureMode::ReadonlyBorrow => true,
             crate::ast::ClosureCaptureMode::ReadwriteBorrow => false,

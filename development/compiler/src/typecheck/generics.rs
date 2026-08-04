@@ -282,6 +282,12 @@ fn check_type_expr(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &callable.parameters {
+                check_type_expr(sources, &parameter.ty, resolved, scope, diagnostics);
+            }
+            check_type_expr(sources, &callable.return_type, resolved, scope, diagnostics);
+        }
         TypeExpr::Closure(closure) => {
             for capture in &closure.captures {
                 check_type_expr(sources, &capture.ty, resolved, scope, diagnostics);

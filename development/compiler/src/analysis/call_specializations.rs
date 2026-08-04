@@ -519,6 +519,31 @@ fn infer_impl_substitutions(
     substitutions: &mut HashMap<String, TypeExpr>,
 ) -> bool {
     match expected {
+        TypeExpr::Callable(expected) => {
+            let TypeExpr::Callable(actual) = actual else {
+                return false;
+            };
+            expected.capability == actual.capability
+                && expected.parameters.len() == actual.parameters.len()
+                && expected
+                    .parameters
+                    .iter()
+                    .zip(&actual.parameters)
+                    .all(|(expected, actual)| {
+                        infer_impl_substitutions(
+                            &expected.ty,
+                            &actual.ty,
+                            generic_parameters,
+                            substitutions,
+                        )
+                    })
+                && infer_impl_substitutions(
+                    &expected.return_type,
+                    &actual.return_type,
+                    generic_parameters,
+                    substitutions,
+                )
+        }
         TypeExpr::Closure(expected) => {
             matches!(actual, TypeExpr::Closure(actual) if expected.span == actual.span)
         }

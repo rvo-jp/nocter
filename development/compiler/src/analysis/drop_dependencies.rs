@@ -44,6 +44,7 @@ fn collect_drop_dependencies(
     }
 
     match ty {
+        TypeExpr::Callable(_) => {}
         TypeExpr::Array(array) => {
             collect_drop_dependencies(analysis, file, &array.element, visiting, dependencies)
         }

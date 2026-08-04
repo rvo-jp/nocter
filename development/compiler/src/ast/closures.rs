@@ -1,7 +1,11 @@
 //! Source-level closure syntax and explicit capture declarations.
 
-use super::{Block, TypeExpr};
+use super::{Block, CallableCapability, TypeExpr};
 use crate::source::ByteSpan;
+
+/// Kept as an internal spelling while closure-specific code migrates to the
+/// shared built-in callable capability model.
+pub type ClosureCallableCapability = CallableCapability;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureExpr {
@@ -56,7 +60,7 @@ pub struct ClosureTypeExpr {
     pub captures: Vec<ClosureCaptureType>,
     pub parameters: Vec<TypeExpr>,
     pub return_type: Box<TypeExpr>,
-    pub capability: ClosureCallableCapability,
+    pub capability: CallableCapability,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,13 +68,6 @@ pub struct ClosureCaptureType {
     pub name: String,
     pub mode: ClosureCaptureMode,
     pub ty: TypeExpr,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ClosureCallableCapability {
-    Readonly,
-    Readwrite,
-    Consuming,
 }
 
 impl ClosureTypeExpr {

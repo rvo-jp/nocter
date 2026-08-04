@@ -143,7 +143,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
@@ -395,7 +395,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     match ty {
-        TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             match symbol.kind {
@@ -513,7 +513,7 @@ where
 
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
-        TypeExpr::Closure(_) => return None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
@@ -639,7 +639,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
-        TypeExpr::Closure(_) => return None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;

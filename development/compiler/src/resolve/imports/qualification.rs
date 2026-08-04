@@ -235,6 +235,22 @@ fn qualify_type_expr(
     imported_type_names: &[ImportedTypeName],
 ) {
     match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &mut callable.parameters {
+                qualify_type_expr(
+                    &mut parameter.ty,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            qualify_type_expr(
+                &mut callable.return_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
         TypeExpr::Closure(closure) => {
             for capture in &mut closure.captures {
                 qualify_type_expr(

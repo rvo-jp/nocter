@@ -297,6 +297,14 @@ func maybe_open(path:&str):File?{return none}
 }
 
 #[test]
+fn formats_builtin_callable_contracts_stably() {
+    assert_formats_stably(
+        "func apply<F:&+func(value:i32):i32>(callback:F):void {\nreturn\n}\n",
+        "func apply<F: &+func(value: i32): i32>(callback: F): void {\n    return\n}\n",
+    );
+}
+
+#[test]
 fn formats_imports_impls_and_literals_stably() {
     assert_formats_stably(
         r#"use std/io

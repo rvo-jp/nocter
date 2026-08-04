@@ -18,6 +18,15 @@ pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput
 
 pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
     match ty {
+        TypeExpr::Callable(callable) => {
+            let mut callable = callable.clone();
+            for parameter in &mut callable.parameters {
+                parameter.ty = type_expr_with_self_type(&parameter.ty, self_ty);
+            }
+            callable.return_type =
+                Box::new(type_expr_with_self_type(&callable.return_type, self_ty));
+            TypeExpr::Callable(callable)
+        }
         TypeExpr::Closure(_) => ty.clone(),
         TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
         TypeExpr::Reference(_) => ty.clone(),

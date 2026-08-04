@@ -18,6 +18,7 @@ pub(super) fn type_to_type_expr_inner(
     mut free_type_parameters: Option<&mut HashSet<String>>,
 ) -> Option<TypeExpr> {
     match ty {
+        Type::Callable(callable) => Some(TypeExpr::Callable(callable.clone())),
         Type::Closure(closure) => Some(TypeExpr::Closure(closure.clone())),
         Type::I32 => Some(type_reference("i32", span)),
         Type::Primitive(name) => Some(type_reference(name, span)),

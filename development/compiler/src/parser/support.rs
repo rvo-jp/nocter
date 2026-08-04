@@ -30,6 +30,10 @@ pub(super) struct ParsedUnaryOperator {
 
 pub(super) fn with_type_span(ty: TypeExpr, span: ByteSpan) -> TypeExpr {
     match ty {
+        TypeExpr::Callable(mut ty) => {
+            ty.span = span;
+            TypeExpr::Callable(ty)
+        }
         TypeExpr::Closure(mut ty) => {
             ty.span = span;
             TypeExpr::Closure(ty)

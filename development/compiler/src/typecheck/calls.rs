@@ -500,6 +500,13 @@ fn generic_argument_evidence_span(
 
 fn type_expr_mentions_parameter(ty: &TypeExpr, parameter: &str) -> bool {
     match ty {
+        TypeExpr::Callable(callable) => {
+            callable
+                .parameters
+                .iter()
+                .any(|input| type_expr_mentions_parameter(&input.ty, parameter))
+                || type_expr_mentions_parameter(&callable.return_type, parameter)
+        }
         TypeExpr::Closure(closure) => {
             closure
                 .captures

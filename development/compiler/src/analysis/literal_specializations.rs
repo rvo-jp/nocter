@@ -364,6 +364,13 @@ fn infer_substitutions(
 
 fn type_contains_parameter(ty: &TypeExpr, parameters: &HashSet<String>) -> bool {
     match ty {
+        TypeExpr::Callable(callable) => {
+            callable
+                .parameters
+                .iter()
+                .any(|parameter| type_contains_parameter(&parameter.ty, parameters))
+                || type_contains_parameter(&callable.return_type, parameters)
+        }
         TypeExpr::Closure(closure) => {
             closure
                 .captures

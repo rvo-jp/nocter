@@ -17,6 +17,7 @@ fn type_contains_readwrite_borrow_inner(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        Type::Callable(_) => false,
         Type::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
                 || (capture.mode == crate::ast::ClosureCaptureMode::Move
@@ -118,6 +119,7 @@ fn type_expr_contains_readwrite_borrow(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Callable(_) => false,
         TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode == crate::ast::ClosureCaptureMode::ReadwriteBorrow
                 || (capture.mode == crate::ast::ClosureCaptureMode::Move
@@ -201,6 +203,7 @@ pub(in crate::typecheck::returns) fn type_contains_borrow_like_inner(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        Type::Callable(_) => false,
         Type::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_borrow_like(
@@ -294,6 +297,7 @@ pub(in crate::typecheck) fn type_expr_contains_borrow_like(
     resolving_names: &mut HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Callable(_) => false,
         TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
             capture.mode != crate::ast::ClosureCaptureMode::Move
                 || type_expr_contains_borrow_like(

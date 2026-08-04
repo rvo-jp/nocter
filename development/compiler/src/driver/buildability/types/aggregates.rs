@@ -75,7 +75,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Closure(_) => false,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => false,
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let Some(symbol) = type_symbol_by_reference_name(resolved, &reference.name) else {
@@ -199,6 +199,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (symbol, substitutions) = match ty {
+        TypeExpr::Callable(_) => return false,
         TypeExpr::Closure(closure) => {
             return closure.captures.iter().all(|capture| {
                 capture.mode != crate::ast::ClosureCaptureMode::Move
@@ -368,7 +369,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
-        TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);

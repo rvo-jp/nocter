@@ -88,3 +88,47 @@ func main(): i32 {
             if !borrow.is_readwrite && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str")
     ));
 }
+
+#[test]
+fn parses_builtin_callable_capability_types() {
+    let output = parse_text(
+        r#"func apply<
+    Readonly: &func(i32): i32,
+    Mutable: &+func(value: i32): i32,
+    Once: func(source: &str): &str from source,
+>(readonly: Readonly, mutable: Mutable, once: Once): void {
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function declaration");
+    };
+    let bounds = function
+        .generics
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.bounds[0])
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        bounds[0],
+        TypeExpr::Callable(callable)
+            if callable.capability == crate::ast::CallableCapability::Readonly
+                && callable.parameters[0].name.is_none()
+    ));
+    assert!(matches!(
+        bounds[1],
+        TypeExpr::Callable(callable)
+            if callable.capability == crate::ast::CallableCapability::Readwrite
+                && callable.parameters[0].name.as_deref() == Some("value")
+    ));
+    assert!(matches!(
+        bounds[2],
+        TypeExpr::Callable(callable)
+            if callable.capability == crate::ast::CallableCapability::Consuming
+                && callable.result_provenance.is_some()
+    ));
+}

@@ -257,7 +257,7 @@ pub(super) fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a>(
     resolving_names: &mut HashSet<String>,
 ) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
     match ty {
-        TypeExpr::Closure(_) => None,
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             match symbol.kind {
@@ -332,6 +332,12 @@ pub(super) fn collect_free_type_parameters_in_type_expr(
     parameters: &mut HashSet<String>,
 ) {
     match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &callable.parameters {
+                collect_free_type_parameters_in_type_expr(&parameter.ty, resolved, parameters);
+            }
+            collect_free_type_parameters_in_type_expr(&callable.return_type, resolved, parameters);
+        }
         TypeExpr::Closure(closure) => {
             for capture in &closure.captures {
                 collect_free_type_parameters_in_type_expr(&capture.ty, resolved, parameters);
@@ -404,6 +410,11 @@ pub(super) fn type_expr_contains_free_parameters(
     free_type_parameters: &HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Callable(callable) => {
+            callable.parameters.iter().any(|parameter| {
+                type_expr_contains_free_parameters(&parameter.ty, free_type_parameters)
+            }) || type_expr_contains_free_parameters(&callable.return_type, free_type_parameters)
+        }
         TypeExpr::Closure(closure) => {
             closure.captures.iter().any(|capture| {
                 type_expr_contains_free_parameters(&capture.ty, free_type_parameters)
