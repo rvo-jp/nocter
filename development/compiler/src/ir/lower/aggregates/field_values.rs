@@ -4,6 +4,7 @@ use super::literals::{
     lower_payload_enum_constructor_to_location_at_offset_with_progress,
 };
 use super::*;
+use crate::ir::UsizeLocation;
 
 pub(super) fn lower_aggregate_field_to_location(
     field_type: &AbiType,
@@ -212,6 +213,31 @@ pub(super) fn lower_aggregate_field_to_location(
             Ok(instructions)
         }
         AbiType::Borrow => {
+            let moved_value = match unwrap_field_value_group(expression) {
+                Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+                    unwrap_field_value_group(&unary.operand)
+                }
+                expression => expression,
+            };
+            if let Expr::Identifier(identifier) = moved_value {
+                let pointer = context
+                    .borrow_parameter(&identifier.name)
+                    .map(|parameter| {
+                        UsizeValue::Location(UsizeLocation::Parameter(parameter.parameter_index))
+                    })
+                    .or_else(|| {
+                        context
+                            .borrow_local(&identifier.name)
+                            .map(|(pointer, _, _)| UsizeValue::Location(pointer))
+                    });
+                if let Some(pointer) = pointer {
+                    return Ok(vec![Instruction::StoreAggregateUsize {
+                        destination,
+                        offset,
+                        value: pointer,
+                    }]);
+                }
+            }
             let Expr::Borrow(borrow) = unwrap_field_value_group(expression) else {
                 return Err(unsupported_aggregate_struct_literal_diagnostic(
                     diagnostic_code,

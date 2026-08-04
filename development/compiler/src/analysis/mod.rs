@@ -7,6 +7,8 @@ mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;
 pub(crate) mod definition;
+mod delimiter_recovery;
+mod drop_dependencies;
 pub(crate) mod editor_targets;
 mod expected_completion;
 pub(crate) mod hover;
@@ -30,6 +32,7 @@ pub(crate) mod test_support;
 
 pub(crate) use collection_for_recovery::collection_for_recovery_text;
 pub(crate) use completion_recovery::{completion_recovery_overlay, signature_recovery_texts};
+pub(crate) use delimiter_recovery::block_recovery_text;
 pub(crate) use interpolation::{
     interpolation_completion_recovery_overlay, interpolation_recovery_text,
     interpolation_signature_recovery_texts,

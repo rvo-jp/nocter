@@ -2878,3 +2878,44 @@ func main(): void {
         ]
     );
 }
+
+#[test]
+fn consuming_method_receiver_transfers_its_drop_obligation() {
+    let ir = lower_text(
+        r#"struct Resource {
+    fd: i32
+}
+
+impl Resource {
+    drop &+self {
+        return
+    }
+
+    method self.consume(): i32 {
+        return self.fd
+    }
+}
+
+func main(): i32 {
+    let resource = Resource { fd: 42 }
+    return resource.consume()
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallI32 { target, .. } | Instruction::TailCall { target, .. }
+            if target == &CallTarget::same_file("Resource.consume")
+    )));
+    assert!(!main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallVoid { target, .. }
+            if target == &CallTarget::same_file("Resource.drop")
+    )));
+}

@@ -79,6 +79,9 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Drop(specialization));
             }
         }
+        for (_, ty) in file.typecheck_facts.binding_type_expr_entries() {
+            enqueue_drop_dependencies_for_type(analysis, file, ty, &mut queue);
+        }
     }
 
     for specializations in literals.values() {
@@ -303,6 +306,13 @@ fn enqueue_call_specializations_from_span(
     context_substitutions: &HashMap<String, TypeExpr>,
     queue: &mut VecDeque<PendingCallSpecialization>,
 ) {
+    for (binding_span, ty) in file.typecheck_facts.binding_type_expr_entries() {
+        if !span_contains(span, binding_span) {
+            continue;
+        }
+        let ty = substitute_type_expr_parameters(ty, context_substitutions);
+        enqueue_drop_dependencies_for_type(analysis, file, &ty, queue);
+    }
     for (call_span, specialization) in file.typecheck_facts.function_call_specialization_entries() {
         if !span_contains(span, call_span) {
             continue;
@@ -365,6 +375,23 @@ fn enqueue_call_specializations_from_span(
             {
                 queue.push_back(PendingCallSpecialization::Method(specialization));
             }
+        }
+    }
+}
+
+fn enqueue_drop_dependencies_for_type(
+    analysis: &CompileUnitAnalysis,
+    fallback_file: &FileAnalysis,
+    ty: &TypeExpr,
+    queue: &mut VecDeque<PendingCallSpecialization>,
+) {
+    for specialization in
+        super::drop_dependencies::concrete_drop_dependencies(analysis, fallback_file, ty)
+    {
+        if let Some(specialization) =
+            drop_specialization_from_typecheck_fact(analysis, specialization)
+        {
+            queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
 }

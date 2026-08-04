@@ -155,7 +155,7 @@ pub(super) fn drop_target_name_from_base_and_self_ty(
     format!("{base_type_name}<{arguments}>.drop")
 }
 
-pub(super) fn drop_type_specialization_from_self_ty(
+pub(crate) fn drop_type_specialization_from_self_ty(
     self_ty: &TypeExpr,
     resolved: &ResolveOutput,
     free_type_parameters: HashSet<String>,

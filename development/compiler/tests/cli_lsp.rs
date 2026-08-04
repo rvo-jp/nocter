@@ -972,6 +972,146 @@ func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
 }
 
 #[test]
+fn lsp_command_serves_closures_default_methods_and_incomplete_bodies() {
+    let project = TempProject::new("cli-lsp-phase10-editor-contract");
+    let source_text = r#"interface Identity {
+    pub method &self.keep<T>(value: T): T {
+        return value
+    }
+}
+
+copy struct Unit { marker: i32 }
+impl Identity for Unit
+
+func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    let unit = Unit { marker: 0 }
+    return unit.keep(42)
+}
+"#;
+    let incomplete_text = r#"copy struct Box {
+    value: i32
+}
+
+func main(): i32 {
+    let box = Box { value: 4 }
+    let transform = (&box; input: i32): i32 {
+        return box."#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("transform =").unwrap();
+    let signature_offset = source_text.rfind("42").unwrap();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (signature_line, signature_character) =
+        lsp_position_for_ascii_byte_offset(source_text, signature_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(incomplete_text, incomplete_text.len());
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/signatureHelp",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": signature_line, "character": signature_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": { "uri": uri.clone(), "version": 2 },
+                    "contentChanges": [{ "text": incomplete_text }]
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert!(
+        hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| { value.contains("let transform: closure (i32): i32") })
+    );
+
+    let signature = &response_with_id(&messages, 3)["result"];
+    assert_eq!(
+        signature["signatures"][0]["label"],
+        json!("method &Unit.keep<i32>(value: i32): i32")
+    );
+
+    let completion_items = response_with_id(&messages, 4)["result"]["items"]
+        .as_array()
+        .expect("expected recovered completion items");
+    let value = completion_item_with_label(completion_items, "value")
+        .expect("expected field completion inside unclosed closure");
+    assert_eq!(value["detail"], json!("field Box.value: i32"));
+}
+
+#[test]
 fn lsp_command_exits_with_failure_without_shutdown() {
     let project = TempProject::new("cli-lsp-exit-without-shutdown");
 

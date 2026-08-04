@@ -7,19 +7,27 @@ pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<Stri
 }
 
 pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
-    super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
-        incomplete_member_completion_text(text, offset)
-            .or_else(|| incomplete_result_provenance_completion_text(text, offset))
-            .or_else(|| incomplete_generic_bound_completion_text(text, offset))
-            .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
-            .or_else(|| incomplete_import_symbol_completion_text(text, offset))
-            .map(|text| (text, offset))
-            .or_else(|| {
-                super::collection_for_recovery::collection_for_recovery_overlay(text, offset)
-                    .map(|recovery| (recovery.text, recovery.cursor))
-            })
-            .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
-    })
+    let recovery =
+        super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
+            incomplete_member_completion_text(text, offset)
+                .or_else(|| incomplete_result_provenance_completion_text(text, offset))
+                .or_else(|| incomplete_generic_bound_completion_text(text, offset))
+                .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
+                .or_else(|| incomplete_import_symbol_completion_text(text, offset))
+                .map(|text| (text, offset))
+                .or_else(|| {
+                    super::collection_for_recovery::collection_for_recovery_overlay(text, offset)
+                        .map(|recovery| (recovery.text, recovery.cursor))
+                })
+                .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
+                .or_else(|| {
+                    super::delimiter_recovery::block_recovery_text(text, offset)
+                        .map(|text| (text, offset))
+                })
+        })?;
+    let recovered =
+        super::delimiter_recovery::close_unmatched_braces(&recovery.0).unwrap_or(recovery.0);
+    Some((recovered, recovery.1))
 }
 
 fn incomplete_result_provenance_completion_text(text: &str, offset: usize) -> Option<String> {
@@ -130,7 +138,7 @@ pub(crate) fn signature_recovery_texts(text: &str, offset: usize) -> Vec<String>
             recovered.push_str(&text[..offset]);
             recovered.push_str(&insertion);
             recovered.push_str(&text[offset..]);
-            recovered
+            super::delimiter_recovery::close_unmatched_braces(&recovered).unwrap_or(recovered)
         })
         .collect()
 }

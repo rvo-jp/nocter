@@ -657,6 +657,13 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
             mark_explicit_moves_in_expression(&conversion.expression, context);
         }
         Expr::Call(call) => {
+            if let Expr::Member(member) = unwrap_group(&call.callee)
+                && context.method_call_receiver_kind(member.member_span)
+                    == Some(crate::typecheck::TypecheckMethodReceiverKind::Owned)
+                && let Expr::Identifier(identifier) = unwrap_group(&member.object)
+            {
+                context.mark_aggregate_local_moved(&identifier.name);
+            }
             mark_explicit_moves_in_expression(&call.callee, context);
             for argument in &call.arguments {
                 mark_explicit_moves_in_expression(argument, context);

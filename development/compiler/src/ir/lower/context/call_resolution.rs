@@ -451,6 +451,16 @@ impl<'a> LoweringContext<'a> {
         Some(&member.object)
     }
 
+    pub(in crate::ir::lower) fn method_call_receiver_kind(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckMethodReceiverKind> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .method_call_receiver_kind(member_span)
+    }
+
     fn method_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
         let resolution = self.call_resolution.as_ref()?;
         let Expr::Member(member) = call.callee.as_ref() else {

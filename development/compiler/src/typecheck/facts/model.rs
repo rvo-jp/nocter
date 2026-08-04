@@ -43,6 +43,12 @@ impl TypecheckFacts {
         self.binding_type_exprs.get(&name_span)
     }
 
+    pub(crate) fn binding_type_expr_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &TypeExpr)> + '_ {
+        self.binding_type_exprs.iter().map(|(span, ty)| (*span, ty))
+    }
+
     pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
         self.expression_type_exprs.get(&expression_span)
     }

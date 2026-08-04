@@ -63,13 +63,26 @@ pub(super) fn lower_borrow_local_binding(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let destination = context.next_usize_local_location()?;
+    let borrow_type = Type::Borrow {
+        is_readwrite,
+        inner: Box::new(inner.clone()),
+    };
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        &statement.initializer,
+        ComposedOutcomeDestination::Borrow(destination),
+        context,
+        |expression, context| {
+            lower_borrow_expression_to_location(expression, destination, &borrow_type, context)
+        },
+        "IR can only lower stored borrow `otherwise` fallbacks that produce a matching borrow or exit",
+    )? {
+        context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
+        return Ok(instructions);
+    }
     let instructions = lower_borrow_expression_to_location(
         &statement.initializer,
         destination,
-        &Type::Borrow {
-            is_readwrite,
-            inner: Box::new(inner.clone()),
-        },
+        &borrow_type,
         context,
     )?;
     context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
@@ -149,6 +162,20 @@ pub(super) fn scalar_binding_kind(
                     kind,
                     slice_type_info_from_expression(&statement.initializer, context),
                 ));
+            }
+            if let Some(ty) = context.binding_type_expr(statement.name_span)
+                && let Some((_root_source, resolved)) = context.resolved_calls()
+                && let Some(Type::Borrow {
+                    is_readwrite,
+                    inner,
+                }) = parameter_type_from_type_expr_with_resolver(&ty, resolved, |source| {
+                    context.resolved_source(source)
+                })
+            {
+                return Ok(ScalarBindingKind::Borrow {
+                    is_readwrite,
+                    inner: *inner,
+                });
             }
             Ok(
                 expression_is_lowerable_bool_binding(&statement.initializer, context)

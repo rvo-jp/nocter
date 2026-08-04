@@ -128,7 +128,7 @@ fn signature_info_for_call(
                 method.parameters.parameters.as_slice(),
                 &method.return_type,
                 method.result_provenance.as_ref(),
-                Vec::new(),
+                method.generics.parameters.iter().collect::<Vec<_>>(),
                 Some(&method.receiver),
             ),
             CallableDeclaration::InterfaceMethod(method) => (
@@ -137,7 +137,7 @@ fn signature_info_for_call(
                 method.parameters.parameters.as_slice(),
                 &method.return_type,
                 method.result_provenance.as_ref(),
-                Vec::new(),
+                method.generics.parameters.iter().collect::<Vec<_>>(),
                 Some(&method.receiver),
             ),
         };
@@ -463,6 +463,34 @@ func main(box: &Box<i32>): i32 {
             .expect("expected signature help");
 
         assert_eq!(signature.label, "method &Box<i32>.replace(value: i32): i32");
+        assert_eq!(signature.parameters[0].label, "value: i32");
+    }
+
+    #[test]
+    fn presents_specialized_interface_default_method_generics() {
+        let text = r#"interface Identity {
+    pub method &self.keep<T>(value: T): T {
+        return value
+    }
+}
+
+copy struct Unit { marker: i32 }
+
+impl Identity for Unit
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.keep(42)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("42").expect("expected default method argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected default method signature help");
+
+        assert_eq!(signature.label, "method &Unit.keep<i32>(value: i32): i32");
         assert_eq!(signature.parameters[0].label, "value: i32");
     }
 

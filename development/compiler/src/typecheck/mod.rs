@@ -61,7 +61,8 @@ pub(crate) use facts::{
     TypecheckFacts, TypecheckInterpolationPlan, TypecheckIterationMethod,
     TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
     TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
-    collect_typecheck_facts, type_expr_presentation_label, type_symbol_presentation_label,
+    collect_typecheck_facts, drop_type_specialization_from_self_ty, type_expr_presentation_label,
+    type_symbol_presentation_label,
 };
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{

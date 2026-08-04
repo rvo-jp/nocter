@@ -427,6 +427,7 @@ impl LspServer {
             crate::analysis::literal_recovery_text(&document.text, offset),
             crate::analysis::region_recovery_text(&document.text, offset),
             crate::analysis::collection_for_recovery_text(&document.text, offset),
+            crate::analysis::block_recovery_text(&document.text, offset),
         ]
         .into_iter()
         .flatten()

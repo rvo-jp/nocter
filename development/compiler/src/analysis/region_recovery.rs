@@ -37,7 +37,7 @@ pub(crate) fn region_recovery_overlay(text: &str, offset: usize) -> Option<(Stri
         if region_body_closed_before(&tokens, body_open, offset) {
             return None;
         }
-        let missing = unmatched_open_braces(&tokens);
+        let missing = super::delimiter_recovery::unmatched_open_braces(&tokens);
         if missing == 0 {
             return None;
         }
@@ -83,7 +83,7 @@ pub(crate) fn region_recovery_overlay(text: &str, offset: usize) -> Option<(Stri
         return None;
     }
 
-    let missing = unmatched_open_braces(&tokens);
+    let missing = super::delimiter_recovery::unmatched_open_braces(&tokens);
     let mut recovered = String::with_capacity(text.len() + insertion.len() + missing);
     recovered.push_str(&text[..offset]);
     recovered.push_str(&insertion);
@@ -114,18 +114,6 @@ fn region_body_closed_before(tokens: &[Token], body_open: usize, offset: usize) 
         }
     }
     false
-}
-
-fn unmatched_open_braces(tokens: &[Token]) -> usize {
-    tokens.iter().fold(0usize, |depth, token| {
-        if punctuation(token, "{") {
-            depth + 1
-        } else if punctuation(token, "}") {
-            depth.saturating_sub(1)
-        } else {
-            depth
-        }
-    })
 }
 
 fn punctuation(token: &Token, expected: &str) -> bool {

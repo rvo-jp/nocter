@@ -202,6 +202,31 @@ fn completion_candidates_include_closure_parameters_and_captures_only_inside_bod
 }
 
 #[test]
+fn completion_recovers_member_facts_inside_unclosed_closure_body() {
+    let text = r#"copy struct Box {
+    value: i32
+}
+
+func main(): i32 {
+    let box = Box { value: 4 }
+    let transform = (&box; input: i32): i32 {
+        return box."#;
+    let offset = text.len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected completion from recovered closure body");
+
+    assert!(
+        items.iter().any(|item| {
+            item.label == "value"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field Box.value: i32")
+        }),
+        "items: {items:#?}"
+    );
+}
+
+#[test]
 fn completion_preserves_stored_outcome_details() {
     let text = r#"func main(): i32 {
     let saved = lookup()

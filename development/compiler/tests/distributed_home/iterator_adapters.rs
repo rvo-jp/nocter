@@ -170,6 +170,7 @@ fn distributed_std_callable_iterator_defaults_run() {
         "callable_iterator_defaults_run.nct",
         r#"use std/iter.{FoldStep, Iterator}
 use std/iter/sources.once
+use std/vec.Vec
 
 func main(): i32 {
     var total = 1
@@ -188,6 +189,134 @@ func main(): i32 {
 
     let folded = once(6).fold(4, (step) { step.accumulator + step.item })
     if folded != 10 { return 7 }
+
+    let marker = String "callback"
+    let source = Vec [String "first", String "second"]
+    var prefix = source.into_iter().map((move marker; item) { move item }).take(1).to_vec()
+    if prefix.len() != 1 { return 8 }
+    let first = prefix.pop() otherwise { return 9 }
+    if first.len() != 5 { return 10 }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn distributed_std_filter_does_not_claim_exact_size() {
+    let project = TempProject::new("distributed-home-filter-not-exact-size");
+    let source = project.write_source(
+        "filter_not_exact_size.nct",
+        r#"use std/iter.Iterator
+use std/iter/sources.once
+
+func main(): i32 {
+    let filtered = once(1).filter((value) { value == 1 })
+    return filtered.remaining_len() as i32
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    let stderr = text(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("remaining_len"), "{stderr}");
+    assert!(stderr.contains("no method"), "{stderr}");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_callback_allocation_uses_current_region() {
+    let project = TempProject::new("distributed-home-callback-current-region");
+    let source = project.write_source(
+        "callback_current_region.nct",
+        r#"use std/iter.Iterator
+use std/iter/sources.once
+use std/mem.page_allocator
+
+func main(): i32 {
+    let arena = page_allocator()
+    region temporary using arena {
+        let text = once(1).map((value) { String "regional" }).last() otherwise { return 1 }
+        if text.len() != 8 { return 2 }
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn distributed_std_callback_result_cannot_hide_region_storage() {
+    let project = TempProject::new("distributed-home-callback-region-escape");
+    let source = project.write_source(
+        "callback_region_escape.nct",
+        r#"use std/iter.Iterator
+use std/iter/sources.once
+use std/mem.page_allocator
+
+func leak(): String {
+    let arena = page_allocator()
+    region temporary using arena {
+        let text = once(1).map((value) { String "regional" }).last() otherwise { return String "fallback" }
+        return move text
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    let stderr = text(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("error[E0436]"), "{stderr}");
+    assert!(stderr.contains("region `temporary`"), "{stderr}");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_callback_borrow_results_preserve_argument_and_capture_origins() {
+    let project = TempProject::new("distributed-home-callback-borrow-provenance");
+    let source = project.write_source(
+        "callback_borrow_provenance.nct",
+        r#"use std/iter.Iterator
+use std/iter/sources.once
+
+func from_argument(value: &i32): &i32 from value {
+    let result = once(value).map((item) { item }).last() otherwise { return value }
+    return result
+}
+
+func from_capture(value: &i32): &i32 from value {
+    let result = once(0).map((move value; item) { value }).last() otherwise { return value }
+    return result
+}
+
+func main(): i32 {
+    let value = 21
+    let argument_result = from_argument(&value)
+    let capture_result = from_capture(&value)
     return 42
 }
 "#,

@@ -65,6 +65,7 @@ pub(crate) use model::{
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 
 use hover_labels::*;
+pub(crate) use specializations::drop_type_specialization_from_self_ty;
 use specializations::*;
 use type_exprs::*;
 use utility::*;

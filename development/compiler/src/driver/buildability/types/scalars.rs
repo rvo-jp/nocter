@@ -110,7 +110,12 @@ where
     abi_value_from_type_expr_with_resolver(ty, fallback_resolved, resolver).is_ok_and(|value| {
         matches!(
             value.ty,
-            AbiType::I32 | AbiType::U8 | AbiType::Usize | AbiType::Bool | AbiType::Pointer
+            AbiType::I32
+                | AbiType::U8
+                | AbiType::Usize
+                | AbiType::Bool
+                | AbiType::Pointer
+                | AbiType::Borrow
         )
     })
 }
