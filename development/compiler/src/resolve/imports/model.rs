@@ -3,6 +3,7 @@ use super::*;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ImportableSymbol {
     pub(super) declaration_span: ByteSpan,
+    pub(super) declaration_name_span: ByteSpan,
     pub(super) visibility: Visibility,
     pub(super) kind: SymbolKind,
     pub(super) local_type_names: Vec<String>,

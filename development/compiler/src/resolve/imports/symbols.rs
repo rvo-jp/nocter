@@ -11,6 +11,7 @@ pub(super) fn type_alias_symbol_with_impl_members(
 
 pub(super) fn type_importable_symbol(
     declaration_span: ByteSpan,
+    declaration_name_span: ByteSpan,
     visibility: Visibility,
     symbol: TypeSymbol,
     local_type_names: Vec<String>,
@@ -18,6 +19,7 @@ pub(super) fn type_importable_symbol(
 ) -> ImportableSymbol {
     ImportableSymbol {
         declaration_span,
+        declaration_name_span,
         visibility,
         kind: SymbolKind::Type(symbol),
         local_type_names,

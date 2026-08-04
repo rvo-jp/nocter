@@ -1498,6 +1498,8 @@ fn cyclic_standard_reexport_interface_hover_uses_visible_name() {
     let home = project.write_nocter_home();
     let core_text = r#"use std/vec.Vec
 
+pub struct Node<T> { value: T }
+
 pub interface Iterable<T, I> {
     pub method &self.iter(): I
 }
@@ -1529,6 +1531,28 @@ pub struct Vec<T> { value: T }
         workspace_roots: Vec::new(),
         shutdown_requested: false,
     };
+    let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
+        .expect("expected workspace analysis");
+    let file = workspace
+        .root_file()
+        .expect("expected analyzed core module");
+    let identifiers =
+        classified_identifiers_for_file_analysis(server.documents.get(&core_uri).unwrap(), file);
+    let non_name_offsets = [
+        core_text.find("pub interface").unwrap(),
+        core_text.find("interface Iterable").unwrap(),
+        core_text.find("Iterable<T, I> {").unwrap() + "Iterable<T, I> ".len(),
+        core_text.find("pub struct").unwrap(),
+        core_text.find("struct Node").unwrap(),
+        core_text.find("Node<T> {").unwrap() + "Node<T> ".len(),
+    ];
+    for offset in non_name_offsets {
+        assert!(
+            identifiers.iter().all(|identifier| {
+                offset < identifier.start_byte || offset >= identifier.end_byte
+            })
+        );
+    }
     let core_offset = core_text.find("interface Iterable").unwrap() + "interface ".len();
     let core_response = server.hover_response(
         json!(12),
@@ -1540,6 +1564,52 @@ pub struct Vec<T> { value: T }
     assert_eq!(
         core_response["result"]["contents"]["value"],
         json!("```nocter\ninterface Iterable<T, I>\n```")
+    );
+    assert_eq!(
+        core_response["result"]["range"]["start"],
+        json!(byte_offset_to_lsp_position(core_text, core_offset))
+    );
+    assert_eq!(
+        core_response["result"]["range"]["end"],
+        json!(byte_offset_to_lsp_position(
+            core_text,
+            core_offset + "Iterable".len()
+        ))
+    );
+
+    for offset in non_name_offsets {
+        let response = server.hover_response(
+            json!(13),
+            Some(&json!({
+                "textDocument": { "uri": core_uri },
+                "position": byte_offset_to_lsp_position(core_text, offset)
+            })),
+        );
+        assert_eq!(response["result"], Value::Null);
+    }
+
+    let struct_offset = core_text.find("Node<T>").unwrap();
+    let struct_response = server.hover_response(
+        json!(14),
+        Some(&json!({
+            "textDocument": { "uri": core_uri },
+            "position": byte_offset_to_lsp_position(core_text, struct_offset)
+        })),
+    );
+    assert_eq!(
+        struct_response["result"]["contents"]["value"],
+        json!("```nocter\nstruct Node<T>\n```")
+    );
+    assert_eq!(
+        struct_response["result"]["range"]["start"],
+        json!(byte_offset_to_lsp_position(core_text, struct_offset))
+    );
+    assert_eq!(
+        struct_response["result"]["range"]["end"],
+        json!(byte_offset_to_lsp_position(
+            core_text,
+            struct_offset + "Node".len()
+        ))
     );
 }
 

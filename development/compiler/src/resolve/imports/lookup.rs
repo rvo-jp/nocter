@@ -66,6 +66,7 @@ impl Resolver<'_> {
             Item::Function(function) if function.owner.is_none() && function.name == name => {
                 Some(ImportableSymbol {
                     declaration_span: function.name_span,
+                    declaration_name_span: function.name_span,
                     visibility: function.visibility,
                     kind: SymbolKind::Function(function_signature(function)),
                     local_type_names: type_decl_names(ast),
@@ -74,6 +75,7 @@ impl Resolver<'_> {
             }
             Item::Primitive(primitive) if primitive.name == name => Some(ImportableSymbol {
                 declaration_span: primitive.name_span,
+                declaration_name_span: primitive.name_span,
                 visibility: primitive.visibility,
                 kind: SymbolKind::Primitive(primitive_signature(primitive)),
                 local_type_names: type_decl_names(ast),
@@ -83,6 +85,7 @@ impl Resolver<'_> {
                 let symbol = type_alias_symbol_with_impl_members(ast, alias);
                 Some(type_importable_symbol(
                     alias.span,
+                    alias.name_span,
                     alias.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -95,6 +98,7 @@ impl Resolver<'_> {
                 attach_literal_definitions_to_symbol(&mut symbol, ast, &struct_.name);
                 Some(type_importable_symbol(
                     struct_.span,
+                    struct_.name_span,
                     struct_.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -107,6 +111,7 @@ impl Resolver<'_> {
                 attach_literal_definitions_to_symbol(&mut symbol, ast, &enum_.name);
                 Some(type_importable_symbol(
                     enum_.span,
+                    enum_.name_span,
                     enum_.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -115,6 +120,7 @@ impl Resolver<'_> {
             }
             Item::Interface(interface) if interface.name == name => Some(type_importable_symbol(
                 interface.span,
+                interface.name_span,
                 interface.visibility,
                 interface_type_symbol(interface),
                 type_decl_names(ast),
