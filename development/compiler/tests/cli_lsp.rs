@@ -440,6 +440,98 @@ func main(choice: Choice): i32 {
 }
 
 #[test]
+fn lsp_command_hides_imported_signature_dependencies_from_completion() {
+    let project = TempProject::new("cli-lsp-hidden-signature-dependency");
+    let source_text = "use ./factory.make\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    project.write_source(
+        "factory.nct",
+        r#"pub struct Produced {
+    value: i32
+}
+
+pub func make(): Produced {
+    return Produced { value: 7 }
+}
+"#,
+    );
+    let uri = file_uri(&source);
+    let completion_offset = source_text.find("return 0").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": uri
+                    },
+                    "position": {
+                        "line": line,
+                        "character": character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let completion_items = response_with_id(&messages, 2)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+
+    assert!(completion_item_with_label(completion_items, "make").is_some());
+    assert!(
+        completion_items.iter().all(|item| {
+            item["label"]
+                .as_str()
+                .is_none_or(|label| !label.contains(".Produced"))
+        }),
+        "signature-only dependency leaked into LSP completion: {completion_items:#?}"
+    );
+}
+
+#[test]
 fn lsp_command_serves_v0_editor_features() {
     let project = TempProject::new("cli-lsp-editor-features");
     let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";

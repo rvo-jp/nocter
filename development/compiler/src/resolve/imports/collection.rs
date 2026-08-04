@@ -563,15 +563,7 @@ impl Resolver<'_> {
                 continue;
             };
             let canonical_name = symbol.canonical_name.clone();
-            if self
-                .output
-                .symbols
-                .symbol_by_name(&canonical_name)
-                .is_some()
-            {
-                continue;
-            }
-            self.define_symbol(
+            self.output.symbols.ensure_hidden_resolvable(
                 canonical_name,
                 imported.declaration_span,
                 imported.declaration_span,
@@ -611,19 +603,12 @@ impl Resolver<'_> {
                 continue;
             };
             let canonical_name = symbol.canonical_name.clone();
-            if self
-                .output
-                .symbols
-                .symbol_by_name(&canonical_name)
-                .is_none()
-            {
-                self.define_symbol(
-                    canonical_name,
-                    imported.declaration_span,
-                    imported.declaration_span,
-                    imported.kind,
-                );
-            }
+            self.output.symbols.ensure_hidden_resolvable(
+                canonical_name,
+                imported.declaration_span,
+                imported.declaration_span,
+                imported.kind,
+            );
             self.collect_hidden_imported_type_symbols(
                 imported_ast,
                 &type_name.import_path,

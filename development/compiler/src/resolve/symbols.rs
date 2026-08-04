@@ -351,19 +351,37 @@ impl SymbolTable {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) -> Result<SymbolId, SymbolId> {
+        self.define_indexed(name, name_span, declaration_span, kind, false)
+    }
+
+    pub(super) fn ensure_hidden_resolvable(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+    ) {
+        if self.by_name.contains_key(&name) {
+            return;
+        }
+
+        let id = self.push_symbol(name.clone(), name_span, declaration_span, kind, true);
+        self.by_name.insert(name, id);
+    }
+
+    fn define_indexed(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+        is_hidden: bool,
+    ) -> Result<SymbolId, SymbolId> {
         if let Some(existing) = self.by_name.get(&name) {
             return Err(*existing);
         }
 
-        let id = SymbolId(self.symbols.len() as u32);
-        self.symbols.push(Symbol {
-            id,
-            name: name.clone(),
-            name_span,
-            declaration_span,
-            is_hidden: false,
-            kind,
-        });
+        let id = self.push_symbol(name.clone(), name_span, declaration_span, kind, is_hidden);
         self.by_name.insert(name, id);
         Ok(id)
     }
@@ -375,13 +393,24 @@ impl SymbolTable {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) -> SymbolId {
+        self.push_symbol(name, name_span, declaration_span, kind, true)
+    }
+
+    fn push_symbol(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+        is_hidden: bool,
+    ) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
         self.symbols.push(Symbol {
             id,
             name,
             name_span,
             declaration_span,
-            is_hidden: true,
+            is_hidden,
             kind,
         });
         id

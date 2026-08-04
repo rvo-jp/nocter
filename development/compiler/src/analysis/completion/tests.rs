@@ -111,6 +111,29 @@ fn completion_candidates_hide_namespace_import_members() {
 }
 
 #[test]
+fn completion_candidates_hide_imported_signature_dependencies() {
+    let root_text = "use lib/math.make\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let module_text = r#"pub struct Produced {
+    value: i32
+}
+
+pub func make(): Produced {
+    return Produced { value: 7 }
+}
+"#;
+    let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let items = completion_items_for_file_analysis(file);
+
+    assert!(items.iter().any(|item| item.label == "make"));
+    assert!(
+        items.iter().all(|item| item.label != "lib/math.Produced"),
+        "signature-only dependencies must not become source-visible completion items: {items:#?}"
+    );
+}
+
+#[test]
 fn completion_candidates_include_block_imports_only_inside_scope() {
     let text = r#"func main(): i32 {
     use lib/math.answer
