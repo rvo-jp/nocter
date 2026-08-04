@@ -1,7 +1,7 @@
 # Callable Values and Interface Default Methods
 
-This chapter defines the adopted v0.3.0 Phase 10 callable and reusable-method surface. It does not
-alter the released v0.2.0 language boundary.
+This chapter defines the callable and reusable-method surface implemented by the completed v0.3.0
+Phase 10 milestone. It does not alter the released v0.2.0 language boundary.
 
 ## Composition Roles
 
@@ -42,7 +42,10 @@ Methods may declare generic parameters after the method name:
 
 ```nct
 pub method self.map<U, F: CallMut<T, U>>(transform: F): MapIter<T, U, Self, F> {
-    return MapIter.new(move self, move transform)
+    return MapIter<T, U, Self, F> {
+        source: move self,
+        transform: move transform,
+    }
 }
 ```
 

@@ -10,8 +10,8 @@ The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocat
 and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Process Context**,
 **Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
 **Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
-Iterators and Collection Builders** are complete on `develop`. **Phase 10: Callable Values and
-Interface Default Methods** is active. The completion records and dependency order are defined in the
+Iterators and Collection Builders**, and **Phase 10: Callable Values and Interface Default
+Methods** are complete on `develop`. The completion records and dependency order are defined in the
 [v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 

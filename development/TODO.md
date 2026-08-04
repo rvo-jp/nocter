@@ -17,8 +17,9 @@ chronological implementation history.
   `v0.3.0 Phase 6 First-Class Outcome Values`, and
   `v0.3.0 Phase 7 Protocol-Driven Collection Iteration`, and
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
-  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`
-- active milestone gate: `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
+  `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
+  `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
+- active milestone gate: none; Phase 10 is the requested stopping boundary
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -30,16 +31,20 @@ chronological implementation history.
 - required Phase 7 items: none
 - required Phase 8 items: none
 - required Phase 9 items: none
-- required Phase 10 items: method-level generics, interface default methods, explicit-capture
-  closures, static callable specialization, chainable iterator operations, editor integration, and
-  the complete verification gate
+- required Phase 10 items: none
 
 Phase 9 added capability sets, conditional conformances, statically specialized generic iteration,
 allocation-transparent standard adapters, unknown/exact-size vector builders, stored optional
 ownership support, and capability-set LSP presentation and recovery.
 
+Phase 10 added method-level generics, interface default methods, explicit-capture closure values,
+static callable specialization, lazy callback-driven iterator defaults, recursive nested cleanup,
+consuming-receiver ownership transfer, provenance and allocation propagation, and compiler-backed
+editor integration.
+
 ## Current Objective
 
-Complete the Phase 10 work order in `docs/v0.3.0.md`. Required and default interface methods remain
-distinct; default selection and closure invocation must resolve by declaration identity without
-runtime dispatch, heap boxing, implicit capture, or member-name rewriting.
+Stop at the completed Phase 10 boundary until the next milestone contract is explicitly adopted.
+Required and default interface methods remain distinct; default selection and closure invocation
+resolve by declaration identity without runtime dispatch, heap boxing, implicit capture, or
+member-name rewriting.

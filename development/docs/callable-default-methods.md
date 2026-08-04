@@ -1,7 +1,7 @@
 # Callable Values and Interface Default Methods
 
-This document owns the compiler implementation design for v0.3.0 Phase 10. Public semantics belong
-to the specification. The active completion gate belongs to the
+This document records the compiler implementation design completed by v0.3.0 Phase 10. Public
+semantics belong to the specification. The completion record belongs to the
 [v0.3.0 Development Contract](v0.3.0.md).
 
 ## Separation of Responsibilities
@@ -63,30 +63,25 @@ Readonly call, mutable repeated call, and consuming call are separate receiver c
 Iterator adapters use mutable repeated call. A closure satisfies that capability only when its body
 does not consume captured state.
 
-## Shared Closure Plan
+## Shared Closure Facts
 
-Typecheck owns one immutable closure plan containing:
+Typecheck records a compact immutable closure plan containing the source span, normalized anonymous
+closure type, and generated call target. The anonymous type carries ordered capture modes and field
+types plus specialized parameter and return types. Ordinary compiler facts remain the owners of
+their domains: ownership tracks capture moves and loans, provenance tracks aggregate fields and
+call results, allocation analysis follows the generated target, and IR materializes the closure
+aggregate once before invoking that target directly.
 
-- closure declaration identity and anonymous type identity
-- ordered capture places, modes, field types, and storage provenance
-- specialized parameter and return types
-- receiver capability and callable interface declaration identity
-- body call target, allocation effect, and result provenance summary
-- capture initialization, move, and cleanup obligations
-
-Ownership consumes capture obligations from the plan. Provenance treats the closure as an aggregate
-of capture fields. Allocation analysis follows the generated body target in the ordinary fixed
-point. IR materializes the aggregate once and invokes the generated target directly.
+This split prevents a second ownership or effect model from accumulating inside closure support.
+Recursive concrete drop-dependency discovery follows the closure and iterator field graph, so
+nested moved captures and adapter sources receive the same generated cleanup as named aggregates.
 
 ## Standard Iterator Chain
 
-The `Iterator<T>` interface owns cardinality-independent defaults and focused adapter modules own
-their state:
-
-- `std/iter/map` owns `MapIter`
-- `std/iter/filter` owns `FilterIter`
-- existing range, take, skip, chain, enumerate, and terminal implementations remain distributed
-- `std/iter/collect` owns consuming `to_vec` support
+The `Iterator<T>` interface owns cardinality-independent defaults. `std/iter/core` owns `MapIter`
+and `FilterIter` beside those defaults because Nocter requires inherent implementations to share
+their declaration module and moving them elsewhere would create a module cycle. Existing range,
+take, skip, chain, enumerate, and terminal free-function surfaces remain in focused Phase 9 modules.
 
 Exact-size-only defaults live on `ExactSizeIterator<T>`. `map` preserves exact size when its source
 is exact. `filter` never claims exact size. Every adapter owns its source and callback, allocates
@@ -106,6 +101,7 @@ aborting allocation context through the existing vector builder.
 | closure plans and contextual inference | `typecheck/closures` |
 | capture loans, moves, and cleanup | existing `typecheck/ownership` consuming closure plans |
 | anonymous layout and static invocation | focused `ir/lower/closures` support |
+| nested concrete cleanup reachability | `analysis/drop_dependencies` |
 | editor-facing callable facts | compiler `analysis`; protocol conversion in `driver/lsp` |
 
 ## Verification

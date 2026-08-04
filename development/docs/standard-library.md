@@ -264,3 +264,18 @@ Both builders inherit the current allocation context and retain its region prove
 Packaged-home native tests cover empty and scalar adapters, unknown-size growth, honest and
 dishonest exact-size reports, move-only drop order, early break, `last` replacement, vector transfer,
 lexical-region allocation, and region-escape rejection.
+
+## Phase 10 Callable Iterator Defaults
+
+The completed Phase 10 library makes `Iterator<T>` the owner of reusable consuming behavior. Its
+defaults include `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`, `find`,
+`any`, `all`, `fold`, and `to_vec`. `MapIter` and `FilterIter` store their source and callback in
+`std/iter/core`; keeping their inherent implementations beside the declarations avoids a module
+cycle and preserves Nocter's same-module implementation rule.
+
+Callbacks use the trusted `CallMut` contract and explicit-capture closure values. Adapters allocate
+nothing; `to_vec` is the explicit allocation boundary and inherits the current allocation context.
+`map` conditionally preserves `ExactSizeIterator`, while `filter` never claims exact cardinality.
+Packaged-home tests cover scalar and move-only chains, source order, exact-size behavior, early-exit
+cleanup, capture and argument result provenance, lexical-region escape rejection, and callback
+allocation in the active context.

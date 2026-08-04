@@ -9,13 +9,13 @@ The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Co
 Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
 Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
 **Phase 7: Protocol-Driven Collection Iteration**, **Phase 8: Explicit Sequence Spread and
-Composable Element Packs**, and **Phase 9: Composable Iterators and Collection Builders** are
-complete on `develop`. **Phase 10: Callable Values and Interface Default Methods** is active. Do
+Composable Element Packs**, **Phase 9: Composable Iterators and Collection Builders**, and **Phase
+10: Callable Values and Interface Default Methods** are complete on `develop`. Do
 not use `v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 9 records and the single
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 10 records and the single
   entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries

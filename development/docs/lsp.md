@@ -208,6 +208,24 @@ identities retained by the compiler. It does not repeat conformance matching in 
 - JSON-RPC tests cover two-bound completion, hover ranges, definition identity, and normalized
   provenance together
 
+## Completed v0.3.0 Phase 10 Integration
+
+Closure and default-method tooling consumes normalized typecheck and declaration-identity facts. The
+protocol layer does not infer captures, rediscover conformances, or recognize iterator method names.
+
+- hover presents closure bindings, parameters, and explicit capture modes from normalized anonymous
+  types, including `closure mut` and `closure once` capability distinctions
+- hover, completion detail, and signature help present specialized interface defaults with their
+  concrete receiver and method-level generic arguments
+- definition, references, and semantic tokens retain closure-local parameter/capture identity and
+  the selected default declaration
+- one delimiter-recovery scanner closes incomplete blocks while respecting strings and comments;
+  hover, completion, signature help, and region recovery reuse that scanner
+- incomplete closure bodies retain established capture, parameter, receiver, and field facts without
+  creating a callable conformance or declaration identity
+- JSON-RPC tests cover closure hover, specialized default signature help, and field completion inside
+  an unclosed closure body
+
 ## Reliability Requirements
 
 - Leave no stale diagnostics after didOpen, didChange, or didClose.
@@ -261,7 +279,8 @@ direct analysis and JSON-RPC hover/completion queries. Phase 7 tests cover exact
 concrete iterator/item facts, body completion, implicit allocation effects, incomplete-header
 diagnostics, and range-safe semantic recovery. Phase 9 tests cover complete capability-set hover and
 signature help, unambiguous/ambiguous member completion, incomplete additional-bound recovery, and
-JSON-RPC agreement.
+JSON-RPC agreement. Phase 10 tests cover normalized closure/capture presentation, default-method
+specialization, semantic identity, shared delimiter recovery, and direct plus JSON-RPC agreement.
 
 ## Deferred Features
 

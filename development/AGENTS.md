@@ -25,8 +25,8 @@ rewrite them.
 v0.2.0 is released and complete. v0.3.0 Phase 0, Phase 1 Typed Literal Core, Phase 2 Explicit
 Iteration and Collection Access, Phase 3 Owned String Interpolation and Formatting, and Phase 4
 Public Provenance Contracts and Generic Interface Bounds are complete on `develop`, as are Phase 5
-through Phase 9. Phase 10 Callable Values and Interface Default Methods is active. Do not use `v0` as
-shorthand for a release scope. Use
+through Phase 10 Callable Values and Interface Default Methods. No later milestone is active. Do not
+use `v0` as shorthand for a release scope. Use
 [docs/v0.3.0.md](docs/v0.3.0.md) for current milestone status and
 [docs/v0.2.0.md](docs/v0.2.0.md) only for the released baseline.
 
