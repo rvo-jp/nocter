@@ -31,6 +31,7 @@ responsibility naturally explains it.
 | Owned interpolation and formatting design | `docs/interpolation.md` |
 | Capability sets, conditional conformance, adapters, and collection builders | `docs/iterator-composition.md` |
 | Callable values, interface default methods, and iterator chains | `docs/callable-default-methods.md` |
+| Construction declarations, defaults, and editor construction surfaces | `docs/construction-surfaces.md` |
 | Distributed standard-library implementation | `docs/standard-library.md` |
 | LSP capabilities and analysis design | `docs/lsp.md` |
 | Next task and handoff facts | `TODO.md` |
@@ -52,6 +53,8 @@ released record and does not receive new work items.
   update `iterator-composition.md`.
 - Method-generic, default-method, closure, callable specialization, or chain API design changed:
   update `callable-default-methods.md`.
+- Construction member grammar, default selection, or type-owned creation presentation changed:
+  update `construction-surfaces.md`.
 - Interpolation runtime binding, evaluation, formatting, or cleanup changed: update
   `interpolation.md`.
 - Runtime behavior in tracked `development/std` changed: update `standard-library.md`.

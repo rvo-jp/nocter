@@ -20,6 +20,8 @@ shorthand for a release name or work scope.
   stabilization criteria, and the single entry point for current milestone status
 - [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
   member identity, lookup, validation, migration, and editor boundaries
+- [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
+  default selection, lowering reuse, and editor boundaries
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
@@ -68,6 +70,7 @@ shorthand for a release name or work scope.
 | Protocol-driven collection iteration | `iteration-protocol.md` |
 | Composable iterators and collection builders | `iterator-composition.md` |
 | Callable values, interface default methods, and iterator chains | `callable-default-methods.md` |
+| Construction declarations and type-owned creation APIs | `construction-surfaces.md` |
 | Allocator, ownership, and drop design | `allocator-ownership.md` |
 | Distributed `std` implementation state | `standard-library.md` |
 | LSP capabilities and analysis boundary | `lsp.md` |

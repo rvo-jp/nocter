@@ -35,6 +35,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Source Style and Formatting](16-source-style-formatting.md)
 - [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
 - [Callable Values and Interface Default Methods](18-callables-default-methods.md)
+- [Construction Surfaces](19-construction-surfaces.md)
 
 ## Supporting Material
 
