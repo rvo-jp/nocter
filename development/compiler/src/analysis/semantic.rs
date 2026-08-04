@@ -595,6 +595,20 @@ literal Text ""(text: &str): Self from text {
         let identifiers =
             classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
 
+        let interface_keyword = text.find("interface").unwrap();
+        assert!(identifiers.iter().all(|identifier| {
+            identifier.end_byte <= interface_keyword
+                || identifier.start_byte >= interface_keyword + "interface".len()
+        }));
+        let interface_name = text.find("Lookup<V>").unwrap();
+        let interface_token = identifier_starting_at(&identifiers, interface_name)
+            .expect("expected interface name token");
+        assert_eq!(
+            &text[interface_token.start_byte..interface_token.end_byte],
+            "Lookup"
+        );
+        assert_eq!(interface_token.kind, SemanticTokenKind::Type);
+
         let generic_start = text.find("M: Lookup").expect("expected generic parameter");
         let generic = identifier_starting_at(&identifiers, generic_start)
             .expect("expected generic parameter token");

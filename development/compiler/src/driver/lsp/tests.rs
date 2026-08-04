@@ -1493,6 +1493,57 @@ fn returns_short_visible_type_names_for_hover() {
 }
 
 #[test]
+fn cyclic_standard_reexport_interface_hover_uses_visible_name() {
+    let project = TempProject::new("lsp-hover-cyclic-standard-reexport");
+    let home = project.write_nocter_home();
+    let core_text = r#"use std/vec.Vec
+
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+"#;
+    let core_source = home.join("std/iter/core.nct");
+    std::fs::create_dir_all(core_source.parent().unwrap()).unwrap();
+    std::fs::write(&core_source, core_text).unwrap();
+    std::fs::write(
+        home.join("std/iter.nct"),
+        "pub use std/iter/core.Iterable\n",
+    )
+    .unwrap();
+    std::fs::write(
+        home.join("std/vec.nct"),
+        r#"use std/iter.Iterable
+
+pub struct Vec<T> { value: T }
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let core_uri = file_uri(&core_source);
+    let server = LspServer {
+        documents: HashMap::from([(
+            core_uri.clone(),
+            open_document(core_uri.clone(), Some(1), core_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let core_offset = core_text.find("interface Iterable").unwrap() + "interface ".len();
+    let core_response = server.hover_response(
+        json!(12),
+        Some(&json!({
+            "textDocument": { "uri": core_uri },
+            "position": byte_offset_to_lsp_position(&core_text, core_offset)
+        })),
+    );
+    assert_eq!(
+        core_response["result"]["contents"]["value"],
+        json!("```nocter\ninterface Iterable<T, I>\n```")
+    );
+}
+
+#[test]
 fn shortens_hidden_canonical_type_names_for_hover() {
     let project = TempProject::new("lsp-hover-hidden-canonical-type-names");
     let home = project.write_nocter_home();

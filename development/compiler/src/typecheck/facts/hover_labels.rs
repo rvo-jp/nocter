@@ -125,6 +125,7 @@ pub(super) fn visible_type_name<'a>(
     resolved
         .symbols
         .symbols()
+        .filter(|symbol| crate::lexer::is_valid_identifier_name(&symbol.name))
         .filter_map(|symbol| match &symbol.kind {
             SymbolKind::Type(type_symbol)
                 if type_symbol.canonical_name == canonical_name

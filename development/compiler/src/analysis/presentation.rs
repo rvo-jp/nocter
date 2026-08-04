@@ -503,8 +503,13 @@ fn declared_type_label(
     type_symbol: &TypeSymbol,
     resolved: &ResolveOutput,
 ) -> String {
+    let visible_name = if crate::lexer::is_valid_identifier_name(&symbol.name) {
+        symbol.name.clone()
+    } else {
+        crate::typecheck::type_symbol_presentation_label(type_symbol, resolved)
+    };
     if type_symbol.generic_parameters.is_empty() {
-        return symbol.name.clone();
+        return visible_name;
     }
     let parameters = type_symbol
         .generic_parameters
@@ -528,7 +533,7 @@ fn declared_type_label(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{}<{parameters}>", symbol.name)
+    format!("{visible_name}<{parameters}>")
 }
 
 pub(crate) fn type_owner_presentation_label(
