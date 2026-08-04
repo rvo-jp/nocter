@@ -19,7 +19,10 @@ where
             let Expr::Identifier(identifier) = unwrap_group(&propagation.expression) else {
                 return Ok(None);
             };
-            (identifier, Some(propagating_failure_mode(context)?))
+            (
+                identifier,
+                Some(propagating_outcome_mode(&propagation.expression, context)?),
+            )
         }
         Expr::Force(force) => {
             let Expr::Identifier(identifier) = unwrap_group(&force.expression) else {

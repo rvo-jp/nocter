@@ -8,6 +8,5 @@ pub interface Sequence<T> {
 
 /// Returns the first element borrow without allocating.
 pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values {
-    let element = values.get(0) otherwise { return none }
-    return element
+        return values.get(0)?
 }

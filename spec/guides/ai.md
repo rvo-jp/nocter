@@ -107,7 +107,7 @@ func lookup(name: &str): &str? {
 Use optional values through explicit forms:
 
 ```nct
-let home = lookup("HOME") otherwise { return none }
+let home = lookup("HOME")?
 ```
 
 ```nct

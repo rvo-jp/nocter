@@ -693,7 +693,7 @@ pub(super) fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
             )
         }
         Expr::Force(force) => {

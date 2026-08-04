@@ -37,7 +37,7 @@ pub(in crate::ir::lower) fn lower_i32_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_i32_fallible_expression_to_location(
             &force.expression,
@@ -151,7 +151,7 @@ pub(in crate::ir::lower) fn lower_u8_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_u8_fallible_expression_to_location(
             &force.expression,
@@ -309,7 +309,7 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_usize_fallible_expression_to_location(
             &force.expression,

@@ -20,13 +20,14 @@ use super::functions::{
     lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
     lower_never_expression_with_scope_drops, lower_scope_end_drops_for_locals_since,
     lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses, propagating_failure_mode,
-    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    mark_lowered_statement_aggregate_uses, tag_only_if_is_as_control_flow,
+    tag_only_switch_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
-use super::outcome_values::lower_stored_fallible_expression;
+use super::outcome_propagation::propagating_outcome_mode;
+use super::outcome_values::lower_stored_outcome_expression;
 use super::types::{
     return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
     scalar_or_view_type_from_type_expr_with_resolver,

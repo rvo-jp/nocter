@@ -365,7 +365,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        propagating_failure_mode(context)?,
+                        propagating_outcome_mode(&propagation.expression, context)?,
                     )
                 }
                 Expr::Force(force) => {
@@ -558,7 +558,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        propagating_failure_mode(context)?,
+                        propagating_outcome_mode(&propagation.expression, context)?,
                     )
                 }
                 Expr::Force(force) => {

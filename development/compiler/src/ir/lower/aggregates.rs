@@ -11,11 +11,11 @@ use super::expressions::{
     lower_str_expression_to_value, lower_u8_expression_to_word, lower_usize_expression_to_word,
     push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
-use super::functions::propagating_failure_mode;
 use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
 };
+use super::outcome_propagation::propagating_outcome_mode;
 use super::types::{
     return_type_from_type_expr_with_resolver, view_element_type_from_type_expr_with_resolver,
 };

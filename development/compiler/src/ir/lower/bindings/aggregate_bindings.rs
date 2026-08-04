@@ -338,7 +338,7 @@ pub(super) fn lower_aggregate_call_binding(
             lower_aggregate_fallible_call_binding(
                 statement,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }
@@ -971,7 +971,10 @@ pub(super) fn aggregate_member_binding_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberBindingRoot::FallibleCall(call, propagating_failure_mode(context)?),
+                AggregateMemberBindingRoot::FallibleCall(
+                    call,
+                    propagating_outcome_mode(&propagation.expression, context)?,
+                ),
                 Vec::new(),
             )))
         }

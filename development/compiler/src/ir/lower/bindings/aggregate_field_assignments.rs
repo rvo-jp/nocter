@@ -447,7 +447,7 @@ pub(super) fn lower_aggregate_member_value_assignment(
                 destination_offset,
                 layout,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }

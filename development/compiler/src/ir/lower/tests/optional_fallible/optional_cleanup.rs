@@ -1,6 +1,76 @@
 use super::*;
 
 #[test]
+fn optional_propagation_drops_owned_locals_before_returning_none() {
+    let token_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Token {
+    value: i32
+}
+
+impl Token {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    return forward() otherwise { 7 }
+}
+
+func forward(): i32? {
+    var token = Token { value: 1 }
+    let value = maybe()?
+    drop token
+    return value
+}
+
+func maybe(): i32? {
+    return none
+}
+"#,
+        "forward",
+        function_signatures(vec![
+            (
+                "Token.drop",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(token_type),
+                }],
+            ),
+            ("maybe", Type::Fallible(Box::new(Type::I32)), vec![]),
+        ]),
+    )
+    .unwrap();
+
+    let Some(Instruction::CallFallibleI32 {
+        failure_mode: FallibleFailureMode::Handle { instructions },
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleI32 { .. }))
+    else {
+        panic!("{function:?}");
+    };
+    assert!(matches!(
+        instructions.last(),
+        Some(Instruction::ReturnOptionalNone)
+    ));
+    assert!(
+        instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallVoid { target, .. } if *target == CallTarget::same_file("Token.drop")
+        )),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn optional_aggregate_exiting_fallback_does_not_drop_an_uninitialized_destination() {
     let ir = lower_text(
         r#"struct Token {

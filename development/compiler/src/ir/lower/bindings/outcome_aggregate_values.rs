@@ -100,11 +100,19 @@ pub(super) fn lower_stored_outcome_aggregate_binding(
         StoredAggregateConsumer::Force => {
             stored_fallible_aggregate_check(&local, layer, copy, FallibleFailureMode::Trap)?
         }
+        StoredAggregateConsumer::Propagate if layer.layer == OutcomeLayer::Optional => {
+            Instruction::IfStoredOutcomeTag {
+                source: AggregateLocation::Slot(local.slot_index),
+                tag_offset: checked_outcome_offset(layer.tag_offset, "tag")?,
+                success_instructions: vec![copy],
+                outcome_instructions: stored_optional_propagation_instructions(context)?,
+            }
+        }
         StoredAggregateConsumer::Propagate => stored_fallible_aggregate_check(
             &local,
             layer,
             copy,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode_for_layer(layer.layer, context)?,
         )?,
         StoredAggregateConsumer::Catch(catch) => stored_fallible_aggregate_check(
             &local,
@@ -192,6 +200,6 @@ enum StoredAggregateConsumer<'a> {
 
 impl StoredAggregateConsumer<'_> {
     fn requires_fallible(&self) -> bool {
-        matches!(self, Self::Propagate | Self::Catch(_))
+        matches!(self, Self::Catch(_))
     }
 }

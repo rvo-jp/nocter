@@ -413,7 +413,7 @@ pub(super) fn lower_aggregate_assignment_to_slot(
                 slot_index,
                 layout,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }

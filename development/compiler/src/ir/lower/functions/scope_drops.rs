@@ -495,22 +495,6 @@ pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(
     Ok(instructions)
 }
 
-pub(in crate::ir::lower) fn propagating_failure_mode(
-    context: &LoweringContext,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let cleanup_context = context.with_reserved_error_local_abi_words();
-    let instructions = lower_scope_end_drop_instructions(&cleanup_context)?;
-    if instructions.is_empty() {
-        return Ok(FallibleFailureMode::Propagate);
-    }
-    let (code, message) = context.next_error_local_locations()?;
-    Ok(FallibleFailureMode::PropagateWithCleanup {
-        code,
-        message,
-        instructions,
-    })
-}
-
 pub(in crate::ir::lower) fn replacement_drop_for_aggregate_slot(
     slot_index: usize,
     context: &LoweringContext,

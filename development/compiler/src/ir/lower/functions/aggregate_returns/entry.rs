@@ -72,7 +72,7 @@ pub(in crate::ir::lower) fn lower_aggregate_return_expression_to_location(
                 destination,
                 function_name,
                 context,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
             )
         }
         Expr::Force(force) => {

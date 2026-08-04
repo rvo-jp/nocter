@@ -58,7 +58,7 @@ impl<T> OnceIter<T> {
         let previous: T? = take_value_at_ptr(pointer, 0)
         store_value_to_ptr(pointer, 0, move empty_value)
         self.remaining = 0
-        let item = previous otherwise { return none }
+        let item = previous?
         return move item
     }
 }

@@ -117,7 +117,7 @@ Examples:
 ```nct
 let count: u64 = 0
 
-let home = maybe_home otherwise { return none }
+let home = maybe_home?
 
 func read_all(
     allocator: &+Allocator,

@@ -1,6 +1,54 @@
 use super::*;
 
 #[test]
+fn lowers_optional_aggregate_call_propagation() {
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func forward(): Header? {
+    return make()?
+}
+
+func make(): Header? {
+    return none
+}
+"#,
+        "forward",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(header_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode: FallibleFailureMode::Propagate,
+                ..
+            } if *target == CallTarget::same_file("make")
+        )),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_optional_direct_aggregate_otherwise_return() {
     let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

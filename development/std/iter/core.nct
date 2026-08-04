@@ -136,7 +136,7 @@ pub interface Iterator<T> {
         var source = move self
         var test = move predicate
         while true {
-            let item = source.next() otherwise { return none }
+            let item = source.next()?
             if test.call_mut(&item) {
                 return move item
             }
@@ -229,7 +229,7 @@ pub func map<T, U, I: Iterator<T>, F: CallMut<T, U>>(
 impl<T, U, I: Iterator<T>, F: CallMut<T, U>> MapIter<T, U, I, F> {
     /// Advances the source once and transforms the yielded item once.
     pub method &+self.next(): U? {
-        let item = self.source.next() otherwise { return none }
+        let item = self.source.next()?
         return self.transform.call_mut(move item)
     }
 }
@@ -259,7 +259,7 @@ impl<T, I: Iterator<T>, F: CallMut<&T, bool>> FilterIter<T, I, F> {
     /// Advances until the predicate accepts an item or the source is exhausted.
     pub method &+self.next(): T? {
         while true {
-            let item = self.source.next() otherwise { return none }
+            let item = self.source.next()?
             if self.predicate.call_mut(&item) {
                 return move item
             }
@@ -322,7 +322,7 @@ impl<T, I: Iterator<T>> SkipIter<T, I> {
             }
             self.remaining_to_skip = self.remaining_to_skip - 1
         }
-        return self.source.next() otherwise { return none }
+        return self.source.next()?
     }
 }
 
@@ -360,7 +360,7 @@ impl<T, L: Iterator<T>, R: Iterator<T>> ChainIter<T, L, R> {
             }
             return move item
         }
-        return self.right.next() otherwise { return none }
+        return self.right.next()?
     }
 }
 
@@ -383,7 +383,7 @@ pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> {
 
 impl<T, I: Iterator<T>> EnumerateIter<T, I> {
     pub method &+self.next(): Indexed<T>? {
-        let item = self.source.next() otherwise { return none }
+        let item = self.source.next()?
         let index: usize = self.next_index
         self.next_index = index + 1
         return Indexed<T> {

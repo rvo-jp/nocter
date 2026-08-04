@@ -7,7 +7,7 @@ use crate::ir::{
 };
 use crate::outcomes::OutcomeLayer;
 
-pub(super) fn lower_stored_fallible_expression(
+pub(super) fn lower_stored_outcome_expression(
     expression: &Expr,
     destination: ComposedOutcomeDestination,
     context: &LoweringContext,
@@ -70,31 +70,55 @@ pub(super) fn lower_stored_fallible_expression(
         return Ok(None);
     };
     if local.storage.layers.len() != 1
-        || local.storage.layers[0].layer != OutcomeLayer::Fallible
         || !payload_destination_matches(&local.payload_type, destination)
     {
         return Ok(None);
     }
     let layer = local.storage.layers[0];
     let tag_offset = checked_offset(layer.tag_offset, "tag")?;
-    let error_offset = checked_offset(
-        layer
-            .failure_offset
-            .expect("fallible layer has error storage"),
-        "error",
-    )?;
     let payload_offset = checked_offset(local.storage.payload_offset, "payload")?;
-    Ok(Some(vec![Instruction::CheckStoredFallible {
+    let success_instructions = vec![Instruction::LoadStoredOutcomePayload {
+        destination,
         source: AggregateLocation::Slot(local.slot_index),
-        tag_offset,
-        error_offset,
-        success_instructions: vec![Instruction::LoadStoredOutcomePayload {
-            destination,
+        offset: payload_offset,
+    }];
+    match layer.layer {
+        OutcomeLayer::Fallible => Ok(Some(vec![Instruction::CheckStoredFallible {
             source: AggregateLocation::Slot(local.slot_index),
-            offset: payload_offset,
-        }],
-        failure_mode,
-    }]))
+            tag_offset,
+            error_offset: checked_offset(
+                layer
+                    .failure_offset
+                    .expect("fallible layer has error storage"),
+                "error",
+            )?,
+            success_instructions,
+            failure_mode,
+        }])),
+        OutcomeLayer::Optional => Ok(Some(vec![Instruction::IfStoredOutcomeTag {
+            source: AggregateLocation::Slot(local.slot_index),
+            tag_offset,
+            success_instructions,
+            outcome_instructions: optional_outcome_instructions(failure_mode)?,
+        }])),
+    }
+}
+
+fn optional_outcome_instructions(
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match failure_mode {
+        FallibleFailureMode::Propagate => Ok(vec![Instruction::ReturnOptionalNone]),
+        FallibleFailureMode::Trap => Ok(vec![Instruction::Trap]),
+        FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions } => Ok(instructions),
+        FallibleFailureMode::PropagateWithCleanup { .. } | FallibleFailureMode::Catch { .. } => {
+            Err(vec![Diagnostic::error(
+                "E8008",
+                "optional outcome received a fallible-only failure mode",
+            )])
+        }
+    }
 }
 
 fn checked_offset(offset: u64, role: &str) -> Result<u32, Vec<Diagnostic>> {

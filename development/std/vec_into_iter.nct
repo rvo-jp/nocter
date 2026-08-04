@@ -74,7 +74,7 @@ impl<T> VecIntoIter<T> {
 
     /// Transfers the next element, or returns `none` at exhaustion.
     pub method &+self.next(): T? {
-        return next(self) otherwise { return none }
+        return next(self)?
     }
 
     drop &+self {

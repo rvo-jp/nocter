@@ -79,7 +79,7 @@ pub(in crate::ir::lower) fn lower_void_expression_statement(
         Expr::Propagate(propagation) => lower_fallible_void_expression_statement(
             &propagation.expression,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_fallible_void_expression_statement(
             &force.expression,

@@ -90,6 +90,8 @@ use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{TypecheckFacts, TypecheckPayloadBindingMode, TypecheckSliceElementKind};
 use std::collections::HashMap;
 
+use super::outcome_propagation::propagating_outcome_mode;
+
 mod aggregate_returns;
 mod callable_body;
 mod diagnostics;

@@ -189,7 +189,10 @@ pub(super) fn aggregate_member_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberRoot::FallibleCall(call, propagating_failure_mode(context)?),
+                AggregateMemberRoot::FallibleCall(
+                    call,
+                    propagating_outcome_mode(&propagation.expression, context)?,
+                ),
                 Vec::new(),
             )))
         }

@@ -49,13 +49,16 @@ use super::functions::{
     lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
     lower_aggregate_return_expression_to_location, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, propagating_failure_mode,
-    replacement_drop_for_aggregate_slot,
+    lower_scope_end_drops_for_locals_since, replacement_drop_for_aggregate_slot,
 };
 use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
+};
+use super::outcome_propagation::{
+    propagating_outcome_mode, propagating_outcome_mode_for_layer,
+    stored_optional_propagation_instructions,
 };
 use super::regions::CleanupScopeMark;
 use super::types::{

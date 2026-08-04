@@ -234,7 +234,7 @@ pub(super) fn lower_otherwise_scalar_binding(
             call,
             &otherwise.fallback,
             kind,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagate.expression, context)?,
             context,
             loop_control,
         )

@@ -216,10 +216,9 @@ pub(super) fn expression_scalar_binding_kind(
 ) -> Option<ScalarBindingKind> {
     match unwrap_group(expression) {
         Expr::Call(call) => call_return_scalar_binding_kind(call, context),
-        Expr::Propagate(propagation) => fallible_call_success_scalar_binding_kind(
-            unwrap_group(&propagation.expression),
-            context,
-        ),
+        Expr::Propagate(propagation) => {
+            propagated_expression_scalar_binding_kind(&propagation.expression, context)
+        }
         Expr::Force(force) => {
             fallible_call_success_scalar_binding_kind(unwrap_group(&force.expression), context)
         }
@@ -231,6 +230,28 @@ pub(super) fn expression_scalar_binding_kind(
         }
         _ => None,
     }
+}
+
+fn propagated_expression_scalar_binding_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    if let Expr::Identifier(identifier) = unwrap_group(expression)
+        && let Some(local) = context.outcome_local(&identifier.name)
+    {
+        return scalar_binding_kind_from_type(&local.payload_type);
+    }
+    if let Some(kind) = fallible_call_success_scalar_binding_kind(unwrap_group(expression), context)
+    {
+        return Some(kind);
+    }
+
+    let ty = context.expression_type_expr(expression.span())?;
+    let (_, resolved) = context.resolved_calls()?;
+    let shape =
+        outcome_shape_with_resolver(&ty, resolved, |source| context.resolved_source(source));
+    let payload_type = context.ir_type_for_type_expr(&shape.payload)?;
+    scalar_binding_kind_from_type(&payload_type)
 }
 
 pub(super) fn call_return_scalar_binding_kind(

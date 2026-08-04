@@ -125,6 +125,49 @@ func maybe(): i32? {
 }
 
 #[test]
+fn propagates_a_stored_optional_value_as_none() {
+    let module = lower_text(
+        r#"func main(): i32 {
+    return forward() otherwise { 7 }
+}
+
+func forward(): i32? {
+    let saved = maybe()
+    let value = saved?
+    return value
+}
+
+func maybe(): i32? {
+    return none
+}
+"#,
+    );
+    let forward = module
+        .functions
+        .iter()
+        .find(|function| function.name == "forward")
+        .unwrap();
+    assert!(
+        forward.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::IfStoredOutcomeTag {
+                source: AggregateLocation::Slot(0),
+                success_instructions,
+                outcome_instructions,
+                ..
+            } if matches!(
+                success_instructions.as_slice(),
+                [Instruction::LoadStoredOutcomePayload {
+                    destination: crate::ir::ComposedOutcomeDestination::I32(I32Location::Local(0)),
+                    ..
+                }]
+            ) && outcome_instructions == &[Instruction::ReturnOptionalNone]
+        )),
+        "{forward:?}"
+    );
+}
+
+#[test]
 fn propagates_and_catches_stored_fallible_values() {
     let propagated = lower_text(
         r#"func main(): i32! {

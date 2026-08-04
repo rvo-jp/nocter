@@ -288,7 +288,7 @@ Using a fallible optional:
 
 ```nct
 let maybe_config = load_config()?
-let config = maybe_config otherwise { return none }
+let config = maybe_config?
 
 use(config)
 ```
@@ -311,7 +311,7 @@ When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`,
 
 ```nct
 func require_home(): &str? {
-    let home = lookup("HOME") otherwise { return none }
+    let home = lookup("HOME")?
 
     return home
 }
@@ -322,7 +322,8 @@ Rules:
 - Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
-- Absence defaulting and absence-side early exit use `otherwise`.
+- Exact absence propagation uses `?`. Absence defaulting and control flow other than returning the
+  same `none` use `otherwise`.
 - `otherwise` does not propagate absence by itself; it selects a fallback block when the optional value is `none`.
 
 ### Optional Otherwise Expressions

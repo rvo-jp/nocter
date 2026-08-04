@@ -145,7 +145,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_bool_fallible_expression_to_location(
             &force.expression,
@@ -358,7 +358,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: BoolValue::Location(temporary),
             })

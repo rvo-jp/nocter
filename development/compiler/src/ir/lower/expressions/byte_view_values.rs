@@ -32,7 +32,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_str_fallible_expression_to_location(
             &force.expression,
@@ -110,7 +110,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_slice_fallible_expression_to_location(
             &force.expression,
@@ -203,7 +203,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -310,7 +310,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: SliceValue::Location(temporary),
             })

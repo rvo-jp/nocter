@@ -14,6 +14,7 @@ mod interpolation;
 mod literal_pack_lengths;
 mod literal_packs;
 mod literals;
+mod outcome_propagation;
 mod outcome_values;
 mod reachability;
 mod regions;
