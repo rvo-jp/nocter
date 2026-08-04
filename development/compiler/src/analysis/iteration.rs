@@ -60,11 +60,7 @@ pub(crate) fn sequence_spread_operator_hover(
         .sequence_spread_plans()
         .map(|(_, plan)| plan)
         .filter_map(|plan| {
-            let operator_span = ByteSpan::new(
-                plan.spread_span.source,
-                plan.spread_span.start,
-                (plan.spread_span.start + 3).min(plan.spread_span.end),
-            );
+            let operator_span = plan.operator_span;
             (operator_span.start <= offset && offset < operator_span.end)
                 .then_some((operator_span, plan))
         })

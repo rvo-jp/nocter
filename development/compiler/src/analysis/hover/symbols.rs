@@ -217,7 +217,7 @@ pub(in crate::analysis::hover) fn collect_drop_hover_symbols(
 ) {
     push_hover_symbol(
         text,
-        drop_.binding.name_span,
+        drop_.name_span,
         drop_.span.start,
         function_like_header(text, drop_.span, Some(drop_.body.span.start)),
         symbols,

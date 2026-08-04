@@ -107,7 +107,7 @@ pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
     let target_name = impl_target_type_name(&impl_.target_ty)?;
     impl_.members.iter().find_map(|member| match member {
         ImplMember::Drop(drop_) => Some(DropSignature {
-            name_span: drop_name_span(drop_.span),
+            name_span: drop_.name_span,
             target_name: drop_function_name(target_name),
             binding: parameter_signature(&drop_.binding),
         }),
@@ -179,7 +179,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
             target_name,
             "drop",
             existing.name_span,
-            drop_name_span(drop_.span),
+            drop_.name_span,
         ));
     }
 
@@ -202,10 +202,6 @@ pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
 
 pub(crate) fn drop_function_name(type_name: &str) -> String {
     format!("{type_name}.drop")
-}
-
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }
 
 pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {

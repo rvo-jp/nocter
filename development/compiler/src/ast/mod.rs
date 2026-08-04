@@ -212,6 +212,7 @@ pub enum ImplMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropDecl {
     pub span: ByteSpan,
+    pub name_span: ByteSpan,
     pub binding: Parameter,
     pub body: Block,
 }
@@ -240,6 +241,7 @@ pub struct GenericParamList {
 pub struct GenericParam {
     pub span: ByteSpan,
     pub name: String,
+    pub name_span: ByteSpan,
     pub bounds: Vec<TypeExpr>,
 }
 

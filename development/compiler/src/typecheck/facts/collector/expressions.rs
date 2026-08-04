@@ -572,6 +572,7 @@ fn sequence_spread_fact(
     )?;
     Some(TypecheckSequenceSpreadPlan {
         spread_span: spread.span,
+        operator_span: spread.operator_span,
         source_span: spread.operand.span(),
         mode: match resolution.mode {
             crate::typecheck::iteration::SequenceSpreadMode::Copy => {

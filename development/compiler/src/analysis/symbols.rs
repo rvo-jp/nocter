@@ -142,7 +142,7 @@ fn impl_member_document_symbol(member: &ImplMember) -> DocumentSymbolInfo {
             "drop".to_string(),
             DocumentSymbolKind::Method,
             drop_.span,
-            drop_.binding.name_span,
+            drop_.name_span,
             Vec::new(),
         ),
     }
@@ -214,5 +214,26 @@ mod tests {
         assert_eq!(symbols[0].children[0].kind, DocumentSymbolKind::Field);
         assert_eq!(symbols[1].name, "main");
         assert_eq!(symbols[1].kind, DocumentSymbolKind::Function);
+    }
+
+    #[test]
+    fn drop_document_symbol_selects_the_declaration_keyword() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+    }
+}
+"#;
+        let symbols = document_symbols_for_text(text).expect("expected document symbols");
+        let drop_symbol = &symbols[1].children[0];
+
+        assert_eq!(drop_symbol.name, "drop");
+        assert_eq!(drop_symbol.kind, DocumentSymbolKind::Method);
+        assert_eq!(
+            &text[drop_symbol.selection_span.start..drop_symbol.selection_span.end],
+            "drop"
+        );
     }
 }

@@ -55,6 +55,13 @@ outer-owner destruction, reverse region release after destruction, and non-unwin
 termination independently of tail-call eligibility. Native and packaged-home probes cover normal,
 `return`, `break`, `continue`, propagation, recovery, and immediate termination edges.
 
-The active audit is editor identity, ranges, semantic facts, and incomplete-source recovery.
-Subsequent loops cover malformed-input resilience, packaging qualification, and responsibility
-hotspots against the stabilization gate.
+The editor identity audit now gives destructor and generic-parameter declarations explicit name
+spans instead of reconstructing editor ranges from larger syntax spans. Resolver diagnostics,
+typecheck facts, specialization lookup, hover, semantic tokens, document symbols, and IR indexing
+share those declaration identities. Sequence-spread hover likewise carries the parsed operator span
+through typecheck facts instead of deriving three bytes from an expression span. Paired analysis and
+JSON-RPC tests cover destructor keyword/receiver separation and protocol selection ranges.
+
+The active audit is malformed-input resilience and recovery across parser, analysis, and LSP
+request boundaries. Subsequent loops cover packaging qualification and responsibility hotspots
+against the stabilization gate.

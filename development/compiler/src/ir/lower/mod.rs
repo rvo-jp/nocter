@@ -304,7 +304,7 @@ impl<'a> FunctionIndex<'a> {
                                 ImplMember::Drop(drop_) => {
                                     for specialization in call_specializations
                                         .drops
-                                        .get(&drop_name_span(drop_.span))
+                                        .get(&drop_.name_span)
                                         .into_iter()
                                         .flatten()
                                     {
@@ -1000,7 +1000,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name,
                 ..
-            } if substitutions.is_empty() => Some((drop_name_span(declaration.span), name.clone())),
+            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Drop { .. } => None,
             IndexedDeclaration::Method {
                 declaration,
@@ -1188,10 +1188,6 @@ fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
         TypeExpr::Generic(generic) => Some(&generic.name),
         _ => None,
     }
-}
-
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }
 
 fn attach_primary_span_if_absent(

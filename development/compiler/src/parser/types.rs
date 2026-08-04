@@ -197,6 +197,7 @@ impl Parser<'_> {
             parameters.push(GenericParam {
                 span: self.span(parameter.span.start, end),
                 name: parameter.value,
+                name_span: parameter.span,
                 bounds,
             });
 

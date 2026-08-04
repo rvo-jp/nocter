@@ -135,6 +135,7 @@ impl Parser<'_> {
 
         Ok(DropDecl {
             span: self.span(start.span.start, body.span.end),
+            name_span: start.span,
             binding,
             body,
         })

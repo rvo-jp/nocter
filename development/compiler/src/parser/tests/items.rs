@@ -380,8 +380,7 @@ fn diagnoses_dotted_import_paths_as_removed() {
 
 #[test]
 fn parses_qualified_associated_functions_inherent_methods_and_generic_params() {
-    let output = parse_text(
-        r#"pub struct Counter {
+    let source = r#"pub struct Counter {
     value: i32
 }
 
@@ -406,8 +405,8 @@ func print<W>(writer: &+W): void! {
 func main(): i32 {
     return 0
 }
-"#,
-    );
+"#;
+    let output = parse_text(source);
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
@@ -438,6 +437,7 @@ func main(): i32 {
     let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
         panic!("expected drop member");
     };
+    assert_eq!(&source[drop_.name_span.start..drop_.name_span.end], "drop");
     assert_eq!(drop_.binding.name, "self");
     assert!(matches!(
         &drop_.binding.ty,
@@ -589,16 +589,15 @@ func main(): i32 {
 
 #[test]
 fn parses_method_generic_parameters_after_the_method_name() {
-    let output = parse_text(
-        r#"struct Factory {}
+    let source = r#"struct Factory {}
 
 impl Factory {
     method &self.identity<T: Copyable>(value: T): T {
         return value
     }
 }
-"#,
-    );
+"#;
+    let output = parse_text(source);
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
@@ -610,6 +609,11 @@ impl Factory {
     };
     assert_eq!(method.generics.parameters.len(), 1);
     assert_eq!(method.generics.parameters[0].name, "T");
+    assert_eq!(
+        &source[method.generics.parameters[0].name_span.start
+            ..method.generics.parameters[0].name_span.end],
+        "T"
+    );
     assert_eq!(method.generics.parameters[0].bounds.len(), 1);
 }
 

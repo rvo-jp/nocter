@@ -466,7 +466,7 @@ fn drop_declaration_for_span(
                 let ImplMember::Drop(drop_) = member else {
                     return None;
                 };
-                (drop_name_span(drop_.span) == declaration_span).then_some((file, impl_, drop_))
+                (drop_.name_span == declaration_span).then_some((file, impl_, drop_))
             })
         })
     })
@@ -673,8 +673,4 @@ fn short_type_name(name: &str) -> &str {
 
 fn span_contains(outer: ByteSpan, inner: ByteSpan) -> bool {
     outer.source == inner.source && outer.start <= inner.start && inner.end <= outer.end
-}
-
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }

@@ -417,6 +417,7 @@ pub(crate) enum TypecheckSequenceSpreadMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TypecheckSequenceSpreadPlan {
     pub(crate) spread_span: ByteSpan,
+    pub(crate) operator_span: ByteSpan,
     pub(crate) source_span: ByteSpan,
     pub(crate) mode: TypecheckSequenceSpreadMode,
     pub(crate) source_mode: TypecheckCollectionForSourceMode,
@@ -436,6 +437,7 @@ impl TypecheckSequenceSpreadPlan {
     ) -> Option<Self> {
         Some(Self {
             spread_span: self.spread_span,
+            operator_span: self.operator_span,
             source_span: self.source_span,
             mode: self.mode,
             source_mode: self.source_mode,

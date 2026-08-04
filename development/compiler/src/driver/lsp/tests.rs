@@ -375,6 +375,45 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
 }
 
 #[test]
+fn drop_declaration_editor_features_share_the_keyword_range() {
+    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n    }\n}\n";
+    let uri = "file:///tmp/nocter-drop-editor-identity.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let hover = server.hover_response(
+        json!(7),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 3, "character": 5 }
+        })),
+    );
+    assert_eq!(
+        hover["result"]["contents"]["value"],
+        json!("```nocter\ndrop &+self\n```")
+    );
+    assert_eq!(hover["result"]["range"]["start"]["character"], json!(4));
+    assert_eq!(hover["result"]["range"]["end"]["character"], json!(8));
+
+    let symbols =
+        server.document_symbol_response(json!(8), Some(&json!({ "textDocument": { "uri": uri } })));
+    let drop_symbol = &symbols["result"][1]["children"][0];
+    assert_eq!(drop_symbol["name"], json!("drop"));
+    assert_eq!(
+        drop_symbol["selectionRange"]["start"]["character"],
+        json!(4)
+    );
+    assert_eq!(drop_symbol["selectionRange"]["end"]["character"], json!(8));
+}
+
+#[test]
 fn initializes_with_semantic_token_legend() {
     let response = initialize_response(json!(1));
     let legend = response["result"]["capabilities"]["semanticTokensProvider"]["legend"]

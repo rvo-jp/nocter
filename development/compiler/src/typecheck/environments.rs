@@ -134,7 +134,7 @@ fn interface_self_bound(interface: &InterfaceDecl) -> TypeExpr {
             .iter()
             .map(|parameter| {
                 TypeExpr::Reference(TypeReference {
-                    span: parameter.span,
+                    span: parameter.name_span,
                     name: parameter.name.clone(),
                 })
             })

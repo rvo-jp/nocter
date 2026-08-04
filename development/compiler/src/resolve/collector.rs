@@ -472,7 +472,7 @@ fn generic_parameter_name_diagnostics(
             diagnostics.push(reserved_generic_parameter_name_reuse_diagnostic(
                 sources,
                 &parameter.name,
-                parameter.span,
+                parameter.name_span,
             ));
         } else if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
             diagnostics.push(duplicate_generic_parameter_name_diagnostic(
@@ -480,10 +480,10 @@ fn generic_parameter_name_diagnostics(
                 subject,
                 &parameter.name,
                 first_span,
-                parameter.span,
+                parameter.name_span,
             ));
         } else {
-            seen.insert(parameter.name.as_str(), parameter.span);
+            seen.insert(parameter.name.as_str(), parameter.name_span);
         }
     }
 
@@ -500,7 +500,7 @@ fn method_generic_parameter_name_diagnostics(
     let owner_parameters = owner_generics
         .parameters
         .iter()
-        .map(|parameter| (parameter.name.as_str(), parameter.span))
+        .map(|parameter| (parameter.name.as_str(), parameter.name_span))
         .collect::<HashMap<_, _>>();
 
     for parameter in &method_generics.parameters {
@@ -510,7 +510,7 @@ fn method_generic_parameter_name_diagnostics(
                 subject,
                 &parameter.name,
                 first_span,
-                parameter.span,
+                parameter.name_span,
             ));
         }
     }

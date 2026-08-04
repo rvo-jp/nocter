@@ -49,6 +49,35 @@ func File.open(): Self {
 }
 
 #[test]
+fn drop_declaration_has_separate_keyword_and_receiver_hover_targets() {
+    let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+    }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let declaration = text.find("drop &+self").expect("expected drop declaration");
+
+    let drop_keyword = hover_for_file_analysis(&sources, &analysis, file, declaration)
+        .expect("expected drop hover");
+    let receiver =
+        hover_for_file_analysis(&sources, &analysis, file, declaration + "drop &+".len())
+            .expect("expected receiver hover");
+
+    assert_eq!(drop_keyword.label, "drop &+self");
+    assert_eq!(
+        &text[drop_keyword.span.start..drop_keyword.span.end],
+        "drop"
+    );
+    assert_eq!(&text[receiver.span.start..receiver.span.end], "self");
+    assert!(receiver.label.starts_with("parameter self:"));
+}
+
+#[test]
 fn workspace_hover_resolves_an_imported_name_at_its_import_site() {
     let root_text = "use lib/math.Error\n";
     let module_text = "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n";

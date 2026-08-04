@@ -167,6 +167,7 @@ impl SemanticIdentifierCollector<'_> {
         }
 
         if let Some(drop_) = &symbol.drop_member {
+            self.push(drop_.name_span, SemanticTokenKind::Method, true, 0);
             self.push_parameter(drop_.binding.name_span);
         }
     }
@@ -255,16 +256,7 @@ impl SemanticIdentifierCollector<'_> {
                 | crate::ast::Item::Literal(_) => None,
             };
             for parameter in generics.into_iter().flat_map(|list| &list.parameters) {
-                self.push(
-                    ByteSpan::new(
-                        parameter.span.source,
-                        parameter.span.start,
-                        parameter.span.start + parameter.name.len(),
-                    ),
-                    SemanticTokenKind::Type,
-                    true,
-                    0,
-                );
+                self.push(parameter.name_span, SemanticTokenKind::Type, true, 0);
             }
         }
     }
@@ -605,6 +597,36 @@ impl File {
     }
 
     #[test]
+    fn analysis_classifies_drop_keyword_and_receiver_independently() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+    }
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+
+        let drop_keyword = identifier_starting_at(
+            &identifiers,
+            text.find("drop &+self").expect("expected drop declaration"),
+        )
+        .expect("expected drop semantic token");
+        assert_eq!(drop_keyword.kind, SemanticTokenKind::Method);
+        assert_ne!(drop_keyword.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+
+        let receiver = identifier_starting_at(
+            &identifiers,
+            text.find("self {").expect("expected drop receiver"),
+        )
+        .expect("expected receiver semantic token");
+        assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
+        assert_ne!(receiver.modifiers & SEMANTIC_READONLY_MODIFIER, 0);
+    }
+
+    #[test]
     fn analysis_classifies_closure_parameters_and_capture_modes() {
         let text = r#"func main(): i32 {
     let base = 1
@@ -668,6 +690,7 @@ literal Text ""(text: &str): Self from text {
             .expect("expected generic parameter token");
         assert_eq!(generic.kind, SemanticTokenKind::Type);
         assert_ne!(generic.modifiers & SEMANTIC_DECLARATION_MODIFIER, 0);
+        assert_eq!(&text[generic.start_byte..generic.end_byte], "M");
 
         let origin_start = text.find("from map").unwrap() + "from ".len();
         let origin = identifier_starting_at(&identifiers, origin_start)

@@ -95,7 +95,7 @@ impl TypecheckFactCollector<'_> {
                         }
                         ImplMember::Drop(drop_) => {
                             self.facts.declaration_hover_labels.insert(
-                                drop_.binding.name_span,
+                                drop_.name_span,
                                 drop_declaration_hover_label(drop_, self.resolved, &self_type),
                             );
                         }

@@ -211,7 +211,7 @@ impl<'a> GenericScope<'a> {
             parameters: generics
                 .parameters
                 .iter()
-                .map(|parameter| (parameter.name.as_str(), parameter.span))
+                .map(|parameter| (parameter.name.as_str(), parameter.name_span))
                 .collect(),
             allows_self_type: false,
         }
@@ -227,7 +227,7 @@ impl<'a> GenericScope<'a> {
             generics
                 .parameters
                 .iter()
-                .map(|parameter| (parameter.name.as_str(), parameter.span)),
+                .map(|parameter| (parameter.name.as_str(), parameter.name_span)),
         );
         self
     }

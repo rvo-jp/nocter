@@ -106,7 +106,3 @@ pub(in crate::driver::buildability) fn impl_target_type_name(ty: &TypeExpr) -> O
         _ => None,
     }
 }
-
-pub(in crate::driver::buildability) fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
-}

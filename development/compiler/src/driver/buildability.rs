@@ -205,7 +205,7 @@ impl<'a> CallableIndex<'a> {
                                         root_source,
                                         name.clone(),
                                     );
-                                    names.insert(drop_name_span(drop_.span), name.clone());
+                                    names.insert(drop_.name_span, name.clone());
                                     definitions.insert(
                                         target,
                                         IndexedCallable::new_drop(
@@ -220,7 +220,7 @@ impl<'a> CallableIndex<'a> {
                                 ImplMember::Drop(drop_) => {
                                     for specialization in call_specializations
                                         .drops
-                                        .get(&drop_name_span(drop_.span))
+                                        .get(&drop_.name_span)
                                         .into_iter()
                                         .flatten()
                                     {
