@@ -407,6 +407,9 @@ fn expression_needs_current_allocation_context(
     summaries: &CallableProvenanceSummaries,
 ) -> bool {
     match expression {
+        // The generated closure body owns its effect summary; constructing the
+        // environment itself performs no allocation.
+        Expr::Closure(_) => false,
         Expr::TypedSequenceLiteral(literal) => {
             literal.using.is_none()
                 || literal.elements.iter().any(|element| {

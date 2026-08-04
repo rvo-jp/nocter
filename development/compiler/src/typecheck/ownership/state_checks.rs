@@ -547,6 +547,28 @@ pub(super) fn check_expression_ownership(
     ownership: &mut OwnershipState,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                let identifier = crate::ast::IdentifierExpr {
+                    span: capture.name_span,
+                    name: capture.name.clone(),
+                };
+                ownership.require_initialized(sources, &identifier, "capture", diagnostics);
+                if capture.mode == crate::ast::ClosureCaptureMode::Move
+                    && let Some(ty) = environment.get(&capture.name)
+                    && (non_copy_owned_type_kind(ty, resolved).is_some()
+                        || matches!(ty, Type::Parameter(_)))
+                {
+                    ownership.ensure_binding_from_environment(
+                        &capture.name,
+                        capture.name_span,
+                        environment,
+                        resolved,
+                    );
+                    ownership.move_binding(sources, &identifier, diagnostics);
+                }
+            }
+        }
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
                 check_expression_ownership(

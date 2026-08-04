@@ -142,6 +142,9 @@ pub(in crate::analysis::hover) fn local_symbol_hover_label(symbol: &LocalSymbol)
             format!("for {}", symbol.name)
         }
         LocalSymbolKind::LiteralCapture => format!("literal pack {}", symbol.name),
+        LocalSymbolKind::ClosureCapture(mode) => {
+            format!("capture {}{}", mode.source_prefix(), symbol.name)
+        }
     }
 }
 

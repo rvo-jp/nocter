@@ -1,5 +1,6 @@
 //! Parser for Nocter source syntax.
 
+mod closures;
 mod collection_for;
 mod cursor;
 mod expressions;

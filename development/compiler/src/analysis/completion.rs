@@ -1233,6 +1233,9 @@ fn completion_context_in_expression_at_offset(
     offset: usize,
 ) -> Option<CompletionContext<'_>> {
     match expression {
+        Expr::Closure(expression) => {
+            completion_context_in_block_at_offset(&expression.body, offset)
+        }
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 crate::ast::InterpolatedStringPart::Expression(part) => {

@@ -1,5 +1,6 @@
 //! Source-level abstract syntax tree definitions.
 
+mod closures;
 mod collection_for;
 mod documentation;
 mod json;
@@ -9,6 +10,7 @@ mod receivers;
 mod types;
 mod visit;
 
+pub use closures::*;
 pub use collection_for::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
@@ -538,6 +540,7 @@ pub struct ExpressionStmt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
+    Closure(ClosureExpr),
     Identifier(IdentifierExpr),
     IntegerLiteral(LiteralExpr),
     ByteLiteral(LiteralExpr),
@@ -846,6 +849,7 @@ impl Stmt {
 impl Expr {
     pub fn span(&self) -> ByteSpan {
         match self {
+            Expr::Closure(expression) => expression.span,
             Expr::Identifier(expression) => expression.span,
             Expr::IntegerLiteral(expression) => expression.span,
             Expr::ByteLiteral(expression) => expression.span,

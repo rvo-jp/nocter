@@ -2,6 +2,29 @@ use crate::ast::Visibility;
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::{ByteSpan, SourceMap};
 
+pub(super) fn implicit_closure_capture_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    use_span: ByteSpan,
+    declaration_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0452",
+        format!("outer binding `{name}` is not captured by this closure"),
+    );
+    diagnostic.primary_span = sources.span_to_json(use_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(declaration_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "outer binding is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "add `&{name}`, `&+{name}`, or `move {name}` before the closure parameter separator"
+    ));
+    diagnostic
+}
+
 pub(super) fn duplicate_visible_name_diagnostic(
     sources: &SourceMap,
     name: &str,

@@ -416,7 +416,8 @@ fn semantic_kind_for_local_symbol_kind(kind: LocalSymbolKind) -> SemanticTokenKi
         | LocalSymbolKind::CatchError
         | LocalSymbolKind::ForRange
         | LocalSymbolKind::CollectionFor
-        | LocalSymbolKind::LiteralPackFor => SemanticTokenKind::Variable,
+        | LocalSymbolKind::LiteralPackFor
+        | LocalSymbolKind::ClosureCapture(_) => SemanticTokenKind::Variable,
         LocalSymbolKind::LiteralCapture => SemanticTokenKind::Variable,
     }
 }
@@ -427,6 +428,11 @@ fn local_symbol_modifiers(symbol: &LocalSymbol, span: ByteSpan, facts: &Typechec
         | LocalSymbolKind::Binding(BindingKind::Let)
         | LocalSymbolKind::Region => SEMANTIC_READONLY_MODIFIER,
         LocalSymbolKind::LiteralCapture => SEMANTIC_READONLY_MODIFIER,
+        LocalSymbolKind::ClosureCapture(crate::ast::ClosureCaptureMode::ReadonlyBorrow)
+        | LocalSymbolKind::ClosureCapture(crate::ast::ClosureCaptureMode::Move) => {
+            SEMANTIC_READONLY_MODIFIER
+        }
+        LocalSymbolKind::ClosureCapture(crate::ast::ClosureCaptureMode::ReadwriteBorrow) => 0,
         LocalSymbolKind::Binding(BindingKind::Var) => 0,
         LocalSymbolKind::PatternPayload
         | LocalSymbolKind::CatchError

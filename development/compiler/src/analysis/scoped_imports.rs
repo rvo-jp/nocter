@@ -121,6 +121,9 @@ fn collect_scoped_import_name_spans_in_expression(
     spans: &mut HashSet<ByteSpan>,
 ) {
     match expression {
+        Expr::Closure(expression) => {
+            collect_scoped_import_name_spans_in_block(&expression.body, spans)
+        }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 let InterpolatedStringPart::Expression(part) = part else {
@@ -380,6 +383,10 @@ fn scoped_import_spans_in_expression_at_offset(
     }
 
     match expression {
+        Expr::Closure(expression) => {
+            scoped_import_spans_in_block_at_offset(&expression.body, offset, visible)
+                .or_else(|| Some(visible.clone()))
+        }
         Expr::InterpolatedString(expression) => expression.parts.iter().find_map(|part| {
             let InterpolatedStringPart::Expression(part) = part else {
                 return None;

@@ -164,6 +164,7 @@ fn collect_expression_targets(
     targets: &mut Vec<DocumentationTarget>,
 ) {
     match expression {
+        Expr::Closure(expression) => collect_block_targets(text, &expression.body, targets),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)

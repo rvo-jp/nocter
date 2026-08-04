@@ -111,6 +111,7 @@ fn visit_statement_expressions(statement: &Stmt, visitor: &mut impl FnMut(&Expr)
 pub(crate) fn visit_expression(expression: &Expr, visitor: &mut impl FnMut(&Expr)) {
     visitor(expression);
     match expression {
+        Expr::Closure(expression) => visit_block_expressions(&expression.body, visitor),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)

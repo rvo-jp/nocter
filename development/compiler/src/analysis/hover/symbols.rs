@@ -464,6 +464,7 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
     symbols: &mut Vec<HoverSymbol>,
 ) {
     match expression {
+        Expr::Closure(expression) => collect_block_hover_symbols(text, &expression.body, symbols),
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_hover_symbols(text, element, symbols);

@@ -154,6 +154,7 @@ fn call_in_expression_at_offset(
     }
 
     let nested = match expression {
+        Expr::Closure(expression) => call_in_block_at_offset(&expression.body, offset, region),
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 crate::ast::InterpolatedStringPart::Expression(part) => {

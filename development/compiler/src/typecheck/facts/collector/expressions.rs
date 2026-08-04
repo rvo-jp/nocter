@@ -20,6 +20,28 @@ impl TypecheckFactCollector<'_> {
             &expression_type(expression, self.resolved, environment),
         );
         match expression {
+            Expr::Closure(closure) => {
+                let mut closure_environment = crate::typecheck::closures::environment_for_closure(
+                    closure,
+                    self.resolved,
+                    environment,
+                );
+                for parameter in &closure.parameters {
+                    self.record_environment_binding(
+                        parameter.name_span,
+                        &parameter.name,
+                        &closure_environment,
+                    );
+                }
+                let return_type = closure.return_type.as_ref().map(|ty| {
+                    type_expr_to_type_in_environment(ty, self.resolved, &closure_environment)
+                });
+                self.collect_block_facts(
+                    &closure.body,
+                    &mut closure_environment,
+                    return_type.as_ref(),
+                );
+            }
             Expr::Propagate(expression) => {
                 self.collect_expression_facts_in_context(
                     &expression.expression,

@@ -3,8 +3,92 @@ use super::support::{
     parse_text_with_sources,
 };
 use crate::ast::{
-    BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr, UnaryOperator,
+    BinaryOperator, ClosureCaptureMode, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr,
+    UnaryOperator,
 };
+
+#[test]
+fn parses_closure_parameters_result_and_explicit_captures() {
+    let output = parse_text(
+        r#"func main(threshold: i32, count: i32, prefix: i32): void {
+    let predicate = (&threshold, &+count, move prefix; value: i32): bool {
+        value > threshold
+    }
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Closure(closure) = &binding.initializer else {
+        panic!("expected closure expression");
+    };
+    assert_eq!(
+        closure
+            .captures
+            .iter()
+            .map(|capture| (capture.name.as_str(), capture.mode))
+            .collect::<Vec<_>>(),
+        vec![
+            ("threshold", ClosureCaptureMode::ReadonlyBorrow),
+            ("count", ClosureCaptureMode::ReadwriteBorrow),
+            ("prefix", ClosureCaptureMode::Move),
+        ]
+    );
+    assert_eq!(closure.parameters.len(), 1);
+    assert_eq!(closure.parameters[0].name, "value");
+    assert!(closure.parameters[0].ty.is_some());
+    assert!(closure.return_type.is_some());
+}
+
+#[test]
+fn distinguishes_zero_parameter_closures_from_grouped_expressions() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    let deferred = () { 1 }
+    return (1 + 2)
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    assert!(matches!(binding.initializer, Expr::Closure(_)));
+    let Stmt::Return(return_) = &function.body.statements[1] else {
+        panic!("expected return statement");
+    };
+    assert!(matches!(return_.expression, Some(Expr::Group(_))));
+}
+
+#[test]
+fn closure_ast_json_preserves_capture_and_parameter_roles() {
+    let (sources, output) = parse_text_with_sources(
+        r#"func main(source: i32): void {
+    let callback = (&source; value: i32) { value + source }
+    return
+}
+"#,
+    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let json = output.ast.unwrap().to_json(&sources);
+    let closure = find_json_node(&json, "closure_expression").expect("closure JSON node");
+    assert!(find_json_node(closure, "closure_capture_list").is_some());
+    assert!(find_json_node(closure, "closure_parameter_list").is_some());
+    assert!(find_json_node(closure, "closure_capture").is_some());
+}
 
 #[test]
 fn parses_otherwise_expression() {

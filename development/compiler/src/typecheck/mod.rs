@@ -5,6 +5,7 @@ mod arrays;
 mod bindings;
 mod body;
 mod calls;
+mod closures;
 mod conformance;
 mod controls;
 mod copyability;

@@ -148,6 +148,7 @@ pub(super) fn expression_uses_identifier(
     environment: &TypeEnvironment,
 ) -> bool {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().any(|capture| capture.name == name),
         Expr::TypedSequenceLiteral(expression) => {
             expression
                 .elements

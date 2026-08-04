@@ -1,5 +1,7 @@
 use super::Formatter;
-use crate::ast::{BinaryOperator, Expr, StructLiteralExpr, StructLiteralField, UnaryOperator};
+use crate::ast::{
+    BinaryOperator, ClosureExpr, Expr, StructLiteralExpr, StructLiteralField, UnaryOperator,
+};
 
 const PREC_OTHERWISE: u8 = 1;
 const PREC_LOGICAL_OR: u8 = 2;
@@ -24,6 +26,7 @@ impl Formatter {
         }
 
         match expression {
+            Expr::Closure(expression) => self.format_closure(expression),
             Expr::Identifier(expression) => self.write(&expression.name),
             Expr::IntegerLiteral(expression)
             | Expr::ByteLiteral(expression)
@@ -149,6 +152,37 @@ impl Formatter {
         self.write("}");
     }
 
+    fn format_closure(&mut self, expression: &ClosureExpr) {
+        self.write("(");
+        for (index, capture) in expression.captures.iter().enumerate() {
+            if index > 0 {
+                self.write(", ");
+            }
+            self.write(capture.mode.source_prefix());
+            self.write(&capture.name);
+        }
+        if !expression.captures.is_empty() || expression.capture_separator_span.is_some() {
+            self.write("; ");
+        }
+        for (index, parameter) in expression.parameters.iter().enumerate() {
+            if index > 0 {
+                self.write(", ");
+            }
+            self.write(&parameter.name);
+            if let Some(ty) = &parameter.ty {
+                self.write(": ");
+                self.format_type(ty);
+            }
+        }
+        self.write(")");
+        if let Some(return_type) = &expression.return_type {
+            self.write(": ");
+            self.format_type(return_type);
+        }
+        self.write(" ");
+        self.format_block(&expression.body);
+    }
+
     fn format_struct_literal_field(&mut self, field: &StructLiteralField) {
         self.write(&field.name);
         self.write(": ");
@@ -169,7 +203,8 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | Expr::Call(_)
         | Expr::Member(_)
         | Expr::Index(_) => PREC_POSTFIX,
-        Expr::Identifier(_)
+        Expr::Closure(_)
+        | Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
         | Expr::StringLiteral(_)

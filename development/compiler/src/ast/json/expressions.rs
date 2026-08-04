@@ -3,6 +3,55 @@ use super::*;
 impl Expr {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
+            Expr::Closure(expression) => {
+                let captures = expression
+                    .captures
+                    .iter()
+                    .map(|capture| {
+                        JsonAstNode::with_value(
+                            "closure_capture",
+                            format!("{}{}", capture.mode.source_prefix(), capture.name),
+                            json_span(sources, capture.span),
+                            Vec::new(),
+                        )
+                        .with_operator_span(json_span(sources, capture.operator_span))
+                    })
+                    .collect::<Vec<_>>();
+                let parameters = expression.parameters.iter().map(|parameter| {
+                    JsonAstNode::with_value(
+                        "closure_parameter",
+                        parameter.name.clone(),
+                        json_span(sources, parameter.span),
+                        parameter.ty.iter().map(|ty| ty.to_json(sources)).collect(),
+                    )
+                });
+                let mut children = Vec::new();
+                if !captures.is_empty() || expression.capture_separator_span.is_some() {
+                    children.push(JsonAstNode::new(
+                        "closure_capture_list",
+                        json_span(sources, expression.parameters_span),
+                        captures,
+                    ));
+                }
+                children.push(JsonAstNode::new(
+                    "closure_parameter_list",
+                    json_span(sources, expression.parameters_span),
+                    parameters.collect(),
+                ));
+                if let Some(return_type) = &expression.return_type {
+                    children.push(JsonAstNode::new(
+                        "closure_return_type",
+                        json_span(sources, return_type.span()),
+                        vec![return_type.to_json(sources)],
+                    ));
+                }
+                children.push(expression.body.to_json(sources));
+                JsonAstNode::new(
+                    "closure_expression",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
             Expr::Identifier(expression) => JsonAstNode::with_value(
                 "identifier",
                 expression.name.clone(),

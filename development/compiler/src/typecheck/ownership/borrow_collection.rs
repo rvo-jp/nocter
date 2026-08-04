@@ -186,6 +186,20 @@ pub(super) fn collect_direct_borrow_expressions(
     }
 
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                let is_readwrite = match capture.mode {
+                    crate::ast::ClosureCaptureMode::ReadonlyBorrow => false,
+                    crate::ast::ClosureCaptureMode::ReadwriteBorrow => true,
+                    crate::ast::ClosureCaptureMode::Move => continue,
+                };
+                borrows.push(DirectBorrowSource {
+                    source: BorrowPlace::whole(capture.name.clone()),
+                    source_span: capture.name_span,
+                    is_readwrite,
+                });
+            }
+        }
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
                 collect_direct_borrow_expressions(element, resolved, environment, borrows);

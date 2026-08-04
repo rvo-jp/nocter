@@ -193,6 +193,7 @@ fn collect_expression(
     facts: &mut Vec<RegionAnalysisFact>,
 ) {
     match expression {
+        Expr::Closure(expression) => collect_block(file, &expression.body, parent, facts),
         Expr::Catch(expression) => {
             collect_expression(file, &expression.expression, parent, facts);
             collect_block(file, &expression.catch_block, parent, facts);

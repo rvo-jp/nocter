@@ -11,6 +11,9 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
     summaries: &CallableProvenanceSummaries,
 ) {
     match expression {
+        // Closure returns are checked against the closure's own inferred
+        // callable contract by the closure checker.
+        Expr::Closure(_) => {}
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
                 check_expression_for_nested_returns(

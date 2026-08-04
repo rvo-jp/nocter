@@ -197,6 +197,18 @@ fn collect_expression_scope(
         return;
     }
     match expression {
+        Expr::Closure(expression) => {
+            if contains(expression.body.span, offset) {
+                locals.clear();
+                for capture in &expression.captures {
+                    define(locals, &capture.name, capture.name_span, "capture");
+                }
+                for parameter in &expression.parameters {
+                    define(locals, &parameter.name, parameter.name_span, "parameter");
+                }
+                collect_block(&expression.body, offset, locals);
+            }
+        }
         Expr::Catch(expression) => {
             if contains(expression.catch_block.span, offset) {
                 define(

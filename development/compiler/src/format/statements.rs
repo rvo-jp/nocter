@@ -272,7 +272,12 @@ impl Formatter {
 
 fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
     match expression {
-        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) | Expr::Otherwise(_) => false,
+        Expr::Closure(_)
+        | Expr::If(_)
+        | Expr::IfIs(_)
+        | Expr::Match(_)
+        | Expr::Catch(_)
+        | Expr::Otherwise(_) => false,
         Expr::ArrayLiteral(expression) => expression
             .elements
             .iter()

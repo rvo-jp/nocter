@@ -661,6 +661,18 @@ fn check_expression_tree(
     loop_depth: usize,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            let mut closure_environment =
+                super::closures::environment_for_closure(closure, resolved, environment);
+            check_block_expressions(
+                sources,
+                &closure.body,
+                resolved,
+                diagnostics,
+                &mut closure_environment,
+                0,
+            );
+        }
         Expr::Propagate(expression) => {
             check_expression_tree(
                 sources,

@@ -183,6 +183,9 @@ fn collect_expression(
     targets: &mut Vec<ImportedCallTarget>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            collect_block(&closure.body, root_source, resolved, targets);
+        }
         Expr::Call(call) => {
             if let Some(symbol) = resolved.symbol_for_call(call)
                 && let Some(target) = imported_call_target_for_symbol(

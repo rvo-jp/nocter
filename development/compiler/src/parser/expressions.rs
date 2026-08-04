@@ -454,6 +454,9 @@ impl Parser<'_> {
             TokenKind::Keyword(Keyword::Match) => self.parse_match_expression(),
             TokenKind::Punctuation("[") => self.parse_array_literal_expression(),
             TokenKind::Punctuation("(") => {
+                if self.looks_like_closure_expression() {
+                    return self.parse_closure_expression();
+                }
                 let start = self.bump();
                 let expression = self.parse_expression()?;
                 let end = self.expect_punctuation(")", "`)`")?;

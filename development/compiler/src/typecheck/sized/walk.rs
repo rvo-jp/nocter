@@ -173,6 +173,31 @@ fn check_expression(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for parameter in &closure.parameters {
+                if let Some(ty) = &parameter.ty {
+                    check_value_type(
+                        sources,
+                        ty,
+                        "closure parameter",
+                        resolved,
+                        self_type,
+                        diagnostics,
+                    );
+                }
+            }
+            if let Some(ty) = &closure.return_type {
+                check_value_type(
+                    sources,
+                    ty,
+                    "closure return",
+                    resolved,
+                    self_type,
+                    diagnostics,
+                );
+            }
+            check_block(sources, &closure.body, resolved, self_type, diagnostics);
+        }
         Expr::TypedSequenceLiteral(expression) => {
             check_value_type(
                 sources,

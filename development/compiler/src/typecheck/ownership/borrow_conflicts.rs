@@ -549,6 +549,16 @@ fn expression_move_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            (capture.mode == crate::ast::ClosureCaptureMode::Move)
+                .then(|| BorrowPlace::whole(capture.name.clone()))
+                .filter(|place| place.conflicts_with(source))
+                .map(|place| BorrowAction {
+                    place,
+                    span: capture.name_span,
+                    description: "move capture",
+                })
+        }),
         Expr::TypedSequenceLiteral(expression) => expression
             .elements
             .iter()
@@ -705,6 +715,14 @@ fn expression_read_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            let place = BorrowPlace::whole(capture.name.clone());
+            place.conflicts_with(source).then_some(BorrowAction {
+                place,
+                span: capture.name_span,
+                description: "closure capture",
+            })
+        }),
         Expr::TypedSequenceLiteral(expression) => expression
             .elements
             .iter()

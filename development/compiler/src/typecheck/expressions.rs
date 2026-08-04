@@ -74,6 +74,7 @@ pub(super) fn expression_type(
     environment: &TypeEnvironment,
 ) -> Type {
     match expression {
+        Expr::Closure(_) => Type::Unknown,
         Expr::IntegerLiteral(_) => Type::I32,
         Expr::ByteLiteral(_) => Type::Primitive("u8".to_string()),
         Expr::StringLiteral(_) => Type::Str,

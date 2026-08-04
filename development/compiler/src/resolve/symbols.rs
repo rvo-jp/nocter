@@ -1,5 +1,5 @@
 use crate::ast::{
-    BindingKind, CallExpr, Expr, IdentifierExpr, LiteralShape, MethodReceiver,
+    BindingKind, CallExpr, ClosureCaptureMode, Expr, IdentifierExpr, LiteralShape, MethodReceiver,
     ResultProvenanceClause, TypeExpr, Visibility,
 };
 use crate::diagnostics::Diagnostic;
@@ -302,6 +302,7 @@ pub enum LocalSymbolKind {
     Binding(BindingKind),
     Region,
     LiteralCapture,
+    ClosureCapture(ClosureCaptureMode),
     PatternPayload,
     CatchError,
     ForRange,

@@ -366,6 +366,88 @@ impl Parser<'_> {
         })
     }
 
+    pub(super) fn looks_like_closure_expression(&self) -> bool {
+        if !self.at_punctuation("(") || self.pending_token.is_some() {
+            return false;
+        }
+        let mut first = self.index + 1;
+        while matches!(
+            self.tokens.get(first).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            first += 1;
+        }
+        match self.tokens.get(first).map(|token| token.kind) {
+            Some(TokenKind::Punctuation(")")) => {}
+            Some(TokenKind::Identifier) => {
+                let mut after_name = first + 1;
+                while matches!(
+                    self.tokens.get(after_name).map(|token| token.kind),
+                    Some(TokenKind::Newline)
+                ) {
+                    after_name += 1;
+                }
+                if !matches!(
+                    self.tokens.get(after_name).map(|token| token.kind),
+                    Some(
+                        TokenKind::Punctuation(",")
+                            | TokenKind::Punctuation(":")
+                            | TokenKind::Punctuation(")")
+                    )
+                ) {
+                    return false;
+                }
+            }
+            Some(
+                TokenKind::Punctuation("&")
+                | TokenKind::Punctuation("&+")
+                | TokenKind::Keyword(crate::lexer::Keyword::Move),
+            ) => {}
+            _ => return false,
+        }
+        let mut depth = 0usize;
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index).map(|token| token.kind) {
+                Some(TokenKind::Punctuation("(")) => depth += 1,
+                Some(TokenKind::Punctuation(")")) => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        index += 1;
+                        break;
+                    }
+                }
+                Some(TokenKind::Eof) | None => return false,
+                _ => {}
+            }
+            index += 1;
+        }
+        while matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            index += 1;
+        }
+        matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Punctuation("{") | TokenKind::Punctuation(":"))
+        )
+    }
+
+    pub(super) fn closure_header_has_capture_separator(&self) -> bool {
+        if self.pending_token.is_some() {
+            return false;
+        }
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index).map(|token| token.kind) {
+                Some(TokenKind::Punctuation(";")) => return true,
+                Some(TokenKind::Punctuation(")")) | Some(TokenKind::Eof) | None => return false,
+                _ => index += 1,
+            }
+        }
+    }
+
     fn typed_literal_shape_token(&self) -> Option<&Token> {
         let index = self.typed_literal_shape_index()?;
         self.tokens.get(index)

@@ -185,6 +185,19 @@ impl TypeEnvironment {
         }
     }
 
+    /// Starts a nested callable scope without leaking the enclosing callable's
+    /// locals. Generic declarations and `Self` remain visible because they are
+    /// lexical type scope, while captures are reintroduced explicitly.
+    pub(super) fn nested_callable_scope(&self) -> Self {
+        Self {
+            bindings: HashMap::new(),
+            literal_packs: HashMap::new(),
+            self_type: self.self_type.clone(),
+            generic_parameters: self.generic_parameters.clone(),
+            generic_bounds: self.generic_bounds.clone(),
+        }
+    }
+
     pub(super) fn define(&mut self, name: String, ty: Type) {
         self.define_binding(name, ty, false);
     }

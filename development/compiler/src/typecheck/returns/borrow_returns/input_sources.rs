@@ -160,6 +160,7 @@ pub(in crate::typecheck::returns) fn borrow_return_provenance_for_local_storage(
             format!("literal-pack loop binding `{}`", identifier.name)
         }
         LocalSymbolKind::LiteralCapture => format!("literal pack `{}`", identifier.name),
+        LocalSymbolKind::ClosureCapture(_) => format!("closure capture `{}`", identifier.name),
     };
 
     Some(ValueProvenance::scope(symbol.name_span, source))

@@ -16,6 +16,24 @@ fn assert_formats_stably(input: &str, expected: &str) {
 }
 
 #[test]
+fn formats_closures_and_explicit_captures_stably() {
+    assert_formats_stably(
+        r#"func main(source: i32, count: i32): void {
+let callback=(&source,&+count;value:i32):bool {
+value>source
+}
+return
+}
+"#,
+        r#"func main(source: i32, count: i32): void {
+    let callback = (&source, &+count; value: i32): bool { value > source }
+    return
+}
+"#,
+    );
+}
+
+#[test]
 fn formats_top_level_items_and_blocks() {
     assert_formats_stably(
         r#"pub   func   main(  ):i32{

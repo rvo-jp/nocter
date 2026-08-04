@@ -2,6 +2,7 @@
 
 mod body;
 mod builtins;
+mod closures;
 mod collector;
 mod conformance;
 mod diagnostics;

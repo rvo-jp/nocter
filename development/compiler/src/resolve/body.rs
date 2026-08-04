@@ -1,7 +1,7 @@
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
-    builtin_name_reuse_diagnostic, unqualified_enum_variant_constructor_diagnostic,
-    unresolved_identifier_diagnostic,
+    builtin_name_reuse_diagnostic, implicit_closure_capture_diagnostic,
+    unqualified_enum_variant_constructor_diagnostic, unresolved_identifier_diagnostic,
 };
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
@@ -318,6 +318,7 @@ impl Resolver<'_> {
 
     pub(super) fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
         match expression {
+            Expr::Closure(expression) => self.resolve_closure(expression, scope),
             Expr::Identifier(expression) => self.resolve_identifier(expression, scope),
             Expr::Propagate(expression) => self.resolve_expression(&expression.expression, scope),
             Expr::Force(expression) => self.resolve_expression(&expression.expression, scope),
@@ -474,6 +475,18 @@ impl Resolver<'_> {
             return;
         }
 
+        if let Some(declaration_span) = scope.blocked_local(&identifier.name) {
+            self.output
+                .diagnostics
+                .push(implicit_closure_capture_diagnostic(
+                    self.sources,
+                    &identifier.name,
+                    identifier.span,
+                    declaration_span,
+                ));
+            return;
+        }
+
         if let Some(symbol_id) = self.resolve_top_level_name(identifier, scope) {
             self.output
                 .identifier_targets
@@ -609,6 +622,7 @@ impl Resolver<'_> {
 pub(super) struct Scope {
     locals: HashMap<String, LocalBinding>,
     symbols: HashMap<String, ScopedSymbolBinding>,
+    blocked_locals: HashMap<String, ByteSpan>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -641,6 +655,28 @@ impl Scope {
 
     pub(super) fn resolve_symbol(&self, name: &str) -> Option<SymbolId> {
         self.symbols.get(name).map(|symbol| symbol.id)
+    }
+
+    pub(super) fn blocked_local(&self, name: &str) -> Option<ByteSpan> {
+        self.blocked_locals.get(name).copied()
+    }
+
+    pub(super) fn without_locals(&self) -> Self {
+        let mut blocked_locals = self.blocked_locals.clone();
+        blocked_locals.extend(
+            self.locals
+                .iter()
+                .map(|(name, binding)| (name.clone(), binding.span)),
+        );
+        Self {
+            locals: HashMap::new(),
+            symbols: self.symbols.clone(),
+            blocked_locals,
+        }
+    }
+
+    pub(super) fn unblock_local(&mut self, name: &str) {
+        self.blocked_locals.remove(name);
     }
 
     pub(super) fn define(&mut self, name: String, span: ByteSpan, id: LocalSymbolId) {

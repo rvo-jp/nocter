@@ -50,6 +50,9 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_expressio
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            (capture.mode == crate::ast::ClosureCaptureMode::Move).then_some(capture.operator_span)
+        }),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) {
                 explicit_aggregate_move_matches_identifier(

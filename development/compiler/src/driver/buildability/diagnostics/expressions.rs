@@ -14,6 +14,22 @@ pub(in crate::driver::buildability) fn collect_expression_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            collect_block_diagnostics(
+                &closure.body,
+                closure.return_type.as_ref(),
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)

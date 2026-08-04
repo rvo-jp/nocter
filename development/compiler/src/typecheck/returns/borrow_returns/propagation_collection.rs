@@ -244,6 +244,9 @@ pub(in crate::typecheck::returns) fn collect_expression_fallible_propagation_pro
     flow: &mut ProvenanceFlow,
 ) {
     match expression {
+        // A closure body propagates through its generated call target, not the
+        // enclosing callable being summarized here.
+        Expr::Closure(_) => {}
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_fallible_propagation_provenance(

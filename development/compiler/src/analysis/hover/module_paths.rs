@@ -124,6 +124,7 @@ pub(in crate::analysis::hover) fn module_path_in_expression_at_offset(
     offset: usize,
 ) -> Option<&ModulePath> {
     match expression {
+        Expr::Closure(expression) => module_path_in_block_at_offset(&expression.body, offset),
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 InterpolatedStringPart::Expression(part) => {

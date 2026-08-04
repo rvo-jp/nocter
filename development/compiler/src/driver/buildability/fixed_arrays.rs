@@ -203,6 +203,8 @@ fn fixed_array_owned_element_initializer_is_buildable_with_tracking(expression: 
 
 fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
     match expression {
+        // Creating a closure does not execute its body.
+        Expr::Closure(_) => true,
         Expr::Propagate(_)
         | Expr::Catch(_)
         | Expr::Otherwise(_)

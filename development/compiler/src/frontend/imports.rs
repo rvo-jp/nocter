@@ -124,6 +124,7 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
 
 fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a ModulePath>) {
     match expression {
+        Expr::Closure(expression) => collect_block_import_paths(&expression.body, paths),
         Expr::Catch(expression) => {
             collect_expression_import_paths(&expression.expression, paths);
             collect_block_import_paths(&expression.catch_block, paths);

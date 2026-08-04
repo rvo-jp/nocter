@@ -629,6 +629,14 @@ fn visit_statement_expressions(statement: &Stmt, visitor: &mut impl FnMut(&Expr)
 
 fn visit_expression_children(expression: &Expr, visitor: &mut impl FnMut(&Expr)) {
     match expression {
+        Expr::Closure(closure) => {
+            for statement in &closure.body.statements {
+                visit_statement_expressions(statement, visitor);
+            }
+            if let Some(result) = &closure.body.result {
+                visitor(result);
+            }
+        }
         Expr::Unary(expression) => visitor(&expression.operand),
         Expr::Binary(expression) => {
             visitor(&expression.left);

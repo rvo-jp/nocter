@@ -174,6 +174,9 @@ fn check_expression_blocks(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            check_block(sources, &closure.body, parent, tree, diagnostics);
+        }
         Expr::TypedSequenceLiteral(expression) => {
             for element in &expression.elements {
                 check_expression_blocks(sources, element, parent, tree, diagnostics);

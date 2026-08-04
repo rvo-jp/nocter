@@ -265,6 +265,7 @@ fn collect_statement_import_sites<'a>(statement: &'a Stmt, sites: &mut Vec<Impor
 
 fn collect_expression_import_sites<'a>(expression: &'a Expr, sites: &mut Vec<ImportSite<'a>>) {
     match expression {
+        Expr::Closure(expression) => collect_block_import_sites(&expression.body, sites),
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 if let InterpolatedStringPart::Expression(part) = part {

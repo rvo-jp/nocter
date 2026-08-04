@@ -94,6 +94,10 @@ pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_matching
     matches_move: &impl Fn(&str, &LoweringContext) -> bool,
 ) -> bool {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode == crate::ast::ClosureCaptureMode::Move
+                && matches_move(&capture.name, context)
+        }),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
                 matches_move(&identifier.name, context)
@@ -593,6 +597,13 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
     context: &mut LoweringContext,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                if capture.mode == crate::ast::ClosureCaptureMode::Move {
+                    context.mark_aggregate_local_moved(&capture.name);
+                }
+            }
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
                 context.mark_aggregate_local_moved(&identifier.name);

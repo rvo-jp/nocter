@@ -532,6 +532,17 @@ fn check_expression(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for parameter in &closure.parameters {
+                if let Some(ty) = &parameter.ty {
+                    check_type_expr(sources, ty, resolved, scope, diagnostics);
+                }
+            }
+            if let Some(ty) = &closure.return_type {
+                check_type_expr(sources, ty, resolved, scope, diagnostics);
+            }
+            check_block(sources, &closure.body, resolved, scope, diagnostics);
+        }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 if let InterpolatedStringPart::Expression(part) = part {
