@@ -24,15 +24,59 @@ pub struct String {
     len: usize
 }
 
-/// Copies a static string view into owned storage in the current allocation context.
-pub literal String ""(text: &str): Self from current {
-    return String.copy(text)
-}
+construct String {
+    /// Copies a static string view into owned storage in the current allocation context.
+    pub default literal ""(text: &str): Self from current {
+        return String.copy(text)
+    }
 
-pub func String.empty(): String {
-    return String {
-        storage: empty_page_buffer(1),
-        len: 0,
+    pub func empty(): Self {
+        return String {
+            storage: empty_page_buffer(1),
+            len: 0,
+        }
+    }
+
+    pub func with_capacity(requested_capacity: usize): Self {
+        var allocator = current_allocator()
+        return String {
+            storage: alloc(&+allocator, requested_capacity, 1),
+            len: 0,
+        }
+    }
+
+    pub func try_with_capacity(
+        allocator: &+TryAllocator,
+        requested_capacity: usize,
+    ): Self! {
+        return String {
+            storage: try_alloc(allocator, requested_capacity, 1)?,
+            len: 0,
+        }
+    }
+
+    pub func from_str(value: &str): Self {
+        let value_len: usize = value.len()
+        var result = String.with_capacity(value_len)
+        copy_str_to_ptr(result.storage.ptr, 0, value)
+        result.len = value_len
+        return move result
+    }
+
+    pub func copy(value: &str): Self {
+        return String.from_str(value)
+    }
+
+    pub func try_from_str(allocator: &+TryAllocator, value: &str): Self! {
+        let value_len: usize = value.len()
+        var result = String.try_with_capacity(allocator, value_len)?
+        copy_str_to_ptr(result.storage.ptr, 0, value)
+        result.len = value_len
+        return move result
+    }
+
+    pub func try_copy(allocator: &+TryAllocator, value: &str): Self! {
+        return String.try_from_str(allocator, value)?
     }
 }
 
@@ -40,26 +84,8 @@ pub func empty(): String {
     return String.empty()
 }
 
-pub func String.with_capacity(requested_capacity: usize): String {
-    var allocator = current_allocator()
-    return String {
-        storage: alloc(&+allocator, requested_capacity, 1),
-        len: 0,
-    }
-}
-
 pub func with_capacity(requested_capacity: usize): String {
     return String.with_capacity(requested_capacity)
-}
-
-pub func String.try_with_capacity(
-    allocator: &+TryAllocator,
-    requested_capacity: usize,
-): String! {
-    return String {
-        storage: try_alloc(allocator, requested_capacity, 1)?,
-        len: 0,
-    }
 }
 
 pub func try_with_capacity(
@@ -69,35 +95,11 @@ pub func try_with_capacity(
     return String.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func String.from_str(value: &str): String {
-    let value_len: usize = value.len()
-    var result = String.with_capacity(value_len)
-    copy_str_to_ptr(result.storage.ptr, 0, value)
-    result.len = value_len
-    return move result
-}
-
 pub func from_str(value: &str): String {
     return String.from_str(value)
 }
 
-pub func String.copy(value: &str): String {
-    return String.from_str(value)
-}
-
-pub func String.try_from_str(allocator: &+TryAllocator, value: &str): String! {
-    let value_len: usize = value.len()
-    var result = String.try_with_capacity(allocator, value_len)?
-    copy_str_to_ptr(result.storage.ptr, 0, value)
-    result.len = value_len
-    return move result
-}
-
 pub func try_from_str(allocator: &+TryAllocator, value: &str): String! {
-    return String.try_from_str(allocator, value)?
-}
-
-pub func String.try_copy(allocator: &+TryAllocator, value: &str): String! {
     return String.try_from_str(allocator, value)?
 }
 

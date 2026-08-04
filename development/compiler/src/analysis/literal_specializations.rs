@@ -265,15 +265,25 @@ fn infer_literal_target_substitutions(
 }
 
 fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<ByteSpan, &LiteralDecl> {
-    analysis
-        .files
-        .iter()
-        .flat_map(|file| file.ast.items.iter())
-        .filter_map(|item| match item {
-            Item::Literal(literal) => Some((literal.span, literal)),
-            _ => None,
-        })
-        .collect()
+    let mut declarations = HashMap::new();
+    for file in &analysis.files {
+        for item in &file.ast.items {
+            match item {
+                Item::Literal(literal) => {
+                    declarations.insert(literal.span, literal);
+                }
+                Item::Construct(construct) => {
+                    declarations.extend(
+                        construct
+                            .literals()
+                            .map(|(_, literal)| (literal.span, literal)),
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    declarations
 }
 
 fn literal_generic_parameters(literal: &LiteralDecl) -> HashSet<String> {

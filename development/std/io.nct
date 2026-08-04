@@ -138,9 +138,11 @@ pub func open(path: &str): File! {
     return File.open(path)?
 }
 
-pub func File.open(path: &str): File! {
-    let fd = open_read_fd(path)?
-    return File { fd: fd, close_on_drop: true }
+construct File {
+    pub default func open(path: &str): Self! {
+        let fd = open_read_fd(path)?
+        return File { fd: fd, close_on_drop: true }
+    }
 }
 
 pub func read(file: &+File, buffer: &+[u8]): usize! {

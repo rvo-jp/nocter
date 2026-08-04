@@ -72,14 +72,20 @@ impl<'a> LoweringContext<'a> {
         let resolution = self.call_resolution.as_ref()?;
         let signature = resolution.resolved.call_signature_for_call(call)?;
         let mut return_type = signature.return_type.clone();
+        let mut call_substitutions = HashMap::new();
         if let Some(specialization) = resolution
             .typecheck_facts
             .function_call_specialization(call.span)
         {
             let specialization =
                 specialization.with_context_substitutions(&self.generic_substitutions)?;
+            call_substitutions = specialization.substitutions.clone();
             return_type =
                 substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+        }
+        if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
+            let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
+            return_type = type_expr_with_self_type(&return_type, &self_ty);
         }
         Some(substitute_type_expr_parameters(
             &return_type,
@@ -122,6 +128,7 @@ impl<'a> LoweringContext<'a> {
         let signature = resolution.resolved.call_signature_for_call(call)?;
         let parameter = signature.parameters.get(index)?;
         let mut ty = parameter.ty.clone();
+        let mut call_substitutions = HashMap::new();
         if let Some(specialization) = resolution
             .typecheck_facts
             .function_call_specialization(call.span)
@@ -129,7 +136,12 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
+            call_substitutions = specialization.substitutions.clone();
             ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+        }
+        if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
+            let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
+            ty = type_expr_with_self_type(&ty, &self_ty);
         }
         Some(substitute_type_expr_parameters(
             &ty,
@@ -650,4 +662,35 @@ impl<'a> LoweringContext<'a> {
             &self.generic_substitutions,
         ))
     }
+}
+
+fn associated_function_self_type_expr(
+    owner: &crate::resolve::TypeSymbol,
+    span: ByteSpan,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> TypeExpr {
+    if owner.generic_parameters.is_empty() {
+        return TypeExpr::Reference(crate::ast::TypeReference {
+            span,
+            name: owner.canonical_name.clone(),
+        });
+    }
+
+    TypeExpr::Generic(crate::ast::GenericType {
+        span,
+        name: owner.canonical_name.clone(),
+        name_span: span,
+        arguments: owner
+            .generic_parameters
+            .iter()
+            .map(|parameter| {
+                substitutions.get(parameter).cloned().unwrap_or_else(|| {
+                    TypeExpr::Reference(crate::ast::TypeReference {
+                        span,
+                        name: parameter.clone(),
+                    })
+                })
+            })
+            .collect(),
+    })
 }

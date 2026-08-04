@@ -48,6 +48,10 @@ pub(super) fn check_known_function_call(
     }
 
     let substitutions = infer_generic_substitutions(call, signature, resolved, environment);
+    let specialized_self_type = signature
+        .self_type
+        .as_ref()
+        .map(|ty| ty.substitute_parameters(&substitutions));
     check_generic_interface_bounds(
         sources,
         call,
@@ -66,7 +70,7 @@ pub(super) fn check_known_function_call(
         let expected = type_expr_to_type_with_substitutions(
             &parameter.ty,
             resolved,
-            signature.self_type.as_ref(),
+            specialized_self_type.as_ref(),
             &substitutions,
         );
         let actual = expression_type(argument, resolved, environment);
@@ -106,10 +110,14 @@ pub(super) fn call_return_type(
     environment: &TypeEnvironment,
 ) -> Type {
     let substitutions = infer_generic_substitutions(call, signature, resolved, environment);
+    let specialized_self_type = signature
+        .self_type
+        .as_ref()
+        .map(|ty| ty.substitute_parameters(&substitutions));
     type_expr_to_type_with_substitutions(
         &signature.signature.return_type,
         resolved,
-        signature.self_type.as_ref(),
+        specialized_self_type.as_ref(),
         &substitutions,
     )
 }
@@ -162,7 +170,7 @@ pub(super) fn resolved_call_signature<'a>(
     if let Some((owner, function)) = resolved.associated_function_for_call(call) {
         return Some(CheckedCallSignature {
             signature: &function.signature,
-            self_type: Some(Type::Named(owner.canonical_name.clone())),
+            self_type: Some(type_symbol_self_type(owner)),
             impl_target_ty: None,
             name: format!("{}.{}", owner.canonical_name, function.name),
             kind: CheckedCallKind::AssociatedFunction,
@@ -184,6 +192,21 @@ pub(super) fn resolved_call_signature<'a>(
             declaration_span: Some(method.name_span),
         }
     })
+}
+
+fn type_symbol_self_type(owner: &TypeSymbol) -> Type {
+    if owner.generic_parameters.is_empty() {
+        return Type::Named(owner.canonical_name.clone());
+    }
+
+    Type::Generic {
+        name: owner.canonical_name.clone(),
+        arguments: owner
+            .generic_parameters
+            .iter()
+            .map(|parameter| Type::Parameter(parameter.clone()))
+            .collect(),
+    }
 }
 
 pub(super) fn resolved_method_for_call<'a>(

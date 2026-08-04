@@ -462,12 +462,21 @@ fn function_declaration_for_span(
 ) -> Option<(&FileAnalysis, &FunctionDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
-            let Item::Function(function) = item else {
-                return None;
-            };
-            (function.name_span == declaration_span
-                || function.member_name_span == declaration_span)
-                .then_some((file, function))
+            let function = match item {
+                Item::Function(function)
+                    if function.name_span == declaration_span
+                        || function.member_name_span == declaration_span =>
+                {
+                    Some(function)
+                }
+                Item::Construct(construct) => construct.functions().find_map(|(_, function)| {
+                    (function.name_span == declaration_span
+                        || function.member_name_span == declaration_span)
+                        .then_some(function)
+                }),
+                _ => None,
+            }?;
+            Some((file, function))
         })
     })
 }

@@ -34,135 +34,137 @@ pub struct Vec<T> {
     capacity: usize
 }
 
-/// Constructs a Vec from owned elements evaluated from left to right.
-pub literal Vec<T> [](...items: T): Self from current {
-    let item_count: usize = items.len()
-    if item_count == 0 {
-        return Vec.empty()
+construct Vec<T> {
+    /// Constructs a Vec from owned elements evaluated from left to right.
+    pub default literal [](...items: T): Self from current {
+        let item_count: usize = items.len()
+        if item_count == 0 {
+            return Vec.empty()
+        }
+        var result: Vec<T> = Vec.with_capacity(item_count)
+        for item in items {
+            result.push(move item)
+        }
+        return move result
     }
-    var result: Vec<T> = Vec.with_capacity(item_count)
-    for item in items {
-        result.push(move item)
-    }
-    return move result
-}
 
-pub func Vec.empty<T>(): Vec<T> {
-    let pointer: *T = from_addr(1)
-    let element_align: usize = pointee_align(pointer)
-    let storage = empty_page_buffer(element_align)
-    let result = Vec<T> {
-        ptr: from_addr(1),
-        storage: move storage,
-        len: 0,
-        capacity: 0,
+    pub func empty(): Self {
+        let pointer: *T = from_addr(1)
+        let element_align: usize = pointee_align(pointer)
+        let storage = empty_page_buffer(element_align)
+        let result = Vec<T> {
+            ptr: from_addr(1),
+            storage: move storage,
+            len: 0,
+            capacity: 0,
+        }
+        return move result
     }
-    return move result
+
+    pub func with_capacity(requested_capacity: usize): Self {
+        let empty_pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(empty_pointer)
+        if element_size == 0 {
+            allocation_abort_raw()
+        }
+        if requested_capacity > 18446744073709551615 / element_size {
+            allocation_abort_raw()
+        }
+
+        let byte_capacity: usize = requested_capacity * element_size
+        var allocator = current_allocator()
+        let storage = alloc(&+allocator, byte_capacity, pointee_align(empty_pointer))
+        let address: usize = addr(storage.ptr)
+        return Vec<T> {
+            ptr: from_addr(address),
+            storage: move storage,
+            len: 0,
+            capacity: requested_capacity,
+        }
+    }
+
+    pub func try_with_capacity(
+        allocator: &+TryAllocator,
+        requested_capacity: usize,
+    ): Self! {
+        let empty_pointer: *T = from_addr(1)
+        let element_size: usize = pointee_size(empty_pointer)
+        if element_size == 0 {
+            return unsupported()
+        }
+        if requested_capacity > 18446744073709551615 / element_size {
+            return capacity_overflow()
+        }
+
+        let byte_capacity: usize = requested_capacity * element_size
+        let storage = try_alloc(allocator, byte_capacity, pointee_align(empty_pointer))?
+        let address: usize = addr(storage.ptr)
+        return Vec<T> {
+            ptr: from_addr(address),
+            storage: move storage,
+            len: 0,
+            capacity: requested_capacity,
+        }
+    }
+
+    pub func from_slice(values: &[T]): Self {
+        var result: Vec<T> = Vec.with_capacity(values.len())
+        var index: usize = 0
+        while index < values.len() {
+            result.push(values[index])
+            index = index + 1
+        }
+        return move result
+    }
+
+    /// Consumes an iterator and grows a Vec without an intermediate collection.
+    pub func from_iter<I: Iterator<T>>(iterator: I): Self from current {
+        var result: Vec<T> = Vec.empty()
+        for item in iterator {
+            result.push(move item)
+        }
+        return move result
+    }
+
+    /// Consumes an exact iterator after reserving its initial reported remainder.
+    pub func from_exact_iter<I: Iterator<T> + ExactSizeIterator<T>>(
+        iterator: I,
+    ): Self from current {
+        var source = move iterator
+        let initial_len: usize = source.remaining_len()
+        var result: Vec<T> = Vec.empty()
+        result.reserve(initial_len)
+        for item in source {
+            result.push(move item)
+        }
+        return move result
+    }
+
+    pub func try_from_slice(allocator: &+TryAllocator, values: &[T]): Self! {
+        var result: Vec<T> = Vec.try_with_capacity(allocator, values.len())?
+        var index: usize = 0
+        while index < values.len() {
+            result.try_push(values[index])?
+            index = index + 1
+        }
+        return move result
+    }
 }
 
 pub func empty<T>(): Vec<T> {
     return Vec.empty()
 }
 
-pub func Vec.with_capacity<T>(requested_capacity: usize): Vec<T> {
-    let empty_pointer: *T = from_addr(1)
-    let element_size: usize = pointee_size(empty_pointer)
-    if element_size == 0 {
-        allocation_abort_raw()
-    }
-    if requested_capacity > 18446744073709551615 / element_size {
-        allocation_abort_raw()
-    }
-
-    let byte_capacity: usize = requested_capacity * element_size
-    var allocator = current_allocator()
-    let storage = alloc(&+allocator, byte_capacity, pointee_align(empty_pointer))
-    let address: usize = addr(storage.ptr)
-    return Vec<T> {
-        ptr: from_addr(address),
-        storage: move storage,
-        len: 0,
-        capacity: requested_capacity,
-    }
-}
-
 pub func with_capacity<T>(requested_capacity: usize): Vec<T> {
     return Vec.with_capacity(requested_capacity)
-}
-
-pub func Vec.try_with_capacity<T>(
-    allocator: &+TryAllocator,
-    requested_capacity: usize,
-): Vec<T>! {
-    let empty_pointer: *T = from_addr(1)
-    let element_size: usize = pointee_size(empty_pointer)
-    if element_size == 0 {
-        return unsupported()
-    }
-    if requested_capacity > 18446744073709551615 / element_size {
-        return capacity_overflow()
-    }
-
-    let byte_capacity: usize = requested_capacity * element_size
-    let storage = try_alloc(allocator, byte_capacity, pointee_align(empty_pointer))?
-    let address: usize = addr(storage.ptr)
-    return Vec<T> {
-        ptr: from_addr(address),
-        storage: move storage,
-        len: 0,
-        capacity: requested_capacity,
-    }
 }
 
 pub func try_with_capacity<T>(allocator: &+TryAllocator, requested_capacity: usize): Vec<T>! {
     return Vec.try_with_capacity(allocator, requested_capacity)?
 }
 
-pub func Vec.from_slice<T>(values: &[T]): Vec<T> {
-    var result: Vec<T> = Vec.with_capacity(values.len())
-    var index: usize = 0
-    while index < values.len() {
-        result.push(values[index])
-        index = index + 1
-    }
-    return move result
-}
-
-/// Consumes an iterator and grows a Vec without an intermediate collection.
-pub func Vec.from_iter<T, I: Iterator<T>>(iterator: I): Vec<T> from current {
-    var result: Vec<T> = Vec.empty()
-    for item in iterator {
-        result.push(move item)
-    }
-    return move result
-}
-
-/// Consumes an exact iterator after reserving its initial reported remainder.
-pub func Vec.from_exact_iter<T, I: Iterator<T> + ExactSizeIterator<T>>(
-    iterator: I,
-): Vec<T> from current {
-    var source = move iterator
-    let initial_len: usize = source.remaining_len()
-    var result: Vec<T> = Vec.empty()
-    result.reserve(initial_len)
-    for item in source {
-        result.push(move item)
-    }
-    return move result
-}
-
 pub func from_slice<T>(values: &[T]): Vec<T> {
     return Vec.from_slice(values)
-}
-
-pub func Vec.try_from_slice<T>(allocator: &+TryAllocator, values: &[T]): Vec<T>! {
-    var result: Vec<T> = Vec.try_with_capacity(allocator, values.len())?
-    var index: usize = 0
-    while index < values.len() {
-        result.try_push(values[index])?
-        index = index + 1
-    }
-    return move result
 }
 
 pub func try_from_slice<T>(allocator: &+TryAllocator, values: &[T]): Vec<T>! {

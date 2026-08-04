@@ -146,6 +146,57 @@ pub(super) fn check_return_types(
                     summaries,
                 );
             }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let mut environment = environment_for_function(function, resolved);
+                    let mut borrow_provenance = ProvenanceEnvironment::default();
+                    let context = ReturnContext::new(
+                        CallableKind::AssociatedFunction(function.name.clone()),
+                        type_expr_to_type_in_environment(
+                            &function.return_type,
+                            resolved,
+                            &environment,
+                        ),
+                        function.return_type.span(),
+                    );
+                    check_fallible_success_type(sources, &context, diagnostics);
+                    check_block_returns(
+                        sources,
+                        &function.body,
+                        &context,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        &mut borrow_provenance,
+                        summaries,
+                    );
+                }
+                for (_, literal) in construct.literals() {
+                    let mut environment = environment_for_literal(literal, resolved);
+                    let mut borrow_provenance = ProvenanceEnvironment::default();
+                    let context = ReturnContext::new(
+                        CallableKind::Literal(
+                            crate::typecheck::type_expr::type_expr_display_lossy(&literal.target),
+                        ),
+                        type_expr_to_type_in_environment(
+                            &literal.return_type,
+                            resolved,
+                            &environment,
+                        ),
+                        literal.return_type.span(),
+                    );
+                    check_block_returns(
+                        sources,
+                        &literal.body,
+                        &context,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        &mut borrow_provenance,
+                        summaries,
+                    );
+                }
+            }
             _ => {}
         }
     }

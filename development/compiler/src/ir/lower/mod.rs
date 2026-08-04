@@ -35,8 +35,9 @@ use crate::analysis::{
     literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl, Parameter,
-    Stmt, TypeExpr, TypeReference, substitute_type_expr_parameters, type_expr_display_lossy,
+    DropDecl, FunctionDecl, GenericType, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl,
+    Parameter, Stmt, TypeExpr, TypeReference, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -427,6 +428,68 @@ impl<'a> FunctionIndex<'a> {
                             );
                         }
                     }
+                    Item::Construct(construct) => {
+                        for (_, function) in construct.functions() {
+                            if function.generics.parameters.is_empty() {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    function.name.clone(),
+                                );
+                                definitions
+                                    .insert(target, IndexedCallable::new_function(function, file));
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .functions
+                                .get(&function.name_span)
+                                .or_else(|| {
+                                    call_specializations
+                                        .functions
+                                        .get(&function.member_name_span)
+                                })
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function_specialization(
+                                        function,
+                                        specialization.substitutions.clone(),
+                                        specialization.target_name.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                        for (_, literal) in construct.literals() {
+                            for specialization in call_specializations
+                                .literals
+                                .get(&literal.span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_literal(
+                                        literal,
+                                        specialization.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -517,10 +580,12 @@ impl<'a> FunctionIndex<'a> {
 
 impl<'a> IndexedCallable<'a> {
     fn new_function(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+        let mut substitutions = HashMap::new();
+        insert_function_self_substitution(declaration, &file.resolved, &mut substitutions);
         Self {
             declaration: IndexedDeclaration::Function {
                 declaration,
-                substitutions: HashMap::new(),
+                substitutions,
                 name: declaration.name.clone(),
             },
             resolved: &file.resolved,
@@ -530,10 +595,11 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_function_specialization(
         declaration: &'a FunctionDecl,
-        substitutions: HashMap<String, TypeExpr>,
+        mut substitutions: HashMap<String, TypeExpr>,
         name: String,
         file: &'a FileAnalysis,
     ) -> Self {
+        insert_function_self_substitution(declaration, &file.resolved, &mut substitutions);
         Self {
             declaration: IndexedDeclaration::Function {
                 declaration,
@@ -1004,6 +1070,44 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Closure { .. } => None,
         }
     }
+}
+
+fn insert_function_self_substitution(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+    substitutions: &mut HashMap<String, TypeExpr>,
+) {
+    let Some(owner) = &function.owner else {
+        return;
+    };
+    let Some(symbol) = resolved.type_symbol_by_name(&owner.name) else {
+        return;
+    };
+    let self_ty = if symbol.generic_parameters.is_empty() {
+        TypeExpr::Reference(TypeReference {
+            span: owner.name_span,
+            name: owner.name.clone(),
+        })
+    } else {
+        TypeExpr::Generic(GenericType {
+            span: owner.name_span,
+            name: owner.name.clone(),
+            name_span: owner.name_span,
+            arguments: symbol
+                .generic_parameters
+                .iter()
+                .map(|parameter| {
+                    substitutions.get(parameter).cloned().unwrap_or_else(|| {
+                        TypeExpr::Reference(TypeReference {
+                            span: owner.name_span,
+                            name: parameter.clone(),
+                        })
+                    })
+                })
+                .collect(),
+        })
+    };
+    substitutions.insert("Self".to_string(), self_ty);
 }
 
 fn literal_parameters(

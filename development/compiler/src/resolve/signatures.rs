@@ -1,6 +1,7 @@
 use super::{
-    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    MethodSignature, ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
+    DropSignature, EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature,
+    StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
     AstFile, FunctionDecl, GenericParamList, ImplDecl, ImplMember, InterfaceDecl, MethodDecl,
@@ -254,6 +255,7 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        construction: ConstructionSurface::default(),
     }
 }
 
@@ -287,6 +289,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        construction: ConstructionSurface::default(),
     }
 }
 
@@ -329,6 +332,17 @@ pub(super) fn struct_type_symbol(
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        construction: {
+            let mut surface = ConstructionSurface::default();
+            surface.entries.push(ConstructionEntry {
+                kind: ConstructionEntryKind::Structural,
+                declaration_span: struct_.span,
+                focus_span: struct_.name_span,
+                is_accessible: true,
+            });
+            surface.default_entry = Some(0);
+            surface
+        },
     }
 }
 
@@ -366,6 +380,20 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
         interface_conformances: Vec::new(),
         drop_member: None,
         literals: Vec::new(),
+        construction: ConstructionSurface {
+            declaration_span: None,
+            entries: enum_
+                .variants
+                .iter()
+                .map(|variant| ConstructionEntry {
+                    kind: ConstructionEntryKind::Variant(variant.name.clone()),
+                    declaration_span: variant.span,
+                    focus_span: variant.name_span,
+                    is_accessible: true,
+                })
+                .collect(),
+            default_entry: None,
+        },
     }
 }
 

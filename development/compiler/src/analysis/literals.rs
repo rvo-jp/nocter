@@ -154,6 +154,9 @@ fn literal_declaration(
         .iter()
         .find_map(|item| match item {
             Item::Literal(literal) if literal.span == declaration_span => Some(literal),
+            Item::Construct(construct) => construct
+                .literals()
+                .find_map(|(_, literal)| (literal.span == declaration_span).then_some(literal)),
             _ => None,
         })
 }

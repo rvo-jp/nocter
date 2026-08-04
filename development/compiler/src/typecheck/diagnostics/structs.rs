@@ -156,6 +156,31 @@ pub(in crate::typecheck) fn struct_literal_inaccessible_field_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn structural_construction_inaccessible_diagnostic(
+    sources: &SourceMap,
+    literal: &StructLiteralExpr,
+    struct_symbol: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0461",
+        format!(
+            "raw structural construction of `{}` is restricted to its defining module",
+            struct_symbol.canonical_name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(literal.ty.span()).ok().map(Box::new);
+    if let Some(span) = struct_symbol.construction.declaration_span
+        && let Ok(span) = sources.span_to_json(span)
+    {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "the public construction surface is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("use a public member from the type's construction surface".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn struct_literal_inaccessible_missing_field_diagnostic(
     sources: &SourceMap,
     literal: &StructLiteralExpr,

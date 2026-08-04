@@ -114,7 +114,11 @@ pub(super) fn infer_type_expr_substitutions(
                 substitutions,
             );
         }
-        TypeExpr::Reference(reference) if reference.name == "Self" => {}
+        TypeExpr::Reference(reference) if reference.name == "Self" => {
+            if let Some(expected_self) = self_type {
+                infer_type_substitutions(expected_self, actual, parameters, substitutions);
+            }
+        }
         TypeExpr::Reference(reference) if parameters.contains(reference.name.as_str()) => {
             merge_inferred_substitution(&reference.name, actual, substitutions);
         }
@@ -425,6 +429,80 @@ fn type_expr_to_type_inner(
                 resolving_aliases,
             )),
         },
+    }
+}
+
+fn infer_type_substitutions(
+    expected: &Type,
+    actual: &Type,
+    parameters: &HashSet<&str>,
+    substitutions: &mut HashMap<String, Type>,
+) {
+    match (expected, actual) {
+        (Type::Parameter(parameter), actual) if parameters.contains(parameter.as_str()) => {
+            merge_inferred_substitution(parameter, actual, substitutions);
+        }
+        (
+            Type::Generic {
+                name: expected_name,
+                arguments: expected_arguments,
+            },
+            Type::Generic {
+                name: actual_name,
+                arguments: actual_arguments,
+            },
+        ) if expected_name == actual_name && expected_arguments.len() == actual_arguments.len() => {
+            for (expected, actual) in expected_arguments.iter().zip(actual_arguments) {
+                infer_type_substitutions(expected, actual, parameters, substitutions);
+            }
+        }
+        (Type::Pointer(expected), Type::Pointer(actual))
+        | (Type::Optional(expected), Type::Optional(actual)) => {
+            infer_type_substitutions(expected, actual, parameters, substitutions);
+        }
+        (Type::ArrayData { element: expected }, Type::ArrayData { element: actual })
+        | (
+            Type::View {
+                is_readwrite: false,
+                element: expected,
+            },
+            Type::View {
+                is_readwrite: false,
+                element: actual,
+            },
+        )
+        | (
+            Type::View {
+                is_readwrite: true,
+                element: expected,
+            },
+            Type::View {
+                is_readwrite: true,
+                element: actual,
+            },
+        ) => infer_type_substitutions(expected, actual, parameters, substitutions),
+        (
+            Type::Array {
+                element: expected, ..
+            },
+            Type::Array {
+                element: actual, ..
+            },
+        ) => infer_type_substitutions(expected, actual, parameters, substitutions),
+        (
+            Type::Fallible {
+                success: expected_success,
+                error: expected_error,
+            },
+            Type::Fallible {
+                success: actual_success,
+                error: actual_error,
+            },
+        ) => {
+            infer_type_substitutions(expected_success, actual_success, parameters, substitutions);
+            infer_type_substitutions(expected_error, actual_error, parameters, substitutions);
+        }
+        _ => {}
     }
 }
 

@@ -454,10 +454,14 @@ fn generic_call_return_is_assignable(
         return false;
     }
 
+    let specialized_self_type = signature
+        .self_type
+        .as_ref()
+        .map(|ty| ty.substitute_parameters(&substitutions));
     let actual = type_expr_to_type_with_substitutions(
         &signature.signature.return_type,
         resolved,
-        signature.self_type.as_ref(),
+        specialized_self_type.as_ref(),
         &substitutions,
     );
     is_assignable(expected, &actual)

@@ -32,6 +32,17 @@ pub(super) fn environment_for_function(
         Some(self_type) => TypeEnvironment::with_self_type(self_type),
         None => TypeEnvironment::default(),
     };
+    if let Some(owner) = &function.owner
+        && let Some(symbol) = resolved.type_symbol_by_name(&owner.name)
+    {
+        for (name, bounds) in symbol
+            .generic_parameters
+            .iter()
+            .zip(&symbol.generic_parameter_bounds)
+        {
+            environment.define_generic_parameter(name.clone(), bounds.clone());
+        }
+    }
     environment.define_generic_parameter_list(&function.generics);
     define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
     environment
@@ -49,7 +60,19 @@ pub(super) fn environment_for_literal(
     let self_type =
         type_expr_to_type_with_substitutions(&literal.target, resolved, None, &substitutions);
     let mut environment = TypeEnvironment::with_self_type(self_type);
-    environment.define_generic_parameters(generic_names);
+    if let Some(target_name) = literal_target_name(&literal.target)
+        && let Some(symbol) = resolved.type_symbol_by_name(target_name)
+    {
+        for (name, bounds) in symbol
+            .generic_parameters
+            .iter()
+            .zip(&symbol.generic_parameter_bounds)
+        {
+            environment.define_generic_parameter(name.clone(), bounds.clone());
+        }
+    } else {
+        environment.define_generic_parameters(generic_names);
+    }
     define_parameters_in_environment(&literal.parameters.parameters, resolved, &mut environment);
     if let Some(capture) = &literal.capture {
         let element_type =
@@ -78,12 +101,28 @@ pub(super) fn function_self_type(
     resolved: &ResolveOutput,
 ) -> Option<Type> {
     let owner = function.owner.as_ref()?;
-    Some(
-        resolved
-            .type_symbol_by_name(&owner.name)
-            .map(|symbol| Type::Named(symbol.canonical_name.clone()))
-            .unwrap_or_else(|| Type::Unresolved(owner.name.clone())),
-    )
+    Some(match resolved.type_symbol_by_name(&owner.name) {
+        Some(symbol) if symbol.generic_parameters.is_empty() => {
+            Type::Named(symbol.canonical_name.clone())
+        }
+        Some(symbol) => Type::Generic {
+            name: symbol.canonical_name.clone(),
+            arguments: symbol
+                .generic_parameters
+                .iter()
+                .map(|name| Type::Parameter(name.clone()))
+                .collect(),
+        },
+        None => Type::Unresolved(owner.name.clone()),
+    })
+}
+
+fn literal_target_name(target: &TypeExpr) -> Option<&str> {
+    match target {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        _ => None,
+    }
 }
 
 pub(super) fn environment_for_method(

@@ -274,6 +274,55 @@ impl<'a> CallableIndex<'a> {
                             }
                         }
                     }
+                    Item::Construct(construct) => {
+                        for (_, function) in construct.functions() {
+                            if function.generics.parameters.is_empty() {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    function.name.clone(),
+                                );
+                                names.insert(function.member_name_span, function.name.clone());
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function(
+                                        function,
+                                        file,
+                                        &resolved_sources,
+                                        root_source,
+                                    ),
+                                );
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .functions
+                                .get(&function.name_span)
+                                .or_else(|| {
+                                    call_specializations
+                                        .functions
+                                        .get(&function.member_name_span)
+                                })
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function_specialization(
+                                        function,
+                                        specialization.substitutions.clone(),
+                                        file,
+                                        &resolved_sources,
+                                        root_source,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }

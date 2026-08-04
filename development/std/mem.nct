@@ -71,11 +71,13 @@ pub(nocter) func empty_page_buffer(align: usize): RawBuffer {
     }
 }
 
-pub func Layout.new(size: usize, align: usize): Layout! {
-    if !valid_alignment(align) {
-        return invalid_argument()
+construct Layout {
+    pub default func new(size: usize, align: usize): Self! {
+        if !valid_alignment(align) {
+            return invalid_argument()
+        }
+        return Layout { size: size, align: align }
     }
-    return Layout { size: size, align: align }
 }
 
 pub func layout(size: usize, align: usize): Layout! {

@@ -472,6 +472,30 @@ pub struct TypeSymbol {
     pub interface_conformances: Vec<InterfaceConformance>,
     pub drop_member: Option<DropSignature>,
     pub literals: Vec<LiteralSignature>,
+    pub construction: ConstructionSurface,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstructionSurface {
+    pub declaration_span: Option<ByteSpan>,
+    pub entries: Vec<ConstructionEntry>,
+    pub default_entry: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstructionEntry {
+    pub kind: ConstructionEntryKind,
+    pub declaration_span: ByteSpan,
+    pub focus_span: ByteSpan,
+    pub is_accessible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConstructionEntryKind {
+    Structural,
+    Function(String),
+    Literal(LiteralShape),
+    Variant(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

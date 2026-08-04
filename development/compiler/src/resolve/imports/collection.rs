@@ -400,6 +400,12 @@ impl Resolver<'_> {
                 Item::Struct(struct_) => {
                     let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
+                    attach_literal_definitions_to_symbol(&mut symbol, ast, &struct_.name);
+                    super::super::constructions::attach_construction_surfaces_to_symbol(
+                        &mut symbol,
+                        ast,
+                        &struct_.name,
+                    );
                     let imported = type_importable_symbol(
                         struct_.span,
                         struct_.name_span,
@@ -422,6 +428,12 @@ impl Resolver<'_> {
                 Item::Enum(enum_) => {
                     let mut symbol = enum_type_symbol(enum_);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
+                    attach_literal_definitions_to_symbol(&mut symbol, ast, &enum_.name);
+                    super::super::constructions::attach_construction_surfaces_to_symbol(
+                        &mut symbol,
+                        ast,
+                        &enum_.name,
+                    );
                     let imported = type_importable_symbol(
                         enum_.span,
                         enum_.name_span,

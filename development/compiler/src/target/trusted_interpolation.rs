@@ -71,12 +71,16 @@ fn find_function<'a>(
     parameters: &[(&str, &str)],
     return_type: &str,
 ) -> Option<&'a FunctionDecl> {
-    ast.items.iter().find_map(|item| {
-        let Item::Function(function) = item else {
-            return None;
-        };
-        function_shape_matches(function, target_name, owner, parameters, return_type)
-            .then_some(function)
+    ast.items.iter().find_map(|item| match item {
+        Item::Function(function) => {
+            function_shape_matches(function, target_name, owner, parameters, return_type)
+                .then_some(function)
+        }
+        Item::Construct(construct) => construct.functions().find_map(|(_, function)| {
+            function_shape_matches(function, target_name, owner, parameters, return_type)
+                .then_some(function)
+        }),
+        _ => None,
     })
 }
 
@@ -99,7 +103,16 @@ fn function_shape_matches(
             .all(|(actual, (name, ty))| {
                 actual.name == *name && type_expr_display_lossy(&actual.ty) == *ty
             })
-        && type_expr_display_lossy(&function.return_type) == return_type
+        && function_return_type_matches(function, owner, return_type)
+}
+
+fn function_return_type_matches(
+    function: &FunctionDecl,
+    owner: Option<&str>,
+    return_type: &str,
+) -> bool {
+    let actual = type_expr_display_lossy(&function.return_type);
+    actual == return_type || actual == "Self" && owner == Some(return_type)
 }
 
 fn runtime_callable(function: &FunctionDecl) -> RuntimeCallable {

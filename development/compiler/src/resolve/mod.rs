@@ -5,6 +5,7 @@ mod builtins;
 mod closures;
 mod collector;
 mod conformance;
+mod constructions;
 mod diagnostics;
 mod imports;
 mod literals;
@@ -17,12 +18,12 @@ mod symbols;
 mod tests;
 
 pub use symbols::{
-    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind,
-    InterfaceConformance, LiteralCaptureSignature, LiteralResolution, LiteralSignature,
-    LocalSymbol, LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature,
-    PreludeSourceMap, ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind,
-    SymbolTable, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
+    DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportSource,
+    ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
+    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;

@@ -144,6 +144,62 @@ pub(super) fn check_result_provenance_contracts(
             Item::Impl(impl_) => {
                 check_impl_methods(sources, impl_, resolved, summaries, diagnostics)
             }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let environment = environment_for_function(function, resolved);
+                    check_clause(
+                        sources,
+                        function.result_provenance.as_ref(),
+                        None,
+                        &function.parameters.parameters,
+                        &function.return_type,
+                        Some(&environment),
+                        resolved,
+                        diagnostics,
+                    );
+                    if let Some(clause) = &function.result_provenance {
+                        check_body_contract(
+                            sources,
+                            &function.body,
+                            clause,
+                            None,
+                            &function.parameters.parameters,
+                            &function.return_type,
+                            resolved,
+                            &environment,
+                            summaries,
+                            diagnostics,
+                        );
+                    }
+                }
+                for (_, literal) in construct.literals() {
+                    let environment = environment_for_literal(literal, resolved);
+                    check_clause(
+                        sources,
+                        literal.result_provenance.as_ref(),
+                        None,
+                        &literal.parameters.parameters,
+                        &literal.return_type,
+                        Some(&environment),
+                        resolved,
+                        diagnostics,
+                    );
+                    if let Some(clause) = &literal.result_provenance {
+                        check_body_contract(
+                            sources,
+                            &literal.body,
+                            clause,
+                            None,
+                            &literal.parameters.parameters,
+                            &literal.return_type,
+                            resolved,
+                            &environment,
+                            summaries,
+                            diagnostics,
+                        );
+                    }
+                }
+            }
             _ => {}
         }
     }

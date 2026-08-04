@@ -60,6 +60,73 @@ pub(super) struct CallableParameterType {
 }
 
 impl Type {
+    pub(super) fn substitute_parameters(&self, substitutions: &HashMap<String, Type>) -> Type {
+        match self {
+            Type::Parameter(parameter) => substitutions
+                .get(parameter)
+                .cloned()
+                .unwrap_or_else(|| self.clone()),
+            Type::Callable(callable) => Type::Callable(CallableType {
+                span: callable.span,
+                capability: callable.capability,
+                parameters: callable
+                    .parameters
+                    .iter()
+                    .map(|parameter| CallableParameterType {
+                        name: parameter.name.clone(),
+                        name_span: parameter.name_span,
+                        ty: parameter.ty.substitute_parameters(substitutions),
+                    })
+                    .collect(),
+                return_type: Box::new(callable.return_type.substitute_parameters(substitutions)),
+                result_provenance: callable.result_provenance.clone(),
+            }),
+            Type::ArrayData { element } => Type::ArrayData {
+                element: Box::new(element.substitute_parameters(substitutions)),
+            },
+            Type::View {
+                is_readwrite,
+                element,
+            } => Type::View {
+                is_readwrite: *is_readwrite,
+                element: Box::new(element.substitute_parameters(substitutions)),
+            },
+            Type::Array { element, length } => Type::Array {
+                element: Box::new(element.substitute_parameters(substitutions)),
+                length: length.clone(),
+            },
+            Type::Pointer(inner) => {
+                Type::Pointer(Box::new(inner.substitute_parameters(substitutions)))
+            }
+            Type::Optional(inner) => {
+                Type::Optional(Box::new(inner.substitute_parameters(substitutions)))
+            }
+            Type::Fallible { success, error } => Type::Fallible {
+                success: Box::new(success.substitute_parameters(substitutions)),
+                error: Box::new(error.substitute_parameters(substitutions)),
+            },
+            Type::Generic { name, arguments } => Type::Generic {
+                name: name.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| argument.substitute_parameters(substitutions))
+                    .collect(),
+            },
+            Type::Closure(_)
+            | Type::I32
+            | Type::Primitive(_)
+            | Type::StrData
+            | Type::Str
+            | Type::Error
+            | Type::Void
+            | Type::Never
+            | Type::None
+            | Type::Named(_)
+            | Type::Unresolved(_)
+            | Type::Unknown => self.clone(),
+        }
+    }
+
     pub(super) fn display(&self) -> String {
         match self {
             Type::Callable(callable) => callable.display(),

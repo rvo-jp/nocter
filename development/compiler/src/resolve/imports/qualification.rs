@@ -1,4 +1,5 @@
 use super::*;
+use crate::resolve::ConstructionEntryKind;
 
 pub(super) fn filter_importable_symbol_for_access(
     mut imported: ImportableSymbol,
@@ -23,9 +24,32 @@ pub(super) fn filter_importable_symbol_for_access(
             literal.is_accessible =
                 literal.is_accessible && visibility_is_visible_to(literal.visibility, access);
         }
+        refresh_construction_access(symbol);
     }
 
     imported
+}
+
+fn refresh_construction_access(symbol: &mut TypeSymbol) {
+    let structural_accessible = symbol.fields.iter().all(|field| field.is_accessible);
+    for entry in &mut symbol.construction.entries {
+        entry.is_accessible = match &entry.kind {
+            ConstructionEntryKind::Structural => entry.is_accessible && structural_accessible,
+            ConstructionEntryKind::Function(name) => symbol
+                .associated_functions
+                .iter()
+                .find(|function| function.name == *name)
+                .is_some_and(|function| function.is_accessible),
+            ConstructionEntryKind::Literal(shape) => symbol
+                .literals
+                .iter()
+                .find(|literal| literal.shape == *shape)
+                .is_some_and(|literal| literal.is_accessible),
+            ConstructionEntryKind::Variant(name) => {
+                symbol.variants.iter().any(|variant| variant.name == *name)
+            }
+        };
+    }
 }
 
 fn visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {

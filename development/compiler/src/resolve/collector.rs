@@ -236,6 +236,7 @@ impl Resolver<'_> {
         }
 
         self.collect_literal_definitions(ast);
+        self.collect_construction_surfaces(ast);
     }
 
     pub(super) fn define_symbol(
