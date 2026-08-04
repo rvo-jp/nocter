@@ -201,25 +201,17 @@ fn editor_info(
         LiteralShape::Sequence => "[]",
         LiteralShape::String => "\"\"",
     };
-    let mut label = format!(
-        "literal {result} {shape}({}): {result}",
+    let label = crate::analysis::presentation::LiteralPresentation::new(
+        result.clone(),
+        shape,
         parameters
             .iter()
-            .map(|parameter| parameter.label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    if let Some(provenance) = &declaration.result_provenance {
-        label.push_str(" from ");
-        label.push_str(
-            &provenance
-                .origins
-                .iter()
-                .map(|origin| origin.kind.source_label())
-                .collect::<Vec<_>>()
-                .join(" | "),
-        );
-    }
+            .map(|parameter| parameter.label.clone())
+            .collect(),
+        result,
+        crate::analysis::presentation::result_origin_labels(declaration.result_provenance.as_ref()),
+    )
+    .render();
     LiteralEditorInfo {
         expression_span: site.expression_span,
         focus_span: if span_contains(site.target_span, offset) {

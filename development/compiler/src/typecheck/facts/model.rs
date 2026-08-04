@@ -12,11 +12,8 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
-    pub(super) declaration_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) call_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) field_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) enum_variant_hover_labels: HashMap<ByteSpan, String>,
     pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
+    pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
     pub(super) field_targets: HashMap<ByteSpan, ByteSpan>,
     pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
@@ -109,45 +106,20 @@ impl TypecheckFacts {
         self.payload_binding_modes.get(&name_span).copied()
     }
 
-    pub(crate) fn declaration_hover_label(&self, name_span: ByteSpan) -> Option<&str> {
-        self.declaration_hover_labels
-            .get(&name_span)
-            .map(String::as_str)
-    }
-
-    pub(crate) fn call_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.call_hover_labels
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn field_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.field_hover_labels
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn enum_variant_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.enum_variant_hover_labels
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn type_occurrence_at_offset(&self, offset: usize) -> Option<&TypeOccurrenceFact> {
-        self.type_occurrences
-            .iter()
-            .filter(|occurrence| span_contains(occurrence.focus_span, offset))
-            .min_by_key(|occurrence| (occurrence.focus_span.len(), occurrence.focus_span.start))
-    }
-
     pub(crate) fn type_occurrences(&self) -> impl Iterator<Item = &TypeOccurrenceFact> + '_ {
         self.type_occurrences.iter()
+    }
+
+    pub(crate) fn generic_parameter_declarations(
+        &self,
+    ) -> impl Iterator<Item = &GenericParameterFact> + '_ {
+        self.generic_parameter_declarations.iter()
+    }
+
+    pub(crate) fn generic_parameter(&self, span: ByteSpan) -> Option<&GenericParameterFact> {
+        self.generic_parameter_declarations
+            .iter()
+            .find(|parameter| parameter.span == span)
     }
 
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -538,7 +510,20 @@ pub(crate) enum TypecheckMethodReceiverKind {
 pub(crate) struct TypeOccurrenceFact {
     pub(crate) focus_span: ByteSpan,
     pub(crate) contextual_type: TypeExpr,
-    pub(crate) target_declaration_span: Option<ByteSpan>,
+    pub(crate) target: Option<TypeOccurrenceTarget>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypeOccurrenceTarget {
+    Declaration(ByteSpan),
+    GenericParameter(ByteSpan),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GenericParameterFact {
+    pub(crate) name: String,
+    pub(crate) span: ByteSpan,
+    pub(crate) bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

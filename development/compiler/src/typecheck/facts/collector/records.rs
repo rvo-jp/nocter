@@ -53,17 +53,21 @@ impl TypecheckFactCollector<'_> {
         span: ByteSpan,
         contextual_type: TypeExpr,
     ) {
-        let target_declaration_span = self
-            .resolved
-            .symbols
-            .symbol_by_name(name)
-            .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
-            .map(|symbol| symbol.declaration_span);
+        let target = self
+            .generic_parameter_declaration(name)
+            .map(TypeOccurrenceTarget::GenericParameter)
+            .or_else(|| {
+                self.resolved
+                    .symbols
+                    .symbol_by_name(name)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
+                    .map(|symbol| TypeOccurrenceTarget::Declaration(symbol.declaration_span))
+            });
 
         self.facts.type_occurrences.push(TypeOccurrenceFact {
             focus_span: span,
             contextual_type,
-            target_declaration_span,
+            target,
         });
     }
 
@@ -121,7 +125,7 @@ impl TypecheckFactCollector<'_> {
             return;
         };
 
-        self.record_enum_variant_reference(variant_name_span, owner, variant);
+        self.record_enum_variant_reference(variant_name_span, variant);
     }
 
     pub(in crate::typecheck::facts::collector) fn record_parameter_bindings(
@@ -277,8 +281,7 @@ impl TypecheckFactCollector<'_> {
         member: &MemberExpr,
         environment: &TypeEnvironment,
     ) {
-        let Some((owner, field)) =
-            resolved_struct_field_for_member(member, self.resolved, environment)
+        let Some((_, field)) = resolved_struct_field_for_member(member, self.resolved, environment)
         else {
             return;
         };
@@ -290,7 +293,6 @@ impl TypecheckFactCollector<'_> {
         let field_ty = struct_member_type(member, self.resolved, environment);
         self.record_struct_field_reference(
             member.member_span,
-            owner,
             field,
             field_ty.as_ref(),
             environment,
@@ -311,7 +313,7 @@ impl TypecheckFactCollector<'_> {
         field: &StructLiteralField,
         environment: &TypeEnvironment,
     ) {
-        let Some((owner, expected_field)) =
+        let Some((_, expected_field)) =
             resolved_struct_field_for_literal_field(literal, field, self.resolved, environment)
         else {
             return;
@@ -320,7 +322,6 @@ impl TypecheckFactCollector<'_> {
         let field_ty = struct_literal_field_type(literal, field, self.resolved, environment);
         self.record_struct_field_reference(
             field.name_span,
-            owner,
             expected_field,
             field_ty.as_ref(),
             environment,
@@ -330,7 +331,6 @@ impl TypecheckFactCollector<'_> {
     pub(in crate::typecheck::facts::collector) fn record_struct_field_reference(
         &mut self,
         span: ByteSpan,
-        owner: &TypeSymbol,
         field: &crate::resolve::StructFieldSignature,
         concrete_ty: Option<&Type>,
         environment: &TypeEnvironment,
@@ -348,38 +348,22 @@ impl TypecheckFactCollector<'_> {
         if let Some(kind) = scalar_view_kind(field_ty) {
             self.facts.field_scalar_view_kinds.insert(span, kind);
         }
-        self.facts.field_hover_labels.insert(
-            span,
-            field_member_label(
-                type_owner_hover_label(owner, self.resolved),
-                &field.name,
-                &type_hover_label(field_ty, self.resolved),
-            ),
-        );
     }
 
     pub(in crate::typecheck::facts::collector) fn record_enum_variant_reference(
         &mut self,
         span: ByteSpan,
-        owner: &TypeSymbol,
         variant: &crate::resolve::EnumVariantSignature,
     ) {
         self.facts
             .enum_variant_targets
             .insert(span, variant.name_span);
-        self.facts.enum_variant_hover_labels.insert(
-            span,
-            enum_variant_signature_hover_label(owner, variant, self.resolved),
-        );
     }
 
     pub(in crate::typecheck::facts::collector) fn record_function_call_reference(
         &mut self,
         call: &CallExpr,
         declaration_span: ByteSpan,
-        name: &str,
-        kind: &str,
-        signature: &FunctionSignature,
     ) {
         let Some(name_span) = call_callee_name_span(call) else {
             return;
@@ -388,9 +372,5 @@ impl TypecheckFactCollector<'_> {
         self.facts
             .function_call_targets
             .insert(name_span, declaration_span);
-        self.facts.call_hover_labels.insert(
-            name_span,
-            function_signature_hover_label(kind, name, signature, self.resolved, None),
-        );
     }
 }

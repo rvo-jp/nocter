@@ -15,6 +15,7 @@ pub(crate) enum SemanticIdentity {
     Declaration(ByteSpan),
     Member(ByteSpan),
     Local(ByteSpan),
+    GenericParameter(ByteSpan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +27,7 @@ pub(crate) enum SemanticOccurrenceRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SemanticOccurrenceKind {
     Function,
+    Literal,
     Method,
     Variable,
     Parameter,
@@ -51,7 +53,9 @@ impl SemanticOccurrence {
         analysis: &CompileUnitAnalysis,
     ) -> Option<super::editor_targets::SourceTarget> {
         let target = match self.identity? {
-            SemanticIdentity::Member(span) | SemanticIdentity::Local(span) => span,
+            SemanticIdentity::Member(span)
+            | SemanticIdentity::Local(span)
+            | SemanticIdentity::GenericParameter(span) => span,
             SemanticIdentity::Declaration(declaration_span) => analysis
                 .file_by_source(declaration_span.source)
                 .and_then(|file| {
@@ -117,6 +121,7 @@ impl OccurrenceBuilder<'_> {
         self.collect_symbol_declarations();
         self.collect_local_declarations_and_references();
         self.collect_resolved_references();
+        self.collect_generic_parameter_declarations();
         self.collect_type_references();
         self.collect_typechecked_references();
     }
@@ -193,6 +198,12 @@ impl OccurrenceBuilder<'_> {
                             self.push_member_declaration(
                                 method.name_span,
                                 SemanticOccurrenceKind::Method,
+                            );
+                        }
+                        for literal in &type_symbol.literals {
+                            self.push_member_declaration(
+                                literal.shape_span,
+                                SemanticOccurrenceKind::Literal,
                             );
                         }
                         if let Some(drop_) = &type_symbol.drop_member {
@@ -306,13 +317,37 @@ impl OccurrenceBuilder<'_> {
         for occurrence in self.facts.type_occurrences() {
             self.push(
                 occurrence.focus_span,
-                occurrence
-                    .target_declaration_span
-                    .map(SemanticIdentity::Declaration),
+                occurrence.target.map(|target| match target {
+                    crate::typecheck::TypeOccurrenceTarget::Declaration(span) => {
+                        SemanticIdentity::Declaration(span)
+                    }
+                    crate::typecheck::TypeOccurrenceTarget::GenericParameter(span) => {
+                        SemanticIdentity::GenericParameter(span)
+                    }
+                }),
                 SemanticOccurrenceRole::Reference,
                 SemanticOccurrenceKind::Type,
                 false,
                 Some(occurrence.contextual_type.clone()),
+                1,
+            );
+        }
+    }
+
+    fn collect_generic_parameter_declarations(&mut self) {
+        let spans = self
+            .facts
+            .generic_parameter_declarations()
+            .map(|parameter| parameter.span)
+            .collect::<Vec<_>>();
+        for span in spans {
+            self.push(
+                span,
+                Some(SemanticIdentity::GenericParameter(span)),
+                SemanticOccurrenceRole::Declaration,
+                SemanticOccurrenceKind::Type,
+                false,
+                None,
                 1,
             );
         }
@@ -533,5 +568,29 @@ func main(): i32 {
             assert_eq!(occurrence.role, SemanticOccurrenceRole::Reference);
             assert!(occurrence.identity.is_some());
         }
+    }
+
+    #[test]
+    fn method_generic_parameters_have_declaration_and_reference_identity() {
+        let text = r#"interface Iterator<T> {}
+
+interface Transform<T> {
+    pub method &self.map<U: Iterator<T>>(value: U): T
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let declaration_offset = text.find("U: Iterator").unwrap();
+        let reference_offset = text.find("value: U").unwrap() + "value: ".len();
+        let declaration = file.occurrences.at_offset(declaration_offset).unwrap();
+        let reference = file.occurrences.at_offset(reference_offset).unwrap();
+
+        assert_eq!(
+            declaration.identity,
+            Some(SemanticIdentity::GenericParameter(declaration.focus_span))
+        );
+        assert_eq!(reference.identity, declaration.identity);
+        assert_eq!(declaration.role, SemanticOccurrenceRole::Declaration);
+        assert_eq!(reference.role, SemanticOccurrenceRole::Reference);
     }
 }

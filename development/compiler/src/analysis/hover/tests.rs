@@ -463,6 +463,36 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter
 }
 
 #[test]
+fn workspace_hover_presents_method_generic_parameter_identity() {
+    let text = r#"interface Iterator<T> {}
+
+interface Transform<T> {
+    pub method &self.map<U: Iterator<T>>(value: U): T
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let declaration_offset = text.find("U: Iterator").unwrap();
+    let reference_offset = text.find("value: U").unwrap() + "value: ".len();
+
+    for offset in [declaration_offset, reference_offset] {
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected generic parameter hover");
+        assert_eq!(hover.label, "type parameter U: Iterator<T>");
+        assert_eq!(&text[hover.span.start..hover.span.end], "U");
+    }
+
+    let target = crate::analysis::definition::definition_target_for_file_analysis(
+        &sources,
+        &analysis,
+        file,
+        reference_offset,
+    )
+    .expect("expected generic parameter definition");
+    assert_eq!(target.declaration_span.start, declaration_offset);
+}
+
+#[test]
 fn workspace_hover_reports_transitive_allocation_effects() {
     let text = r#"primitive allocate(): usize
 

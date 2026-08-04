@@ -112,7 +112,6 @@ impl SemanticIdentifierCollector<'_> {
     fn collect(&mut self) {
         self.collect_semantic_occurrences();
         self.collect_signature_parameter_declarations();
-        self.collect_generic_parameter_declarations();
         self.collect_provenance_references();
         self.collect_editor_targets();
     }
@@ -130,6 +129,7 @@ impl SemanticIdentifierCollector<'_> {
         for occurrence in self.occurrences.iter() {
             let kind = match occurrence.kind {
                 SemanticOccurrenceKind::Function => SemanticTokenKind::Function,
+                SemanticOccurrenceKind::Literal => continue,
                 SemanticOccurrenceKind::Method => SemanticTokenKind::Method,
                 SemanticOccurrenceKind::Variable => SemanticTokenKind::Variable,
                 SemanticOccurrenceKind::Parameter => SemanticTokenKind::Parameter,
@@ -192,26 +192,6 @@ impl SemanticIdentifierCollector<'_> {
     fn collect_function_signature_parameters(&mut self, signature: &FunctionSignature) {
         for parameter in &signature.parameters {
             self.push_parameter(parameter.name_span);
-        }
-    }
-
-    fn collect_generic_parameter_declarations(&mut self) {
-        for item in &self.ast.items {
-            let generics = match item {
-                crate::ast::Item::Function(item) => Some(&item.generics),
-                crate::ast::Item::Primitive(item) => Some(&item.generics),
-                crate::ast::Item::TypeAlias(item) => Some(&item.generics),
-                crate::ast::Item::Struct(item) => Some(&item.generics),
-                crate::ast::Item::Enum(item) => Some(&item.generics),
-                crate::ast::Item::Interface(item) => Some(&item.generics),
-                crate::ast::Item::Impl(item) => Some(&item.generics),
-                crate::ast::Item::Import(_)
-                | crate::ast::Item::FromImport(_)
-                | crate::ast::Item::Literal(_) => None,
-            };
-            for parameter in generics.into_iter().flat_map(|list| &list.parameters) {
-                self.push(parameter.name_span, SemanticTokenKind::Type, true, 0);
-            }
         }
     }
 

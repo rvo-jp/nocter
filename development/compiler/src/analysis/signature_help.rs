@@ -105,6 +105,25 @@ fn signature_info_for_call(
         substitutions.insert("Self".to_string(), specialization.self_ty.clone());
     }
 
+    match &declaration {
+        CallableDeclaration::Function(function) => {
+            if let Some(owner) = &function.owner {
+                substitutions.entry("Self".to_string()).or_insert_with(|| {
+                    TypeExpr::Reference(crate::ast::TypeReference {
+                        span: owner.name_span,
+                        name: owner.name.clone(),
+                    })
+                });
+            }
+        }
+        CallableDeclaration::Method { impl_, .. } => {
+            substitutions
+                .entry("Self".to_string())
+                .or_insert_with(|| impl_.target_ty.clone());
+        }
+        CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
+    }
+
     let (kind, name, parameters, return_type, result_provenance, generic_parameters, receiver) =
         match declaration {
             CallableDeclaration::Function(function) => (
@@ -156,7 +175,16 @@ fn signature_info_for_call(
         .collect::<Vec<_>>();
     let return_type = substitute_type_expr_parameters(return_type, &substitutions);
     let return_label = type_expr_presentation_label(&return_type, &file.resolved);
-    let name = specialized_callable_name(name, &generic_parameters, &substitutions, &file.resolved);
+    let display_name = match call.callee.without_groups() {
+        Expr::Identifier(identifier) => identifier.name.as_str(),
+        _ => name,
+    };
+    let name = specialized_callable_name(
+        display_name,
+        &generic_parameters,
+        &substitutions,
+        &file.resolved,
+    );
     let callable = match receiver {
         Some(receiver) => format!(
             "{}.{name}",
@@ -164,25 +192,18 @@ fn signature_info_for_call(
         ),
         None => name,
     };
-    let mut label = format!(
-        "{kind} {callable}({}): {return_label}",
+    let label = crate::analysis::presentation::CallablePresentation::new(
+        kind,
+        callable,
+        Vec::new(),
         specialized_parameters
             .iter()
-            .map(|(label, _)| label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    if let Some(clause) = result_provenance {
-        label.push_str(" from ");
-        label.push_str(
-            &clause
-                .origins
-                .iter()
-                .map(|origin| origin.kind.source_label())
-                .collect::<Vec<_>>()
-                .join(" | "),
-        );
-    }
+            .map(|(label, _)| label.clone())
+            .collect(),
+        return_label,
+        crate::analysis::presentation::result_origin_labels(result_provenance),
+    )
+    .render();
 
     Some(SignatureHelpInfo {
         label,
@@ -232,25 +253,18 @@ fn callable_value_signature_info(
         })
         .collect::<Vec<_>>();
     let return_label = type_expr_presentation_label(&signature.return_type, &file.resolved);
-    let mut label = format!(
-        "{prefix}func {callable_name}({}): {return_label}",
+    let label = crate::analysis::presentation::CallablePresentation::new(
+        format!("{prefix}func"),
+        callable_name,
+        Vec::new(),
         parameters
             .iter()
-            .map(|parameter| parameter.label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    if let Some(clause) = &signature.result_provenance {
-        label.push_str(" from ");
-        label.push_str(
-            &clause
-                .origins
-                .iter()
-                .map(|origin| origin.kind.source_label())
-                .collect::<Vec<_>>()
-                .join(" | "),
-        );
-    }
+            .map(|parameter| parameter.label.clone())
+            .collect(),
+        return_label,
+        crate::analysis::presentation::result_origin_labels(signature.result_provenance.as_ref()),
+    )
+    .render();
     Some(SignatureHelpInfo {
         label,
         parameters,

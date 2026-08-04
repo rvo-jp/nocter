@@ -1,6 +1,5 @@
 //! Hover information derived from compile-unit analysis.
 
-use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterfaceDecl,
@@ -13,8 +12,7 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
-    TypecheckFacts, collect_typecheck_facts, enum_variant_member_label, field_member_label,
-    generic_type_owner_name,
+    TypecheckFacts, enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,8 +51,6 @@ mod symbols;
 mod targets;
 
 pub(in crate::analysis::hover) use contents::*;
-#[allow(unused_imports)]
-pub(crate) use entry::hover_for_ast;
 pub(crate) use entry::{definition_target_for_ast, hover_for_file_analysis, hover_for_text};
 pub(in crate::analysis::hover) use module_paths::*;
 pub(in crate::analysis::hover) use symbols::*;

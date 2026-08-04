@@ -26,11 +26,6 @@ pub(in crate::analysis::hover) fn apply_typecheck_hover_facts(
     symbols: &mut [HoverSymbol],
 ) {
     for symbol in symbols {
-        if let Some(label) = facts.declaration_hover_label(symbol.target.declaration_span) {
-            symbol.label = label.to_string();
-            continue;
-        }
-
         let Some(ty) = facts.binding_type_label(symbol.target.declaration_span) else {
             continue;
         };

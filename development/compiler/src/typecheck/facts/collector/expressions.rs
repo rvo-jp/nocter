@@ -179,17 +179,13 @@ impl TypecheckFactCollector<'_> {
                                 .insert(method.member_span, specialization);
                         }
                     }
-                    self.facts.call_hover_labels.insert(
-                        method.member_span,
-                        method_signature_hover_label(resolved_method, owner, self.resolved),
-                    );
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
                         return_type,
                     );
                 } else if let Some(method) = method_member_for_call(expression)
-                    && let Some((owner, resolved_function)) =
+                    && let Some((_, resolved_function)) =
                         self.resolved.associated_function_for_call(expression)
                 {
                     self.facts
@@ -204,24 +200,16 @@ impl TypecheckFactCollector<'_> {
                         environment,
                         true,
                     );
-                    self.facts.call_hover_labels.insert(
-                        method.member_span,
-                        associated_function_signature_hover_label(
-                            owner,
-                            resolved_function,
-                            self.resolved,
-                        ),
-                    );
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
                         return_type,
                     );
                 } else if let Some(method) = method_member_for_call(expression)
-                    && let Some((owner, variant)) =
+                    && let Some((_, variant)) =
                         resolved_enum_variant_for_member(method, self.resolved)
                 {
-                    self.record_enum_variant_reference(method.member_span, owner, variant);
+                    self.record_enum_variant_reference(method.member_span, variant);
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
@@ -241,9 +229,6 @@ impl TypecheckFactCollector<'_> {
                                 self.record_function_call_reference(
                                     expression,
                                     symbol.declaration_span,
-                                    &symbol.name,
-                                    "func",
-                                    signature,
                                 );
                                 self.record_generic_function_call_specialization(
                                     expression,
@@ -259,9 +244,6 @@ impl TypecheckFactCollector<'_> {
                                 self.record_function_call_reference(
                                     expression,
                                     symbol.declaration_span,
-                                    &symbol.name,
-                                    "primitive",
-                                    signature,
                                 );
                                 self.record_generic_function_call_specialization(
                                     expression,
@@ -292,10 +274,10 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 self.record_struct_field_member_reference(expression, environment);
-                if let Some((owner, variant)) =
+                if let Some((_, variant)) =
                     resolved_enum_variant_for_member(expression, self.resolved)
                 {
-                    self.record_enum_variant_reference(expression.member_span, owner, variant);
+                    self.record_enum_variant_reference(expression.member_span, variant);
                 }
             }
             Expr::Index(expression) => {

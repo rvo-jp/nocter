@@ -6,49 +6,292 @@ pub(in crate::analysis::hover) fn call_hover_for_file_analysis(
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<HoverInfo> {
-    let (span, label) = file.typecheck_facts.call_hover_at_offset(offset)?;
-    if let Some(signature) =
-        crate::analysis::signature_help::call_signature_at_offset(sources, analysis, file, offset)
-        && signature.is_specialized
-    {
-        let target = call_target(file, span);
-        return Some(HoverInfo {
-            span,
-            label: signature.label,
-            documentation: combine_documentation(
-                signature.documentation,
-                target.and_then(|target| semantic_documentation(sources, analysis, target)),
-            ),
-        });
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if !matches!(
+        occurrence.kind,
+        crate::analysis::occurrences::SemanticOccurrenceKind::Function
+            | crate::analysis::occurrences::SemanticOccurrenceKind::Method
+    ) {
+        return None;
     }
+    let signature =
+        crate::analysis::signature_help::call_signature_at_offset(sources, analysis, file, offset)?;
+    let target = match occurrence.identity {
+        Some(crate::analysis::occurrences::SemanticIdentity::Declaration(target))
+        | Some(crate::analysis::occurrences::SemanticIdentity::Member(target)) => Some(target),
+        _ => None,
+    };
     Some(HoverInfo {
-        span,
-        label: label.to_string(),
-        documentation: call_documentation(sources, analysis, file, span),
+        span: occurrence.focus_span,
+        label: signature.label,
+        documentation: combine_documentation(
+            signature.documentation,
+            target.and_then(|target| semantic_documentation(sources, analysis, target)),
+        ),
     })
 }
 
-pub(in crate::analysis::hover) fn call_documentation(
+pub(in crate::analysis::hover) fn property_occurrence_hover_for_file_analysis(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
-    call_span: ByteSpan,
-) -> Option<String> {
-    let target_span = call_target(file, call_span)?;
-    combine_documentation(
-        target_documentation(sources, analysis, target_span),
-        semantic_documentation(sources, analysis, target_span),
-    )
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Property {
+        return None;
+    }
+    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
+    else {
+        return None;
+    };
+    for target_file in &analysis.files {
+        for symbol in target_file.resolved.symbols.symbols() {
+            let SymbolKind::Type(owner) = &symbol.kind else {
+                continue;
+            };
+            let owner_label =
+                crate::analysis::presentation::type_owner_presentation_label(owner, &file.resolved);
+            if let Some(field) = owner.fields.iter().find(|field| field.name_span == target) {
+                let ty = file
+                    .typecheck_facts
+                    .field_type_expr(occurrence.focus_span)
+                    .unwrap_or(&field.ty);
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: field_member_label(
+                        &owner_label,
+                        &field.name,
+                        &crate::typecheck::type_expr_presentation_label(ty, &file.resolved),
+                    ),
+                    documentation: target_documentation(sources, analysis, target),
+                });
+            }
+            if let Some(variant) = owner
+                .variants
+                .iter()
+                .find(|variant| variant.name_span == target)
+            {
+                let payload = variant
+                    .payload
+                    .iter()
+                    .map(|parameter| {
+                        format!(
+                            "{}: {}",
+                            parameter.name,
+                            crate::typecheck::type_expr_presentation_label(
+                                &parameter.ty,
+                                &file.resolved,
+                            )
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: enum_variant_member_label(&owner_label, &variant.name, &payload),
+                    documentation: target_documentation(sources, analysis, target),
+                });
+            }
+        }
+    }
+    None
 }
 
-pub(in crate::analysis::hover) fn call_target(
+pub(in crate::analysis::hover) fn literal_declaration_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
-    call_span: ByteSpan,
-) -> Option<ByteSpan> {
-    file.typecheck_facts
-        .function_call_target(call_span)
-        .or_else(|| file.typecheck_facts.method_call_target(call_span))
-        .or_else(|| file.typecheck_facts.associated_function_target(call_span))
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Literal {
+        return None;
+    }
+    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
+    else {
+        return None;
+    };
+    for target_file in &analysis.files {
+        for symbol in target_file.resolved.symbols.symbols() {
+            let SymbolKind::Type(owner) = &symbol.kind else {
+                continue;
+            };
+            let Some(literal) = owner
+                .literals
+                .iter()
+                .find(|literal| literal.shape_span == target)
+            else {
+                continue;
+            };
+            return Some(HoverInfo {
+                span: occurrence.focus_span,
+                label: crate::analysis::presentation::literal_signature_presentation(
+                    owner,
+                    literal,
+                    &file.resolved,
+                )
+                .render(),
+                documentation: combine_documentation(
+                    target_documentation(sources, analysis, target),
+                    semantic_documentation(sources, analysis, literal.declaration_span),
+                ),
+            });
+        }
+    }
+    None
+}
+
+pub(in crate::analysis::hover) fn local_occurrence_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    let crate::analysis::occurrences::SemanticIdentity::Local(target) = occurrence.identity? else {
+        return None;
+    };
+    let target_file = analysis.file_by_source(target.source)?;
+    let symbol = target_file
+        .resolved
+        .local_symbols()
+        .find(|symbol| symbol.name_span == target)?;
+    let label = crate::analysis::presentation::local_presentation(
+        symbol,
+        target_file.typecheck_facts.binding_type_expr(target),
+        &target_file.resolved,
+    )
+    .render();
+    Some(HoverInfo {
+        span: occurrence.focus_span,
+        label,
+        documentation: combine_documentation(
+            combine_documentation(
+                target_documentation(sources, analysis, target),
+                semantic_documentation(sources, analysis, target),
+            ),
+            combine_documentation(
+                crate::analysis::regions::region_markdown(sources, target_file, target),
+                crate::analysis::iteration::iteration_markdown_at_offset(analysis, file, offset),
+            ),
+        ),
+    })
+}
+
+pub(in crate::analysis::hover) fn callable_symbol_occurrence_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Function {
+        return None;
+    }
+    let crate::analysis::occurrences::SemanticIdentity::Declaration(target) = occurrence.identity?
+    else {
+        return None;
+    };
+    let target_file = analysis.file_by_source(target.source)?;
+    let symbol = target_file
+        .resolved
+        .symbols
+        .symbols()
+        .find(|symbol| symbol.declaration_span == target)?;
+    let (kind, signature) = match &symbol.kind {
+        SymbolKind::Function(signature) => ("func", signature),
+        SymbolKind::Primitive(signature) => ("primitive", signature),
+        SymbolKind::Type(_) | SymbolKind::Imported(_) => return None,
+    };
+    Some(HoverInfo {
+        span: occurrence.focus_span,
+        label: crate::analysis::presentation::callable_signature_presentation(
+            kind,
+            &symbol.name,
+            signature,
+            &file.resolved,
+        )
+        .render(),
+        documentation: combine_documentation(
+            target_documentation(sources, analysis, target),
+            semantic_documentation(sources, analysis, target),
+        ),
+    })
+}
+
+pub(in crate::analysis::hover) fn callable_member_occurrence_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if !matches!(
+        occurrence.kind,
+        crate::analysis::occurrences::SemanticOccurrenceKind::Function
+            | crate::analysis::occurrences::SemanticOccurrenceKind::Method
+    ) {
+        return None;
+    }
+    let crate::analysis::occurrences::SemanticIdentity::Member(target) = occurrence.identity?
+    else {
+        return None;
+    };
+    for target_file in &analysis.files {
+        for symbol in target_file.resolved.symbols.symbols() {
+            let SymbolKind::Type(owner) = &symbol.kind else {
+                continue;
+            };
+            if let Some(function) = owner
+                .associated_functions
+                .iter()
+                .find(|function| function.name_span == target)
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::associated_function_presentation(
+                        owner,
+                        function,
+                        &file.resolved,
+                    )
+                    .render(),
+                    documentation: combine_documentation(
+                        target_documentation(sources, analysis, target),
+                        semantic_documentation(sources, analysis, target),
+                    ),
+                });
+            }
+            if let Some(method) = owner
+                .methods
+                .iter()
+                .find(|method| method.name_span == target)
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::method_presentation(
+                        owner,
+                        method,
+                        &file.resolved,
+                    )
+                    .render(),
+                    documentation: combine_documentation(
+                        target_documentation(sources, analysis, target),
+                        semantic_documentation(sources, analysis, target),
+                    ),
+                });
+            }
+            if let Some(drop_) = &owner.drop_member
+                && drop_.name_span == target
+            {
+                return Some(HoverInfo {
+                    span: occurrence.focus_span,
+                    label: crate::analysis::presentation::drop_presentation(drop_, &file.resolved),
+                    documentation: target_documentation(sources, analysis, target),
+                });
+            }
+        }
+    }
+    None
 }
 
 pub(in crate::analysis::hover) fn semantic_documentation(
@@ -97,6 +340,20 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
     if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Type {
         return None;
     }
+    if let crate::analysis::occurrences::SemanticIdentity::GenericParameter(span) =
+        occurrence.identity?
+    {
+        let parameter = file.typecheck_facts.generic_parameter(span)?;
+        return Some(HoverInfo {
+            span: occurrence.focus_span,
+            label: crate::analysis::presentation::generic_parameter_presentation(
+                parameter,
+                &file.resolved,
+            )
+            .render(),
+            documentation: None,
+        });
+    }
     let crate::analysis::occurrences::SemanticIdentity::Declaration(declaration_span) =
         occurrence.identity?
     else {
@@ -126,30 +383,6 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
 
     Some(HoverInfo {
         span: occurrence.focus_span,
-        label,
-        documentation,
-    })
-}
-
-pub(in crate::analysis::hover) fn type_reference_hover_for_ast(
-    text: &str,
-    resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
-    symbols: &[HoverSymbol],
-    documentation: &crate::comments::AttachedDocumentation,
-    offset: usize,
-) -> Option<HoverInfo> {
-    let reference = facts.type_occurrence_at_offset(offset)?;
-    let declaration_span = reference.target_declaration_span?;
-    let symbol = resolved
-        .symbols
-        .symbols()
-        .find(|candidate| is_type_symbol_at_declaration_span(candidate, declaration_span))?;
-    let (label, documentation) =
-        single_file_symbol_hover_contents(text, symbols, documentation, symbol);
-
-    Some(HoverInfo {
-        span: reference.focus_span,
         label,
         documentation,
     })

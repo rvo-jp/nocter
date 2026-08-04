@@ -5,13 +5,29 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         item: &Item,
     ) {
+        let generics = match item {
+            Item::Function(item) => Some(&item.generics),
+            Item::Primitive(item) => Some(&item.generics),
+            Item::TypeAlias(item) => Some(&item.generics),
+            Item::Struct(item) => Some(&item.generics),
+            Item::Enum(item) => Some(&item.generics),
+            Item::Interface(item) => Some(&item.generics),
+            Item::Impl(item) => Some(&item.generics),
+            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => None,
+        };
+        if let Some(generics) = generics {
+            self.with_generic_scope(generics, |collector| {
+                collector.collect_item_signature_type_references_in_scope(item)
+            });
+        } else {
+            self.collect_item_signature_type_references_in_scope(item);
+        }
+    }
+
+    fn collect_item_signature_type_references_in_scope(&mut self, item: &Item) {
         match item {
             Item::Import(_) | Item::FromImport(_) => {}
             Item::Function(function) => {
-                self.facts.declaration_hover_labels.insert(
-                    function.name_span,
-                    function_declaration_hover_label(function, self.resolved),
-                );
                 if let Some(owner) = &function.owner {
                     self.record_type_reference(
                         &owner.name,
@@ -27,66 +43,35 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&function.return_type);
             }
             Item::Primitive(primitive) => {
-                self.facts.declaration_hover_labels.insert(
-                    primitive.name_span,
-                    primitive_declaration_hover_label(primitive, self.resolved),
-                );
                 self.collect_generic_param_type_references(&primitive.generics);
                 self.collect_parameter_type_references(&primitive.parameters.parameters);
                 self.collect_type_expr_references(&primitive.return_type);
             }
             Item::TypeAlias(alias) => {
-                self.facts.declaration_hover_labels.insert(
-                    alias.name_span,
-                    type_alias_declaration_hover_label(alias, self.resolved),
-                );
                 self.collect_generic_param_type_references(&alias.generics);
                 self.collect_type_expr_references(&alias.target);
             }
             Item::Struct(struct_) => {
-                self.facts.declaration_hover_labels.insert(
-                    struct_.name_span,
-                    struct_declaration_hover_label(struct_, self.resolved),
-                );
                 self.collect_generic_param_type_references(&struct_.generics);
                 for field in &struct_.fields {
-                    self.facts.declaration_hover_labels.insert(
-                        field.name_span,
-                        struct_field_declaration_hover_label(struct_, field, self.resolved),
-                    );
                     self.collect_type_expr_references(&field.ty);
                 }
             }
             Item::Enum(enum_) => {
-                self.facts.declaration_hover_labels.insert(
-                    enum_.name_span,
-                    enum_declaration_hover_label(enum_, self.resolved),
-                );
                 self.collect_generic_param_type_references(&enum_.generics);
                 for variant in &enum_.variants {
-                    self.facts.declaration_hover_labels.insert(
-                        variant.name_span,
-                        enum_variant_declaration_hover_label(enum_, variant, self.resolved),
-                    );
                     self.collect_parameter_type_references(&variant.payload);
                 }
             }
             Item::Interface(interface) => {
-                self.facts.declaration_hover_labels.insert(
-                    interface.name_span,
-                    interface_declaration_hover_label(interface, self.resolved),
-                );
                 self.collect_generic_param_type_references(&interface.generics);
                 for method in &interface.methods {
-                    self.facts.declaration_hover_labels.insert(
-                        method.name_span,
-                        method_declaration_hover_label(method, self.resolved, None),
-                    );
-                    self.collect_method_signature_type_references(method);
+                    self.with_generic_scope(&method.generics, |collector| {
+                        collector.collect_method_signature_type_references(method);
+                    });
                 }
             }
             Item::Impl(impl_) => {
-                let self_type = impl_self_type(impl_, self.resolved);
                 self.collect_generic_param_type_references(&impl_.generics);
                 if let Some(interface_ty) = &impl_.interface_ty {
                     self.collect_type_expr_references(interface_ty);
@@ -95,30 +80,15 @@ impl TypecheckFactCollector<'_> {
                 for member in &impl_.members {
                     match member {
                         ImplMember::Method(method) => {
-                            self.facts.declaration_hover_labels.insert(
-                                method.name_span,
-                                method_declaration_hover_label(
-                                    method,
-                                    self.resolved,
-                                    Some(&self_type),
-                                ),
-                            );
-                            self.collect_method_signature_type_references(method);
+                            self.with_generic_scope(&method.generics, |collector| {
+                                collector.collect_method_signature_type_references(method);
+                            });
                         }
-                        ImplMember::Drop(drop_) => {
-                            self.facts.declaration_hover_labels.insert(
-                                drop_.name_span,
-                                drop_declaration_hover_label(drop_, self.resolved, &self_type),
-                            );
-                        }
+                        ImplMember::Drop(_) => {}
                     }
                 }
             }
             Item::Literal(literal) => {
-                self.facts.declaration_hover_labels.insert(
-                    literal.shape_span,
-                    literal_declaration_hover_label(literal, self.resolved),
-                );
                 self.collect_type_expr_references(&literal.target);
                 self.collect_parameter_type_references(&literal.parameters.parameters);
                 if let Some(capture) = &literal.capture {

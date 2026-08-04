@@ -485,21 +485,8 @@ fn callable_detail(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> String {
-    let generics = if signature.generic_parameters.is_empty() {
-        String::new()
-    } else {
-        format!("<{}>", signature.generic_parameters.join(", "))
-    };
-    format!(
-        "{kind} {name}{generics}({}): {}",
-        signature
-            .parameters
-            .iter()
-            .map(|parameter| parameter_detail(parameter, resolved))
-            .collect::<Vec<_>>()
-            .join(", "),
-        type_expr_presentation_label(&signature.return_type, resolved)
-    )
+    crate::analysis::presentation::callable_signature_presentation(kind, name, signature, resolved)
+        .render()
 }
 
 fn parameter_detail(parameter: &ParameterSignature, resolved: &ResolveOutput) -> String {
@@ -549,67 +536,28 @@ fn literal_shape_completion_items(
     let Some(owner) = literal_owner(resolved, target) else {
         return Vec::new();
     };
-    let target_label = match target {
-        TypeExpr::Reference(reference) if !owner.symbol.generic_parameters.is_empty() => format!(
-            "{}<{}>",
-            reference.name,
-            owner.symbol.generic_parameters.join(", ")
-        ),
-        _ => type_expr_presentation_label(target, resolved),
-    };
-
     owner
         .symbol
         .literals
         .iter()
         .filter(|literal| literal.is_accessible)
         .map(|literal| {
-            let (label, parameters) = match literal.shape {
-                LiteralShape::Sequence => (
-                    "[]",
-                    literal
-                        .capture
-                        .as_ref()
-                        .map(|capture| {
-                            let ty = substitute_type_expr_parameters(
-                                &capture.element_type,
-                                &owner.substitutions,
-                            );
-                            format!(
-                                "...{}: {}",
-                                capture.name,
-                                type_expr_presentation_label(&ty, resolved)
-                            )
-                        })
-                        .into_iter()
-                        .collect::<Vec<_>>(),
-                ),
-                LiteralShape::String => (
-                    "\"\"",
-                    literal
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            let ty = substitute_type_expr_parameters(
-                                &parameter.ty,
-                                &owner.substitutions,
-                            );
-                            format!(
-                                "{}: {}",
-                                parameter.name,
-                                type_expr_presentation_label(&ty, resolved)
-                            )
-                        })
-                        .collect(),
-                ),
+            let label = match literal.shape {
+                LiteralShape::Sequence => "[]",
+                LiteralShape::String => "\"\"",
             };
             CompletionItemInfo {
                 label: label.to_string(),
                 kind: CompletionItemKind::Constructor,
-                detail: Some(format!(
-                    "literal {target_label} {label}({}): {target_label}",
-                    parameters.join(", ")
-                )),
+                detail: Some(
+                    crate::analysis::presentation::literal_presentation_with_substitutions(
+                        owner.symbol,
+                        literal,
+                        &owner.substitutions,
+                        resolved,
+                    )
+                    .render(),
+                ),
                 documentation: None,
                 insert_text: Some(label.to_string()),
                 sort_text: None,
@@ -627,9 +575,28 @@ fn literal_owner<'a>(
         TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let self_ty = if symbol.generic_parameters.is_empty() {
+                target.clone()
+            } else {
+                TypeExpr::Generic(crate::ast::GenericType {
+                    span: reference.span,
+                    name: reference.name.clone(),
+                    name_span: reference.span,
+                    arguments: symbol
+                        .generic_parameters
+                        .iter()
+                        .map(|parameter| {
+                            TypeExpr::Reference(crate::ast::TypeReference {
+                                span: reference.span,
+                                name: parameter.clone(),
+                            })
+                        })
+                        .collect(),
+                })
+            };
             Some(ValueMemberOwner {
                 symbol,
-                substitutions: HashMap::from([("Self".to_string(), target.clone())]),
+                substitutions: HashMap::from([("Self".to_string(), self_ty)]),
             })
         }
         TypeExpr::Generic(generic) => {
