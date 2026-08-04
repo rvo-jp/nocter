@@ -13,7 +13,7 @@ mod types;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenKind};
 use crate::source::{SourceId, SourceMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +23,10 @@ pub struct ParseOutput {
 }
 
 pub fn parse(sources: &SourceMap, source: SourceId, tokens: &[Token]) -> ParseOutput {
-    if tokens.is_empty() {
+    if !tokens
+        .last()
+        .is_some_and(|token| token.kind == TokenKind::Eof)
+    {
         return ParseOutput {
             ast: None,
             diagnostics: vec![Diagnostic::error(

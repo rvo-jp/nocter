@@ -32,12 +32,13 @@ pub(super) fn visible_local_bindings_at_offset(
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
-                        ImplMember::Method(method)
-                            if method
-                                .body
-                                .as_ref()
-                                .is_some_and(|body| contains(body.span, offset)) =>
-                        {
+                        ImplMember::Method(method) => {
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            if !contains(body.span, offset) {
+                                continue;
+                            }
                             define(
                                 &mut locals,
                                 &method.receiver.name,
@@ -52,7 +53,7 @@ pub(super) fn visible_local_bindings_at_offset(
                                     "parameter",
                                 );
                             }
-                            collect_block(method.body.as_ref().unwrap(), offset, &mut locals);
+                            collect_block(body, offset, &mut locals);
                             return locals;
                         }
                         ImplMember::Drop(drop_) if contains(drop_.body.span, offset) => {
@@ -65,7 +66,7 @@ pub(super) fn visible_local_bindings_at_offset(
                             collect_block(&drop_.body, offset, &mut locals);
                             return locals;
                         }
-                        ImplMember::Method(_) | ImplMember::Drop(_) => {}
+                        ImplMember::Drop(_) => {}
                     }
                 }
             }

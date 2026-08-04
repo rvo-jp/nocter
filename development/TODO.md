@@ -69,6 +69,12 @@ also composes with trailing block recovery before its insertion map is applied. 
 text-document requests now reject absent or ill-typed document/position parameters with JSON-RPC
 `-32602` and continue serving later requests.
 
-The active audit is structural and panic resilience in compiler-owned control paths. Subsequent
-loops cover packaging qualification and final responsibility hotspots against the stabilization
-gate.
+Structural resilience now separates completion context traversal and member-candidate resolution
+from the completion coordinator. The coordinator is below 700 lines and each new responsibility is
+below 450 lines. Completion, visible-local collection, and typed-literal specialization no longer
+panic when partial editor facts violate an internal shape assumption. The parser now validates its
+EOF token-stream contract at entry and derives provenance bounds without an impossible-state
+`expect`.
+
+The active audit is packaging qualification and final responsibility hotspots against the
+stabilization gate.

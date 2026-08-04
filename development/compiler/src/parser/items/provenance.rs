@@ -9,8 +9,9 @@ impl Parser<'_> {
         };
         let mut origins = Vec::new();
 
-        loop {
+        let end = loop {
             let origin = self.expect_identifier("expected result origin after `from`")?;
+            let end = origin.span.end;
             let kind = match origin.value.as_str() {
                 "self" => ResultProvenanceOriginKind::Receiver,
                 "static" => ResultProvenanceOriginKind::Static,
@@ -23,15 +24,10 @@ impl Parser<'_> {
             });
 
             if self.match_punctuation("|").is_none() {
-                break;
+                break end;
             }
-        }
+        };
 
-        let end = origins
-            .last()
-            .expect("a parsed provenance clause has an origin")
-            .span
-            .end;
         Ok(Some(ResultProvenanceClause {
             span: self.span(from.span.start, end),
             origins,

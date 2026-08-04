@@ -176,7 +176,7 @@ fn specialization_for_expression(
                 &substitutions,
             );
             let Expr::TypedSequenceLiteral(literal) = expression else {
-                unreachable!()
+                return None;
             };
             let mut argument_types = Vec::new();
             let mut pack_segments = Vec::new();
