@@ -124,10 +124,10 @@ pub(super) fn resolve_sequence_spread(
     let exact_item = protocol_item_type(&exact_interface)
         .ok_or(CollectionIterationError::MalformedConformance)?;
     if exact_item != &iteration.item_type {
-        return Err(CollectionIterationError::MismatchedItem {
-            conversion: iteration.item_type.clone(),
-            iterator: exact_item.clone(),
-        });
+        return Err(CollectionIterationError::mismatched_item(
+            iteration.item_type.clone(),
+            exact_item.clone(),
+        ));
     }
     let pack_item_type = match mode {
         SequenceSpreadMode::Copy => {
@@ -255,10 +255,10 @@ fn resolve_converted_iteration(
     let iterator_item = protocol_item_type(&iterator_interface)
         .ok_or(CollectionIterationError::MalformedConformance)?;
     if iterator_item != item_type {
-        return Err(CollectionIterationError::MismatchedItem {
-            conversion: item_type.clone(),
-            iterator: iterator_item.clone(),
-        });
+        return Err(CollectionIterationError::mismatched_item(
+            item_type.clone(),
+            iterator_item.clone(),
+        ));
     }
 
     Ok(CollectionIterationResolution {
@@ -399,8 +399,23 @@ pub(super) enum CollectionIterationError {
     MissingExactSize(Type),
     CopyRequiresReadonlyItem(Type),
     CopyRequiresCopy(Type),
-    MismatchedItem { conversion: Type, iterator: Type },
+    MismatchedItem(Box<IterationItemMismatch>),
     MalformedConformance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct IterationItemMismatch {
+    conversion: Type,
+    iterator: Type,
+}
+
+impl CollectionIterationError {
+    fn mismatched_item(conversion: Type, iterator: Type) -> Self {
+        Self::MismatchedItem(Box::new(IterationItemMismatch {
+            conversion,
+            iterator,
+        }))
+    }
 }
 
 pub(super) fn collection_iteration_diagnostic(
@@ -479,14 +494,11 @@ fn iteration_diagnostic(
             format!("copy spread element `{}` is move-only", actual.display()),
             "use `...move source` to transfer its elements explicitly".to_string(),
         ),
-        CollectionIterationError::MismatchedItem {
-            conversion,
-            iterator,
-        } => (
+        CollectionIterationError::MismatchedItem(mismatch) => (
             format!(
                 "collection conversion declares item `{}`, but its iterator yields `{}`",
-                conversion.display(),
-                iterator.display()
+                mismatch.conversion.display(),
+                mismatch.iterator.display()
             ),
             "make the conversion and iterator conformances use the same item type".to_string(),
         ),
