@@ -47,11 +47,11 @@ func main(): i32! {
                     slot_index: 0,
                     layout: ValueLayout::new(24, 8),
                 },
-                Instruction::CallFallibleAggregate {
+                Instruction::CallOutcomeAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CallI32 {
                     destination: I32Location::Return,
@@ -60,7 +60,7 @@ func main(): i32! {
                         source: AggregateArgumentSource::Slot(0),
                     })],
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -113,12 +113,12 @@ func main(): i32! {
                     slot_index: 0,
                     layout: ValueLayout::new(16, 8),
                 },
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CallI32 {
                     destination: I32Location::Return,
@@ -129,7 +129,7 @@ func main(): i32! {
                         words: 2,
                     })],
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -184,17 +184,17 @@ func fail(): void! {
                 offset: 0,
                 value: i32_const(3),
             },
-            Instruction::CallFallibleVoid {
+            Instruction::CallOutcomeVoid {
                 target: CallTarget::same_file("fail"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::PropagateWithCleanup {
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![drop_call.clone()],
                 },
             },
             drop_call,
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     );
 }
@@ -253,12 +253,12 @@ func make(): File! {
                 slot_index: 1,
                 layout: ValueLayout::new(4, 4),
             },
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(4, 4),
-                failure_mode: FallibleFailureMode::PropagateWithCleanup {
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![drop_call.clone()],
@@ -271,7 +271,7 @@ func make(): File! {
                 layout: ValueLayout::new(4, 4),
             },
             drop_call,
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     );
 }
@@ -321,18 +321,18 @@ func forward(): Text! {
                     slot_index: 0,
                     layout: ValueLayout::new(24, 8),
                 },
-                Instruction::CallFallibleAggregate {
+                Instruction::CallOutcomeAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CopyAggregate {
                     destination: AggregateLocation::Return,
                     source: AggregateLocation::Slot(0),
                     layout: ValueLayout::new(24, 8),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -378,13 +378,13 @@ func forward(): Text! {
             target: CallTarget::same_file("forward"),
             return_type: Type::Fallible(Box::new(aggregate_type)),
             instructions: vec![
-                Instruction::CallFallibleAggregate {
+                Instruction::CallOutcomeAggregate {
                     destination: AggregateLocation::Return,
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -472,7 +472,7 @@ func choose(): Pair! {
                 source: AggregateLocation::Slot(1),
                 layout: pair_layout,
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     );
 }
@@ -517,14 +517,14 @@ func forward(): Pair! {
             target: CallTarget::same_file("forward"),
             return_type: Type::Fallible(Box::new(aggregate_type)),
             instructions: vec![
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::DirectReturn,
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -590,12 +590,12 @@ func use_allocator(): i32! {
                     slot_index: 0,
                     layout: ValueLayout::new(16, 8),
                 },
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("page_allocator"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -604,7 +604,7 @@ func use_allocator(): i32! {
                     })],
                 },
                 set_return_i32(0),
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -682,12 +682,12 @@ func use_allocator(): i32! {
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
                 },
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("reset_allocator"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -696,7 +696,7 @@ func use_allocator(): i32! {
                     })],
                 },
                 set_return_i32(0),
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -778,11 +778,11 @@ func use_text(): i32! {
                     offset: 16,
                     value: usize_const(3),
                 },
-                Instruction::CallFallibleAggregate {
+                Instruction::CallOutcomeAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CallVoid {
                     target: CallTarget::same_file("touch"),
@@ -791,7 +791,7 @@ func use_text(): i32! {
                     })],
                 },
                 set_return_i32(0),
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -838,12 +838,12 @@ func read_code(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make_packet"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 4),
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -913,11 +913,11 @@ func build(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -976,12 +976,12 @@ func build(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make_header"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -1043,11 +1043,11 @@ func read_code(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -1111,11 +1111,11 @@ func main(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -1176,11 +1176,11 @@ func pick(): Header! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -1243,11 +1243,11 @@ func update(): i32! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             }),
         "{function:?}"
     );
@@ -1304,13 +1304,13 @@ func value(): usize {
             target: crate::ir::CallTarget::same_file("update".to_string()),
             return_type: Type::Fallible(Box::new(Type::Void)),
             instructions: vec![
-                Instruction::CallFallibleSlice {
+                Instruction::CallOutcomeSlice {
                     destination: SliceLocation::Local(0),
                     target: CallTarget::same_file("maybe_values"),
                     arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::SetUsize {
                     destination: UsizeLocation::Local(2),
@@ -1331,7 +1331,7 @@ func value(): usize {
                     index: usize_local(2),
                     value: usize_local(4),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -1368,12 +1368,12 @@ func make(): File! {
                 slot_index: 0,
                 layout: ValueLayout::new(4, 4),
             },
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(4, 4),
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             },
             Instruction::CallVoid {
                 target: CallTarget::same_file("File.drop"),
@@ -1385,7 +1385,7 @@ func make(): File! {
                 destination: I32Location::Return,
                 value: i32_const(0),
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -1421,12 +1421,12 @@ func make(): Header! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             }),
         "{function:?}"
     );
@@ -1468,11 +1468,11 @@ func make(): Packet! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             }),
         "{function:?}"
     );
@@ -1531,12 +1531,12 @@ func main(): i32 {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             }),
         "{function:?}"
     );
@@ -1585,12 +1585,12 @@ func make(): Header! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             }),
         "{function:?}"
     );
@@ -1633,12 +1633,12 @@ func make(): Header! {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             }),
         "{function:?}"
     );
@@ -1698,12 +1698,12 @@ func make(): Header {
             target: CallTarget::same_file("make"),
             return_type: aggregate_type,
             instructions: vec![
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::DirectReturn,
                     target: CallTarget::same_file("source"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Trap,
+                    failure_mode: OutcomeFailureMode::Trap,
                 },
                 Instruction::Return,
             ],

@@ -85,7 +85,7 @@ pub(in crate::ir::lower) fn lower_aggregate_return_expression_to_location(
                 destination,
                 function_name,
                 context,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {

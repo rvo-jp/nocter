@@ -29,7 +29,7 @@ func make(): Header? {
         "forward",
         function_signatures(vec![(
             "make",
-            Type::Fallible(Box::new(header_type)),
+            Type::Optional(Box::new(header_type)),
             vec![],
         )]),
     )
@@ -38,9 +38,9 @@ func make(): Header? {
     assert!(
         function.instructions.iter().any(|instruction| matches!(
             instruction,
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
                 ..
             } if *target == CallTarget::same_file("make")
         )),
@@ -50,7 +50,7 @@ func make(): Header? {
 
 #[test]
 fn lowers_optional_direct_aggregate_otherwise_return() {
-    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
     }));
@@ -80,12 +80,12 @@ func make(): Header? {
     .unwrap();
 
     let [
-        Instruction::CallFallibleDirectAggregate {
+        Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             arguments,
             layout,
-            failure_mode: FallibleFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Handle { instructions },
         },
         Instruction::Return,
     ] = function.instructions.as_slice()
@@ -111,7 +111,7 @@ func make(): Header? {
 
 #[test]
 fn lowers_optional_indirect_aggregate_otherwise_return() {
-    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
     let function = lower_named_function_with_signatures(
@@ -139,11 +139,11 @@ func make(): Triple? {
     .unwrap();
 
     let [
-        Instruction::CallFallibleAggregate {
+        Instruction::CallOutcomeAggregate {
             destination,
             target,
             arguments,
-            failure_mode: FallibleFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Handle { instructions },
         },
         Instruction::Return,
     ] = function.instructions.as_slice()
@@ -163,7 +163,7 @@ func make(): Triple? {
 
 #[test]
 fn lowers_optional_direct_aggregate_otherwise_return_with_scope_cleanup() {
-    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
     }));
@@ -237,12 +237,12 @@ func make(): Header? {
             slot_index: staged_slot,
             layout: staged_layout,
         },
-        Instruction::CallFallibleDirectAggregate {
+        Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             arguments,
             layout,
-            failure_mode: FallibleFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Handle { instructions },
         },
         top_drop,
         Instruction::CopyAggregate {
@@ -340,7 +340,7 @@ func make(): Header? {
             ),
             (
                 "make",
-                Type::Fallible(Box::new(header_type.clone())),
+                Type::Optional(Box::new(header_type.clone())),
                 vec![],
             ),
         ]),
@@ -358,14 +358,14 @@ func make(): Header? {
         source: AggregateLocation::Slot(1),
         layout: ValueLayout::new(16, 8),
     };
-    let Some(Instruction::CallFallibleDirectAggregate {
+    let Some(Instruction::CallOutcomeDirectAggregate {
         destination,
-        failure_mode: FallibleFailureMode::Handle { instructions },
+        failure_mode: OutcomeFailureMode::Handle { instructions },
         ..
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeDirectAggregate { .. }))
     else {
         panic!("{function:?}");
     };
@@ -374,18 +374,18 @@ func make(): Header? {
     assert!(instructions.as_slice().ends_with(&[
         drop_call.clone(),
         copy_to_return.clone(),
-        Instruction::ReturnFallibleSuccess,
+        Instruction::ReturnOutcomeSuccess,
     ]));
     assert!(function.instructions.ends_with(&[
         drop_call,
         copy_to_return,
-        Instruction::ReturnFallibleSuccess,
+        Instruction::ReturnOutcomeSuccess,
     ]));
 }
 
 #[test]
 fn lowers_optional_indirect_aggregate_otherwise_return_with_scope_cleanup() {
-    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
     let file_type = Type::DirectAggregate {
@@ -457,11 +457,11 @@ func make(): Triple? {
             slot_index: staged_slot,
             layout: staged_layout,
         },
-        Instruction::CallFallibleAggregate {
+        Instruction::CallOutcomeAggregate {
             destination,
             target,
             arguments,
-            failure_mode: FallibleFailureMode::Handle { instructions },
+            failure_mode: OutcomeFailureMode::Handle { instructions },
         },
         top_drop,
         Instruction::CopyAggregate {
@@ -507,7 +507,7 @@ func make(): Triple? {
 
 #[test]
 fn lowers_optional_direct_aggregate_otherwise_return_call_binding() {
-    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
     }));
@@ -537,12 +537,12 @@ func make(): Header? {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
                 layout: ValueLayout::new(16, 8),
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![set_return_i32(7), Instruction::Return],
                 },
             }),
@@ -552,7 +552,7 @@ func make(): Header? {
 
 #[test]
 fn lowers_optional_indirect_aggregate_otherwise_return_call_binding() {
-    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),
     }));
     let function = lower_named_function_with_signatures(
@@ -587,11 +587,11 @@ func make(): Packet? {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleAggregate {
+            .contains(&Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![set_return_i32(7), Instruction::Return],
                 },
             }),
@@ -601,7 +601,7 @@ func make(): Packet? {
 
 #[test]
 fn lowers_optional_direct_aggregate_otherwise_call_binding() {
-    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
     }));
@@ -627,16 +627,16 @@ func make(): Header? {
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleDirectAggregate {
+    let Some(Instruction::CallOutcomeDirectAggregate {
         destination,
         target,
         arguments,
         layout,
-        failure_mode: FallibleFailureMode::Recover { instructions },
+        failure_mode: OutcomeFailureMode::Recover { instructions },
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeDirectAggregate { .. }))
     else {
         panic!("{function:?}");
     };
@@ -653,7 +653,7 @@ func make(): Header? {
 
 #[test]
 fn lowers_optional_indirect_aggregate_otherwise_call_binding() {
-    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     }));
     let function = lower_named_function_with_signatures(
@@ -681,15 +681,15 @@ func make(): Triple? {
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleAggregate {
+    let Some(Instruction::CallOutcomeAggregate {
         destination,
         target,
         arguments,
-        failure_mode: FallibleFailureMode::Recover { instructions },
+        failure_mode: OutcomeFailureMode::Recover { instructions },
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeAggregate { .. }))
     else {
         panic!("{function:?}");
     };
@@ -705,7 +705,7 @@ func make(): Triple? {
 
 #[test]
 fn lowers_optional_direct_aggregate_otherwise_call_binding_from_copy_local_fallback() {
-    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+    let aggregate_type = Type::Optional(Box::new(Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
         words: 2,
     }));
@@ -732,14 +732,14 @@ func make(): Header? {
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleDirectAggregate {
+    let Some(Instruction::CallOutcomeDirectAggregate {
         destination,
-        failure_mode: FallibleFailureMode::Recover { instructions },
+        failure_mode: OutcomeFailureMode::Recover { instructions },
         ..
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeDirectAggregate { .. }))
     else {
         panic!("{function:?}");
     };
@@ -786,7 +786,7 @@ func fallback(): Triple {
         function_signatures(vec![
             (
                 "make",
-                Type::Fallible(Box::new(aggregate_type.clone())),
+                Type::Optional(Box::new(aggregate_type.clone())),
                 vec![],
             ),
             ("fallback", aggregate_type, vec![]),
@@ -794,14 +794,14 @@ func fallback(): Triple {
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleAggregate {
+    let Some(Instruction::CallOutcomeAggregate {
         destination,
-        failure_mode: FallibleFailureMode::Recover { instructions },
+        failure_mode: OutcomeFailureMode::Recover { instructions },
         ..
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeAggregate { .. }))
     else {
         panic!("{function:?}");
     };
@@ -896,17 +896,17 @@ func maybe_pair(flag: bool): [i32; 2]? {
             ("sum_pair", Type::I32, vec![pair_type.clone()]),
             (
                 "maybe_header",
-                Type::Fallible(Box::new(header_type.clone())),
+                Type::Optional(Box::new(header_type.clone())),
                 vec![Type::Bool],
             ),
             (
                 "maybe_triple",
-                Type::Fallible(Box::new(triple_type.clone())),
+                Type::Optional(Box::new(triple_type.clone())),
                 vec![Type::Bool],
             ),
             (
                 "maybe_pair",
-                Type::Fallible(Box::new(pair_type.clone())),
+                Type::Optional(Box::new(pair_type.clone())),
                 vec![Type::Bool],
             ),
         ]),
@@ -914,11 +914,11 @@ func maybe_pair(flag: bool): [i32; 2]? {
     .unwrap();
 
     let header_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleDirectAggregate {
+        let Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             layout,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } = instruction
         else {
@@ -961,10 +961,10 @@ func maybe_pair(flag: bool): [i32; 2]? {
     ));
 
     let triple_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleAggregate {
+        let Instruction::CallOutcomeAggregate {
             destination,
             target,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } = instruction
         else {
@@ -989,11 +989,11 @@ func maybe_pair(flag: bool): [i32; 2]? {
     )));
 
     let pair_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleDirectAggregate {
+        let Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             layout,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } = instruction
         else {
@@ -1077,17 +1077,17 @@ func maybe_pair(flag: bool): [i32; 2]? {
         function_signatures(vec![
             (
                 "maybe_header",
-                Type::Fallible(Box::new(header_type.clone())),
+                Type::Optional(Box::new(header_type.clone())),
                 vec![Type::Bool],
             ),
             (
                 "maybe_triple",
-                Type::Fallible(Box::new(triple_type.clone())),
+                Type::Optional(Box::new(triple_type.clone())),
                 vec![Type::Bool],
             ),
             (
                 "maybe_pair",
-                Type::Fallible(Box::new(pair_type.clone())),
+                Type::Optional(Box::new(pair_type.clone())),
                 vec![Type::Bool],
             ),
         ]),
@@ -1106,12 +1106,12 @@ func maybe_pair(flag: bool): [i32; 2]? {
     assert!(
         function
             .instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(2),
                 target: CallTarget::same_file("maybe_header"),
                 arguments: vec![ScalarArgument::Bool(BoolValue::Const(false))],
                 layout: header_layout,
-                failure_mode: FallibleFailureMode::Recover {
+                failure_mode: OutcomeFailureMode::Recover {
                     instructions: vec![
                         Instruction::StoreAggregateU8 {
                             destination: AggregateLocation::Slot(2),
@@ -1151,10 +1151,10 @@ func maybe_pair(flag: bool): [i32; 2]? {
 
     assert!(function.instructions.iter().any(|instruction| matches!(
         instruction,
-        Instruction::CallFallibleAggregate {
+        Instruction::CallOutcomeAggregate {
             destination: AggregateLocation::Slot(3),
             target,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } if target == &CallTarget::same_file("maybe_triple")
             && instructions.contains(&Instruction::CopyAggregateRange {
@@ -1179,11 +1179,11 @@ func maybe_pair(flag: bool): [i32; 2]? {
 
     assert!(function.instructions.iter().any(|instruction| matches!(
         instruction,
-        Instruction::CallFallibleDirectAggregate {
+        Instruction::CallOutcomeDirectAggregate {
             destination: AggregateLocation::Slot(4),
             target,
             layout,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } if target == &CallTarget::same_file("maybe_pair")
             && *layout == pair_layout
@@ -1265,12 +1265,12 @@ func maybe_triple(flag: bool): Triple? {
         function_signatures(vec![
             (
                 "maybe_header",
-                Type::Fallible(Box::new(header_type.clone())),
+                Type::Optional(Box::new(header_type.clone())),
                 vec![Type::Bool],
             ),
             (
                 "maybe_triple",
-                Type::Fallible(Box::new(triple_type.clone())),
+                Type::Optional(Box::new(triple_type.clone())),
                 vec![Type::Bool],
             ),
         ]),
@@ -1280,12 +1280,12 @@ func maybe_triple(flag: bool): Triple? {
     assert!(
         function.instructions.iter().any(|instruction| matches!(
             instruction,
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target,
                 arguments,
                 layout,
-                failure_mode: FallibleFailureMode::Recover { instructions },
+                failure_mode: OutcomeFailureMode::Recover { instructions },
             } if target == &CallTarget::same_file("maybe_header")
                 && arguments.as_slice() == [ScalarArgument::Bool(BoolValue::Const(false))]
                 && *layout == header_layout
@@ -1299,12 +1299,12 @@ func maybe_triple(flag: bool): Triple? {
     );
 
     let field_header_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleDirectAggregate {
+        let Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             arguments,
             layout,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
         } = instruction
         else {
             return None;
@@ -1334,10 +1334,10 @@ func maybe_triple(flag: bool): Triple? {
     )));
 
     let triple_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleAggregate {
+        let Instruction::CallOutcomeAggregate {
             destination,
             target,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
             ..
         } = instruction
         else {
@@ -1414,18 +1414,18 @@ func maybe_packet(flag: bool): Packet? {
         "main",
         function_signatures(vec![(
             "maybe_packet",
-            Type::Fallible(Box::new(packet_type.clone())),
+            Type::Optional(Box::new(packet_type.clone())),
             vec![Type::Bool],
         )]),
     )
     .unwrap();
 
     let scalar_member_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleAggregate {
+        let Instruction::CallOutcomeAggregate {
             destination,
             target,
             arguments,
-            failure_mode: FallibleFailureMode::Recover { instructions },
+            failure_mode: OutcomeFailureMode::Recover { instructions },
         } = instruction
         else {
             return None;
@@ -1454,7 +1454,7 @@ func maybe_packet(flag: bool): Packet? {
     )));
 
     let aggregate_member_call = function.instructions.iter().find_map(|instruction| {
-        let Instruction::CallFallibleAggregate {
+        let Instruction::CallOutcomeAggregate {
             destination,
             target,
             arguments,

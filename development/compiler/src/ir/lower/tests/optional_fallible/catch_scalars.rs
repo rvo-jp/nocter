@@ -23,11 +23,11 @@ func text(): &str! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleStr {
+                Instruction::CallOutcomeStr {
                     destination: StrLocation::Local(0),
                     target: CallTarget::same_file("text"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Catch {
+                    failure_mode: OutcomeFailureMode::Catch {
                         code: StrLocation::Local(2),
                         message: StrLocation::Local(4),
                         instructions: vec![
@@ -138,11 +138,11 @@ func answer(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Catch {
+                    failure_mode: OutcomeFailureMode::Catch {
                         code: StrLocation::Local(1),
                         message: StrLocation::Local(3),
                         instructions: vec![Instruction::ReturnFallibleFailure {
@@ -155,7 +155,7 @@ func answer(): i32! {
                     destination: I32Location::Return,
                     value: I32Value::Location(I32Location::Local(0)),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -203,7 +203,7 @@ pub func print_catch(text: &str): void! {
                 text: StrValue::Location(StrLocation::Parameter(0)),
             },
             Instruction::CheckFailure {
-                failure_mode: FallibleFailureMode::Catch {
+                failure_mode: OutcomeFailureMode::Catch {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![Instruction::ReturnFallibleFailure {
@@ -212,7 +212,7 @@ pub func print_catch(text: &str): void! {
                     }],
                 },
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -254,7 +254,7 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
                 bytes: SliceValue::Location(SliceLocation::Parameter(0)),
             },
             Instruction::CheckFailure {
-                failure_mode: FallibleFailureMode::Catch {
+                failure_mode: OutcomeFailureMode::Catch {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![Instruction::ReturnFallibleFailure {
@@ -263,7 +263,7 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
                     }],
                 },
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -304,7 +304,7 @@ pub func read_count_catch(buffer: &+[u8]): usize! {
                 destination: UsizeLocation::Local(0),
                 fd: I32Value::Const(0),
                 buffer: SliceValue::Location(SliceLocation::Parameter(0)),
-                failure_mode: FallibleFailureMode::Catch {
+                failure_mode: OutcomeFailureMode::Catch {
                     code: StrLocation::Local(1),
                     message: StrLocation::Local(3),
                     instructions: vec![Instruction::ReturnFallibleFailure {
@@ -317,7 +317,7 @@ pub func read_count_catch(buffer: &+[u8]): usize! {
                 destination: UsizeLocation::Return,
                 value: UsizeValue::Location(UsizeLocation::Local(0)),
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -459,16 +459,16 @@ func forward(error: error): i32! {
                 destination: StrLocation::Local(2),
                 value: StrValue::StaticBytes(b"failed".to_vec()),
             },
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 destination: I32Location::Return,
                 target: CallTarget::same_file("forward"),
                 arguments: vec![
                     ScalarArgument::Str(StrValue::Location(StrLocation::Local(0))),
                     ScalarArgument::Str(StrValue::Location(StrLocation::Local(2))),
                 ],
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 
@@ -599,11 +599,11 @@ func answer(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Catch {
+                    failure_mode: OutcomeFailureMode::Catch {
                         code: StrLocation::Local(1),
                         message: StrLocation::Local(3),
                         instructions: vec![Instruction::ReturnFallibleFailure {
@@ -616,7 +616,7 @@ func answer(): i32! {
                     destination: I32Location::Return,
                     value: I32Value::Location(I32Location::Local(0)),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );

@@ -709,7 +709,7 @@ pub(super) fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {
@@ -993,7 +993,7 @@ fn lower_aggregate_fallible_call_argument_source(
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_argument_diagnostic(
@@ -1001,19 +1001,22 @@ fn lower_aggregate_fallible_call_argument_source(
             parameter_type,
         ));
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         ));
     };
-    if success_type.as_ref() != parameter_type {
+    if success_type != parameter_type {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         ));
     }
-    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(success_type) else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -1026,7 +1029,7 @@ fn lower_aggregate_fallible_call_argument_source(
     instructions.extend(call_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        success_type,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,

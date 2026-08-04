@@ -8,10 +8,16 @@ pub(super) fn expected_attempt_type(
 ) -> Type {
     match expression_type(expression, resolved, environment) {
         Type::Fallible { error, .. } => Type::Fallible {
-            success: Box::new(expected_success.clone()),
+            success: Box::new(match expected_success {
+                Type::Fallible { success, .. } => success.as_ref().clone(),
+                _ => expected_success.clone(),
+            }),
             error,
         },
-        Type::Optional(_) => Type::Optional(Box::new(expected_success.clone())),
+        Type::Optional(_) => Type::Optional(Box::new(match expected_success {
+            Type::Optional(inner) => inner.as_ref().clone(),
+            _ => expected_success.clone(),
+        })),
         _ => expected_success.clone(),
     }
 }

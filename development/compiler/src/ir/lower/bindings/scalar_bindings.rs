@@ -220,10 +220,10 @@ pub(super) fn expression_scalar_binding_kind(
             propagated_expression_scalar_binding_kind(&propagation.expression, context)
         }
         Expr::Force(force) => {
-            fallible_call_success_scalar_binding_kind(unwrap_group(&force.expression), context)
+            outcome_call_payload_scalar_binding_kind(unwrap_group(&force.expression), context)
         }
         Expr::Catch(catch) => {
-            fallible_call_success_scalar_binding_kind(unwrap_group(&catch.expression), context)
+            outcome_call_payload_scalar_binding_kind(unwrap_group(&catch.expression), context)
         }
         Expr::Member(member) if context.payloadless_enum_variant_tag(member).is_some() => {
             Some(ScalarBindingKind::U8)
@@ -241,7 +241,7 @@ fn propagated_expression_scalar_binding_kind(
     {
         return scalar_binding_kind_from_type(&local.payload_type);
     }
-    if let Some(kind) = fallible_call_success_scalar_binding_kind(unwrap_group(expression), context)
+    if let Some(kind) = outcome_call_payload_scalar_binding_kind(unwrap_group(expression), context)
     {
         return Some(kind);
     }
@@ -266,7 +266,7 @@ pub(super) fn call_return_scalar_binding_kind(
     scalar_binding_kind_from_call_return_type(call, context.call_return_type(&target)?, context)
 }
 
-pub(super) fn fallible_call_success_scalar_binding_kind(
+pub(super) fn outcome_call_payload_scalar_binding_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
@@ -278,9 +278,7 @@ pub(super) fn fallible_call_success_scalar_binding_kind(
     }
 
     let (target, _call_name) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success) = context.call_return_type(&target)? else {
-        return None;
-    };
+    let (_, success) = context.call_return_type(&target)?.single_outcome()?;
     scalar_binding_kind_from_call_success_type(call, success, context)
 }
 

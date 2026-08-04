@@ -65,9 +65,9 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("value") => Some(instructions),
             _ => None,

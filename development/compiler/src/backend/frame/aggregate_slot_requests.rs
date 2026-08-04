@@ -115,16 +115,16 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             record_instruction_list_aggregate_slot_requests(condition_instructions, requests)?;
             record_instruction_list_aggregate_slot_requests(body_instructions, requests)
         }
-        Instruction::CallFallibleI32 { failure_mode, .. }
-        | Instruction::CallFallibleU8 { failure_mode, .. }
-        | Instruction::CallFallibleUsize { failure_mode, .. }
-        | Instruction::CallFallibleBorrow { failure_mode, .. }
-        | Instruction::CallFallibleBool { failure_mode, .. }
-        | Instruction::CallFallibleStr { failure_mode, .. }
-        | Instruction::CallFallibleSlice { failure_mode, .. }
-        | Instruction::CallFallibleDirectAggregate { failure_mode, .. }
-        | Instruction::CallFallibleAggregate { failure_mode, .. }
-        | Instruction::CallFallibleVoid { failure_mode, .. }
+        Instruction::CallOutcomeI32 { failure_mode, .. }
+        | Instruction::CallOutcomeU8 { failure_mode, .. }
+        | Instruction::CallOutcomeUsize { failure_mode, .. }
+        | Instruction::CallOutcomeBorrow { failure_mode, .. }
+        | Instruction::CallOutcomeBool { failure_mode, .. }
+        | Instruction::CallOutcomeStr { failure_mode, .. }
+        | Instruction::CallOutcomeSlice { failure_mode, .. }
+        | Instruction::CallOutcomeDirectAggregate { failure_mode, .. }
+        | Instruction::CallOutcomeAggregate { failure_mode, .. }
+        | Instruction::CallOutcomeVoid { failure_mode, .. }
         | Instruction::ReadSlice { failure_mode, .. }
         | Instruction::OpenRead { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
@@ -140,7 +140,7 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
@@ -237,15 +237,15 @@ pub(super) fn record_instruction_aggregate_slot_requests(
 }
 
 pub(super) fn record_failure_mode_aggregate_slot_requests(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     requests: &mut Vec<AggregateSlotRequest>,
 ) -> Result<(), Vec<Diagnostic>> {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => Ok(()),
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => Ok(()),
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             record_instruction_list_aggregate_slot_requests(instructions, requests)
         }
     }

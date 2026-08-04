@@ -641,7 +641,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 destination,
                 target,
                 arguments,
@@ -668,7 +668,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleU8 {
+            Instruction::CallOutcomeU8 {
                 destination,
                 target,
                 arguments,
@@ -695,7 +695,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleUsize {
+            Instruction::CallOutcomeUsize {
                 destination,
                 target,
                 arguments,
@@ -722,7 +722,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleBorrow {
+            Instruction::CallOutcomeBorrow {
                 destination,
                 target,
                 arguments,
@@ -749,7 +749,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleBool {
+            Instruction::CallOutcomeBool {
                 destination,
                 target,
                 arguments,
@@ -776,7 +776,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleStr {
+            Instruction::CallOutcomeStr {
                 destination,
                 target,
                 arguments,
@@ -803,7 +803,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleSlice {
+            Instruction::CallOutcomeSlice {
                 destination,
                 target,
                 arguments,
@@ -844,7 +844,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination,
                 target,
                 arguments,
@@ -852,7 +852,7 @@ impl EntryEmitter {
                 failure_mode,
             } => {
                 self.emit_call_fallible_direct_aggregate(
-                    calls::FallibleDirectAggregateCall {
+                    calls::OutcomeDirectAggregateCall {
                         destination: *destination,
                         function: FunctionSymbol::from_call_target(target),
                         arguments,
@@ -863,7 +863,7 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 destination,
                 target,
                 arguments,
@@ -881,7 +881,7 @@ impl EntryEmitter {
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
-            Instruction::CallFallibleVoid {
+            Instruction::CallOutcomeVoid {
                 target,
                 arguments,
                 failure_mode,
@@ -1027,8 +1027,8 @@ impl EntryEmitter {
             Instruction::CheckFailure { failure_mode } => {
                 self.emit_check_failure(failure_mode, frame, return_type)?;
             }
-            Instruction::ReturnFallibleSuccess => {
-                self.emit_return_fallible_success(return_type, frame)?;
+            Instruction::ReturnOutcomeSuccess => {
+                self.emit_return_outcome_success(return_type, frame)?;
             }
             Instruction::ReturnOptionalNone => {
                 self.emit_return_optional_none(frame, return_type)?;

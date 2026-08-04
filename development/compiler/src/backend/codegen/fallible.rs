@@ -69,118 +69,6 @@ impl EntryEmitter {
         emit_darwin_write_syscall(&mut self.encoder);
     }
 
-    pub(in crate::backend::codegen) fn emit_return_fallible_success(
-        &mut self,
-        return_type: &Type,
-        frame: Option<&FrameLayout>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        match return_type {
-            Type::Fallible(success_type) => {
-                self.emit_fallible_success_payload(success_type)?;
-                emit_mov_i32_to_w0(&mut self.encoder, 0);
-            }
-            Type::ComposedOutcome { payload, .. } => {
-                self.emit_composed_outcome_success_payload(payload)?;
-                emit_mov_i32_to_w(&mut self.encoder, WReg::W1, 0);
-                emit_mov_i32_to_w0(&mut self.encoder, 0);
-            }
-            _ => {
-                return Err(vec![Diagnostic::error(
-                    "E9002",
-                    "`ReturnFallibleSuccess` requires an outcome function return type",
-                )]);
-            }
-        }
-        self.emit_return(frame);
-        Ok(())
-    }
-
-    pub(in crate::backend::codegen) fn emit_composed_outcome_success_payload(
-        &mut self,
-        payload_type: &Type,
-    ) -> Result<(), Vec<Diagnostic>> {
-        validate_supported_fallible_success_payload_abi(payload_type)?;
-        match payload_type {
-            Type::I32 | Type::U8 | Type::Bool => {
-                self.encoder.emit_mov_w(WReg::W2, WReg::W0);
-            }
-            Type::Usize | Type::Borrow { .. } => {
-                self.encoder.emit_mov_x(XReg::X2, XReg::X0);
-            }
-            Type::Str | Type::Slice { .. } => {
-                self.encoder.emit_mov_x(XReg::X3, XReg::X1);
-                self.encoder.emit_mov_x(XReg::X2, XReg::X0);
-            }
-            Type::Aggregate { .. } | Type::Void => {}
-            Type::DirectAggregate { words, .. } => match words {
-                0 => {}
-                1 => self.encoder.emit_mov_x(XReg::X2, XReg::X0),
-                2 => {
-                    self.encoder.emit_mov_x(XReg::X3, XReg::X1);
-                    self.encoder.emit_mov_x(XReg::X2, XReg::X0);
-                }
-                _ => {
-                    return Err(vec![Diagnostic::error(
-                        "E9002",
-                        "invalid direct aggregate composed outcome payload width",
-                    )]);
-                }
-            },
-            Type::Error | Type::Never | Type::Fallible(_) | Type::ComposedOutcome { .. } => {
-                return Err(vec![Diagnostic::error(
-                    "E9002",
-                    "invalid composed outcome payload type for codegen",
-                )]);
-            }
-        }
-        Ok(())
-    }
-
-    pub(in crate::backend::codegen) fn emit_fallible_success_payload(
-        &mut self,
-        success_type: &Type,
-    ) -> Result<(), Vec<Diagnostic>> {
-        validate_supported_fallible_success_payload_abi(success_type)?;
-        match success_type {
-            Type::I32 | Type::U8 | Type::Bool => {
-                self.encoder.emit_mov_w(WReg::W1, WReg::W0);
-            }
-            Type::Usize | Type::Borrow { .. } => {
-                self.encoder.emit_mov_x(XReg::X1, XReg::X0);
-            }
-            Type::Str | Type::Slice { .. } => {
-                self.encoder.emit_mov_x(XReg::X2, XReg::X1);
-                self.encoder.emit_mov_x(XReg::X1, XReg::X0);
-            }
-            Type::Aggregate { .. } => {}
-            Type::DirectAggregate { words, .. } => match words {
-                0 => {}
-                1 => {
-                    self.encoder.emit_mov_x(XReg::X1, XReg::X0);
-                }
-                2 => {
-                    self.encoder.emit_mov_x(XReg::X2, XReg::X1);
-                    self.encoder.emit_mov_x(XReg::X1, XReg::X0);
-                }
-                _ => {
-                    return Err(vec![Diagnostic::error(
-                        "E9002",
-                        "invalid direct aggregate fallible success payload width",
-                    )]);
-                }
-            },
-            Type::Void => {}
-            Type::Error | Type::Never | Type::Fallible(_) | Type::ComposedOutcome { .. } => {
-                return Err(vec![Diagnostic::error(
-                    "E9002",
-                    "invalid fallible success payload type for codegen",
-                )]);
-            }
-        }
-
-        Ok(())
-    }
-
     pub(in crate::backend::codegen) fn emit_return_fallible_failure(
         &mut self,
         code: &StrValue,
@@ -213,6 +101,12 @@ impl EntryEmitter {
                     )]);
                 }
             },
+            Type::Optional(_) => {
+                return Err(vec![Diagnostic::error(
+                    "E9002",
+                    "fallible failure return requires a fallible outcome layer",
+                )]);
+            }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
@@ -363,42 +257,6 @@ impl EntryEmitter {
         XReg::local(index)
     }
 
-    pub(in crate::backend::codegen) fn emit_return_optional_none(
-        &mut self,
-        frame: Option<&FrameLayout>,
-        return_type: &Type,
-    ) -> Result<(), Vec<Diagnostic>> {
-        match return_type {
-            Type::Fallible(_) => emit_mov_i32_to_w0(&mut self.encoder, 1),
-            Type::ComposedOutcome { outer, inner, .. } => match (outer, inner) {
-                (
-                    crate::outcomes::OutcomeLayer::Fallible,
-                    crate::outcomes::OutcomeLayer::Optional,
-                ) => {
-                    emit_mov_i32_to_w(&mut self.encoder, WReg::W1, 1);
-                    emit_mov_i32_to_w0(&mut self.encoder, 0);
-                }
-                (crate::outcomes::OutcomeLayer::Optional, _) => {
-                    emit_mov_i32_to_w0(&mut self.encoder, 1);
-                }
-                _ => {
-                    return Err(vec![Diagnostic::error(
-                        "E9002",
-                        "composed outcome has no optional return layer",
-                    )]);
-                }
-            },
-            _ => {
-                return Err(vec![Diagnostic::error(
-                    "E9002",
-                    "optional absence requires an optional return layer",
-                )]);
-            }
-        }
-        self.emit_return(frame);
-        Ok(())
-    }
-
     pub(in crate::backend::codegen) fn emit_propagate_failure(
         &mut self,
         frame: Option<&FrameLayout>,
@@ -420,17 +278,17 @@ impl EntryEmitter {
 
     pub(in crate::backend::codegen) fn emit_check_failure(
         &mut self,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         match failure_mode {
-            FallibleFailureMode::Propagate => self.emit_return(frame),
-            FallibleFailureMode::PropagateWithCleanup { .. }
-            | FallibleFailureMode::Handle { .. }
-            | FallibleFailureMode::Recover { .. } => {
+            OutcomeFailureMode::Propagate => self.emit_return(frame),
+            OutcomeFailureMode::PropagateWithCleanup { .. }
+            | OutcomeFailureMode::Handle { .. }
+            | OutcomeFailureMode::Recover { .. } => {
                 let Some(frame) = frame else {
                     return Err(vec![Diagnostic::error(
                         "E9005",
@@ -439,8 +297,8 @@ impl EntryEmitter {
                 };
                 self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
             }
-            FallibleFailureMode::Trap => self.emit_trap(),
-            FallibleFailureMode::Catch { .. } => {
+            OutcomeFailureMode::Trap => self.emit_trap(),
+            OutcomeFailureMode::Catch { .. } => {
                 let Some(frame) = frame else {
                     return Err(vec![Diagnostic::error(
                         "E9005",
@@ -455,16 +313,16 @@ impl EntryEmitter {
 
     pub(in crate::backend::codegen) fn emit_fallible_failure_action(
         &mut self,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: &FrameLayout,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         match failure_mode {
-            FallibleFailureMode::Propagate => {
+            OutcomeFailureMode::Propagate => {
                 self.emit_return(Some(frame));
                 Ok(())
             }
-            FallibleFailureMode::PropagateWithCleanup {
+            OutcomeFailureMode::PropagateWithCleanup {
                 code,
                 message,
                 instructions,
@@ -481,25 +339,25 @@ impl EntryEmitter {
                 self.emit_return(Some(frame));
                 Ok(())
             }
-            FallibleFailureMode::Trap => {
+            OutcomeFailureMode::Trap => {
                 self.emit_trap();
                 Ok(())
             }
-            FallibleFailureMode::Handle { instructions } => {
+            OutcomeFailureMode::Handle { instructions } => {
                 self.emit_scalar_reloads(frame)?;
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
                 }
                 Ok(())
             }
-            FallibleFailureMode::Recover { instructions } => {
+            OutcomeFailureMode::Recover { instructions } => {
                 self.emit_scalar_reloads(frame)?;
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
                 }
                 Ok(())
             }
-            FallibleFailureMode::Catch {
+            OutcomeFailureMode::Catch {
                 code,
                 message,
                 instructions,

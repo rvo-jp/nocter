@@ -4,7 +4,7 @@ pub(in crate::ir::lower) fn instruction_list_ends_execution(instructions: &[Inst
     match instructions.last() {
         Some(
             Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }

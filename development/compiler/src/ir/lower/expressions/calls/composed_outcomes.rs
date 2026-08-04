@@ -7,8 +7,8 @@ pub(in crate::ir::lower) fn lower_composed_outcome_call(
     destination: ComposedOutcomeDestination,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    outer_mode: FallibleFailureMode,
-    inner_mode: FallibleFailureMode,
+    outer_mode: OutcomeFailureMode,
+    inner_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());

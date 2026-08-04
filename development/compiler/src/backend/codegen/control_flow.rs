@@ -379,7 +379,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     match instructions.last() {
         Some(
             Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::ReturnStoredOutcome { .. }
@@ -493,25 +493,25 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ShiftLeftUsize { .. }
             | Instruction::ShiftRightUsize { .. }
             | Instruction::CallI32 { .. }
-            | Instruction::CallFallibleI32 { .. }
+            | Instruction::CallOutcomeI32 { .. }
             | Instruction::CallU8 { .. }
-            | Instruction::CallFallibleU8 { .. }
+            | Instruction::CallOutcomeU8 { .. }
             | Instruction::CallUsize { .. }
-            | Instruction::CallFallibleUsize { .. }
+            | Instruction::CallOutcomeUsize { .. }
             | Instruction::CallBorrow { .. }
-            | Instruction::CallFallibleBorrow { .. }
+            | Instruction::CallOutcomeBorrow { .. }
             | Instruction::CallBool { .. }
-            | Instruction::CallFallibleBool { .. }
+            | Instruction::CallOutcomeBool { .. }
             | Instruction::CallStr { .. }
-            | Instruction::CallFallibleStr { .. }
+            | Instruction::CallOutcomeStr { .. }
             | Instruction::CallSlice { .. }
-            | Instruction::CallFallibleSlice { .. }
+            | Instruction::CallOutcomeSlice { .. }
             | Instruction::CallAggregate { .. }
             | Instruction::CallDirectAggregate { .. }
-            | Instruction::CallFallibleDirectAggregate { .. }
-            | Instruction::CallFallibleAggregate { .. }
+            | Instruction::CallOutcomeDirectAggregate { .. }
+            | Instruction::CallOutcomeAggregate { .. }
             | Instruction::CallVoid { .. }
-            | Instruction::CallFallibleVoid { .. }
+            | Instruction::CallOutcomeVoid { .. }
             | Instruction::CallComposedOutcome { .. }
             | Instruction::CallStoredOutcome { .. }
             | Instruction::CheckStoredFallible { .. }

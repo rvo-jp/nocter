@@ -190,18 +190,18 @@ fn fallible_aggregate_call_passes_destination_slot_and_checks_status() {
                     slot_index: 0,
                     layout: ValueLayout::new(24, 8),
                 },
-                Instruction::CallFallibleAggregate {
+                Instruction::CallOutcomeAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::CopyAggregate {
                     destination: AggregateLocation::Return,
                     source: AggregateLocation::Slot(0),
                     layout: ValueLayout::new(24, 8),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
         Function {
@@ -214,7 +214,7 @@ fn fallible_aggregate_call_passes_destination_slot_and_checks_status() {
                     offset: 0,
                     value: UsizeValue::Const(7),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
     ]);
@@ -252,15 +252,15 @@ fn fallible_direct_aggregate_call_stores_success_payload_words() {
                     slot_index: 0,
                     layout: ValueLayout::new(16, 8),
                 },
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     layout: ValueLayout::new(16, 8),
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 set_return_i32(0),
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
         Function {
@@ -278,7 +278,7 @@ fn fallible_direct_aggregate_call_stores_success_payload_words() {
                     offset: 8,
                     value: UsizeValue::Const(9),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
     ]);
@@ -310,15 +310,15 @@ fn fallible_direct_aggregate_call_stores_partial_final_payload_word() {
                     slot_index: 0,
                     layout,
                 },
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     layout,
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 set_return_i32(0),
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
         Function {
@@ -345,7 +345,7 @@ fn fallible_direct_aggregate_call_stores_partial_final_payload_word() {
                     source: AggregateLocation::Slot(0),
                     layout,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
     ]);
@@ -379,12 +379,12 @@ fn fallible_direct_aggregate_call_forwards_partial_payload_to_direct_return() {
             target: crate::ir::CallTarget::same_file("forward".to_string()),
             return_type: aggregate.clone(),
             instructions: vec![
-                Instruction::CallFallibleDirectAggregate {
+                Instruction::CallOutcomeDirectAggregate {
                     destination: AggregateLocation::DirectReturn,
                     target: CallTarget::same_file("make"),
                     arguments: vec![],
                     layout,
-                    failure_mode: FallibleFailureMode::Trap,
+                    failure_mode: OutcomeFailureMode::Trap,
                 },
                 Instruction::Return,
             ],
@@ -413,7 +413,7 @@ fn fallible_direct_aggregate_call_forwards_partial_payload_to_direct_return() {
                     source: AggregateLocation::Slot(0),
                     layout,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         },
     ]);

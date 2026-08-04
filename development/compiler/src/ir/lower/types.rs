@@ -263,7 +263,7 @@ where
             resolver,
             resolving_names,
         )
-        .map(|success| Type::Fallible(Box::new(success))),
+        .map(|payload| Type::Optional(Box::new(payload))),
         TypeExpr::Borrow(borrow) => {
             scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver).or_else(
                 || {
@@ -335,7 +335,8 @@ where
             resolving_names,
         )?;
         return match shape.layers.as_slice() {
-            [_] => Some(Type::Fallible(Box::new(payload))),
+            [OutcomeLayer::Optional] => Some(Type::Optional(Box::new(payload))),
+            [OutcomeLayer::Fallible] => Some(Type::Fallible(Box::new(payload))),
             [outer, inner] => Some(Type::ComposedOutcome {
                 outer: *outer,
                 inner: *inner,

@@ -51,6 +51,25 @@ The callable ABI remains register-oriented and may place tags and payload words 
 memory object. Explicit pack/unpack operations bridge the two representations. This prevents frame
 layout details from becoming a public ABI promise.
 
+## Semantic IR Identity
+
+IR preserves the semantic identity of every supported outcome layer. A single optional return is
+`Optional(T)`, a single fallible return is `Fallible(T)`, and a two-layer return records its ordered
+outer and inner layers. Optional and fallible calls may share an ABI shape, but they do not share a
+type variant.
+
+Shared call instructions and payload operations use outcome terminology. Error payload capture,
+`catch`, and fallible failure returns remain fallible-only operations. Backend validation rejects a
+normal call to any outcome return, an optional call paired with an error-only failure mode, and a
+return instruction whose layer disagrees with its function return type. Lowering therefore cannot
+recover a lost layer by re-reading source syntax or reconstructing a typechecker decision.
+
+Contextual generic inference treats postfix consumption and implicit outcome construction as
+separate operations. For `return next(value)?` in a function returning `T?`, `next` is specialized
+from the payload context `T`; the collector must not infer `T?` and create `(T?)?`. Stored payload
+consumption uses the same destination-based operation for scalars, views, and borrows, so a borrow
+payload cannot fall back to a call-only lowering path.
+
 ## Value Operations
 
 - A binding initializes its tag and active payload before the value becomes live.
@@ -86,8 +105,10 @@ origins but may not merge absence with failure or invent an initialized payload.
 | normalized layer tree and stored offsets | `outcomes/storage` |
 | source typing and contextual `none`/`error` construction | `typecheck` |
 | tag-aware move, assignment, and drop state | `typecheck/ownership` |
+| semantic IR outcome identity and call operations | `ir/model` and `ir/lower/types` |
 | frame slots and stored value operations | `ir/lower/outcome_values` |
-| callable ABI pack/unpack | `ir/lower/outcome_calls` and `backend/codegen/outcomes` |
+| callable ABI pack/unpack | `ir/lower/expressions/calls` and `backend/codegen/outcomes` |
+| outcome return encoding and layer validation | `backend/codegen/outcome_returns` and `backend/codegen/validation` |
 | active-payload memory operations | `backend/codegen/outcome_values` |
 | channel-specific storage origins | `typecheck/provenance` |
 | hover, completion, and signature presentation | `analysis`; protocol conversion in `driver/lsp` |

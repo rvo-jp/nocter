@@ -698,6 +698,7 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
             | Type::Error
             | Type::Void
             | Type::Never
+            | Type::Optional(_)
             | Type::Fallible(_)
             | Type::ComposedOutcome { .. } => {
                 return Err(unsupported_pointer_primitive_diagnostic(
@@ -943,7 +944,7 @@ pub(in crate::ir::lower::expressions) fn lower_read_bytes_raw_primitive_call(
     destination: UsizeLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
@@ -970,7 +971,7 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
     destination: I32Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(

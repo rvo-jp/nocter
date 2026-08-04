@@ -9,8 +9,8 @@ impl EntryEmitter {
         arguments: &[ScalarArgument],
         outer: OutcomeLayer,
         inner: OutcomeLayer,
-        outer_mode: &FallibleFailureMode,
-        inner_mode: &FallibleFailureMode,
+        outer_mode: &OutcomeFailureMode,
+        inner_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -60,7 +60,7 @@ impl EntryEmitter {
         &mut self,
         layer: OutcomeLayer,
         tag_index: usize,
-        mode: &FallibleFailureMode,
+        mode: &OutcomeFailureMode,
         frame: &FrameLayout,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -71,17 +71,17 @@ impl EntryEmitter {
             (OutcomeLayer::Fallible, _) => {
                 self.emit_fallible_failure_action(mode, frame, return_type)
             }
-            (OutcomeLayer::Optional, FallibleFailureMode::Propagate) => {
+            (OutcomeLayer::Optional, OutcomeFailureMode::Propagate) => {
                 self.emit_return_optional_none(Some(frame), return_type)
             }
-            (OutcomeLayer::Optional, FallibleFailureMode::Trap) => {
+            (OutcomeLayer::Optional, OutcomeFailureMode::Trap) => {
                 self.emit_trap();
                 Ok(())
             }
             (
                 OutcomeLayer::Optional,
-                FallibleFailureMode::Handle { instructions }
-                | FallibleFailureMode::Recover { instructions },
+                OutcomeFailureMode::Handle { instructions }
+                | OutcomeFailureMode::Recover { instructions },
             ) => {
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
@@ -90,14 +90,14 @@ impl EntryEmitter {
             }
             (
                 OutcomeLayer::Optional,
-                FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
             ) => {
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
                 }
                 self.emit_return_optional_none(Some(frame), return_type)
             }
-            (OutcomeLayer::Optional, FallibleFailureMode::Catch { .. }) => {
+            (OutcomeLayer::Optional, OutcomeFailureMode::Catch { .. }) => {
                 Err(vec![Diagnostic::error(
                     "E9002",
                     "optional absence cannot enter a catch handler",

@@ -13,7 +13,7 @@ use super::control_flow::{
     lower_terminal_void_switch_block,
 };
 use super::expressions::{
-    lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
+    lower_void_expression_statement, mark_outcome_success_returns, success_return_instruction,
 };
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, LoweredSwitchBlock,
@@ -479,7 +479,7 @@ fn lower_entry_payloadless_switch_body_result(
         Ok(Some(mut branch_instructions)) => {
             let mut instructions = switch.leading_instructions;
             instructions.append(&mut branch_instructions);
-            Ok(Some(mark_fallible_success_returns(
+            Ok(Some(mark_outcome_success_returns(
                 return_type,
                 instructions,
             )))
@@ -630,7 +630,7 @@ fn lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
         return Ok(None);
     };
 
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         branch_instructions,
     )))
@@ -699,7 +699,7 @@ fn lower_terminal_entry_payloadless_switch_for_success_type(
 
     let mut instructions = switch.leading_instructions;
     instructions.extend(branch_instructions);
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         instructions,
     )))

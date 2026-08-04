@@ -400,13 +400,13 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
     match expression {
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Str),
         Expr::Propagate(propagation) => {
-            expression_is_lowerable_fallible_str_expression(&propagation.expression, context)
+            expression_is_lowerable_outcome_str_expression(&propagation.expression, context)
         }
         Expr::Force(force) => {
-            expression_is_lowerable_fallible_str_expression(&force.expression, context)
+            expression_is_lowerable_outcome_str_expression(&force.expression, context)
         }
         Expr::Catch(catch) => {
-            expression_is_lowerable_fallible_str_expression(&catch.expression, context)
+            expression_is_lowerable_outcome_str_expression(&catch.expression, context)
         }
         Expr::Index(index) => {
             expression_is_lowerable_str_slice_index_object(&index.object, context)
@@ -420,17 +420,16 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
     }
 }
 
-fn expression_is_lowerable_fallible_str_expression(
+fn expression_is_lowerable_outcome_str_expression(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
     let Expr::Call(call) = unwrap_group(expression) else {
         return false;
     };
-    matches!(
-        direct_call_return_type(call, context),
-        Some(Type::Fallible(success)) if success.as_ref() == &Type::Str
-    )
+    direct_call_return_type(call, context)
+        .and_then(Type::single_outcome)
+        .is_some_and(|(_, payload)| payload == &Type::Str)
 }
 
 fn expression_is_lowerable_str_value(expression: &Expr, context: &LoweringContext) -> bool {

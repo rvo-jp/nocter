@@ -22,7 +22,7 @@ pub(super) fn record_instruction_scalar_locals(
     match instruction {
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
@@ -518,7 +518,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             destination,
             arguments,
             failure_mode,
@@ -540,7 +540,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleU8 {
+        Instruction::CallOutcomeU8 {
             destination,
             arguments,
             failure_mode,
@@ -572,7 +572,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleUsize {
+        Instruction::CallOutcomeUsize {
             destination,
             arguments,
             failure_mode,
@@ -584,7 +584,7 @@ pub(super) fn record_instruction_scalar_locals(
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        Instruction::CallFallibleBorrow {
+        Instruction::CallOutcomeBorrow {
             destination,
             arguments,
             failure_mode,
@@ -606,7 +606,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleBool {
+        Instruction::CallOutcomeBool {
             destination,
             arguments,
             failure_mode,
@@ -628,7 +628,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleStr {
+        Instruction::CallOutcomeStr {
             destination,
             arguments,
             failure_mode,
@@ -650,7 +650,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleSlice {
+        Instruction::CallOutcomeSlice {
             destination,
             arguments,
             failure_mode,
@@ -668,7 +668,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleDirectAggregate {
+        Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
@@ -678,7 +678,7 @@ pub(super) fn record_instruction_scalar_locals(
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        Instruction::CallFallibleAggregate {
+        Instruction::CallOutcomeAggregate {
             arguments,
             failure_mode,
             ..
@@ -693,7 +693,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleVoid {
+        Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -802,12 +802,12 @@ pub(super) fn record_instruction_scalar_locals(
 }
 
 pub(super) fn record_failure_mode_scalar_locals(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     highest_local_index: &mut Option<usize>,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup {
             code,
             message,
             instructions,
@@ -816,13 +816,13 @@ pub(super) fn record_failure_mode_scalar_locals(
             record_str_location(*message, highest_local_index);
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Handle { instructions } => {
+        OutcomeFailureMode::Handle { instructions } => {
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Recover { instructions } => {
+        OutcomeFailureMode::Recover { instructions } => {
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Catch {
+        OutcomeFailureMode::Catch {
             code,
             message,
             instructions,

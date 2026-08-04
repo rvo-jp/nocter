@@ -84,7 +84,7 @@ pub(in crate::ir::lower) fn lower_void_expression_statement(
         Expr::Force(force) => lower_fallible_void_expression_statement(
             &force.expression,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_fallible_void_expression_statement(
             &catch.expression,
@@ -107,12 +107,12 @@ pub(in crate::ir::lower) fn lower_catch_failure_mode(
     catch: &CatchExpr,
     context: &LoweringContext,
     reserved_abi_words: usize,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
     let (code, message) = catch_context.define_error_local(catch.error_name.clone())?;
     let instructions = lower_catch_block(&catch.catch_block, &mut catch_context)?;
 
-    Ok(FallibleFailureMode::Catch {
+    Ok(OutcomeFailureMode::Catch {
         code,
         message,
         instructions,

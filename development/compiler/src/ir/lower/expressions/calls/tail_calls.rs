@@ -56,7 +56,10 @@ fn fallible_success_tail_call_requires_normal_call(
     target: &CallTarget,
     context: &LoweringContext,
 ) -> bool {
-    if !matches!(context.function_return_type(), Type::Fallible(_)) {
+    if !matches!(
+        context.function_return_type(),
+        Type::Optional(_) | Type::Fallible(_)
+    ) {
         return false;
     }
     matches!(context.call_return_type(target), Some(return_type) if return_type == context.return_type())
@@ -115,6 +118,7 @@ fn lower_non_tail_return_call_instruction(
         )),
         Type::Never
         | Type::Void
+        | Type::Optional(_)
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. }
         | Type::Borrow { .. }

@@ -80,7 +80,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -132,7 +132,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -188,7 +188,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -244,7 +244,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -300,7 +300,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -356,7 +356,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -413,7 +413,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -443,9 +443,9 @@ impl EntryEmitter {
 
     pub(in crate::backend::codegen) fn emit_recover_done_branch_if_needed(
         &mut self,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
     ) -> Option<BranchPatch> {
-        matches!(failure_mode, FallibleFailureMode::Recover { .. })
+        matches!(failure_mode, OutcomeFailureMode::Recover { .. })
             .then(|| self.emit_branch_placeholder())
     }
 

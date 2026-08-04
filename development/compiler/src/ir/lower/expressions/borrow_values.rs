@@ -21,6 +21,34 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
         }
         expression => expression,
     };
+    if let Expr::Propagate(propagation) = expression {
+        return lower_outcome_borrow_expression(
+            &propagation.expression,
+            destination,
+            context,
+            propagating_outcome_mode(&propagation.expression, context)?,
+        );
+    }
+    if let Expr::Force(force) = expression {
+        return lower_outcome_borrow_expression(
+            &force.expression,
+            destination,
+            context,
+            OutcomeFailureMode::Trap,
+        );
+    }
+    if let Expr::Catch(catch) = expression {
+        return lower_outcome_borrow_expression(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                usize_destination_reserved_abi_words(destination),
+            )?,
+        );
+    }
     if let Expr::Call(call) = expression {
         let mut temporaries = TemporaryAllocator::new(context)?;
         return lower_borrow_normal_call(call, destination, context, &mut temporaries);
@@ -61,4 +89,25 @@ pub(in crate::ir::lower) fn lower_borrow_expression_to_location(
         source,
     });
     Ok(instructions)
+}
+
+fn lower_outcome_borrow_expression(
+    expression: &Expr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    failure_mode: OutcomeFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Borrow(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_fallible_borrow_normal_call(call, destination, context, &mut temporaries, failure_mode)
 }

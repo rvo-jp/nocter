@@ -171,7 +171,7 @@ pub(in crate::ir::lower) fn lower_otherwise_recover_or_handle_failure_mode<F>(
     loop_control: Option<LoopControlContext<'_>>,
     mut lower_result: F,
     unsupported_message: &'static str,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>>
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>>
 where
     F: FnMut(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>,
 {
@@ -192,7 +192,7 @@ where
             lower_never_expression_with_scope_drops(result, &mut fallback_context)?
         {
             instructions.extend(terminating_instructions);
-            return Ok(FallibleFailureMode::Handle { instructions });
+            return Ok(OutcomeFailureMode::Handle { instructions });
         }
 
         instructions.extend(
@@ -203,12 +203,12 @@ where
             &mut fallback_context,
             local_mark,
         )?);
-        return Ok(FallibleFailureMode::Recover { instructions });
+        return Ok(OutcomeFailureMode::Recover { instructions });
     }
 
     let instructions =
         lower_otherwise_terminal_block(fallback, &mut fallback_context, loop_control)?;
-    Ok(FallibleFailureMode::Handle { instructions })
+    Ok(OutcomeFailureMode::Handle { instructions })
 }
 
 pub(super) fn lower_otherwise_scalar_binding(
@@ -282,7 +282,7 @@ pub(super) fn lower_otherwise_scalar_binding(
     let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(Type::Optional(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
     let Some(kind) =
@@ -306,7 +306,7 @@ pub(super) fn lower_composed_otherwise_scalar_call_binding(
     call: &CallExpr,
     fallback: &Block,
     kind: ScalarBindingKind,
-    outer_mode: FallibleFailureMode,
+    outer_mode: OutcomeFailureMode,
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -651,7 +651,7 @@ pub(super) fn lower_otherwise_aggregate_binding(
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(Type::Optional(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
     let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
@@ -703,7 +703,7 @@ pub(super) fn lower_otherwise_aggregate_failure_mode(
     context: &LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
     unsupported_diagnostic: &impl Fn() -> Vec<Diagnostic>,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     lower_otherwise_recover_or_handle_failure_mode(
         fallback,
         context,

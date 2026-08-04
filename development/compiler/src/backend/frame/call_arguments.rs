@@ -25,52 +25,52 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
         Instruction::DarwinSyscall { arguments, .. } => arguments.len() + 1,
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBorrow {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -123,7 +123,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
@@ -214,12 +214,12 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
     }
 }
 
-pub(super) fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> usize {
+pub(super) fn failure_mode_max_call_argument_count(failure_mode: &OutcomeFailureMode) -> usize {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => 0,
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => 0,
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
     }
 }

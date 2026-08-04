@@ -43,7 +43,7 @@ pub(in crate::ir::lower) fn lower_i32_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_i32_fallible_expression_to_location(
             &catch.expression,
@@ -157,7 +157,7 @@ pub(in crate::ir::lower) fn lower_u8_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_u8_fallible_expression_to_location(
             &catch.expression,
@@ -315,7 +315,7 @@ pub(in crate::ir::lower) fn lower_usize_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_usize_fallible_expression_to_location(
             &catch.expression,

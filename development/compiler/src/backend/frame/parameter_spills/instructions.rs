@@ -50,52 +50,52 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 include_value_parameters,
             );
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBorrow {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -862,7 +862,7 @@ pub(super) fn record_instruction_parameter_spill_requests(
         }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::LoadStoredOutcomePayload { .. }
@@ -875,16 +875,16 @@ pub(super) fn record_instruction_parameter_spill_requests(
 }
 
 pub(super) fn record_failure_mode_parameter_spill_requests(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     requests: &mut BTreeSet<usize>,
     include_value_parameters: bool,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             record_instruction_list_parameter_spill_requests(
                 instructions,
                 requests,

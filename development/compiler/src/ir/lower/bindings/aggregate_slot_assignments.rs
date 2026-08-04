@@ -425,7 +425,7 @@ pub(super) fn lower_aggregate_assignment_to_slot(
                 slot_index,
                 layout,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -698,17 +698,20 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
     slot_index: usize,
     layout: ValueLayout,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
 
-    let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
+    let Some((_, success)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(callee_layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(callee_layout) = aggregate_type_layout(success) else {
         return Err(unsupported_assignment_diagnostic());
     };
     if callee_layout != layout {
@@ -719,7 +722,7 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        success,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,

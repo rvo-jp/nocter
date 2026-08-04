@@ -53,10 +53,10 @@ pub(super) fn byte_collection_expression_kind(
             _ => None,
         },
         Expr::Propagate(propagation) => {
-            fallible_byte_collection_expression_kind(&propagation.expression, context)
+            outcome_byte_collection_expression_kind(&propagation.expression, context)
         }
-        Expr::Force(force) => fallible_byte_collection_expression_kind(&force.expression, context),
-        Expr::Catch(catch) => fallible_byte_collection_expression_kind(&catch.expression, context),
+        Expr::Force(force) => outcome_byte_collection_expression_kind(&force.expression, context),
+        Expr::Catch(catch) => outcome_byte_collection_expression_kind(&catch.expression, context),
         Expr::Group(group) => byte_collection_expression_kind(&group.expression, context),
         _ => None,
     }
@@ -82,7 +82,7 @@ pub(super) fn byte_collection_call_kind(
     byte_collection_kind_from_type(context.call_return_type(&target)?)
 }
 
-pub(super) fn fallible_byte_collection_expression_kind(
+pub(super) fn outcome_byte_collection_expression_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
@@ -90,9 +90,7 @@ pub(super) fn fallible_byte_collection_expression_kind(
         return None;
     };
     let (target, _call_name) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success) = context.call_return_type(&target)? else {
-        return None;
-    };
+    let (_, success) = context.call_return_type(&target)?.single_outcome()?;
     byte_collection_kind_from_type(success)
 }
 

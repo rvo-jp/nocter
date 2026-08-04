@@ -460,7 +460,7 @@ pub(super) fn lower_aggregate_member_value_assignment(
                 destination_offset,
                 layout,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -616,16 +616,19 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     destination_offset: u32,
     layout: ValueLayout,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
+    let Some((_, success)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(callee_layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(callee_layout) = aggregate_type_layout(success) else {
         return Err(unsupported_assignment_diagnostic());
     };
     if callee_layout != layout {
@@ -649,7 +652,7 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        success,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,

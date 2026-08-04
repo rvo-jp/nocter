@@ -52,7 +52,7 @@ use super::expressions::{
     lower_str_expression_to_location, lower_str_return_expression,
     lower_take_value_at_ptr_primitive_call, lower_u8_expression_to_location,
     lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
-    lower_void_expression_statement, mark_fallible_success_returns,
+    lower_void_expression_statement, mark_outcome_success_returns,
     primitive_take_value_at_ptr_call, success_return_instruction,
 };
 use super::types::{
@@ -77,10 +77,10 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget,
-    FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value,
-    UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget, Function,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{

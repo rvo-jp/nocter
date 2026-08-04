@@ -189,7 +189,7 @@ func attempt(): i32! {
     assert!(main.instructions.iter().any(|instruction| matches!(
         instruction,
         Instruction::CheckStoredFallible {
-            failure_mode: FallibleFailureMode::Propagate,
+            failure_mode: OutcomeFailureMode::Propagate,
             ..
         }
     )));
@@ -214,7 +214,7 @@ func attempt(): i32! {
     assert!(main.instructions.iter().any(|instruction| matches!(
         instruction,
         Instruction::CheckStoredFallible {
-            failure_mode: FallibleFailureMode::Catch { .. },
+            failure_mode: OutcomeFailureMode::Catch { .. },
             ..
         }
     )));

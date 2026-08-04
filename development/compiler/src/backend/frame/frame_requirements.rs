@@ -13,25 +13,25 @@ pub(super) fn function_clobbers_parameter_registers(instructions: &[Instruction]
 pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
     match instruction {
         Instruction::CallI32 { .. }
-        | Instruction::CallFallibleI32 { .. }
+        | Instruction::CallOutcomeI32 { .. }
         | Instruction::CallU8 { .. }
-        | Instruction::CallFallibleU8 { .. }
+        | Instruction::CallOutcomeU8 { .. }
         | Instruction::CallUsize { .. }
-        | Instruction::CallFallibleUsize { .. }
+        | Instruction::CallOutcomeUsize { .. }
         | Instruction::CallBorrow { .. }
-        | Instruction::CallFallibleBorrow { .. }
+        | Instruction::CallOutcomeBorrow { .. }
         | Instruction::CallBool { .. }
-        | Instruction::CallFallibleBool { .. }
+        | Instruction::CallOutcomeBool { .. }
         | Instruction::CallStr { .. }
-        | Instruction::CallFallibleStr { .. }
+        | Instruction::CallOutcomeStr { .. }
         | Instruction::CallSlice { .. }
-        | Instruction::CallFallibleSlice { .. }
+        | Instruction::CallOutcomeSlice { .. }
         | Instruction::CallAggregate { .. }
         | Instruction::CallDirectAggregate { .. }
-        | Instruction::CallFallibleDirectAggregate { .. }
-        | Instruction::CallFallibleAggregate { .. }
+        | Instruction::CallOutcomeDirectAggregate { .. }
+        | Instruction::CallOutcomeAggregate { .. }
         | Instruction::CallVoid { .. }
-        | Instruction::CallFallibleVoid { .. }
+        | Instruction::CallOutcomeVoid { .. }
         | Instruction::CallComposedOutcome { .. }
         | Instruction::CallStoredOutcome { .. }
         | Instruction::WriteStr { .. }
@@ -102,7 +102,7 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
         Instruction::TailCall { .. }
         | Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ReserveAggregateSlot { .. }
@@ -166,15 +166,13 @@ pub(super) fn instruction_clobbers_parameter_registers(instruction: &Instruction
     }
 }
 
-pub(super) fn failure_mode_clobbers_parameter_registers(
-    failure_mode: &FallibleFailureMode,
-) -> bool {
+pub(super) fn failure_mode_clobbers_parameter_registers(failure_mode: &OutcomeFailureMode) -> bool {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => false,
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             function_clobbers_parameter_registers(instructions)
         }
     }
@@ -207,25 +205,25 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
                 || function_requires_frame(body_instructions)
         }
         Instruction::CallI32 { .. }
-        | Instruction::CallFallibleI32 { .. }
+        | Instruction::CallOutcomeI32 { .. }
         | Instruction::CallU8 { .. }
-        | Instruction::CallFallibleU8 { .. }
+        | Instruction::CallOutcomeU8 { .. }
         | Instruction::CallUsize { .. }
-        | Instruction::CallFallibleUsize { .. }
+        | Instruction::CallOutcomeUsize { .. }
         | Instruction::CallBorrow { .. }
-        | Instruction::CallFallibleBorrow { .. }
+        | Instruction::CallOutcomeBorrow { .. }
         | Instruction::CallBool { .. }
-        | Instruction::CallFallibleBool { .. }
+        | Instruction::CallOutcomeBool { .. }
         | Instruction::CallStr { .. }
-        | Instruction::CallFallibleStr { .. }
+        | Instruction::CallOutcomeStr { .. }
         | Instruction::CallSlice { .. }
-        | Instruction::CallFallibleSlice { .. }
+        | Instruction::CallOutcomeSlice { .. }
         | Instruction::CallAggregate { .. }
         | Instruction::CallDirectAggregate { .. }
-        | Instruction::CallFallibleDirectAggregate { .. }
-        | Instruction::CallFallibleAggregate { .. }
+        | Instruction::CallOutcomeDirectAggregate { .. }
+        | Instruction::CallOutcomeAggregate { .. }
         | Instruction::CallVoid { .. }
-        | Instruction::CallFallibleVoid { .. }
+        | Instruction::CallOutcomeVoid { .. }
         | Instruction::CallComposedOutcome { .. }
         | Instruction::CallStoredOutcome { .. }
         | Instruction::ReserveAggregateSlot { .. }
@@ -297,7 +295,7 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
@@ -338,12 +336,12 @@ pub(super) fn instruction_requires_frame(instruction: &Instruction) -> bool {
     }
 }
 
-pub(super) fn failure_mode_requires_frame(failure_mode: &FallibleFailureMode) -> bool {
+pub(super) fn failure_mode_requires_frame(failure_mode: &OutcomeFailureMode) -> bool {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
-        FallibleFailureMode::PropagateWithCleanup { .. }
-        | FallibleFailureMode::Handle { .. }
-        | FallibleFailureMode::Recover { .. }
-        | FallibleFailureMode::Catch { .. } => true,
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => false,
+        OutcomeFailureMode::PropagateWithCleanup { .. }
+        | OutcomeFailureMode::Handle { .. }
+        | OutcomeFailureMode::Recover { .. }
+        | OutcomeFailureMode::Catch { .. } => true,
     }
 }

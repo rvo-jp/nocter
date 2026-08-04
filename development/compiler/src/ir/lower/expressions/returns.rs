@@ -4,7 +4,7 @@ pub(super) fn replace_success_returns(instructions: Vec<Instruction>) -> Vec<Ins
     instructions
         .into_iter()
         .map(|instruction| match instruction {
-            Instruction::Return => Instruction::ReturnFallibleSuccess,
+            Instruction::Return => Instruction::ReturnOutcomeSuccess,
             Instruction::If {
                 condition,
                 then_instructions,
@@ -53,21 +53,21 @@ pub(in crate::ir::lower) fn lower_i32_return_expression(
 pub(in crate::ir::lower) fn success_return_instruction(return_type: &Type) -> Instruction {
     if matches!(
         return_type,
-        Type::Fallible(_) | Type::ComposedOutcome { .. }
+        Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }
     ) {
-        Instruction::ReturnFallibleSuccess
+        Instruction::ReturnOutcomeSuccess
     } else {
         Instruction::Return
     }
 }
 
-pub(in crate::ir::lower) fn mark_fallible_success_returns(
+pub(in crate::ir::lower) fn mark_outcome_success_returns(
     return_type: &Type,
     instructions: Vec<Instruction>,
 ) -> Vec<Instruction> {
     if !matches!(
         return_type,
-        Type::Fallible(_) | Type::ComposedOutcome { .. }
+        Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }
     ) {
         return instructions;
     }

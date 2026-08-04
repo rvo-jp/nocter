@@ -1,24 +1,25 @@
 use super::*;
+use crate::outcomes::OutcomeLayer;
 
-pub(super) fn validate_supported_fallible_success_payload_abi(
-    success_type: &Type,
+pub(super) fn validate_supported_outcome_payload_abi(
+    payload_type: &Type,
 ) -> Result<(), Vec<Diagnostic>> {
-    match success_type.success_return_passing() {
+    match payload_type.success_return_passing() {
         Some(ReturnPassing::Void | ReturnPassing::IndirectPointer) => Ok(()),
         Some(ReturnPassing::Direct { words }) => {
-            if words <= FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT {
+            if words <= OUTCOME_PAYLOAD_REGISTER_COUNT {
                 return Ok(());
             }
             Err(vec![Diagnostic::error(
                 "E9002",
                 format!(
-                    "fallible success payload uses {words} direct ABI words, but codegen supports at most {FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT}"
+                    "outcome payload uses {words} direct ABI words, but codegen supports at most {OUTCOME_PAYLOAD_REGISTER_COUNT}"
                 ),
             )])
         }
         Some(ReturnPassing::Never) | None => Err(vec![Diagnostic::error(
             "E9002",
-            "invalid fallible success payload ABI for codegen",
+            "invalid outcome payload ABI for codegen",
         )]),
     }
 }
@@ -138,6 +139,10 @@ pub(super) fn validate_return_type_shape(
         Type::DirectAggregate { layout, words } => {
             validate_direct_aggregate_type_shape(*layout, *words, subject, diagnostics);
         }
+        Type::Optional(payload) => {
+            let subject = format!("{subject} optional payload type");
+            validate_return_type_shape(payload, &subject, diagnostics);
+        }
         Type::Fallible(success) => {
             let subject = format!("{subject} fallible success type");
             validate_return_type_shape(success, &subject, diagnostics);
@@ -194,6 +199,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
         if let Some(arguments) = instruction_call_arguments(instruction) {
             validate_call_argument_shapes(arguments, diagnostics);
         }
+        validate_instruction_outcome_contract(
+            instruction,
+            current_return_type,
+            return_types,
+            diagnostics,
+        );
 
         match instruction {
             Instruction::CallI32 { target, .. } => validate_normal_call_return_shape(
@@ -202,12 +213,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::I32,
                     return_types,
@@ -226,12 +237,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleU8 {
+            Instruction::CallOutcomeU8 {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::U8,
                     return_types,
@@ -250,12 +261,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleUsize {
+            Instruction::CallOutcomeUsize {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Usize,
                     return_types,
@@ -274,12 +285,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleBorrow {
+            Instruction::CallOutcomeBorrow {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Borrow,
                     return_types,
@@ -314,12 +325,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleBool {
+            Instruction::CallOutcomeBool {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Bool,
                     return_types,
@@ -338,12 +349,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleStr {
+            Instruction::CallOutcomeStr {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Str,
                     return_types,
@@ -362,12 +373,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleSlice {
+            Instruction::CallOutcomeSlice {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Slice,
                     return_types,
@@ -394,13 +405,13 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                     diagnostics,
                 );
             }
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 target,
                 layout,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::DirectAggregate { layout: *layout },
                     return_types,
@@ -413,12 +424,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                     diagnostics,
                 );
             }
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::IndirectAggregate,
                     return_types,
@@ -437,12 +448,12 @@ pub(super) fn validate_instruction_list_call_return_shapes(
                 return_types,
                 diagnostics,
             ),
-            Instruction::CallFallibleVoid {
+            Instruction::CallOutcomeVoid {
                 target,
                 failure_mode,
                 ..
             } => {
-                validate_fallible_call_return_shape(
+                validate_outcome_call_return_shape(
                     target,
                     ExpectedCallReturnShape::Void,
                     return_types,
@@ -585,26 +596,212 @@ pub(super) fn validate_instruction_list_call_return_shapes(
     }
 }
 
+fn validate_instruction_outcome_contract(
+    instruction: &Instruction,
+    current_return_type: &Type,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match instruction {
+        Instruction::CallOutcomeI32 {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeU8 {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeUsize {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeBorrow {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeBool {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeStr {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeSlice {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeDirectAggregate {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeAggregate {
+            target,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeVoid {
+            target,
+            failure_mode,
+            ..
+        } => {
+            let function = FunctionSymbol::from_call_target(target);
+            let Some((layer, _)) = return_types
+                .get(&function)
+                .and_then(|return_type| return_type.single_outcome())
+            else {
+                return;
+            };
+            validate_outcome_mode_contract(
+                layer,
+                failure_mode,
+                current_return_type,
+                &format!("outcome call to function `{}`", function.description()),
+                diagnostics,
+            );
+        }
+        Instruction::CallComposedOutcome {
+            target,
+            outer,
+            inner,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            let subject = format!("composed outcome call to function `{target:?}`");
+            validate_outcome_mode_contract(
+                *outer,
+                outer_mode,
+                current_return_type,
+                &format!("{subject} outer layer"),
+                diagnostics,
+            );
+            validate_outcome_mode_contract(
+                *inner,
+                inner_mode,
+                current_return_type,
+                &format!("{subject} inner layer"),
+                diagnostics,
+            );
+        }
+        Instruction::ReadSlice { failure_mode, .. }
+        | Instruction::OpenRead { failure_mode, .. }
+        | Instruction::CheckStoredFallible { failure_mode, .. }
+        | Instruction::CheckFailure { failure_mode } => validate_outcome_mode_contract(
+            OutcomeLayer::Fallible,
+            failure_mode,
+            current_return_type,
+            "fallible operation",
+            diagnostics,
+        ),
+        Instruction::ReturnOutcomeSuccess => {
+            if current_return_type.outer_outcome_layer().is_none() {
+                diagnostics.push(Diagnostic::error(
+                    "E9002",
+                    "`ReturnOutcomeSuccess` requires an outcome function return type",
+                ));
+            }
+        }
+        Instruction::ReturnOptionalNone => validate_outcome_return_layer(
+            OutcomeLayer::Optional,
+            current_return_type,
+            "`ReturnOptionalNone`",
+            diagnostics,
+        ),
+        Instruction::ReturnFallibleFailure { .. } => validate_outcome_return_layer(
+            OutcomeLayer::Fallible,
+            current_return_type,
+            "`ReturnFallibleFailure`",
+            diagnostics,
+        ),
+        _ => {}
+    }
+}
+
+fn validate_outcome_mode_contract(
+    layer: OutcomeLayer,
+    mode: &OutcomeFailureMode,
+    current_return_type: &Type,
+    subject: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match (layer, mode) {
+        (OutcomeLayer::Optional, OutcomeFailureMode::Catch { .. }) => diagnostics.push(
+            Diagnostic::error("E9002", format!("{subject} cannot catch optional absence")),
+        ),
+        (OutcomeLayer::Optional, OutcomeFailureMode::PropagateWithCleanup { .. }) => {
+            diagnostics.push(Diagnostic::error(
+                "E9002",
+                format!(
+                    "{subject} cannot preserve a fallible error while propagating optional absence"
+                ),
+            ));
+        }
+        (
+            expected,
+            OutcomeFailureMode::Propagate | OutcomeFailureMode::PropagateWithCleanup { .. },
+        ) => validate_outcome_return_layer(expected, current_return_type, subject, diagnostics),
+        _ => {}
+    }
+}
+
+fn validate_outcome_return_layer(
+    expected: OutcomeLayer,
+    current_return_type: &Type,
+    subject: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if current_return_type.contains_outcome_layer(expected) {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(
+        "E9002",
+        format!(
+            "{subject} requires a function return type containing a {} outcome layer, but got {}",
+            outcome_layer_description(expected),
+            current_return_type
+                .outer_outcome_layer()
+                .map(outcome_layer_description)
+                .unwrap_or("plain return")
+        ),
+    ));
+}
+
+fn outcome_layer_description(layer: OutcomeLayer) -> &'static str {
+    match layer {
+        OutcomeLayer::Optional => "optional",
+        OutcomeLayer::Fallible => "fallible",
+    }
+}
+
 pub(super) fn instruction_call_arguments(instruction: &Instruction) -> Option<&[ScalarArgument]> {
     match instruction {
         Instruction::CallI32 { arguments, .. }
-        | Instruction::CallFallibleI32 { arguments, .. }
+        | Instruction::CallOutcomeI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
-        | Instruction::CallFallibleU8 { arguments, .. }
+        | Instruction::CallOutcomeU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
-        | Instruction::CallFallibleUsize { arguments, .. }
+        | Instruction::CallOutcomeUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
-        | Instruction::CallFallibleBool { arguments, .. }
+        | Instruction::CallOutcomeBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
-        | Instruction::CallFallibleStr { arguments, .. }
+        | Instruction::CallOutcomeStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
-        | Instruction::CallFallibleSlice { arguments, .. }
+        | Instruction::CallOutcomeSlice { arguments, .. }
         | Instruction::CallAggregate { arguments, .. }
         | Instruction::CallDirectAggregate { arguments, .. }
-        | Instruction::CallFallibleDirectAggregate { arguments, .. }
-        | Instruction::CallFallibleAggregate { arguments, .. }
+        | Instruction::CallOutcomeDirectAggregate { arguments, .. }
+        | Instruction::CallOutcomeAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
-        | Instruction::CallFallibleVoid { arguments, .. }
+        | Instruction::CallOutcomeVoid { arguments, .. }
         | Instruction::CallComposedOutcome { arguments, .. }
         | Instruction::CallStoredOutcome { arguments, .. }
         | Instruction::TailCall { arguments, .. } => Some(arguments),
@@ -648,17 +845,17 @@ pub(super) fn validate_direct_aggregate_argument_shape(
 }
 
 pub(super) fn validate_failure_mode_call_return_shapes(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     current_return_type: &Type,
     return_types: &HashMap<FunctionSymbol, &Type>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             validate_instruction_list_call_return_shapes(
                 instructions,
                 current_return_type,
@@ -682,17 +879,18 @@ pub(super) fn validate_normal_call_return_shape(
     };
     if matches!(
         return_type,
-        Type::Fallible(_) | Type::ComposedOutcome { .. }
+        Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }
     ) {
         let outcome = match return_type {
-            Type::Fallible(_) => "fallible",
-            Type::ComposedOutcome { .. } => "composed outcome",
+            Type::Optional(_) => "an optional return",
+            Type::Fallible(_) => "a fallible return",
+            Type::ComposedOutcome { .. } => "a composed outcome return",
             _ => unreachable!(),
         };
         diagnostics.push(Diagnostic::error(
             "E9002",
             format!(
-                "codegen normal call to function `{}` targets a {outcome} return",
+                "codegen normal call to function `{}` targets {outcome}",
                 function.description(),
             ),
         ));
@@ -701,7 +899,7 @@ pub(super) fn validate_normal_call_return_shape(
     validate_success_return_shape(&function, return_type, expected, "normal call", diagnostics);
 }
 
-pub(super) fn validate_fallible_call_return_shape(
+pub(super) fn validate_outcome_call_return_shape(
     target: &CallTarget,
     expected: ExpectedCallReturnShape,
     return_types: &HashMap<FunctionSymbol, &Type>,
@@ -712,11 +910,11 @@ pub(super) fn validate_fallible_call_return_shape(
         diagnostics.push(unresolved_call_target_diagnostic(&function));
         return;
     };
-    let Type::Fallible(success_type) = return_type else {
+    let Some((_, success_type)) = return_type.single_outcome() else {
         diagnostics.push(Diagnostic::error(
             "E9002",
             format!(
-                "codegen fallible call to function `{}` targets a non-fallible return",
+                "codegen outcome call to function `{}` targets a plain return",
                 function.description()
             ),
         ));
@@ -726,7 +924,7 @@ pub(super) fn validate_fallible_call_return_shape(
         &function,
         success_type,
         expected,
-        "fallible call success",
+        "outcome call payload",
         diagnostics,
     );
 }

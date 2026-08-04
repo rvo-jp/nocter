@@ -29,7 +29,7 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type, U8Value,
+    AggregateLocation, CallTarget, Instruction, OutcomeFailureMode, ScalarArgument, Type, U8Value,
     UsizeValue,
 };
 use crate::outcomes::outcome_shape_with_resolver;

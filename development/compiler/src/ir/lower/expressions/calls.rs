@@ -37,8 +37,8 @@ use crate::ast::{BorrowExpr, CallExpr, Expr, IndexExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
-    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location, I32Value,
-    Instruction, ScalarArgument, SliceElementAddressKind, SliceElementIndex, SliceLocation,
+    BorrowSource, CallTarget, DirectAggregateArgument, I32Location, I32Value, Instruction,
+    OutcomeFailureMode, ScalarArgument, SliceElementAddressKind, SliceElementIndex, SliceLocation,
     SliceValue, StrLocation, StrValue, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::typecheck::TypecheckSliceElementKind;
@@ -121,15 +121,14 @@ use primitives::{
 };
 use return_validation::{
     describe_type, validate_bool_normal_call_return_type, validate_borrow_normal_call_return_type,
-    validate_fallible_bool_normal_call_return_type,
-    validate_fallible_borrow_normal_call_return_type,
-    validate_fallible_i32_normal_call_return_type, validate_fallible_slice_normal_call_return_type,
-    validate_fallible_str_normal_call_return_type, validate_fallible_u8_normal_call_return_type,
-    validate_fallible_usize_normal_call_return_type,
-    validate_fallible_void_normal_call_return_type, validate_normal_call_return_type,
-    validate_slice_normal_call_return_type, validate_str_normal_call_return_type,
-    validate_tail_call_return_type, validate_u8_normal_call_return_type,
-    validate_usize_normal_call_return_type, validate_void_normal_call_return_type,
+    validate_normal_call_return_type, validate_outcome_bool_normal_call_return_type,
+    validate_outcome_borrow_normal_call_return_type, validate_outcome_i32_normal_call_return_type,
+    validate_outcome_slice_normal_call_return_type, validate_outcome_str_normal_call_return_type,
+    validate_outcome_u8_normal_call_return_type, validate_outcome_usize_normal_call_return_type,
+    validate_outcome_void_normal_call_return_type, validate_slice_normal_call_return_type,
+    validate_str_normal_call_return_type, validate_tail_call_return_type,
+    validate_u8_normal_call_return_type, validate_usize_normal_call_return_type,
+    validate_void_normal_call_return_type,
 };
 pub(super) use tail_calls::{is_tail_call_stack_pointer_argument, lower_direct_tail_call};
 use utility::unwrap_group;

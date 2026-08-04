@@ -4,6 +4,14 @@ use crate::ast::{TypeExpr, substitute_type_expr_parameters};
 use super::LoweringContext;
 
 impl LoweringContext<'_> {
+    pub(in crate::ir::lower) fn expression_ir_type(
+        &self,
+        expression: &crate::ast::Expr,
+    ) -> Option<crate::ir::Type> {
+        let ty = self.expression_type_expr(expression.span())?;
+        self.ir_type_for_type_expr(&ty)
+    }
+
     pub(in crate::ir::lower) fn specialize_type_expr(&self, ty: &TypeExpr) -> TypeExpr {
         substitute_type_expr_parameters(ty, &self.generic_substitutions)
     }

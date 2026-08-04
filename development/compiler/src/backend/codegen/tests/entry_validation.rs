@@ -80,7 +80,7 @@ fn generates_exit_code_for_fallible_success_return_i32() {
         name: "main".to_string(),
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Fallible(Box::new(Type::I32)),
-        instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
+        instructions: vec![set_return_i32(7), Instruction::ReturnOutcomeSuccess],
     }]);
 
     let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -103,7 +103,7 @@ fn generates_exit_code_for_fallible_success_return_usize() {
         name: "main".to_string(),
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Fallible(Box::new(Type::Usize)),
-        instructions: vec![set_return_usize(7), Instruction::ReturnFallibleSuccess],
+        instructions: vec![set_return_usize(7), Instruction::ReturnOutcomeSuccess],
     }]);
 
     let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -134,7 +134,7 @@ fn rejects_direct_aggregate_return_wider_than_two_words_before_codegen() {
                 layout: ValueLayout::new(24, 8),
                 words: 3,
             })),
-            instructions: vec![Instruction::ReturnFallibleSuccess],
+            instructions: vec![Instruction::ReturnOutcomeSuccess],
         },
     ]);
 
@@ -168,7 +168,7 @@ fn rejects_normal_call_to_fallible_callee_before_codegen() {
             name: "answer".to_string(),
             target: crate::ir::CallTarget::same_file("answer".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![Instruction::ReturnFallibleSuccess],
+            instructions: vec![Instruction::ReturnOutcomeSuccess],
         },
     ]);
 
@@ -180,6 +180,129 @@ fn rejects_normal_call_to_fallible_callee_before_codegen() {
             .message
             .contains("normal call to function `answer` targets a fallible return")
     );
+}
+
+#[test]
+fn rejects_normal_call_to_optional_callee_before_codegen() {
+    let module = IrModule::new(vec![
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+            }],
+        },
+        Function {
+            name: "answer".to_string(),
+            target: CallTarget::same_file("answer"),
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(7), Instruction::ReturnOutcomeSuccess],
+        },
+    ]);
+
+    let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
+
+    assert_eq!(diagnostics[0].code, "E9002");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("normal call to function `answer` targets an optional return")
+    );
+}
+
+#[test]
+fn accepts_trapping_outcome_call_to_optional_callee() {
+    let module = IrModule::new(vec![
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallOutcomeI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                    failure_mode: OutcomeFailureMode::Trap,
+                },
+                Instruction::Return,
+            ],
+        },
+        Function {
+            name: "answer".to_string(),
+            target: CallTarget::same_file("answer"),
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(7), Instruction::ReturnOutcomeSuccess],
+        },
+    ]);
+
+    generate_arm64_darwin_entry(&module).unwrap();
+}
+
+#[test]
+fn rejects_fallible_only_failure_mode_for_optional_call() {
+    let module = IrModule::new(vec![
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallOutcomeI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+                failure_mode: OutcomeFailureMode::Catch {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(1),
+                    instructions: vec![Instruction::Trap],
+                },
+            }],
+        },
+        Function {
+            name: "answer".to_string(),
+            target: CallTarget::same_file("answer"),
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![Instruction::ReturnOptionalNone],
+        },
+    ]);
+
+    let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot catch optional absence"))
+    );
+}
+
+#[test]
+fn rejects_failure_return_for_optional_function() {
+    let module = IrModule::new(vec![
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![set_return_i32(0), Instruction::Return],
+        },
+        Function {
+            name: "answer".to_string(),
+            target: CallTarget::same_file("answer"),
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![Instruction::ReturnFallibleFailure {
+                code: StrValue::StaticBytes(b"E".to_vec()),
+                message: StrValue::StaticBytes(b"failed".to_vec()),
+            }],
+        },
+    ]);
+
+    let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires a function return type containing a fallible outcome layer")
+    }));
 }
 
 #[test]

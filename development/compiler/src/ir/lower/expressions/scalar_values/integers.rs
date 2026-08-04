@@ -91,7 +91,7 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -273,7 +273,7 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -603,7 +603,7 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: UsizeValue::Location(temporary),
             })

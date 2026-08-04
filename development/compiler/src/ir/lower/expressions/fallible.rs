@@ -120,12 +120,12 @@ pub(super) fn lower_catch_block(
                 | (Type::Borrow { .. }, _)
                 | (Type::Error, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
-                (Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => {
+                (Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => {
                     Err(unsupported_catch_block_diagnostic())
                 }
             }?;
             let return_instructions =
-                mark_fallible_success_returns(&function_return_type, return_instructions);
+                mark_outcome_success_returns(&function_return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
                 return_instructions,
                 context,
@@ -232,7 +232,7 @@ pub(super) fn lower_i32_fallible_expression_to_location(
     expression: &Expr,
     destination: I32Location,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,
@@ -267,7 +267,7 @@ pub(super) fn lower_u8_fallible_expression_to_location(
     expression: &Expr,
     destination: U8Location,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,
@@ -302,7 +302,7 @@ pub(super) fn lower_usize_fallible_expression_to_location(
     expression: &Expr,
     destination: UsizeLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,
@@ -337,7 +337,7 @@ pub(super) fn lower_str_fallible_expression_to_location(
     expression: &Expr,
     destination: StrLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,
@@ -372,7 +372,7 @@ pub(super) fn lower_slice_fallible_expression_to_location(
     expression: &Expr,
     destination: SliceLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,
@@ -408,7 +408,7 @@ pub(super) fn lower_bool_fallible_expression_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
     diagnostic_code: &'static str,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(instructions) = lower_stored_outcome_expression(
         expression,

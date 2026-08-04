@@ -152,7 +152,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_bool_fallible_expression_to_location(
             &catch.expression,
@@ -371,7 +371,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: BoolValue::Location(temporary),
             })

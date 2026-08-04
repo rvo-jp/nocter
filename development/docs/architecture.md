@@ -2,7 +2,7 @@
 
 This document defines stable responsibility boundaries in the Rust bootstrap compiler. See the
 [specification](../../spec/README.md) for public language rules and the
-[v0.3.0 contract](v0.3.0.md) for the completed Phase 0 criteria.
+[v0.3.0 contract](v0.3.0.md) for the active stabilization gate.
 
 ## Pipeline
 
@@ -77,7 +77,10 @@ phase-specific facts such as symbol identity and type compatibility remain separ
 
 ## IR, ABI, and Backend
 
-- IR represents ownership transfer, drop obligations, and fallible exits as explicit operations.
+- IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
+- Optional and fallible layers retain distinct IR type identities even when they share a callable
+  ABI shape. Shared operations use outcome terminology; error payload operations remain
+  fallible-only.
 - ABI classification is centralized in `abi` and shared by lowering and backend validation.
 - Unsupported user source stops at buildability; backend validation remains a guard against drifted
   or hand-built IR.

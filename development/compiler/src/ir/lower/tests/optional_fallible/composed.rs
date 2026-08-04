@@ -31,7 +31,7 @@ func lookup(): i32?! {
                 destination: I32Location::Return,
                 value: I32Value::Const(42),
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -101,14 +101,14 @@ func lookup(mode: i32): i32?! {
         target,
         OutcomeLayer::Fallible,
         OutcomeLayer::Optional,
-        FallibleFailureMode::Propagate,
-        FallibleFailureMode::Handle { instructions },
+        OutcomeFailureMode::Propagate,
+        OutcomeFailureMode::Handle { instructions },
     )) = call
     else {
         panic!("{function:?}");
     };
     assert_eq!(*target, CallTarget::same_file("lookup"));
-    assert!(instructions.contains(&Instruction::ReturnFallibleSuccess));
+    assert!(instructions.contains(&Instruction::ReturnOutcomeSuccess));
 }
 
 #[test]
@@ -148,11 +148,11 @@ func lookup(mode: i32): i32?! {
         Some((outer_mode, inner_mode))
     });
     let Some((
-        FallibleFailureMode::Catch {
+        OutcomeFailureMode::Catch {
             instructions: catch_instructions,
             ..
         },
-        FallibleFailureMode::Handle {
+        OutcomeFailureMode::Handle {
             instructions: absence_instructions,
         },
     )) = call

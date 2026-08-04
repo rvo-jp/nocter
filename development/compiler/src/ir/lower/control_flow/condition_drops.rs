@@ -29,22 +29,22 @@ pub(super) fn aggregate_argument_slots_in_instructions(
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { arguments, .. }
-            | Instruction::CallFallibleI32 { arguments, .. }
+            | Instruction::CallOutcomeI32 { arguments, .. }
             | Instruction::CallU8 { arguments, .. }
-            | Instruction::CallFallibleU8 { arguments, .. }
+            | Instruction::CallOutcomeU8 { arguments, .. }
             | Instruction::CallUsize { arguments, .. }
-            | Instruction::CallFallibleUsize { arguments, .. }
+            | Instruction::CallOutcomeUsize { arguments, .. }
             | Instruction::CallBool { arguments, .. }
-            | Instruction::CallFallibleBool { arguments, .. }
+            | Instruction::CallOutcomeBool { arguments, .. }
             | Instruction::CallStr { arguments, .. }
-            | Instruction::CallFallibleStr { arguments, .. }
+            | Instruction::CallOutcomeStr { arguments, .. }
             | Instruction::CallSlice { arguments, .. }
-            | Instruction::CallFallibleSlice { arguments, .. }
+            | Instruction::CallOutcomeSlice { arguments, .. }
             | Instruction::CallVoid { arguments, .. }
             | Instruction::CallAggregate { arguments, .. }
-            | Instruction::CallFallibleAggregate { arguments, .. }
+            | Instruction::CallOutcomeAggregate { arguments, .. }
             | Instruction::CallDirectAggregate { arguments, .. }
-            | Instruction::CallFallibleDirectAggregate { arguments, .. }
+            | Instruction::CallOutcomeDirectAggregate { arguments, .. }
             | Instruction::TailCall { arguments, .. } => {
                 collect_aggregate_argument_slots(arguments, &mut slots);
             }
@@ -109,14 +109,14 @@ pub(super) fn remove_condition_moved_aggregate_drops(
                 remove_condition_moved_aggregate_drops(condition_instructions, moved_slots);
                 remove_condition_moved_aggregate_drops(body_instructions, moved_slots);
             }
-            Instruction::CallFallibleI32 { failure_mode, .. }
-            | Instruction::CallFallibleU8 { failure_mode, .. }
-            | Instruction::CallFallibleUsize { failure_mode, .. }
-            | Instruction::CallFallibleBool { failure_mode, .. }
-            | Instruction::CallFallibleStr { failure_mode, .. }
-            | Instruction::CallFallibleSlice { failure_mode, .. }
-            | Instruction::CallFallibleAggregate { failure_mode, .. }
-            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => {
+            Instruction::CallOutcomeI32 { failure_mode, .. }
+            | Instruction::CallOutcomeU8 { failure_mode, .. }
+            | Instruction::CallOutcomeUsize { failure_mode, .. }
+            | Instruction::CallOutcomeBool { failure_mode, .. }
+            | Instruction::CallOutcomeStr { failure_mode, .. }
+            | Instruction::CallOutcomeSlice { failure_mode, .. }
+            | Instruction::CallOutcomeAggregate { failure_mode, .. }
+            | Instruction::CallOutcomeDirectAggregate { failure_mode, .. } => {
                 remove_condition_moved_aggregate_drops_from_failure_mode(failure_mode, moved_slots);
             }
             _ => {}
@@ -126,17 +126,17 @@ pub(super) fn remove_condition_moved_aggregate_drops(
 }
 
 fn remove_condition_moved_aggregate_drops_from_failure_mode(
-    failure_mode: &mut FallibleFailureMode,
+    failure_mode: &mut OutcomeFailureMode,
     moved_slots: &HashSet<usize>,
 ) {
     match failure_mode {
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             remove_condition_moved_aggregate_drops(instructions, moved_slots);
         }
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
     }
 }
 

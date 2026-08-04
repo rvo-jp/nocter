@@ -28,7 +28,7 @@ pub(in crate::ir::lower) fn lower_fallible_i32_normal_call(
     destination: I32Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if primitive_open_read_raw_call(call, context) {
         return lower_open_read_raw_primitive_call(
@@ -44,12 +44,12 @@ pub(in crate::ir::lower) fn lower_fallible_i32_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_i32_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_i32_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleI32 {
+    instructions.push(Instruction::CallOutcomeI32 {
         destination,
         target,
         arguments,
@@ -86,7 +86,7 @@ pub(in crate::ir::lower) fn lower_fallible_usize_normal_call(
     destination: UsizeLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if primitive_read_bytes_raw_call(call, context) {
         return lower_read_bytes_raw_primitive_call(
@@ -102,12 +102,12 @@ pub(in crate::ir::lower) fn lower_fallible_usize_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_usize_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_usize_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleUsize {
+    instructions.push(Instruction::CallOutcomeUsize {
         destination,
         target,
         arguments,
@@ -141,15 +141,15 @@ pub(in crate::ir::lower) fn lower_fallible_borrow_normal_call(
     destination: UsizeLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
-    validate_fallible_borrow_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_borrow_normal_call_return_type(&target, &callee_name, context)?;
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
-    instructions.push(Instruction::CallFallibleBorrow {
+    instructions.push(Instruction::CallOutcomeBorrow {
         destination,
         target,
         arguments,
@@ -186,18 +186,18 @@ pub(in crate::ir::lower) fn lower_fallible_u8_normal_call(
     destination: U8Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_u8_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_u8_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleU8 {
+    instructions.push(Instruction::CallOutcomeU8 {
         destination,
         target,
         arguments,
@@ -234,18 +234,18 @@ pub(in crate::ir::lower) fn lower_fallible_bool_normal_call(
     destination: BoolLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_bool_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_bool_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleBool {
+    instructions.push(Instruction::CallOutcomeBool {
         destination,
         target,
         arguments,
@@ -282,18 +282,18 @@ pub(in crate::ir::lower) fn lower_fallible_str_normal_call(
     destination: StrLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_str_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_str_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleStr {
+    instructions.push(Instruction::CallOutcomeStr {
         destination,
         target,
         arguments,
@@ -330,18 +330,18 @@ pub(in crate::ir::lower) fn lower_fallible_slice_normal_call(
     destination: SliceLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_fallible_slice_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_slice_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleSlice {
+    instructions.push(Instruction::CallOutcomeSlice {
         destination,
         target,
         arguments,
@@ -372,7 +372,7 @@ pub(in crate::ir::lower::expressions) fn lower_fallible_void_normal_call(
     call: &CallExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let primitive_instructions = if primitive_write_text_raw_call(call, context) {
         Some(lower_write_text_raw_primitive_call(
@@ -391,12 +391,12 @@ pub(in crate::ir::lower::expressions) fn lower_fallible_void_normal_call(
     };
     if let Some(mut instructions) = primitive_instructions {
         instructions.push(match failure_mode {
-            FallibleFailureMode::Propagate => Instruction::PropagateFailure,
-            FallibleFailureMode::Trap => Instruction::TrapOnFailure,
-            FallibleFailureMode::PropagateWithCleanup { .. }
-            | FallibleFailureMode::Handle { .. }
-            | FallibleFailureMode::Recover { .. }
-            | FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
+            OutcomeFailureMode::Propagate => Instruction::PropagateFailure,
+            OutcomeFailureMode::Trap => Instruction::TrapOnFailure,
+            OutcomeFailureMode::PropagateWithCleanup { .. }
+            | OutcomeFailureMode::Handle { .. }
+            | OutcomeFailureMode::Recover { .. }
+            | OutcomeFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
         });
         return Ok(instructions);
     }
@@ -404,12 +404,12 @@ pub(in crate::ir::lower::expressions) fn lower_fallible_void_normal_call(
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
-    validate_fallible_void_normal_call_return_type(&target, &callee_name, context)?;
+    validate_outcome_void_normal_call_return_type(&target, &callee_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &callee_name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleVoid {
+    instructions.push(Instruction::CallOutcomeVoid {
         target,
         arguments,
         failure_mode,

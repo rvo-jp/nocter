@@ -43,7 +43,7 @@ pub(super) fn lower_aggregate_struct_literal_statement(
 pub(super) fn lower_fallible_void_expression_statement(
     expression: &Expr,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
@@ -63,13 +63,15 @@ pub(super) fn lower_fallible_void_expression_statement(
             let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
                 return Ok(None);
             };
-            let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned()
+            let Some((_, success_type)) = context
+                .call_return_type(&target)
+                .and_then(Type::single_outcome)
             else {
                 return Ok(None);
             };
 
             let mut temporaries = TemporaryAllocator::new(context)?;
-            match success_type.as_ref() {
+            match success_type {
                 Type::Void => {
                     lower_fallible_void_normal_call(call, context, &mut temporaries, failure_mode)
                 }
@@ -136,7 +138,7 @@ pub(super) fn lower_fallible_void_expression_statement(
                 Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
                     lower_aggregate_fallible_call_statement(
                         call,
-                        success_type.as_ref(),
+                        success_type,
                         context,
                         &mut temporaries,
                         failure_mode,
@@ -211,7 +213,7 @@ pub(super) fn lower_aggregate_fallible_call_statement(
     success_type: &Type,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(return_type_expr) = context.call_value_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
@@ -317,10 +319,8 @@ pub(super) fn discarded_fallible_statement_reserved_abi_words(
         Expr::Call(call) if primitive_write_bytes_raw_call(call, context) => Some(0),
         Expr::Call(call) => {
             let (target, _call_name) = context.direct_call_target_and_name(call)?;
-            let Type::Fallible(success_type) = context.call_return_type(&target)? else {
-                return None;
-            };
-            discarded_fallible_success_reserved_abi_words(success_type.as_ref())
+            let (_, success_type) = context.call_return_type(&target)?.single_outcome()?;
+            discarded_fallible_success_reserved_abi_words(success_type)
         }
         Expr::Group(group) => {
             discarded_fallible_statement_reserved_abi_words(&group.expression, context)

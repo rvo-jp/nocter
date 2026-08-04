@@ -1,9 +1,9 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
-    SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, BorrowSource, Function, I32Location, I32Value,
+    Instruction, OutcomeFailureMode, ScalarArgument, SliceElementIndex, SliceLocation, SliceValue,
+    StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use std::collections::BTreeSet;
 

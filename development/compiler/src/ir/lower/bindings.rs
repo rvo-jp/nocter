@@ -75,8 +75,8 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, ComposedOutcomeDestination, FallibleFailureMode,
-    I32Location, I32Value, Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
+    AggregateLocation, BoolLocation, BoolValue, ComposedOutcomeDestination, I32Location, I32Value,
+    Instruction, OutcomeFailureMode, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
     StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
@@ -527,7 +527,7 @@ pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_diagnostic());
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(Type::Optional(success_type)) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_diagnostic());
     };
     let Some(callee_layout) = aggregate_type_layout(success_type.as_ref()) else {

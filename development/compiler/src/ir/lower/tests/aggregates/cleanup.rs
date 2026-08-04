@@ -1678,7 +1678,7 @@ func main(): i32! {
                 destination: I32Location::Return,
                 value: i32_local(0),
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     );
 }

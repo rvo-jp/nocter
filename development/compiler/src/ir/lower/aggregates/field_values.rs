@@ -384,7 +384,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        FallibleFailureMode::Trap,
+                        OutcomeFailureMode::Trap,
                     )
                 }
                 Expr::Catch(catch) => {
@@ -577,7 +577,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        FallibleFailureMode::Trap,
+                        OutcomeFailureMode::Trap,
                     )
                 }
                 Expr::Catch(catch) => {
@@ -1020,7 +1020,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     subject: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
@@ -1028,13 +1028,16 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
             subject,
         ));
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         ));
     };
-    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(success_type) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
@@ -1063,7 +1066,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        success_type,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,

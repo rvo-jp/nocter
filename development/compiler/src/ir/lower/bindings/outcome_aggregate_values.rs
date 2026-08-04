@@ -98,7 +98,7 @@ pub(super) fn lower_stored_outcome_aggregate_binding(
             }
         }
         StoredAggregateConsumer::Force => {
-            stored_fallible_aggregate_check(&local, layer, copy, FallibleFailureMode::Trap)?
+            stored_fallible_aggregate_check(&local, layer, copy, OutcomeFailureMode::Trap)?
         }
         StoredAggregateConsumer::Propagate if layer.layer == OutcomeLayer::Optional => {
             Instruction::IfStoredOutcomeTag {
@@ -138,8 +138,8 @@ pub(super) fn lower_stored_outcome_aggregate_binding(
                 "stored aggregate `otherwise` fallback must produce the payload type or exit",
             )?;
             let outcome_instructions = match failure {
-                FallibleFailureMode::Handle { instructions }
-                | FallibleFailureMode::Recover { instructions } => instructions,
+                OutcomeFailureMode::Handle { instructions }
+                | OutcomeFailureMode::Recover { instructions } => instructions,
                 _ => unreachable!("otherwise fallback produces handle or recover mode"),
             };
             Instruction::IfStoredOutcomeTag {
@@ -166,7 +166,7 @@ fn stored_fallible_aggregate_check(
     local: &OutcomeLocal,
     layer: crate::outcomes::storage::OutcomeLayerStorage,
     copy: Instruction,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Instruction, Vec<Diagnostic>> {
     Ok(Instruction::CheckStoredFallible {
         source: AggregateLocation::Slot(local.slot_index),

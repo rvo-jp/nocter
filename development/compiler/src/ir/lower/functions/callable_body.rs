@@ -365,7 +365,7 @@ pub(super) fn lower_callable_payloadless_switch_body_result(
         Ok(Some(mut branch_instructions)) => {
             let mut instructions = switch.leading_instructions;
             instructions.append(&mut branch_instructions);
-            Ok(Some(mark_fallible_success_returns(
+            Ok(Some(mark_outcome_success_returns(
                 return_type,
                 instructions,
             )))
@@ -543,7 +543,7 @@ pub(super) fn lower_terminal_if_statement_for_success_type_with_branch_prologues
         return Ok(None);
     };
 
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         branch_instructions,
     )))
@@ -646,6 +646,7 @@ pub(super) fn lower_terminal_if_statement_body_for_success_type_with_branch_prol
             )?
         }
         Type::Never
+        | Type::Optional(_)
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. }
         | Type::Borrow { .. }
@@ -681,7 +682,7 @@ pub(super) fn lower_terminal_payloadless_switch_for_success_type(
 
     let mut instructions = switch.leading_instructions;
     instructions.extend(branch_instructions);
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         instructions,
     )))

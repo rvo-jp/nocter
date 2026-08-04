@@ -56,7 +56,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -82,9 +82,9 @@ impl EntryEmitter {
 
     pub(in crate::backend::codegen) fn emit_call_fallible_direct_aggregate(
         &mut self,
-        call: FallibleDirectAggregateCall<'_>,
+        call: OutcomeDirectAggregateCall<'_>,
         frame: Option<&FrameLayout>,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {

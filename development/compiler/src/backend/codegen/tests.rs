@@ -3,8 +3,8 @@ use super::*;
 use crate::abi::ValueLayout;
 use crate::ir::{
     AggregateArgumentSource, AggregateLocation, BoolLocation, BoolValue, BorrowArgument,
-    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function,
-    I32ComparisonOperator, I32Location, I32Value, ScalarArgument, SliceElementAddressKind,
+    BorrowSource, CallTarget, DirectAggregateArgument, Function, I32ComparisonOperator,
+    I32Location, I32Value, OutcomeFailureMode, ScalarArgument, SliceElementAddressKind,
     SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value,
     UsizeLocation, UsizeValue,
 };

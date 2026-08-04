@@ -242,7 +242,7 @@ impl EntryEmitter {
         tag_offset: u32,
         error_offset: u32,
         success_instructions: &[Instruction],
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -278,16 +278,16 @@ impl EntryEmitter {
 
     fn emit_stored_fallible_failure_action(
         &mut self,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: &FrameLayout,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         match failure_mode {
-            FallibleFailureMode::Propagate => {
+            OutcomeFailureMode::Propagate => {
                 self.emit_return(Some(frame));
                 Ok(())
             }
-            FallibleFailureMode::PropagateWithCleanup {
+            OutcomeFailureMode::PropagateWithCleanup {
                 code,
                 message,
                 instructions,
@@ -303,18 +303,18 @@ impl EntryEmitter {
                 self.emit_return(Some(frame));
                 Ok(())
             }
-            FallibleFailureMode::Trap => {
+            OutcomeFailureMode::Trap => {
                 self.emit_trap();
                 Ok(())
             }
-            FallibleFailureMode::Handle { instructions }
-            | FallibleFailureMode::Recover { instructions } => {
+            OutcomeFailureMode::Handle { instructions }
+            | OutcomeFailureMode::Recover { instructions } => {
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
                 }
                 Ok(())
             }
-            FallibleFailureMode::Catch {
+            OutcomeFailureMode::Catch {
                 code,
                 message,
                 instructions,

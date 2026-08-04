@@ -35,8 +35,8 @@ func main(): i32 {
         .expect("expected lowered recover function");
 
     let catch_instructions = recover.instructions.iter().find_map(|instruction| {
-        if let Instruction::CallFallibleDirectAggregate {
-            failure_mode: FallibleFailureMode::Catch { instructions, .. },
+        if let Instruction::CallOutcomeDirectAggregate {
+            failure_mode: OutcomeFailureMode::Catch { instructions, .. },
             ..
         } = instruction
         {

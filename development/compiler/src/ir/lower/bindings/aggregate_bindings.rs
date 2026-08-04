@@ -349,7 +349,7 @@ pub(super) fn lower_aggregate_call_binding(
             lower_aggregate_fallible_call_binding(
                 statement,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -436,17 +436,21 @@ pub(super) fn lower_aggregate_normal_call_binding(
 pub(super) fn lower_aggregate_fallible_call_binding(
     statement: &BindingStmt,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
 
-    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
+    let Some(success) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+        .map(|(_, success)| success.clone())
+    else {
         return Ok(None);
     };
-    let Some(layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(&success) else {
         return Ok(None);
     };
 
@@ -460,7 +464,7 @@ pub(super) fn lower_aggregate_fallible_call_binding(
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        &success,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,
@@ -710,16 +714,20 @@ pub(super) fn lower_aggregate_fallible_call_member_binding(
     statement: &BindingStmt,
     call: &CallExpr,
     field_path: &str,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(success_type) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+        .map(|(_, success)| success.clone())
+    else {
         return Ok(None);
     };
-    let Some(source_layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(source_layout) = aggregate_type_layout(&success_type) else {
         return Ok(None);
     };
     let Some(field) = aggregate_call_field(call, field_path, context) else {
@@ -761,7 +769,7 @@ pub(super) fn lower_aggregate_fallible_call_member_binding(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        &success_type,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,
@@ -902,7 +910,7 @@ pub(super) fn lower_aggregate_slice_index_binding(
 pub(super) enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
-    FallibleCall(&'a CallExpr, FallibleFailureMode),
+    FallibleCall(&'a CallExpr, OutcomeFailureMode),
     OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
@@ -983,7 +991,7 @@ pub(super) fn aggregate_member_binding_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Trap),
+                AggregateMemberBindingRoot::FallibleCall(call, OutcomeFailureMode::Trap),
                 Vec::new(),
             )))
         }

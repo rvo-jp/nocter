@@ -110,7 +110,7 @@ pub(super) fn lower_enum_field_value_to_location(
                 subject,
                 context,
                 temporaries,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {

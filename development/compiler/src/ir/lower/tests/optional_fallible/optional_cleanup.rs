@@ -42,18 +42,18 @@ func maybe(): i32? {
                     inner: Box::new(token_type),
                 }],
             ),
-            ("maybe", Type::Fallible(Box::new(Type::I32)), vec![]),
+            ("maybe", Type::Optional(Box::new(Type::I32)), vec![]),
         ]),
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleI32 {
-        failure_mode: FallibleFailureMode::Handle { instructions },
+    let Some(Instruction::CallOutcomeI32 {
+        failure_mode: OutcomeFailureMode::Handle { instructions },
         ..
     }) = function
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleI32 { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeI32 { .. }))
     else {
         panic!("{function:?}");
     };
@@ -113,14 +113,14 @@ func main(): i32 {
     let failure_mode = body_instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleDirectAggregate { failure_mode, .. }
-            | Instruction::CallFallibleAggregate { failure_mode, .. } => Some(failure_mode),
+            Instruction::CallOutcomeDirectAggregate { failure_mode, .. }
+            | Instruction::CallOutcomeAggregate { failure_mode, .. } => Some(failure_mode),
             _ => None,
         });
 
     assert_eq!(
         failure_mode,
-        Some(&FallibleFailureMode::Handle {
+        Some(&OutcomeFailureMode::Handle {
             instructions: vec![Instruction::Break],
         }),
         "{main:?}"

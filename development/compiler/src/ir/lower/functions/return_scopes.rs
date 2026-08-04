@@ -210,12 +210,12 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             &function_name,
             "never",
         )),
-        (Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => Err(
+        (Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => Err(
             unsupported_return_diagnostic(diagnostic_code, &function_name, "nested fallible"),
         ),
     }?;
 
-    let return_instructions = mark_fallible_success_returns(&return_type, return_instructions);
+    let return_instructions = mark_outcome_success_returns(&return_type, return_instructions);
     append_scope_end_drops_before_exit(return_instructions, context)
 }
 
@@ -383,6 +383,7 @@ pub(in crate::ir::lower) fn lower_value_return_with_scope_drops(
         | Type::Void
         | Type::Never
         | Type::Borrow { .. }
+        | Type::Optional(_)
         | Type::Fallible(_)
         | Type::ComposedOutcome { .. } => return Ok(None),
     };

@@ -68,9 +68,16 @@ func use_value(value: &Item): i32 {
     return read(found)
 }
 
+func forward(value: &Item): (&Item)? {
+    let previous: (&Item)? = maybe(value, true)
+    let found = previous?
+    return found
+}
+
 func main(): i32 {
     let item = Item { value: 42 }
-    return use_value(&item)
+    let forwarded = forward(&item) otherwise { return 0 }
+    return use_value(forwarded)
 }
 "#,
     );
@@ -84,10 +91,15 @@ func main(): i32 {
         .iter()
         .find(|function| function.name == "use_value")
         .unwrap();
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "forward")
+        .unwrap();
 
     assert_eq!(
         maybe.return_type,
-        Type::Fallible(Box::new(Type::Borrow {
+        Type::Optional(Box::new(Type::Borrow {
             is_readwrite: false,
             inner: Box::new(Type::DirectAggregate {
                 layout: ValueLayout::new(4, 4),
@@ -102,7 +114,7 @@ func main(): i32 {
             if then_instructions.contains(&Instruction::SetUsizeFromBorrow {
                 destination: UsizeLocation::Return,
                 source: BorrowSource::AggregateParameter(0),
-            }) && then_instructions.contains(&Instruction::ReturnFallibleSuccess)
+            }) && then_instructions.contains(&Instruction::ReturnOutcomeSuccess)
         )),
         "{maybe:?}"
     );
@@ -111,10 +123,10 @@ func main(): i32 {
         matches!(
             use_value.instructions.as_slice(),
             [
-                Instruction::CallFallibleBorrow {
+                Instruction::CallOutcomeBorrow {
                     destination: UsizeLocation::Local(0),
                     target,
-                    failure_mode: FallibleFailureMode::Handle { .. },
+                    failure_mode: OutcomeFailureMode::Handle { .. },
                     ..
                 },
                 Instruction::CallI32 { arguments, .. },
@@ -125,5 +137,24 @@ func main(): i32 {
                 })]
         ),
         "{use_value:?}"
+    );
+    assert!(
+        forward.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::IfStoredOutcomeTag {
+                success_instructions,
+                outcome_instructions,
+                ..
+            } if success_instructions.iter().any(|instruction| matches!(
+                instruction,
+                Instruction::LoadStoredOutcomePayload {
+                    destination: crate::ir::ComposedOutcomeDestination::Borrow(
+                        UsizeLocation::Local(0)
+                    ),
+                    ..
+                }
+            )) && outcome_instructions.contains(&Instruction::ReturnOptionalNone)
+        )),
+        "{forward:?}"
     );
 }

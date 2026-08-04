@@ -219,7 +219,7 @@ pub(super) fn validate_void_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_void_normal_call_return_type(
+pub(super) fn validate_outcome_void_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -233,8 +233,8 @@ pub(super) fn validate_fallible_void_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::Void
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::Void
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -248,7 +248,7 @@ pub(super) fn validate_fallible_void_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_borrow_normal_call_return_type(
+pub(super) fn validate_outcome_borrow_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -261,8 +261,8 @@ pub(super) fn validate_fallible_borrow_normal_call_return_type(
             ),
         )]);
     };
-    if let Type::Fallible(success) = callee_return_type
-        && matches!(success.as_ref(), Type::Borrow { .. })
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && matches!(success, Type::Borrow { .. })
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -275,7 +275,7 @@ pub(super) fn validate_fallible_borrow_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_i32_normal_call_return_type(
+pub(super) fn validate_outcome_i32_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -289,8 +289,8 @@ pub(super) fn validate_fallible_i32_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::I32
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::I32
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -304,7 +304,7 @@ pub(super) fn validate_fallible_i32_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_usize_normal_call_return_type(
+pub(super) fn validate_outcome_usize_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -318,8 +318,8 @@ pub(super) fn validate_fallible_usize_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::Usize
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::Usize
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -333,7 +333,7 @@ pub(super) fn validate_fallible_usize_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_u8_normal_call_return_type(
+pub(super) fn validate_outcome_u8_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -347,8 +347,8 @@ pub(super) fn validate_fallible_u8_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::U8
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::U8
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -362,7 +362,7 @@ pub(super) fn validate_fallible_u8_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_bool_normal_call_return_type(
+pub(super) fn validate_outcome_bool_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -376,8 +376,8 @@ pub(super) fn validate_fallible_bool_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::Bool
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::Bool
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -391,7 +391,7 @@ pub(super) fn validate_fallible_bool_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_str_normal_call_return_type(
+pub(super) fn validate_outcome_str_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -405,8 +405,8 @@ pub(super) fn validate_fallible_str_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && success.as_ref() == &Type::Str
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && success == &Type::Str
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -420,7 +420,7 @@ pub(super) fn validate_fallible_str_normal_call_return_type(
     )])
 }
 
-pub(super) fn validate_fallible_slice_normal_call_return_type(
+pub(super) fn validate_outcome_slice_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
@@ -434,8 +434,8 @@ pub(super) fn validate_fallible_slice_normal_call_return_type(
         )]);
     };
 
-    if let Type::Fallible(success) = callee_return_type
-        && matches!(success.as_ref(), Type::Slice { .. })
+    if let Some((_, success)) = callee_return_type.single_outcome()
+        && matches!(success, Type::Slice { .. })
     {
         return validate_call_success_return_passing(target, callee_name, success, context);
     }
@@ -539,6 +539,24 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
         },
         Type::Void => "void",
         Type::Never => "never",
+        Type::Optional(payload) => match payload.as_ref() {
+            Type::I32 => "i32?",
+            Type::U8 => "u8?",
+            Type::Usize => "usize?",
+            Type::Bool => "bool?",
+            Type::Str => "&str?",
+            Type::Slice {
+                is_readwrite: false,
+            } => "&[T]?",
+            Type::Slice { is_readwrite: true } => "&+[T]?",
+            Type::Aggregate { .. } | Type::DirectAggregate { .. } => "aggregate?",
+            Type::Borrow { .. } => "borrow?",
+            Type::Void => "void?",
+            Type::Never => "never?",
+            Type::Error => "error?",
+            Type::Optional(_) => "optional",
+            Type::Fallible(_) | Type::ComposedOutcome { .. } => "composed outcome",
+        },
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => "i32!",
             Type::U8 => "u8!",
@@ -578,6 +596,7 @@ pub(super) fn describe_type(ty: &Type) -> &'static str {
             Type::Void => "void!",
             Type::Never => "never!",
             Type::Error => "error!",
+            Type::Optional(_) => "composed outcome",
             Type::Fallible(_) => "fallible",
             Type::ComposedOutcome { .. } => "composed outcome",
         },

@@ -151,7 +151,7 @@ impl EntryEmitter {
         destination: UsizeLocation,
         fd: &I32Value,
         buffer: &SliceValue,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -191,7 +191,7 @@ impl EntryEmitter {
         &mut self,
         destination: I32Location,
         path: &UsizeValue,
-        failure_mode: &FallibleFailureMode,
+        failure_mode: &OutcomeFailureMode,
         frame: Option<&FrameLayout>,
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {

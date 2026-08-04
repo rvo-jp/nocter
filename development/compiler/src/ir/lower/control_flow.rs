@@ -30,8 +30,8 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, SliceLocation,
+    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, I32ComparisonOperator,
+    I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument, SliceLocation,
     StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};

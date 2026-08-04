@@ -17,7 +17,7 @@ pub(in crate::ir::lower) fn is_scope_exit_instruction(instruction: &Instruction)
     matches!(
         instruction,
         Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }

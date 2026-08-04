@@ -34,6 +34,7 @@ pub(super) fn type_return_description(ty: &Type) -> String {
         Type::Error => "error".to_string(),
         Type::Void => "void".to_string(),
         Type::Never => "never".to_string(),
+        Type::Optional(payload) => format!("optional {}", type_return_description(payload)),
         Type::Fallible(success) => format!("fallible {}", type_return_description(success)),
         Type::ComposedOutcome {
             outer,

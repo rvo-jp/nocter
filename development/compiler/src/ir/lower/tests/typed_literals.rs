@@ -249,9 +249,9 @@ func main(): i32! {
         .unwrap();
     assert!(main.instructions.iter().any(|instruction| matches!(
         instruction,
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             target,
-            failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+            failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
             ..
         } if target == &CallTarget::same_file("next")
             && instructions.iter().any(|instruction| matches!(

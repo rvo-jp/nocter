@@ -28,7 +28,7 @@ where
             let Expr::Identifier(identifier) = unwrap_group(&force.expression) else {
                 return Ok(None);
             };
-            (identifier, Some(FallibleFailureMode::Trap))
+            (identifier, Some(OutcomeFailureMode::Trap))
         }
         Expr::Catch(catch) => {
             let Expr::Identifier(identifier) = unwrap_group(&catch.expression) else {
@@ -65,8 +65,8 @@ where
         unsupported_message,
     )?;
     let outcome_instructions = match failure_mode {
-        FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions } => instructions,
+        OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions } => instructions,
         _ => {
             return Err(vec![Diagnostic::error(
                 "E8008",

@@ -43,8 +43,8 @@ fn lowers_fallible_void_terminal_if_entry() {
         ir.functions[0].instructions,
         vec![Instruction::If {
             condition: BoolValue::Const(true),
-            then_instructions: vec![Instruction::ReturnFallibleSuccess],
-            else_instructions: vec![Instruction::ReturnFallibleSuccess],
+            then_instructions: vec![Instruction::ReturnOutcomeSuccess],
+            else_instructions: vec![Instruction::ReturnOutcomeSuccess],
         }],
     );
 }
@@ -72,10 +72,10 @@ fn lowers_fallible_void_nested_terminal_if_entry() {
             condition: BoolValue::Const(true),
             then_instructions: vec![Instruction::If {
                 condition: BoolValue::Const(false),
-                then_instructions: vec![Instruction::ReturnFallibleSuccess],
-                else_instructions: vec![Instruction::ReturnFallibleSuccess],
+                then_instructions: vec![Instruction::ReturnOutcomeSuccess],
+                else_instructions: vec![Instruction::ReturnOutcomeSuccess],
             }],
-            else_instructions: vec![Instruction::ReturnFallibleSuccess],
+            else_instructions: vec![Instruction::ReturnOutcomeSuccess],
         }],
     );
 }
@@ -101,17 +101,17 @@ func value(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("value"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::SetI32 {
                     destination: I32Location::Return,
                     value: i32_const(0),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -138,11 +138,11 @@ func text(): &str! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleStr {
+                Instruction::CallOutcomeStr {
                     destination: StrLocation::Local(0),
                     target: CallTarget::same_file("text"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Trap,
+                    failure_mode: OutcomeFailureMode::Trap,
                 },
                 Instruction::SetI32 {
                     destination: I32Location::Return,
@@ -186,19 +186,19 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
             target: crate::ir::CallTarget::same_file("wrapper".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleSlice {
+                Instruction::CallOutcomeSlice {
                     destination: SliceLocation::Local(0),
                     target: CallTarget::same_file("maybe_bytes"),
                     arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::SetI32 {
                     destination: I32Location::Return,
                     value: i32_const(0),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -219,7 +219,7 @@ fn lowers_fallible_entry_returning_i32_literal() {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
+            instructions: vec![set_return_i32(7), Instruction::ReturnOutcomeSuccess],
         }])
     );
 }
@@ -241,7 +241,7 @@ func main(): ExitResult {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
+            instructions: vec![set_return_i32(7), Instruction::ReturnOutcomeSuccess],
         }])
     );
 }
@@ -266,7 +266,7 @@ func run(): void! {
             name: "run".to_string(),
             target: crate::ir::CallTarget::same_file("run".to_string()),
             return_type: Type::Fallible(Box::new(Type::Void)),
-            instructions: vec![Instruction::ReturnFallibleSuccess],
+            instructions: vec![Instruction::ReturnOutcomeSuccess],
         }
     );
 }
@@ -291,7 +291,7 @@ func answer(): i32! {
             name: "answer".to_string(),
             target: crate::ir::CallTarget::same_file("answer".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+            instructions: vec![set_return_i32(42), Instruction::ReturnOutcomeSuccess],
         }
     );
 }
@@ -316,13 +316,13 @@ func answer(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Return,
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -353,7 +353,7 @@ func answer(): i32 {
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -385,18 +385,18 @@ func answer(): i32! {
                     destination: I32Location::Local(0),
                     value: I32Value::Const(2),
                 },
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(1),
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::AddI32 {
                     destination: I32Location::Return,
                     left: I32Value::Location(I32Location::Local(0)),
                     right: I32Value::Location(I32Location::Local(1)),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -434,21 +434,21 @@ func make_flag(): bool! {
     assert_eq!(main.return_type, Type::Fallible(Box::new(Type::I32)));
     assert!(matches!(
         main.instructions[0],
-        Instruction::CallFallibleU8 {
+        Instruction::CallOutcomeU8 {
             destination: U8Location::Local(0),
             ..
         }
     ));
     assert!(matches!(
         main.instructions[1],
-        Instruction::CallFallibleUsize {
+        Instruction::CallOutcomeUsize {
             destination: UsizeLocation::Local(1),
             ..
         }
     ));
     assert!(matches!(
         main.instructions[2],
-        Instruction::CallFallibleBool {
+        Instruction::CallOutcomeBool {
             destination: BoolLocation::Local(2),
             ..
         }
@@ -493,7 +493,7 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
     assert_eq!(use_text.return_type, Type::Fallible(Box::new(Type::Usize)));
     assert!(matches!(
         use_text.instructions[0],
-        Instruction::CallFallibleStr {
+        Instruction::CallOutcomeStr {
             destination: StrLocation::Local(0),
             ..
         }
@@ -512,7 +512,7 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
     assert_eq!(use_bytes.return_type, Type::Fallible(Box::new(Type::Usize)));
     assert!(matches!(
         use_bytes.instructions[0],
-        Instruction::CallFallibleSlice {
+        Instruction::CallOutcomeSlice {
             destination: SliceLocation::Local(0),
             ..
         }
@@ -550,17 +550,17 @@ func make_text(): &str! {
             target: crate::ir::CallTarget::same_file("size".to_string()),
             return_type: Type::Fallible(Box::new(Type::Usize)),
             instructions: vec![
-                Instruction::CallFallibleStr {
+                Instruction::CallOutcomeStr {
                     destination: StrLocation::Local(0),
                     target: CallTarget::same_file("make_text"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value: UsizeValue::StrLen(StrLocation::Local(0)),
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -597,13 +597,13 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
             target: crate::ir::CallTarget::same_file("first".to_string()),
             return_type: Type::Fallible(Box::new(Type::U8)),
             instructions: vec![
-                Instruction::CallFallibleSlice {
+                Instruction::CallOutcomeSlice {
                     destination: SliceLocation::Local(0),
                     target: CallTarget::same_file("maybe_bytes"),
                     arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                         SliceLocation::Parameter(0),
                     ))],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
                 Instruction::SetU8 {
                     destination: U8Location::Return,
@@ -612,7 +612,7 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
                         index: usize_const(0),
                     },
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -639,11 +639,11 @@ func answer(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Trap,
+                    failure_mode: OutcomeFailureMode::Trap,
                 },
                 Instruction::SetI32 {
                     destination: I32Location::Return,
@@ -671,7 +671,7 @@ func effect(): void! {
 
     assert_eq!(ir.functions[0].return_type, Type::Void);
     let [
-        Instruction::CallFallibleVoid { failure_mode, .. },
+        Instruction::CallOutcomeVoid { failure_mode, .. },
         Instruction::Return,
     ] = ir.functions[0].instructions.as_slice()
     else {
@@ -680,7 +680,7 @@ func effect(): void! {
             ir.functions[0].instructions
         );
     };
-    assert_eq!(*failure_mode, FallibleFailureMode::Trap);
+    assert_eq!(*failure_mode, OutcomeFailureMode::Trap);
 }
 
 #[test]
@@ -714,9 +714,9 @@ pub func read_count(buffer: &+[u8]): usize! {
                 destination: UsizeLocation::Return,
                 fd: I32Value::Const(0),
                 buffer: SliceValue::Location(SliceLocation::Parameter(0)),
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -762,9 +762,9 @@ pub func open_raw(address: usize): i32! {
             Instruction::OpenRead {
                 destination: I32Location::Return,
                 path: UsizeValue::Location(UsizeLocation::Parameter(0)),
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }
@@ -787,10 +787,10 @@ func main(): void! {
 
     assert_eq!(main.return_type, Type::Fallible(Box::new(Type::Void)));
     let [
-        Instruction::CallFallibleVoid {
+        Instruction::CallOutcomeVoid {
             target, arguments, ..
         },
-        Instruction::ReturnFallibleSuccess,
+        Instruction::ReturnOutcomeSuccess,
     ] = main.instructions.as_slice()
     else {
         panic!("unexpected main instructions: {:?}", main.instructions);
@@ -811,7 +811,7 @@ func main(): void! {
                 text: StrValue::Location(StrLocation::Parameter(0)),
             },
             Instruction::PropagateFailure,
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ]
     );
 }

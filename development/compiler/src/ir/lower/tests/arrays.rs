@@ -104,12 +104,12 @@ func main(): i32! {
 
     let cleanup = main.instructions.iter().find_map(|instruction| {
         let failure_mode = match instruction {
-            Instruction::CallFallibleAggregate { failure_mode, .. }
-            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            Instruction::CallOutcomeAggregate { failure_mode, .. }
+            | Instruction::CallOutcomeDirectAggregate { failure_mode, .. } => failure_mode,
             _ => return None,
         };
         match failure_mode {
-            FallibleFailureMode::PropagateWithCleanup {
+            OutcomeFailureMode::PropagateWithCleanup {
                 code,
                 message,
                 instructions,
@@ -202,14 +202,14 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("make_files") => Some(instructions),
             _ => None,
@@ -289,14 +289,14 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("make_file") => Some(instructions),
             _ => None,
@@ -373,12 +373,12 @@ func main(): i32! {
         .expect("expected lowered main function");
     let cleanup = main.instructions.iter().find_map(|instruction| {
         let failure_mode = match instruction {
-            Instruction::CallFallibleAggregate { failure_mode, .. }
-            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            Instruction::CallOutcomeAggregate { failure_mode, .. }
+            | Instruction::CallOutcomeDirectAggregate { failure_mode, .. } => failure_mode,
             _ => return None,
         };
         match failure_mode {
-            FallibleFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
+            OutcomeFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
             _ => None,
         }
     });
@@ -832,12 +832,12 @@ func make_fallible_empty(): [u8; 0]! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make_fallible_pair"),
                 arguments: vec![],
                 layout: pair_layout,
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             })
     );
     assert!(
@@ -851,12 +851,12 @@ func make_fallible_empty(): [u8; 0]! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::CallFallibleDirectAggregate {
+            .contains(&Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::Slot(1),
                 target: CallTarget::same_file("make_fallible_empty"),
                 arguments: vec![],
                 layout: empty_layout,
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             })
     );
 }
@@ -1001,9 +1001,9 @@ func main(): void! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,
@@ -1063,12 +1063,12 @@ func main(): i32 {
         .expect("expected lowered make function");
     let cleanup = make.instructions.iter().find_map(|instruction| {
         let failure_mode = match instruction {
-            Instruction::CallFallibleAggregate { failure_mode, .. }
-            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => failure_mode,
+            Instruction::CallOutcomeAggregate { failure_mode, .. }
+            | Instruction::CallOutcomeDirectAggregate { failure_mode, .. } => failure_mode,
             _ => return None,
         };
         match failure_mode {
-            FallibleFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
+            OutcomeFailureMode::PropagateWithCleanup { instructions, .. } => Some(instructions),
             _ => None,
         }
     });

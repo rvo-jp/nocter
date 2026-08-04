@@ -38,7 +38,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_str_fallible_expression_to_location(
             &catch.expression,
@@ -116,7 +116,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_slice_fallible_expression_to_location(
             &catch.expression,
@@ -215,7 +215,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -322,7 +322,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: SliceValue::Location(temporary),
             })

@@ -56,8 +56,8 @@ fn emits_callable_to_storage_bridge_and_later_optional_consumption() {
         Function {
             name: "maybe".to_string(),
             target: CallTarget::same_file("maybe"),
-            return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(42), Instruction::ReturnOutcomeSuccess],
         },
     ]);
 

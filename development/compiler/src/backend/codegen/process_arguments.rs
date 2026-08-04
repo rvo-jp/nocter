@@ -242,52 +242,52 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::TailCall { arguments, .. } => {
             scalar_arguments_use_process_arguments(arguments)
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBorrow {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -353,7 +353,7 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::Continue
         | Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::LoadStoredOutcomePayload { .. }
         | Instruction::ReturnStoredOutcome { .. }
@@ -361,13 +361,13 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
     }
 }
 
-pub(super) fn failure_mode_uses_process_arguments(failure_mode: &FallibleFailureMode) -> bool {
+pub(super) fn failure_mode_uses_process_arguments(failure_mode: &OutcomeFailureMode) -> bool {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => false,
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             instructions_use_process_arguments(instructions)
         }
     }

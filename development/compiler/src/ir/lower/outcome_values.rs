@@ -3,7 +3,7 @@ use super::context::LoweringContext;
 use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, ComposedOutcomeDestination, FallibleFailureMode, Instruction, Type,
+    AggregateLocation, ComposedOutcomeDestination, Instruction, OutcomeFailureMode, Type,
 };
 use crate::outcomes::OutcomeLayer;
 
@@ -11,7 +11,7 @@ pub(super) fn lower_stored_outcome_expression(
     expression: &Expr,
     destination: ComposedOutcomeDestination,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let expression = expression.without_groups();
     if let Expr::Otherwise(otherwise) = expression
@@ -35,8 +35,8 @@ pub(super) fn lower_stored_outcome_expression(
             "stored optional-fallible fallback must exit the current control path",
         )?;
         let outcome_instructions = match fallback {
-            FallibleFailureMode::Handle { instructions }
-            | FallibleFailureMode::Recover { instructions } => instructions,
+            OutcomeFailureMode::Handle { instructions }
+            | OutcomeFailureMode::Recover { instructions } => instructions,
             _ => unreachable!("otherwise fallback produces handle or recover mode"),
         };
         let outer = local.storage.layers[0];
@@ -105,14 +105,14 @@ pub(super) fn lower_stored_outcome_expression(
 }
 
 fn optional_outcome_instructions(
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match failure_mode {
-        FallibleFailureMode::Propagate => Ok(vec![Instruction::ReturnOptionalNone]),
-        FallibleFailureMode::Trap => Ok(vec![Instruction::Trap]),
-        FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions } => Ok(instructions),
-        FallibleFailureMode::PropagateWithCleanup { .. } | FallibleFailureMode::Catch { .. } => {
+        OutcomeFailureMode::Propagate => Ok(vec![Instruction::ReturnOptionalNone]),
+        OutcomeFailureMode::Trap => Ok(vec![Instruction::Trap]),
+        OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions } => Ok(instructions),
+        OutcomeFailureMode::PropagateWithCleanup { .. } | OutcomeFailureMode::Catch { .. } => {
             Err(vec![Diagnostic::error(
                 "E8008",
                 "optional outcome received a fallible-only failure mode",
