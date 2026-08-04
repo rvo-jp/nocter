@@ -360,13 +360,10 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         return None;
     };
     let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
-    let (declaration_label, documentation) =
-        resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
-            (
-                symbol_hover_label_for_sources(sources, symbol),
-                None::<String>,
-            )
-        });
+    let documentation = combine_documentation(
+        target_documentation(sources, analysis, symbol.name_span),
+        semantic_documentation(sources, analysis, declaration_span),
+    );
     let presentation = match occurrence.contextual_type.as_ref() {
         Some(contextual_type) => crate::analysis::presentation::type_reference_presentation(
             symbol,
@@ -377,9 +374,7 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
             crate::analysis::presentation::type_declaration_presentation(symbol, &file.resolved)
         }
     };
-    let label = presentation
-        .map(|presentation| presentation.render())
-        .unwrap_or(declaration_label);
+    let label = presentation?.render();
 
     Some(HoverInfo {
         span: occurrence.focus_span,
