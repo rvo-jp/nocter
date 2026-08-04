@@ -517,7 +517,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -539,7 +539,7 @@ func main(): i32 {
 }
 
 #[test]
-fn member_completion_prefers_inherent_override_to_interface_default_method() {
+fn member_completion_omits_inherent_interface_name_conflict() {
     let text = r#"interface Value {
     pub method &self.value(): i32 {
         return 1
@@ -556,7 +556,7 @@ impl Unit {
     }
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -572,16 +572,7 @@ func main(): i32 {
         .filter(|item| item.label == "value")
         .collect::<Vec<_>>();
 
-    assert_eq!(values.len(), 1);
-    assert_eq!(
-        values[0].declaration_span,
-        file.resolved
-            .type_symbol_by_name("Unit")
-            .unwrap()
-            .methods
-            .first()
-            .map(|method| method.name_span)
-    );
+    assert!(values.is_empty(), "{values:?}");
 }
 
 #[test]
@@ -602,8 +593,8 @@ copy struct Unit {
     marker: i32
 }
 
-impl Left for Unit
-impl Right for Unit
+impl Left for Unit {}
+impl Right for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

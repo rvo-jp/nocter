@@ -226,23 +226,20 @@ pub func map<T, U, I: Iterator<T>, F: CallMut<T, U>>(
     }
 }
 
-impl<T, U, I: Iterator<T>, F: CallMut<T, U>> MapIter<T, U, I, F> {
+impl<T, U, I: Iterator<T>, F: CallMut<T, U>> Iterator<U> for MapIter<T, U, I, F> {
     /// Advances the source once and transforms the yielded item once.
-    pub method &+self.next(): U? {
+    method &+self.next(): U? {
         let item = self.source.next()?
         return self.transform.call_mut(move item)
     }
 }
 
-impl<T, U, I: ExactSizeIterator<T>, F: CallMut<T, U>> MapIter<T, U, I, F> {
+impl<T, U, I: ExactSizeIterator<T>, F: CallMut<T, U>> ExactSizeIterator<U> for MapIter<T, U, I, F> {
     /// Mapping preserves the source iterator's exact cardinality.
-    pub method &self.remaining_len(): usize {
+    method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }
 }
-
-impl<T, U, I: Iterator<T>, F: CallMut<T, U>> Iterator<U> for MapIter<T, U, I, F>
-impl<T, U, I: ExactSizeIterator<T>, F: CallMut<T, U>> ExactSizeIterator<U> for MapIter<T, U, I, F>
 
 /// Constructs a lazy filtering adapter without allocating.
 pub func filter<T, I: Iterator<T>, F: CallMut<&T, bool>>(
@@ -255,9 +252,9 @@ pub func filter<T, I: Iterator<T>, F: CallMut<&T, bool>>(
     }
 }
 
-impl<T, I: Iterator<T>, F: CallMut<&T, bool>> FilterIter<T, I, F> {
+impl<T, I: Iterator<T>, F: CallMut<&T, bool>> Iterator<T> for FilterIter<T, I, F> {
     /// Advances until the predicate accepts an item or the source is exhausted.
-    pub method &+self.next(): T? {
+    method &+self.next(): T? {
         while true {
             let item = self.source.next()?
             if self.predicate.call_mut(&item) {
@@ -268,8 +265,6 @@ impl<T, I: Iterator<T>, F: CallMut<&T, bool>> FilterIter<T, I, F> {
     }
 }
 
-impl<T, I: Iterator<T>, F: CallMut<&T, bool>> Iterator<T> for FilterIter<T, I, F>
-
 /// Constructs an owning prefix-limiting adapter.
 pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> {
     return TakeIter<T, I> {
@@ -278,8 +273,8 @@ pub func take<T, I: Iterator<T>>(source: I, limit: usize): TakeIter<T, I> {
     }
 }
 
-impl<T, I: Iterator<T>> TakeIter<T, I> {
-    pub method &+self.next(): T? {
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
+    method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }
@@ -292,8 +287,8 @@ impl<T, I: Iterator<T>> TakeIter<T, I> {
     }
 }
 
-impl<T, I: ExactSizeIterator<T>> TakeIter<T, I> {
-    pub method &self.remaining_len(): usize {
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I> {
+    method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining < self.remaining {
             return source_remaining
@@ -301,9 +296,6 @@ impl<T, I: ExactSizeIterator<T>> TakeIter<T, I> {
         return self.remaining
     }
 }
-
-impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I>
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I>
 
 /// Constructs an owning prefix-skipping adapter.
 pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> {
@@ -313,8 +305,8 @@ pub func skip<T, I: Iterator<T>>(source: I, count: usize): SkipIter<T, I> {
     }
 }
 
-impl<T, I: Iterator<T>> SkipIter<T, I> {
-    pub method &+self.next(): T? {
+impl<T, I: Iterator<T>> Iterator<T> for SkipIter<T, I> {
+    method &+self.next(): T? {
         while self.remaining_to_skip != 0 {
             let skipped = self.source.next() otherwise {
                 self.remaining_to_skip = 0
@@ -326,8 +318,8 @@ impl<T, I: Iterator<T>> SkipIter<T, I> {
     }
 }
 
-impl<T, I: ExactSizeIterator<T>> SkipIter<T, I> {
-    pub method &self.remaining_len(): usize {
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for SkipIter<T, I> {
+    method &self.remaining_len(): usize {
         let source_remaining: usize = self.source.remaining_len()
         if source_remaining <= self.remaining_to_skip {
             return 0
@@ -335,9 +327,6 @@ impl<T, I: ExactSizeIterator<T>> SkipIter<T, I> {
         return source_remaining - self.remaining_to_skip
     }
 }
-
-impl<T, I: Iterator<T>> Iterator<T> for SkipIter<T, I>
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for SkipIter<T, I>
 
 /// Constructs an owning sequential adapter.
 pub func chain<T, L: Iterator<T>, R: Iterator<T>>(
@@ -351,8 +340,8 @@ pub func chain<T, L: Iterator<T>, R: Iterator<T>>(
     }
 }
 
-impl<T, L: Iterator<T>, R: Iterator<T>> ChainIter<T, L, R> {
-    pub method &+self.next(): T? {
+impl<T, L: Iterator<T>, R: Iterator<T>> Iterator<T> for ChainIter<T, L, R> {
+    method &+self.next(): T? {
         while self.in_left {
             let item = self.left.next() otherwise {
                 self.in_left = false
@@ -364,14 +353,11 @@ impl<T, L: Iterator<T>, R: Iterator<T>> ChainIter<T, L, R> {
     }
 }
 
-impl<T, L: ExactSizeIterator<T>, R: ExactSizeIterator<T>> ChainIter<T, L, R> {
-    pub method &self.remaining_len(): usize {
+impl<T, L: ExactSizeIterator<T>, R: ExactSizeIterator<T>> ExactSizeIterator<T> for ChainIter<T, L, R> {
+    method &self.remaining_len(): usize {
         return self.left.remaining_len() + self.right.remaining_len()
     }
 }
-
-impl<T, L: Iterator<T>, R: Iterator<T>> Iterator<T> for ChainIter<T, L, R>
-impl<T, L: ExactSizeIterator<T>, R: ExactSizeIterator<T>> ExactSizeIterator<T> for ChainIter<T, L, R>
 
 /// Constructs an indexed owning adapter.
 pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> {
@@ -381,8 +367,8 @@ pub func enumerate<T, I: Iterator<T>>(source: I): EnumerateIter<T, I> {
     }
 }
 
-impl<T, I: Iterator<T>> EnumerateIter<T, I> {
-    pub method &+self.next(): Indexed<T>? {
+impl<T, I: Iterator<T>> Iterator<Indexed<T>> for EnumerateIter<T, I> {
+    method &+self.next(): Indexed<T>? {
         let item = self.source.next()?
         let index: usize = self.next_index
         self.next_index = index + 1
@@ -393,11 +379,8 @@ impl<T, I: Iterator<T>> EnumerateIter<T, I> {
     }
 }
 
-impl<T, I: ExactSizeIterator<T>> EnumerateIter<T, I> {
-    pub method &self.remaining_len(): usize {
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I> {
+    method &self.remaining_len(): usize {
         return self.source.remaining_len()
     }
 }
-
-impl<T, I: Iterator<T>> Iterator<Indexed<T>> for EnumerateIter<T, I>
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter<T, I>

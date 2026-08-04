@@ -200,7 +200,9 @@ impl Formatter {
     }
 
     fn format_impl_decl(&mut self, item: &ImplDecl) {
-        self.write("impl ");
+        self.write("impl");
+        self.format_generics(&item.generics);
+        self.write(" ");
         if let Some(interface_ty) = &item.interface_ty {
             self.format_type(interface_ty);
             self.write(" for ");

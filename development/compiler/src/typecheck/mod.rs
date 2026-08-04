@@ -9,7 +9,6 @@ mod closures;
 mod conformance;
 mod controls;
 mod copyability;
-mod default_methods;
 mod diagnostics;
 mod drop_members;
 mod entry;
@@ -19,6 +18,8 @@ mod facts;
 mod fallible;
 mod generics;
 mod interface_bounds;
+mod interface_impl_members;
+mod interface_methods;
 mod interfaces;
 mod iteration;
 mod literals;
@@ -54,7 +55,6 @@ use regions::*;
 use returns::*;
 use sized::*;
 
-pub(crate) use default_methods::completion_candidates_for_type_expr as default_method_completion_candidates;
 pub(crate) use facts::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
     TypecheckClosurePlan, TypecheckCollectionForPlan, TypecheckCollectionForSourceMode,
@@ -64,6 +64,8 @@ pub(crate) use facts::{
     collect_typecheck_facts, drop_type_specialization_from_self_ty, type_expr_presentation_label,
     type_symbol_presentation_label,
 };
+pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
+pub(crate) use interface_methods::implementation_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
     enum_variant_member_label, field_member_label, generic_type_owner_name, qualified_member_name,

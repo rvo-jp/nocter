@@ -1,11 +1,11 @@
 //! Protocol resolution and semantic planning for collection `for` statements.
 
-use super::calls::method_applies_to_receiver;
 use super::copyability::non_copy_owned_type_kind;
 use super::expressions::expression_type;
 use super::interface_bounds::{
     implemented_interface_types, interface_symbols_for_generic_parameter,
 };
+use super::interface_methods::implementation_for_interface;
 use super::model::{Type, TypeEnvironment};
 use crate::ast::{CollectionForStmt, Expr, MethodReceiverMode, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -364,18 +364,13 @@ fn resolve_concrete_method(
             .ok_or(CollectionIterationError::MalformedConformance)?;
         return Ok(iteration_method(receiver_type, method));
     }
-    let symbol = receiver_type
-        .nominal_name()
-        .and_then(|name| resolved.type_symbol_by_canonical_name(name))
-        .ok_or(CollectionIterationError::MalformedConformance)?;
-    let method = symbol
-        .methods
-        .iter()
-        .find(|method| {
-            method.name == protocol.method_name
-                && method_applies_to_receiver(method, receiver_type, resolved)
-        })
-        .ok_or(CollectionIterationError::MalformedConformance)?;
+    let method = implementation_for_interface(
+        receiver_type,
+        &protocol.interface_canonical_name,
+        &protocol.method_name,
+        resolved,
+    )
+    .ok_or(CollectionIterationError::MalformedConformance)?;
     Ok(iteration_method(receiver_type, method))
 }
 

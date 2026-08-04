@@ -61,13 +61,18 @@ impl<T> ViewIter<T> {
         return remaining(self)
     }
 
+}
+
+impl<T> ExactSizeIterator<&T> for ViewIter<T> {
     /// Implements exact-size iteration for compiler-owned element packs.
-    pub method &self.remaining_len(): usize {
+    method &self.remaining_len(): usize {
         return remaining(self)
     }
+}
 
+impl<T> Iterator<&T> for ViewIter<T> {
     /// Advances and returns a readonly borrow, or `none` at exhaustion.
-    pub method &+self.next(): (&T)? {
+    method &+self.next(): (&T)? {
         if self.next_index >= self.view.len() {
             return none
         }
@@ -76,6 +81,3 @@ impl<T> ViewIter<T> {
         return &self.view[index]
     }
 }
-
-impl<T> Iterator<&T> for ViewIter<T>
-impl<T> ExactSizeIterator<&T> for ViewIter<T>

@@ -132,7 +132,7 @@ impl<'a> CallableIndex<'a> {
                             );
                         }
                     }
-                    Item::Impl(impl_) if impl_.interface_ty.is_none() => {
+                    Item::Impl(impl_) => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
                         };

@@ -180,62 +180,56 @@ fn redirect_interface_method_specialization(
     analysis: &CompileUnitAnalysis,
     mut specialization: MethodCallSpecialization,
 ) -> MethodCallSpecialization {
-    let Some(method_name) =
-        interface_method_name_for_span(analysis, specialization.declaration_span)
+    let Some((interface_name, method_name)) =
+        interface_method_identity_for_span(analysis, specialization.declaration_span)
     else {
         return specialization;
     };
     if matches!(specialization.self_ty, TypeExpr::Closure(_)) {
         return specialization;
     }
-    let Some((actual_span, impl_substitutions)) =
-        inherent_method_span_for_self_type(analysis, &specialization.self_ty, method_name)
+    let Some(file) = analysis
+        .file_by_source(specialization.self_ty.span().source)
+        .or_else(|| analysis.root_file())
     else {
         return specialization;
     };
-    specialization.declaration_span = actual_span;
-    specialization.substitutions.extend(impl_substitutions);
+    let Some(actual_method) = crate::typecheck::implementation_for_interface_type_expr(
+        &specialization.self_ty,
+        interface_name,
+        method_name,
+        &file.resolved,
+    ) else {
+        return specialization;
+    };
+    specialization.declaration_span = actual_method.name_span;
+    if let Some((_file, Some(impl_), _method)) =
+        method_declaration_for_span(analysis, actual_method.name_span)
+        && let Some(impl_substitutions) =
+            impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
+    {
+        specialization.substitutions.extend(impl_substitutions);
+    }
     specialization
 }
 
-fn interface_method_name_for_span(
+fn interface_method_identity_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<&str> {
+) -> Option<(&str, &str)> {
     analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let Item::Interface(interface) = item else {
+        file.resolved.symbols.symbols().find_map(|symbol| {
+            let crate::resolve::SymbolKind::Type(interface) = &symbol.kind else {
                 return None;
             };
+            if interface.kind != crate::resolve::TypeSymbolKind::Interface {
+                return None;
+            }
             interface
                 .methods
                 .iter()
                 .find(|method| method.name_span == declaration_span)
-                .map(|method| method.name.as_str())
-        })
-    })
-}
-
-fn inherent_method_span_for_self_type(
-    analysis: &CompileUnitAnalysis,
-    self_ty: &TypeExpr,
-    method_name: &str,
-) -> Option<(ByteSpan, HashMap<String, TypeExpr>)> {
-    analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let Item::Impl(impl_) = item else {
-                return None;
-            };
-            if impl_.interface_ty.is_some() {
-                return None;
-            }
-            let substitutions = impl_substitutions_for_self_ty(impl_, self_ty)?;
-            impl_.members.iter().find_map(|member| {
-                let ImplMember::Method(method) = member else {
-                    return None;
-                };
-                (method.name == method_name).then_some((method.name_span, substitutions.clone()))
-            })
+                .map(|method| (interface.canonical_name.as_str(), method.name.as_str()))
         })
     })
 }
@@ -403,7 +397,7 @@ fn iteration_method_call_specialization(
     let Some((_file, Some(impl_), _declaration)) =
         method_declaration_for_span(analysis, method.declaration_span)
     else {
-        return interface_method_name_for_span(analysis, method.declaration_span)
+        return interface_method_identity_for_span(analysis, method.declaration_span)
             .is_some()
             .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
     };

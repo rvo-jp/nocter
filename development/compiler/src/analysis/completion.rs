@@ -22,7 +22,7 @@ use crate::source::ByteSpan;
 use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 use crate::typecheck::{
-    default_method_completion_candidates, enum_variant_member_label, field_member_label,
+    enum_variant_member_label, field_member_label, interface_method_completion_candidates,
     qualified_member_name, type_expr_is_aborting_allocator_capability,
     type_expr_presentation_label, type_symbol_presentation_label,
 };

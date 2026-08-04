@@ -476,7 +476,7 @@ func main(box: &Box<i32>): i32 {
 
 copy struct Unit { marker: i32 }
 
-impl Identity for Unit
+impl Identity for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }

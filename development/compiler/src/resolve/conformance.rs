@@ -1,4 +1,5 @@
 use super::InterfaceConformance;
+use super::signatures::method_signatures;
 use crate::ast::ImplDecl;
 
 pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConformance> {
@@ -18,5 +19,6 @@ pub(super) fn interface_conformance(impl_: &ImplDecl) -> Option<InterfaceConform
             .collect(),
         interface_ty: impl_.interface_ty.clone()?,
         target_ty: impl_.target_ty.clone(),
+        methods: method_signatures(impl_).collect(),
     })
 }

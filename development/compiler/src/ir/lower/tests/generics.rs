@@ -453,13 +453,11 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method self.into_value(): U {
+impl<T> Extract<T> for Box<T> {
+    method self.into_value(): T {
         return self.value
     }
 }
-
-impl<T> Extract<T> for Box<T>
 
 func forward<B: Extract<T>, T>(box: B): T {
     return (move box).into_value()
@@ -508,13 +506,11 @@ struct Count {
     value: i32
 }
 
-impl Count {
-    pub method &self.measure(): i32 {
+impl Measure for Count {
+    method &self.measure(): i32 {
         return self.value
     }
 }
-
-impl Measure for Count
 
 func read<T: Measure>(value: &T): i32 {
     return value.measure()

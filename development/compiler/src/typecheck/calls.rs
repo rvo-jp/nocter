@@ -1,6 +1,6 @@
 use super::copyability::implicit_non_copy_owned_value_source;
 use super::diagnostics::{
-    ambiguous_default_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
+    ambiguous_concrete_method_diagnostic, ambiguous_generic_bound_method_diagnostic,
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
     associated_function_unknown_diagnostic, closure_callable_contract_diagnostic,
     field_called_as_method_diagnostic, generic_bound_not_satisfied_diagnostic,
@@ -203,24 +203,29 @@ pub(super) fn resolved_method_for_call<'a>(
             candidates.next().is_none().then_some(candidate)
         }
         _ => {
-            if let Some(owner) = inherent_method_owner_for_type(&self_type, resolved)
-                && let Some(method) = owner.methods.iter().find(|method| {
-                    method_is_accessible(method, member.member_span.source, resolved)
-                        && method.name == member.member
-                        && method_applies_to_receiver(method, &self_type, resolved)
-                })
-            {
-                return Some((owner, method));
-            }
-            let mut candidates = super::default_methods::candidates(
+            let inherent = inherent_method_owner_for_type(&self_type, resolved).and_then(|owner| {
+                owner
+                    .methods
+                    .iter()
+                    .find(|method| {
+                        method_is_accessible(method, member.member_span.source, resolved)
+                            && method.name == member.member
+                            && method_applies_to_receiver(method, &self_type, resolved)
+                    })
+                    .map(|method| (owner, method))
+            });
+            let mut interface_candidates = super::interface_methods::candidates(
                 &self_type,
                 &member.member,
                 member.member_span.source,
                 resolved,
             )
             .into_iter();
-            let candidate = candidates.next()?;
-            candidates.next().is_none().then_some(candidate)
+            let interface = interface_candidates.next();
+            if inherent.is_some() && interface.is_some() || interface_candidates.next().is_some() {
+                return None;
+            }
+            inherent.or(interface)
         }
     }
 }
@@ -625,14 +630,23 @@ pub(super) fn check_unresolved_member_call(
             return;
         }
     } else {
-        let candidates = super::default_methods::candidates(
+        let mut candidates = super::interface_methods::candidates(
             &self_type,
             &member.member,
             member.member_span.source,
             resolved,
         );
+        if let Some(owner) = inherent_method_owner_for_type(&self_type, resolved)
+            && let Some(method) = owner.methods.iter().find(|method| {
+                method_is_accessible(method, member.member_span.source, resolved)
+                    && method.name == member.member
+                    && method_applies_to_receiver(method, &self_type, resolved)
+            })
+        {
+            candidates.push((owner, method));
+        }
         if candidates.len() > 1 {
-            diagnostics.push(ambiguous_default_method_diagnostic(
+            diagnostics.push(ambiguous_concrete_method_diagnostic(
                 sources,
                 member.member_span,
                 &member.member,

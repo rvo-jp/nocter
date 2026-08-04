@@ -77,7 +77,7 @@ pub(in crate::typecheck) fn ambiguous_generic_bound_method_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn ambiguous_default_method_diagnostic(
+pub(in crate::typecheck) fn ambiguous_concrete_method_diagnostic(
     sources: &SourceMap,
     member_span: ByteSpan,
     member_name: &str,
@@ -85,19 +85,19 @@ pub(in crate::typecheck) fn ambiguous_default_method_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0451",
-        format!("default method `{member_name}` is provided by multiple interfaces"),
+        format!("method `{member_name}` is ambiguous for this concrete receiver"),
     );
     diagnostic.primary_span = sources.span_to_json(member_span).ok().map(Box::new);
     for (owner, method) in candidates {
         if let Ok(span) = sources.span_to_json(method.name_span) {
             diagnostic.notes.push(DiagnosticNote {
-                message: format!("default declared by interface `{}`", owner.canonical_name),
+                message: format!("candidate declared by `{}`", owner.canonical_name),
                 span: Some(span),
             });
         }
     }
     diagnostic.help = Some(
-        "define one compatible inherent method on the receiver type to select behavior explicitly"
+        "use non-overlapping inherent and interface member names; qualified method calls are not yet available"
             .to_string(),
     );
     diagnostic

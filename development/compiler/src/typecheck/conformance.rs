@@ -11,6 +11,14 @@ pub(super) fn implemented_interface_types(actual: &Type, resolved: &ResolveOutpu
         .collect()
 }
 
+pub(super) fn implemented_interface_conformances<'a>(
+    actual: &Type,
+    resolved: &'a ResolveOutput,
+) -> Vec<(&'a InterfaceConformance, Type)> {
+    let mut active = HashSet::new();
+    implemented_interface_types_inner(actual, resolved, &mut active)
+}
+
 pub(super) fn type_satisfies_interface_bound(
     actual: &Type,
     bound: &Type,

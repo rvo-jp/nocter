@@ -1,13 +1,11 @@
-use super::calls::method_applies_to_receiver;
 use super::diagnostics::{
     duplicate_interface_impl_diagnostic, interface_impl_contract_not_interface_diagnostic,
-    interface_impl_target_not_nominal_diagnostic, interface_method_missing_diagnostic,
-    interface_method_not_public_diagnostic, interface_method_signature_mismatch_diagnostic,
+    interface_impl_target_not_nominal_diagnostic,
 };
 use super::environments::generic_parameter_substitutions;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
-use crate::ast::{AstFile, ImplDecl, Item, TypeExpr, Visibility};
+use crate::ast::{AstFile, ImplDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
@@ -73,68 +71,16 @@ fn check_interface_impl(
         }
     }
 
-    let self_type = target_type;
-    let interface_substitutions =
-        type_symbol_generic_substitutions(interface_symbol, &interface_type);
-    for required in &interface_symbol.methods {
-        let actual = target_symbol.methods.iter().find(|method| {
-            method.name == required.name && method_applies_to_receiver(method, &self_type, resolved)
-        });
-        let Some(actual) = actual else {
-            if required.has_default_body {
-                continue;
-            }
-            diagnostics.push(interface_method_missing_diagnostic(
-                sources,
-                impl_,
-                interface_symbol,
-                target_symbol,
-                required,
-            ));
-            continue;
-        };
-
-        if actual.visibility != Visibility::Public {
-            diagnostics.push(interface_method_not_public_diagnostic(
-                sources,
-                interface_symbol,
-                target_symbol,
-                required,
-                actual,
-            ));
-            continue;
-        }
-
-        let actual_substitutions = method_impl_target_substitutions(actual, &self_type, resolved);
-        let expected = method_shape(required, resolved, &self_type, &interface_substitutions);
-        let found = method_shape(actual, resolved, &self_type, &actual_substitutions);
-        if expected.has_unknown_or_unresolved() || found.has_unknown_or_unresolved() {
-            continue;
-        }
-        if expected != found {
-            diagnostics.push(interface_method_signature_mismatch_diagnostic(
-                sources,
-                interface_symbol,
-                target_symbol,
-                required,
-                actual,
-                method_shape_label(required, resolved, &self_type, &interface_substitutions),
-                method_shape_label(actual, resolved, &self_type, &actual_substitutions),
-            ));
-            continue;
-        }
-        if !result_provenance_contract_is_compatible(required, actual) {
-            diagnostics.push(interface_method_signature_mismatch_diagnostic(
-                sources,
-                interface_symbol,
-                target_symbol,
-                required,
-                actual,
-                method_shape_label(required, resolved, &self_type, &interface_substitutions),
-                method_shape_label(actual, resolved, &self_type, &actual_substitutions),
-            ));
-        }
-    }
+    super::interface_impl_members::check_interface_impl_members(
+        sources,
+        impl_,
+        interface_symbol,
+        target_symbol,
+        &interface_type,
+        &target_type,
+        resolved,
+        diagnostics,
+    );
 }
 
 fn resolve_interface_symbol<'a>(
@@ -255,7 +201,10 @@ fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> S
     }
 }
 
-fn type_symbol_generic_substitutions(symbol: &TypeSymbol, ty: &Type) -> HashMap<String, Type> {
+pub(super) fn type_symbol_generic_substitutions(
+    symbol: &TypeSymbol,
+    ty: &Type,
+) -> HashMap<String, Type> {
     let Type::Generic { name, arguments } = ty else {
         return HashMap::new();
     };
@@ -271,7 +220,7 @@ fn type_symbol_generic_substitutions(symbol: &TypeSymbol, ty: &Type) -> HashMap<
         .collect()
 }
 
-fn method_impl_target_substitutions(
+pub(super) fn method_impl_target_substitutions(
     method: &MethodSignature,
     self_type: &Type,
     resolved: &ResolveOutput,
@@ -298,7 +247,7 @@ fn method_impl_target_substitutions(
     substitutions
 }
 
-fn method_shape(
+pub(super) fn method_shape(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
@@ -333,7 +282,7 @@ fn method_shape(
     }
 }
 
-fn method_shape_label(
+pub(super) fn method_shape_label(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
@@ -375,7 +324,7 @@ enum ProvenanceSlot {
     Current,
 }
 
-fn result_provenance_contract_is_compatible(
+pub(super) fn result_provenance_contract_is_compatible(
     required: &MethodSignature,
     actual: &MethodSignature,
 ) -> bool {
@@ -426,14 +375,14 @@ fn method_receiver_shape_label(receiver: &Type) -> &'static str {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct MethodShape {
+pub(super) struct MethodShape {
     receiver: Type,
     parameters: Vec<Type>,
     return_type: Type,
 }
 
 impl MethodShape {
-    fn has_unknown_or_unresolved(&self) -> bool {
+    pub(super) fn has_unknown_or_unresolved(&self) -> bool {
         self.receiver.is_unknown_or_unresolved()
             || self.parameters.iter().any(Type::is_unknown_or_unresolved)
             || self.return_type.is_unknown_or_unresolved()

@@ -13,20 +13,19 @@ pub func empty<T>(): EmptyIter<T> {
     return EmptyIter<T> { exhausted: true }
 }
 
-impl<T> EmptyIter<T> {
+impl<T> ExactSizeIterator<T> for EmptyIter<T> {
     /// Returns zero because no item can be yielded.
-    pub method &self.remaining_len(): usize {
+    method &self.remaining_len(): usize {
         return 0
-    }
-
-    /// Returns `none` for every call.
-    pub method &+self.next(): T? {
-        return none
     }
 }
 
-impl<T> Iterator<T> for EmptyIter<T>
-impl<T> ExactSizeIterator<T> for EmptyIter<T>
+impl<T> Iterator<T> for EmptyIter<T> {
+    /// Returns `none` for every call.
+    method &+self.next(): T? {
+        return none
+    }
+}
 
 /// An iterator that owns at most one unconsumed item.
 pub struct OnceIter<T> {
@@ -42,14 +41,16 @@ pub func once<T>(item: T): OnceIter<T> {
     }
 }
 
-impl<T> OnceIter<T> {
+impl<T> ExactSizeIterator<T> for OnceIter<T> {
     /// Returns one while the item remains and zero after it is yielded.
-    pub method &self.remaining_len(): usize {
+    method &self.remaining_len(): usize {
         return self.remaining
     }
+}
 
+impl<T> Iterator<T> for OnceIter<T> {
     /// Transfers the owned item once, then returns `none`.
-    pub method &+self.next(): T? {
+    method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }
@@ -62,6 +63,3 @@ impl<T> OnceIter<T> {
         return move item
     }
 }
-
-impl<T> Iterator<T> for OnceIter<T>
-impl<T> ExactSizeIterator<T> for OnceIter<T>

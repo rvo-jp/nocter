@@ -351,6 +351,20 @@ fn formats_method_generic_parameters_stably() {
 }
 
 #[test]
+fn formats_generic_interface_implementations_with_members_stably() {
+    assert_formats_stably(
+        "impl<T:Readable> Source<T> for Box<T>{method &self.read():T{return self.value}}\n",
+        concat!(
+            "impl<T: Readable> Source<T> for Box<T> {\n",
+            "    method &self.read(): T {\n",
+            "        return self.value\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_multi_line_string_with_comment_markers_stably() {
     assert_formats_stably(
         concat!(

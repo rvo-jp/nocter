@@ -93,8 +93,9 @@ pub(in crate::typecheck) fn method_unknown_diagnostic(
         ),
     );
     diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
-    diagnostic.help =
-        Some("define an inherent `method` in `impl Type` or call an existing method".to_string());
+    diagnostic.help = Some(
+        "define an inherent method or an explicit interface implementation member".to_string(),
+    );
     diagnostic
 }
 

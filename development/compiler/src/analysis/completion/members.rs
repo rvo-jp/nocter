@@ -75,34 +75,32 @@ fn value_member_completion_items(
                 struct_field_completion_item(field, resolved, false, &owner.substitutions)
             }),
     );
-    items.extend(
-        owner
-            .symbol
-            .methods
-            .iter()
-            .filter(|method| {
-                method.is_accessible
-                    && method_receiver_is_available(method, can_readwrite, can_move)
-            })
-            .map(|method| method_completion_item(method, resolved, &owner.substitutions)),
-    );
-    let inherent_names = owner
-        .symbol
-        .methods
-        .iter()
-        .map(|method| method.name.as_str())
-        .collect::<HashSet<_>>();
+    let mut methods_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
+    for method in owner.symbol.methods.iter().filter(|method| {
+        method.is_accessible && method_receiver_is_available(method, can_readwrite, can_move)
+    }) {
+        methods_by_name
+            .entry(method.name.as_str())
+            .or_default()
+            .push(method_completion_item(
+                method,
+                resolved,
+                &owner.substitutions,
+            ));
+    }
     let Some(self_ty) = owner.substitutions.get("Self") else {
+        items.extend(
+            methods_by_name
+                .into_values()
+                .filter_map(unambiguous_completion_candidate),
+        );
         return items;
     };
-    let mut defaults_by_name: HashMap<&str, Vec<CompletionItemInfo>> = HashMap::new();
-    for candidate in default_method_completion_candidates(self_ty, use_source, resolved) {
-        if inherent_names.contains(candidate.method.name.as_str())
-            || !method_receiver_is_available(candidate.method, can_readwrite, can_move)
-        {
+    for candidate in interface_method_completion_candidates(self_ty, use_source, resolved) {
+        if !method_receiver_is_available(candidate.method, can_readwrite, can_move) {
             continue;
         }
-        defaults_by_name
+        methods_by_name
             .entry(candidate.method.name.as_str())
             .or_default()
             .push(method_completion_item(
@@ -112,7 +110,7 @@ fn value_member_completion_items(
             ));
     }
     items.extend(
-        defaults_by_name
+        methods_by_name
             .into_values()
             .filter_map(unambiguous_completion_candidate),
     );

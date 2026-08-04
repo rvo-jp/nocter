@@ -8,18 +8,17 @@ struct Count {
     value: i32
 }
 
-impl Count {
-    pub method &self.measure(): i32 {
-        return self.value
-    }
-}
 "#;
 
 #[test]
 fn accepts_statically_resolved_method_call_through_interface_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}
-impl Measure for Count
+impl Measure for Count {{
+    method &self.measure(): i32 {{
+        return self.value
+    }}
+}}
 
 func read<T: Measure>(value: &T): i32 {{
     return value.measure()
@@ -46,13 +45,11 @@ struct IdentityValue {
     marker: i32
 }
 
-impl IdentityValue {
-    pub method &self.apply<U>(value: U): U {
+impl Identity for IdentityValue {
+    method &self.apply<U>(value: U): U {
         return value
     }
 }
-
-impl Identity for IdentityValue
 
 func apply_i32<I: Identity>(identity: &I, value: i32): i32 {
     return identity.apply(value)
@@ -118,7 +115,11 @@ func main(): i32 {
 fn accepts_forwarding_a_matching_generic_bound() {
     let diagnostics = check_text(&format!(
         r#"{MEASURE_INTERFACE}
-impl Measure for Count
+impl Measure for Count {{
+    method &self.measure(): i32 {{
+        return self.value
+    }}
+}}
 
 func read<T: Measure>(value: &T): i32 {{
     return value.measure()
@@ -148,13 +149,11 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method &self.get(): &U from self {
+impl<T> Lookup<T> for Box<T> {
+    method &self.get(): &T from self {
         return &self.value
     }
 }
-
-impl<T> Lookup<T> for Box<T>
 
 func lookup<M: Lookup<V>, V>(map: &M): &V from map {
     return map.get()
@@ -193,13 +192,11 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method &self.get(): &U {
+impl<T> Lookup<T> for Box<T> {
+    method &self.get(): &T {
         return &self.value
     }
 }
-
-impl<T> Lookup<T> for Box<T>
 
 func main(): i32 {
     return 0
@@ -230,18 +227,17 @@ struct Value {
     raw: i32
 }
 
-impl Value {
-    pub method &self.read(): i32 {
+impl Read for Value {
+    method &self.read(): i32 {
         return self.raw
-    }
-
-    pub method &self.size(): usize {
-        return 1
     }
 }
 
-impl Read for Value
-impl Size for Value
+impl Size for Value {
+    method &self.size(): usize {
+        return 1
+    }
+}
 
 func inspect<T: Read + Size>(value: &T): i32 {
     let size: usize = value.size()
@@ -319,25 +315,21 @@ struct Input {
     value: i32
 }
 
-impl Input {
-    pub method &+self.next(): i32? {
+impl Source<i32> for Input {
+    method &+self.next(): i32? {
         return none
     }
 }
-
-impl Source<i32> for Input
 
 struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I: Source<T>> Adapter<T, I> {
-    pub method &+self.next(): T? {
+impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I> {
+    method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
 }
-
-impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I>
 
 func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
     let item = wrapper.next()
@@ -366,23 +358,15 @@ struct Input {
     value: i32
 }
 
-impl Input {
-    pub method &+self.next(): i32? {
-        return none
-    }
-}
-
 struct Adapter<T, I> {
     input: I
 }
 
-impl<T, I: Source<T>> Adapter<T, I> {
-    pub method &+self.next(): T? {
+impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I> {
+    method &+self.next(): T? {
         return self.input.next() otherwise { return none }
     }
 }
-
-impl<T, I: Source<T>> Wrapper<T> for Adapter<T, I>
 
 func use_wrapper<W: Wrapper<i32>>(wrapper: &+W): void {
     let item = wrapper.next()

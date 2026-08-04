@@ -361,11 +361,6 @@ pub func index_out_of_bounds(): error {
 }
 
 impl<T> Vec<T> {
-    /// Returns the number of initialized elements.
-    pub method &self.len(): usize {
-        return len(self)
-    }
-
     pub method &self.capacity(): usize {
         return capacity(self)
     }
@@ -382,30 +377,12 @@ impl<T> Vec<T> {
         return view_mut(self)
     }
 
-    /// Returns an allocation-free iterator over readonly element borrows.
-    pub method &self.iter(): ViewIter<T> {
-        return iter(self)
-    }
-
-    /// Returns a readonly element borrow when `index` is in bounds.
-    pub method &self.get(index: usize): (&T)? from self {
-        if index >= self.len {
-            return none
-        }
-        return &view(self)[index]
-    }
-
     /// Returns a readwrite element borrow when `index` is in bounds.
     pub method &+self.get_mut(index: usize): (&+T)? {
         if index >= self.len {
             return none
         }
         return &+view_mut(self)[index]
-    }
-
-    /// Transfers the allocation and every element into an owning iterator.
-    pub method self.into_iter(): VecIntoIter<T> {
-        return into_iter(move self)
     }
 
     /// Ensures capacity for at least `additional` more elements.
@@ -465,6 +442,31 @@ impl<T> Vec<T> {
     }
 }
 
-impl<T> Sequence<T> for Vec<T>
-impl<T> Iterable<&T, ViewIter<T>> for Vec<T>
-impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T>
+impl<T> Sequence<T> for Vec<T> {
+    /// Returns the number of initialized elements.
+    method &self.len(): usize {
+        return len(self)
+    }
+
+    /// Returns a readonly element borrow when `index` is in bounds.
+    method &self.get(index: usize): (&T)? from self {
+        if index >= self.len {
+            return none
+        }
+        return &view(self)[index]
+    }
+}
+
+impl<T> Iterable<&T, ViewIter<T>> for Vec<T> {
+    /// Returns an allocation-free iterator over readonly element borrows.
+    method &self.iter(): ViewIter<T> {
+        return iter(self)
+    }
+}
+
+impl<T> IntoIterator<T, VecIntoIter<T>> for Vec<T> {
+    /// Transfers the allocation and every element into an owning iterator.
+    method self.into_iter(): VecIntoIter<T> {
+        return into_iter(move self)
+    }
+}

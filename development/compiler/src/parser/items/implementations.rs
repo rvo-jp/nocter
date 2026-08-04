@@ -7,25 +7,14 @@ impl Parser<'_> {
         let first_ty = self.parse_type()?;
         if self.match_keyword(Keyword::For).is_some() {
             let target_ty = self.parse_type()?;
-            let mut end = target_ty.span().end;
-            if self.match_punctuation("{").is_some() {
-                self.skip_newlines();
-                if !self.at_punctuation("}") {
-                    self.error_current(
-                        "interface conformance impl cannot contain members; define methods in an inherent `impl Type` block",
-                    );
-                    return Err(());
-                }
-                let close = self.expect_punctuation("}", "`}`")?;
-                end = close.span.end;
-            }
+            let (members, end) = self.parse_interface_impl_members()?;
 
             return Ok(Item::Impl(ImplDecl {
                 span: self.span(start.span.start, end),
                 generics,
                 interface_ty: Some(first_ty),
                 target_ty,
-                members: Vec::new(),
+                members,
             }));
         }
         let target_ty = first_ty;
@@ -77,6 +66,41 @@ impl Parser<'_> {
             target_ty,
             members,
         }))
+    }
+
+    fn parse_interface_impl_members(&mut self) -> ParseResult<(Vec<ImplMember>, usize)> {
+        let open = self.expect_punctuation("{", "`{` after interface implementation target")?;
+        let mut members = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_at(
+                    open.span,
+                    "expected `}` to close interface implementation block",
+                );
+                return Err(());
+            }
+
+            let visibility = self.parse_visibility()?;
+            if visibility != Visibility::Private {
+                self.error_current(
+                    "interface implementation methods inherit visibility and cannot be marked `pub`",
+                );
+                return Err(());
+            }
+            if !self.at_keyword(Keyword::Method) {
+                self.error_current("expected `method` in interface implementation block");
+                return Err(());
+            }
+            members.push(ImplMember::Method(
+                self.parse_method_decl(Visibility::Private, true)?,
+            ));
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok((members, close.span.end))
     }
 
     pub(super) fn parse_interface_decl(

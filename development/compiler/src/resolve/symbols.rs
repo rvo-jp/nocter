@@ -474,6 +474,7 @@ pub struct InterfaceConformance {
     pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
     pub interface_ty: TypeExpr,
     pub target_ty: TypeExpr,
+    pub methods: Vec<MethodSignature>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

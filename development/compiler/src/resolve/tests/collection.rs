@@ -125,6 +125,38 @@ func main(): i32 {
 }
 
 #[test]
+fn collects_interface_implementation_member_identities() {
+    let output = resolve_text(
+        r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count {
+    value: i32
+}
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let count = output.type_symbol_by_name("Count").unwrap();
+    let [conformance] = count.interface_conformances.as_slice() else {
+        panic!("expected one conformance: {count:?}");
+    };
+    let [method] = conformance.methods.as_slice() else {
+        panic!("expected one implementation member: {conformance:?}");
+    };
+    assert_eq!(method.name, "measure");
+    assert!(!method.has_default_body);
+    assert_eq!(method.impl_target_ty.as_ref(), Some(&conformance.target_ty));
+}
+
+#[test]
 fn collects_drop_member_signature() {
     let output = resolve_text(
         r#"struct File {

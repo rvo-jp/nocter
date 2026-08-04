@@ -831,7 +831,7 @@ fn parses_interface_default_method_bodies() {
 
 #[test]
 fn parses_interface_conformance_impls() {
-    let output = parse_text(
+    let (sources, output) = parse_text_with_sources(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
 }
@@ -840,7 +840,11 @@ struct Counter {
     value: i32
 }
 
-impl Writer for Counter
+impl Writer for Counter {
+    method &+self.write(text: &str): void! {
+        return
+    }
+}
 "#,
     );
 
@@ -856,11 +860,51 @@ impl Writer for Counter
         &interface_impl.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    assert!(interface_impl.members.is_empty());
+    assert!(matches!(
+        interface_impl.members.as_slice(),
+        [ImplMember::Method(method)] if method.name == "write" && method.body.is_some()
+    ));
+    let json = ast.to_json(&sources);
+    let impl_node = find_json_node(&json, "impl_decl").expect("expected impl JSON node");
+    assert!(
+        impl_node
+            .items
+            .iter()
+            .any(|node| node.kind == "interface_type")
+    );
+    assert!(
+        impl_node
+            .items
+            .iter()
+            .any(|node| { node.kind == "method_decl" && node.value.as_deref() == Some("write") })
+    );
 }
 
 #[test]
-fn rejects_members_in_interface_conformance_impls() {
+fn rejects_braceless_interface_implementations() {
+    let output = parse_text(
+        r#"interface Writer {
+    pub method &+self.write(text: &str): void!
+}
+
+struct Counter {
+    value: i32
+}
+
+impl Writer for Counter
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected `{` after interface implementation target")
+    );
+}
+
+#[test]
+fn rejects_visibility_on_interface_implementation_members() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
@@ -879,11 +923,7 @@ impl Writer for Counter {
     );
 
     assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(
-        output.diagnostics[0]
-            .message
-            .contains("cannot contain members")
-    );
+    assert!(output.diagnostics[0].message.contains("inherit visibility"));
 }
 
 #[test]

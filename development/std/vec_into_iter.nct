@@ -67,16 +67,6 @@ impl<T> VecIntoIter<T> {
         return remaining(self)
     }
 
-    /// Implements exact-size iteration for compiler-owned element packs.
-    pub method &self.remaining_len(): usize {
-        return remaining(self)
-    }
-
-    /// Transfers the next element, or returns `none` at exhaustion.
-    pub method &+self.next(): T? {
-        return next(self)?
-    }
-
     drop &+self {
         let element_size: usize = pointee_size(self.ptr)
         while self.end_index > self.next_index {
@@ -88,5 +78,16 @@ impl<T> VecIntoIter<T> {
     }
 }
 
-impl<T> Iterator<T> for VecIntoIter<T>
-impl<T> ExactSizeIterator<T> for VecIntoIter<T>
+impl<T> ExactSizeIterator<T> for VecIntoIter<T> {
+    /// Implements exact-size iteration for compiler-owned element packs.
+    method &self.remaining_len(): usize {
+        return remaining(self)
+    }
+}
+
+impl<T> Iterator<T> for VecIntoIter<T> {
+    /// Transfers the next element, or returns `none` at exhaustion.
+    method &+self.next(): T? {
+        return next(self)?
+    }
+}

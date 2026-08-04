@@ -13,7 +13,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -40,13 +40,11 @@ copy struct Number {
     value: i32
 }
 
-impl Number {
-    pub method &self.value(): i32 {
+impl Value for Number {
+    method &self.value(): i32 {
         return self.value
     }
 }
-
-impl Value for Number
 
 func main(): i32 {
     let number = Number { value: 4 }
@@ -59,7 +57,7 @@ func main(): i32 {
 }
 
 #[test]
-fn inherent_method_overrides_interface_default() {
+fn conformance_member_overrides_interface_default() {
     let diagnostics = check_text(
         r#"interface Value {
     pub method &self.value(): i32 {
@@ -71,13 +69,11 @@ copy struct Unit {
     marker: i32
 }
 
-impl Unit {
-    pub method &self.value(): i32 {
+impl Value for Unit {
+    method &self.value(): i32 {
         return 2
     }
 }
-
-impl Value for Unit
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -108,8 +104,8 @@ copy struct Unit {
     marker: i32
 }
 
-impl Left for Unit
-impl Right for Unit
+impl Left for Unit {}
+impl Right for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
@@ -150,7 +146,45 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_incompatible_inherent_override_of_interface_default() {
+fn diagnoses_inherent_and_interface_implementation_name_conflict() {
+    let diagnostics = check_text(
+        r#"interface Value {
+    pub method &self.value(): i32
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+impl Value for Unit {
+    method &self.value(): i32 {
+        return 2
+    }
+}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0451"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_incompatible_conformance_override_of_interface_default() {
     let diagnostics = check_text(
         r#"interface Value {
     pub method &self.value(): i32 {
@@ -162,13 +196,11 @@ copy struct Unit {
     marker: i32
 }
 
-impl Unit {
-    pub method &self.value(): usize {
+impl Value for Unit {
+    method &self.value(): usize {
         return 2
     }
 }
-
-impl Value for Unit
 
 func main(): i32 {
     return 0
@@ -195,16 +227,15 @@ struct User {
     id: i32
 }
 
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 1
     }
 }
 
-impl Printable for User
-
 func main(): i32 {
-    return 0
+    let user = User { id: 1 }
+    return user.print()
 }
 "#,
     );
@@ -223,13 +254,11 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method self.get(): U {
+impl<T> Source<T> for Box<T> {
+    method self.get(): T {
         return self.value
     }
 }
-
-impl<T> Source<T> for Box<T>
 
 func main(): i32 {
     return 0
@@ -251,13 +280,11 @@ struct User {
     id: i32
 }
 
-impl User {
-    pub method &self.clone(): User {
+impl Cloneable for User {
+    method &self.clone(): User {
         return User { id: self.id }
     }
 }
-
-impl Cloneable for User
 
 func main(): i32 {
     return 0
@@ -381,7 +408,7 @@ struct User {
     id: i32
 }
 
-impl Printable for User
+impl Printable for User {}
 
 func main(): i32 {
     return 0
@@ -395,7 +422,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_private_interface_method_implementation() {
+fn diagnoses_extra_interface_implementation_method() {
     let diagnostics = check_text(
         r#"interface Printable {
     pub method &self.print(): i32
@@ -405,13 +432,15 @@ struct User {
     id: i32
 }
 
-impl User {
+impl Printable for User {
     method &self.print(): i32 {
         return 1
     }
-}
 
-impl Printable for User
+    method &self.debug(): i32 {
+        return 2
+    }
+}
 
 func main(): i32 {
     return 0
@@ -421,7 +450,7 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0425");
-    assert!(diagnostics[0].message.contains("must be public"));
+    assert!(diagnostics[0].message.contains("not declared"));
 }
 
 #[test]
@@ -435,13 +464,11 @@ struct User {
     id: i32
 }
 
-impl User {
-    pub method &self.print(): bool {
+impl Printable for User {
+    method &self.print(): bool {
         return true
     }
 }
-
-impl Printable for User
 
 func main(): i32 {
     return 0
@@ -465,13 +492,11 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method self.get(): i32 {
+impl<T> Source<T> for Box<T> {
+    method self.get(): i32 {
         return 0
     }
 }
-
-impl<T> Source<T> for Box<T>
 
 func main(): i32 {
     return 0
@@ -495,14 +520,16 @@ struct User {
     id: i32
 }
 
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 1
     }
 }
-
-impl Printable for User
-impl Printable for User
+impl Printable for User {
+    method &self.print(): i32 {
+        return 2
+    }
+}
 
 func main(): i32 {
     return 0
@@ -525,14 +552,16 @@ struct Box<T> {
     value: T
 }
 
-impl<U> Box<U> {
-    pub method self.get(): U {
+impl<T> Source<T> for Box<T> {
+    method self.get(): T {
         return self.value
     }
 }
-
-impl<T> Source<T> for Box<T>
-impl<U> Source<U> for Box<U>
+impl<U> Source<U> for Box<U> {
+    method self.get(): U {
+        return self.value
+    }
+}
 
 func main(): i32 {
     return 0
@@ -551,7 +580,7 @@ fn diagnoses_non_interface_conformance_contract() {
     id: i32
 }
 
-impl User for User
+impl User for User {}
 
 func main(): i32 {
     return 0
@@ -572,7 +601,7 @@ fn diagnoses_non_nominal_interface_conformance_target() {
 
 type Id = i32
 
-impl Printable for Id
+impl Printable for Id {}
 
 func main(): i32 {
     return 0

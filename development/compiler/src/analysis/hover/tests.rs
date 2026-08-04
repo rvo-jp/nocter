@@ -513,7 +513,7 @@ copy struct Unit {
     marker: i32
 }
 
-impl Value for Unit
+impl Value for Unit {}
 
 func main(): i32 {
     let unit = Unit { marker: 0 }
