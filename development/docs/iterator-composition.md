@@ -27,8 +27,17 @@ specialization remain outside Phase 9.
 A conformance declaration may constrain its own generic parameters:
 
 ```nct
-impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I>
-impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I>
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
+    method &+self.next(): T? {
+        // advance the bounded source
+    }
+}
+
+impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<T> for TakeIter<T, I> {
+    method &self.remaining_len(): usize {
+        // return the exact bounded remainder
+    }
+}
 ```
 
 Resolver output retains the declaration span, target pattern, interface pattern, generic

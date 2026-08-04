@@ -253,7 +253,7 @@ Rules:
 - `self` is the fixed drop receiver name and is scoped to the drop body.
 - The drop receiver type is always exactly `&+Self`.
 - A `drop` member can appear only in an inherent `impl Type` block. Interface
-  conformance declarations cannot contain `drop` members or method bodies.
+  implementation declarations contain method bodies but cannot contain `drop` members.
 - A `drop` member has no return type annotation.
 - A `drop` member always returns no value.
 - A `drop` member cannot be fallible.

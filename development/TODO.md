@@ -85,9 +85,9 @@ with warnings denied, public documentation generation, local release packaging, 
 `doctor`, and archive inspection pass from `develop`. The distributed runtime suite passes all 199
 Phase 0 through Phase 10 integration cases.
 
-The previous qualification is retained as a checkpoint, but the stabilization gate is reopened.
-The active task replaces structural matching against public inherent methods with canonical
-members declared in `impl Interface for Type { ... }`. Parser, resolver, typecheck,
-specialization, lowering, ownership, analysis, LSP, the distributed standard library, and packaged
-execution must share the implementation member's declaration identity. No compatibility path for
-brace-less conformance or inherent-method satisfaction will remain.
+The previous qualification is retained as a checkpoint, and the stabilization gate remains open
+until the full clean-worktree release matrix is repeated. Body-bearing interface implementations
+are now implemented across parser, formatter, JSON AST, resolver, typecheck, specialization,
+buildability, lowering, analysis, LSP, the distributed standard library, and packaged execution.
+Brace-less conformance and inherent-method satisfaction have no compatibility path. The remaining
+task is release requalification of this completed migration, not further interface surface design.

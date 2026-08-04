@@ -414,7 +414,15 @@ Phase 9 also permits a conformance declaration's generic parameters to carry bou
 conditional conformance exists for a concrete target only when all specialized bounds hold:
 
 ```nct
-impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I>
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
+    method &+self.next(): T? {
+        if self.remaining == 0 {
+            return none
+        }
+        self.remaining -= 1
+        return self.source.next()?
+    }
+}
 ```
 
 Nocter rejects identical normalized target/interface patterns rather than selecting between
@@ -649,8 +657,8 @@ struct User {
     id: u64
 }
 
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 0
     }
 }
@@ -659,13 +667,17 @@ struct Profile {
     pub ...User
 }
 
-impl Printable for Profile // explicit conformance is still required
+impl Printable for Profile {
+    method &self.print(): i32 {
+        return self.User.print()
+    }
+}
 ```
 
-When checking an explicit `impl Interface for Owner`, public methods promoted by
-`pub ...T` may satisfy interface requirements as public `Owner` methods.
-Methods promoted by private `...T` cannot satisfy a public interface because
-they are not public on `Owner`.
+Embedding never supplies an interface implementation member. The owner must declare each required
+method in its own `impl Interface for Owner { ... }` body. That method may delegate to an
+unambiguous promoted public method, as shown above, but the delegation is explicit and owns a
+separate conformance-member identity.
 
 ### Non-Goals
 

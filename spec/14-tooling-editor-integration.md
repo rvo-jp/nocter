@@ -178,6 +178,17 @@ Nocter v0.3.0 Phase 9 editor rules:
 - Recovery for an incomplete `T: A +` edit returns semantic results only when all preceding bounds
   retain their declaration identities.
 
+Nocter v0.3.0 stabilization editor rules for body-bearing interface implementations:
+
+- Hover, completion, signature help, definition, references, and semantic tokens retain the
+  conformance member's declaration span for a concrete receiver.
+- A generic-bound call defines to the interface contract while concrete specialization retains the
+  selected implementation member and static call target.
+- Member visibility comes from the interface contract; the implementation member does not carry a
+  separate `pub` modifier.
+- Competing inherent and conformance members produce ambiguity rather than an order-dependent
+  completion or jump target.
+
 Later editor features:
 
 - rename

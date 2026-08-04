@@ -28,13 +28,15 @@ type's private or structural surface.
 
 Method lookup is deterministic:
 
-1. select an applicable accessible inherent method
-2. otherwise enumerate default methods from proven interface conformances or generic bounds
-3. select exactly one declaration identity or emit an ambiguity diagnostic
+1. collect applicable accessible inherent methods and members or defaults from proven interface
+   conformances
+2. select exactly one declaration identity or emit an ambiguity diagnostic
+3. for a generic receiver, search only the receiver's explicit interface-bound set
 
-Import order is never a tie breaker. The selected fact contains the interface declaration, method
-declaration, concrete receiver type, generic substitutions, and callable target. Ownership,
-provenance, allocation effects, buildability, IR, and LSP consume that shared fact.
+An inherent method does not override a conformance member or default. Import order is never a tie
+breaker. The selected fact contains the contract declaration, dispatch declaration, concrete
+receiver type, generic substitutions, and callable target. Ownership, provenance, allocation
+effects, buildability, IR, and LSP consume that shared fact.
 
 ## Closure Syntax and Capture Ownership
 
@@ -94,8 +96,9 @@ aborting allocation context through the existing vector builder.
 |---|---|
 | required/default method AST distinction | existing interface and method AST |
 | default declaration identity through imports | `resolve/signatures` |
-| conformance requirements | `resolve/conformance` and `typecheck/interfaces` |
-| deterministic default selection | focused `typecheck/default_methods` |
+| conformance member identity | `resolve/conformance` |
+| conformance requirements | `typecheck/interface_impl_members` |
+| deterministic interface member selection | `typecheck/interface_methods` |
 | closure AST and recovery | focused modules under `ast` and `parser` |
 | closure local/capture identity | `resolve/closures` |
 | closure plans and contextual inference | `typecheck/closures` |

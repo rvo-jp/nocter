@@ -11,9 +11,10 @@ and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Proces
 **Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
 **Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
 Iterators and Collection Builders**, and **Phase 10: Callable Values and Interface Default
-Methods** are complete on `develop`. **v0.3.0 Stabilization** is active again for the body-bearing
-interface implementation migration. The repository and packaged release metadata remain at the
-released v0.2.0 baseline. Completion records, stabilization criteria, and dependency order are
+Methods** are complete on `develop`. **v0.3.0 Stabilization** remains active; its body-bearing
+interface implementation migration is implemented and undergoing final release qualification. The
+repository and packaged release metadata remain at the released v0.2.0 baseline. Completion
+records, stabilization criteria, and dependency order are
 defined in the [v0.3.0 Development Contract](docs/v0.3.0.md); the implementation boundary is
 defined in [Body-Bearing Interface Implementations](docs/interface-implementations.md). The
 completed v0.2.0 criteria remain available in the [v0.2.0 release record](docs/v0.2.0.md).

@@ -151,6 +151,20 @@ protocol layer does not parse `from`, inspect interface names, or repeat conform
   recovered compiler run to establish every identity
 - JSON-RPC tests verify exact hover and definition ranges for a bound method call
 
+## Body-Bearing Interface Implementation Integration
+
+Concrete interface calls expose the selected conformance member rather than an unrelated inherent
+method or a method-name reconstruction. Hover and signature help present the specialized concrete
+receiver; completion and definition retain the implementation member span. Generic-bound calls
+continue to define to the interface contract while specialization facts carry the concrete dispatch
+member into buildability and lowering.
+
+The compiler candidate model keeps contract ownership separate from dispatch ownership. Contract
+ownership supplies visibility and interface generic arguments. Dispatch ownership supplies impl
+generic inference and the static method target. This distinction prevents same-spelled interface
+and impl generic parameters from corrupting editor types such as `ViewIter<T>` and `Iterator<&T>`.
+The protocol layer consumes these identities and never repeats conformance selection.
+
 ## Completed v0.3.0 Phase 5 Integration
 
 Nested-outcome and process tooling uses normalized callable signatures and provenance facts from
