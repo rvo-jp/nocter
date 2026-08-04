@@ -21,6 +21,14 @@ impl TypecheckFactCollector<'_> {
         );
         match expression {
             Expr::Closure(closure) => {
+                for parameter in &closure.parameters {
+                    if let Some(ty) = &parameter.ty {
+                        self.collect_type_expr_references(ty);
+                    }
+                }
+                if let Some(return_type) = &closure.return_type {
+                    self.collect_type_expr_references(return_type);
+                }
                 let closure_type = expression_type(expression, self.resolved, environment);
                 if let Type::Closure(ty) = &closure_type {
                     self.record_closure_plan(closure, ty);

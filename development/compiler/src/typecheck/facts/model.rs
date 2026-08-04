@@ -146,10 +146,6 @@ impl TypecheckFacts {
             .min_by_key(|reference| (reference.span.len(), reference.span.start))
     }
 
-    pub(crate) fn type_reference_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.type_references.iter().map(|reference| reference.span)
-    }
-
     pub(crate) fn type_references(&self) -> impl Iterator<Item = &TypeReferenceFact> + '_ {
         self.type_references.iter()
     }

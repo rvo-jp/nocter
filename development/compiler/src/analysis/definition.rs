@@ -5,8 +5,10 @@ use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::analysis::editor_targets::SourceTarget;
 use crate::analysis::hover::definition_target_for_ast as hover_definition_target_for_ast;
 use crate::ast::AstFile;
-use crate::resolve::{ResolveOutput, SymbolKind};
-use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::resolve::ResolveOutput;
+#[cfg(test)]
+use crate::source::ByteSpan;
+use crate::source::{SourceId, SourceMap};
 use crate::typecheck::collect_typecheck_facts;
 
 #[cfg(test)]
@@ -31,12 +33,11 @@ pub(crate) fn definition_target_for_file_analysis(
         .or_else(|| {
             crate::analysis::literals::literal_definition_target_at_offset(analysis, file, offset)
         })
-        .or_else(|| function_call_definition_target_for_file_analysis(file, offset))
-        .or_else(|| method_call_definition_target_for_file_analysis(file, offset))
-        .or_else(|| associated_function_definition_target_for_file_analysis(file, offset))
-        .or_else(|| field_definition_target_for_file_analysis(file, offset))
-        .or_else(|| enum_variant_definition_target_for_file_analysis(file, offset))
-        .or_else(|| type_definition_target_for_file_analysis(analysis, file, offset))
+        .or_else(|| {
+            file.occurrences
+                .at_offset(offset)
+                .and_then(|occurrence| occurrence.source_target(analysis))
+        })
         .or_else(|| {
             let text = sources.get(file.ast.span.source)?.text();
             hover_definition_target_for_ast(text, &file.ast, &file.resolved, offset)
@@ -89,93 +90,6 @@ pub(crate) fn resolve_single_file_for_definition(
     ast: &AstFile,
 ) -> ResolveOutput {
     resolve_single_file_ast("definition.nct", text, source, ast)
-}
-
-fn type_definition_target_for_file_analysis(
-    analysis: &CompileUnitAnalysis,
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    let reference = file.typecheck_facts.type_reference_at_offset(offset)?;
-    let declaration_span = reference.symbol_declaration_span?;
-
-    if declaration_span.source != file.ast.span.source
-        && let Some(declaration_file) = analysis.file_by_source(declaration_span.source)
-        && let Some(name_span) = declaration_file
-            .resolved
-            .symbols
-            .symbols()
-            .find_map(|candidate| match &candidate.kind {
-                SymbolKind::Type(_) if candidate.declaration_span == declaration_span => {
-                    Some(candidate.name_span)
-                }
-                SymbolKind::Function(_)
-                | SymbolKind::Primitive(_)
-                | SymbolKind::Type(_)
-                | SymbolKind::Imported(_) => None,
-            })
-    {
-        return Some(SourceTarget::new(reference.span, name_span));
-    }
-
-    reference
-        .symbol_name_span
-        .map(|target| SourceTarget::new(reference.span, target))
-}
-
-fn method_call_definition_target_for_file_analysis(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    file.typecheck_facts
-        .method_call_spans()
-        .filter(|span| span_contains(*span, offset))
-        .min_by_key(|span| (span.len(), span.start))
-        .and_then(|span| {
-            file.typecheck_facts
-                .method_call_target(span)
-                .map(|target| SourceTarget::new(span, target))
-        })
-}
-
-fn function_call_definition_target_for_file_analysis(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    file.typecheck_facts
-        .function_call_target_at_offset(offset)
-        .map(|(origin, target)| SourceTarget::new(origin, target))
-}
-
-fn field_definition_target_for_file_analysis(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    file.typecheck_facts
-        .field_target_at_offset(offset)
-        .map(|(origin, target)| SourceTarget::new(origin, target))
-}
-
-fn associated_function_definition_target_for_file_analysis(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    file.typecheck_facts
-        .associated_function_target_at_offset(offset)
-        .map(|(origin, target)| SourceTarget::new(origin, target))
-}
-
-fn enum_variant_definition_target_for_file_analysis(
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<SourceTarget> {
-    file.typecheck_facts
-        .enum_variant_target_at_offset(offset)
-        .map(|(origin, target)| SourceTarget::new(origin, target))
-}
-
-fn span_contains(span: ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset < span.end
 }
 
 #[cfg(test)]

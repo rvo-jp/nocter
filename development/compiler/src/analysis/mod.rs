@@ -18,6 +18,7 @@ pub(crate) mod iteration;
 mod literal_recovery;
 pub(crate) mod literal_specializations;
 pub(crate) mod literals;
+pub(crate) mod occurrences;
 pub(crate) mod presentation;
 pub(crate) mod provenance;
 pub(crate) mod references;
@@ -142,6 +143,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) ast: AstFile,
     pub(crate) resolved: ResolveOutput,
     pub(crate) typecheck_facts: TypecheckFacts,
+    pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -216,11 +218,14 @@ fn analyze_compile_unit_with_root_policy(
                 ));
             }
             let typecheck_facts = collect_typecheck_facts(file, resolved);
+            let occurrences =
+                occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
 
             FileAnalysis {
                 ast: file.clone(),
                 resolved: resolved.clone(),
                 typecheck_facts,
+                occurrences,
                 diagnostics,
                 is_root,
             }
