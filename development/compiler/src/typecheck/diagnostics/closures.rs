@@ -1,23 +1,23 @@
 use super::*;
-use crate::ast::{ClosureCallableCapability, ClosureTypeExpr};
+use crate::ast::{CallableCapability, ClosureTypeExpr};
 
 pub(in crate::typecheck) fn closure_callable_contract_diagnostic(
     sources: &SourceMap,
     argument_span: ByteSpan,
     closure: &ClosureTypeExpr,
     bound: &Type,
-    expected_capability: ClosureCallableCapability,
+    expected_capability: CallableCapability,
     bound_span: ByteSpan,
 ) -> Diagnostic {
     let reason = if closure.capability > expected_capability {
         match closure.capability {
-            ClosureCallableCapability::Consuming => {
+            CallableCapability::Consuming => {
                 "its body consumes captured state and therefore requires a consuming callback"
             }
-            ClosureCallableCapability::Readwrite => {
+            CallableCapability::Readwrite => {
                 "its body mutates captured state and therefore requires a mutable callback"
             }
-            ClosureCallableCapability::Readonly => unreachable!(),
+            CallableCapability::Readonly => unreachable!(),
         }
     } else {
         "its parameter or result type does not match the callable contract"
@@ -37,13 +37,14 @@ pub(in crate::typecheck) fn closure_callable_contract_diagnostic(
         });
     }
     diagnostic.help = Some(match closure.capability {
-        ClosureCallableCapability::Consuming => {
-            "use `CallOnce`, or stop moving an owned capture from the closure body".to_string()
+        CallableCapability::Consuming => {
+            "use a `func(...): ...` bound, or stop moving an owned capture from the closure body"
+                .to_string()
         }
-        ClosureCallableCapability::Readwrite => {
-            "use `CallMut`, or make the closure body readonly".to_string()
+        CallableCapability::Readwrite => {
+            "use an `&+func(...): ...` bound, or make the closure body readonly".to_string()
         }
-        ClosureCallableCapability::Readonly => {
+        CallableCapability::Readonly => {
             "align the closure parameter and result annotations with the callable contract"
                 .to_string()
         }

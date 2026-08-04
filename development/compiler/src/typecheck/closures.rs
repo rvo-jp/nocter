@@ -2,14 +2,13 @@
 
 use super::expressions::block_result_type;
 use super::facts::type_to_type_expr_allowing_parameters;
-use super::interface_bounds::interface_symbol_for_bound;
 use super::model::{Type, TypeEnvironment};
 use super::type_expr::{
     infer_type_expr_substitutions, type_expr_to_type_in_environment,
     type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    BorrowType, ClosureCallableCapability, ClosureCaptureMode, ClosureCaptureType, ClosureExpr,
+    BorrowType, CallableCapability, ClosureCaptureMode, ClosureCaptureType, ClosureExpr,
     ClosureTypeExpr, Expr, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::resolve::FunctionSignature;
@@ -32,30 +31,34 @@ pub(super) fn expected_callable_contract_for_generic<'a>(
         .generic_parameters
         .iter()
         .position(|parameter| parameter == generic)?;
-    let runtime = resolved.trusted_declarations.callable_runtime()?;
     signature
         .generic_parameter_bounds
         .get(index)?
         .iter()
         .find_map(|bound| {
-            let (interface, bound_type) =
-                interface_symbol_for_bound(bound, substitutions, resolved)?;
-            if interface.canonical_name != runtime.readonly.interface_canonical_name
-                && interface.canonical_name != runtime.repeated.interface_canonical_name
-                && interface.canonical_name != runtime.consuming.interface_canonical_name
-            {
-                return None;
-            }
-            let Type::Generic { arguments, .. } = bound_type else {
-                return None;
-            };
-            let [input, output] = arguments.as_slice() else {
+            let TypeExpr::Callable(callable) = bound else {
                 return None;
             };
             Some(ExpectedCallableContract {
                 bound,
-                parameters: vec![input.clone()],
-                return_type: output.clone(),
+                parameters: callable
+                    .parameters
+                    .iter()
+                    .map(|parameter| {
+                        type_expr_to_type_with_substitutions(
+                            &parameter.ty,
+                            resolved,
+                            None,
+                            substitutions,
+                        )
+                    })
+                    .collect(),
+                return_type: type_expr_to_type_with_substitutions(
+                    &callable.return_type,
+                    resolved,
+                    None,
+                    substitutions,
+                ),
             })
         })
 }
@@ -71,7 +74,7 @@ pub(super) fn infer_substitutions_from_closure_contract(
     let Type::Closure(closure) = closure_type else {
         return;
     };
-    let TypeExpr::Generic(bound) = contract.bound else {
+    let TypeExpr::Callable(bound) = contract.bound else {
         return;
     };
     let actual = closure
@@ -85,7 +88,13 @@ pub(super) fn infer_substitutions_from_closure_contract(
             substitutions,
         )))
         .collect::<Vec<_>>();
-    for (expected, actual) in bound.arguments.iter().zip(actual) {
+    for (expected, actual) in bound
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.ty)
+        .chain(std::iter::once(bound.return_type.as_ref()))
+        .zip(actual)
+    {
         infer_type_expr_substitutions(
             expected,
             &actual,
@@ -102,67 +111,42 @@ pub(super) fn closure_satisfies_callable_bound(
     bound: &Type,
     resolved: &ResolveOutput,
 ) -> bool {
-    let Some(name) = bound.nominal_name() else {
+    let Type::Callable(callable) = bound else {
         return false;
     };
-    let Some(runtime) = resolved.trusted_declarations.callable_runtime() else {
-        return false;
-    };
-    let expected = if name == runtime.readonly.interface_canonical_name {
-        ClosureCallableCapability::Readonly
-    } else if name == runtime.repeated.interface_canonical_name {
-        ClosureCallableCapability::Readwrite
-    } else if name == runtime.consuming.interface_canonical_name {
-        ClosureCallableCapability::Consuming
-    } else {
-        return false;
-    };
+    let expected = callable.capability;
     let capability_matches = match expected {
-        ClosureCallableCapability::Readonly => {
-            closure.capability == ClosureCallableCapability::Readonly
-        }
-        ClosureCallableCapability::Readwrite => {
-            closure.capability <= ClosureCallableCapability::Readwrite
-        }
-        ClosureCallableCapability::Consuming => true,
+        CallableCapability::Readonly => closure.capability == CallableCapability::Readonly,
+        CallableCapability::Readwrite => closure.capability <= CallableCapability::Readwrite,
+        CallableCapability::Consuming => true,
     };
     if !capability_matches {
         return false;
     }
-    let Type::Generic { arguments, .. } = bound else {
+    if callable.parameters.len() != closure.parameters.len() {
         return false;
-    };
-    let [expected_input, expected_output] = arguments.as_slice() else {
-        return false;
-    };
-    let [actual_input] = closure.parameters.as_slice() else {
-        return false;
-    };
-    type_expr_to_type_with_substitutions(actual_input, resolved, None, &HashMap::new())
-        == *expected_input
+    }
+    callable
+        .parameters
+        .iter()
+        .zip(&closure.parameters)
+        .all(|(expected, actual)| {
+            type_expr_to_type_with_substitutions(actual, resolved, None, &HashMap::new())
+                == expected.ty
+        })
         && type_expr_to_type_with_substitutions(
             &closure.return_type,
             resolved,
             None,
             &HashMap::new(),
-        ) == *expected_output
+        ) == *callable.return_type
 }
 
-pub(super) fn callable_bound_capability(
-    bound: &Type,
-    resolved: &ResolveOutput,
-) -> Option<ClosureCallableCapability> {
-    let name = bound.nominal_name()?;
-    let runtime = resolved.trusted_declarations.callable_runtime()?;
-    if name == runtime.readonly.interface_canonical_name {
-        Some(ClosureCallableCapability::Readonly)
-    } else if name == runtime.repeated.interface_canonical_name {
-        Some(ClosureCallableCapability::Readwrite)
-    } else if name == runtime.consuming.interface_canonical_name {
-        Some(ClosureCallableCapability::Consuming)
-    } else {
-        None
-    }
+pub(super) fn callable_bound_capability(bound: &Type) -> Option<CallableCapability> {
+    let Type::Callable(callable) = bound else {
+        return None;
+    };
+    Some(callable.capability)
 }
 
 /// Builds the only value environment visible while checking a closure body.
@@ -296,23 +280,23 @@ pub(super) fn infer_closure_type(
     }))
 }
 
-fn closure_capability(closure: &ClosureExpr) -> ClosureCallableCapability {
+fn closure_capability(closure: &ClosureExpr) -> CallableCapability {
     let captures = closure
         .captures
         .iter()
         .map(|capture| capture.name.as_str())
         .collect::<HashSet<_>>();
     if block_moves_capture(&closure.body, &captures) {
-        ClosureCallableCapability::Consuming
+        CallableCapability::Consuming
     } else if closure
         .captures
         .iter()
         .any(|capture| capture.mode == ClosureCaptureMode::ReadwriteBorrow)
         || block_mutates_capture(&closure.body, &captures)
     {
-        ClosureCallableCapability::Readwrite
+        CallableCapability::Readwrite
     } else {
-        ClosureCallableCapability::Readonly
+        CallableCapability::Readonly
     }
 }
 

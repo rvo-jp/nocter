@@ -6,12 +6,14 @@ use crate::ast::{
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{
-    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
+    CallableCallSpecialization, DropTypeSpecialization, FunctionCallSpecialization,
+    MethodCallSpecialization,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
+    pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
     pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
@@ -27,6 +29,7 @@ pub(crate) struct DropSpecialization {
 
 pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
     let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
+    let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut queue = VecDeque::new();
@@ -43,6 +46,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
             {
                 queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+        for (_, fact) in file.typecheck_facts.callable_call_entries() {
+            if let Some(specialization) = fact
+                .specialization
+                .with_context_substitutions(&HashMap::new())
+            {
+                queue.push_back(PendingCallSpecialization::Callable(specialization));
             }
         }
         for (_, plan) in file.typecheck_facts.collection_for_plans() {
@@ -148,6 +159,9 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                     &mut queue,
                 );
             }
+            PendingCallSpecialization::Callable(specialization) => {
+                insert_callable_specialization(&mut callables, specialization);
+            }
             PendingCallSpecialization::Drop(specialization) => {
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
                     continue;
@@ -170,6 +184,7 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
 
     CallSpecializations {
         functions,
+        callables,
         methods,
         drops,
         literals,
@@ -236,8 +251,27 @@ fn interface_method_identity_for_span(
 
 enum PendingCallSpecialization {
     Function(FunctionCallSpecialization),
+    Callable(CallableCallSpecialization),
     Method(MethodCallSpecialization),
     Drop(DropSpecialization),
+}
+
+fn insert_callable_specialization(
+    specializations: &mut HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
+    specialization: CallableCallSpecialization,
+) -> bool {
+    let entries = specializations
+        .entry(specialization.callable_ty.span())
+        .or_default();
+    if entries.iter().any(|entry| {
+        entry.target_name == specialization.target_name
+            && entry.callable_ty == specialization.callable_ty
+            && entry.capability == specialization.capability
+    }) {
+        return false;
+    }
+    entries.push(specialization);
+    true
 }
 
 fn insert_function_specialization(
@@ -325,6 +359,17 @@ fn enqueue_call_specializations_from_span(
             specialization.with_context_substitutions(context_substitutions)
         {
             queue.push_back(PendingCallSpecialization::Method(specialization));
+        }
+    }
+    for (call_span, fact) in file.typecheck_facts.callable_call_entries() {
+        if !span_contains(span, call_span) {
+            continue;
+        }
+        if let Some(specialization) = fact
+            .specialization
+            .with_context_substitutions(context_substitutions)
+        {
+            queue.push_back(PendingCallSpecialization::Callable(specialization));
         }
     }
     for specialization in file.typecheck_facts.drop_type_specializations() {

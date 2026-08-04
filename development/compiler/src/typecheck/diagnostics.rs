@@ -1,5 +1,6 @@
 mod arrays;
 mod bindings;
+mod callables;
 mod calls;
 mod closures;
 mod control_flow;
@@ -41,6 +42,7 @@ use crate::source::{ByteSpan, SourceMap};
 
 pub(super) use arrays::*;
 pub(super) use bindings::*;
+pub(super) use callables::*;
 pub(super) use calls::*;
 pub(super) use closures::*;
 pub(super) use control_flow::*;

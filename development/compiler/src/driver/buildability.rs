@@ -279,8 +279,8 @@ impl<'a> CallableIndex<'a> {
             }
         }
 
-        for specialization in call_specializations.methods.values().flatten() {
-            let TypeExpr::Closure(closure_ty) = &specialization.self_ty else {
+        for specialization in call_specializations.callables.values().flatten() {
+            let TypeExpr::Closure(closure_ty) = &specialization.callable_ty else {
                 continue;
             };
             let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
@@ -294,18 +294,9 @@ impl<'a> CallableIndex<'a> {
             let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
                 continue;
             };
-            let Some(receiver_mode) = file
-                .resolved
-                .trusted_declarations
-                .callable_runtime()
-                .and_then(|runtime| {
-                    runtime.receiver_mode_for_method(specialization.declaration_span)
-                })
-            else {
-                continue;
-            };
+            let receiver_mode = specialization.receiver_mode();
             let target = call_target_for_source(
-                specialization.declaration_span.source,
+                closure_ty.span.source,
                 root_source,
                 specialization.target_name.clone(),
             );

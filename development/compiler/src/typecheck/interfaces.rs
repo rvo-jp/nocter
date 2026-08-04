@@ -152,9 +152,7 @@ fn conformance_key(interface_type: &Type, target_type: &Type) -> (String, String
 
 fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> String {
     match ty {
-        Type::Callable(callable) => {
-            crate::ast::type_expr_display_lossy(&TypeExpr::Callable(callable.clone()))
-        }
+        Type::Callable(_) => ty.display(),
         Type::Closure(closure) => closure.identity_name(),
         Type::I32 => "i32".to_string(),
         Type::Primitive(name) => name.clone(),

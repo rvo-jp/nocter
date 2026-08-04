@@ -75,38 +75,6 @@ pub(crate) struct IterationRuntime {
     pub(crate) owned_conversion: IterationProtocol,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CallableProtocol {
-    pub(crate) interface_declaration: ByteSpan,
-    pub(crate) interface_canonical_name: String,
-    pub(crate) method_declaration: ByteSpan,
-    pub(crate) method_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CallableRuntime {
-    pub(crate) readonly: CallableProtocol,
-    pub(crate) repeated: CallableProtocol,
-    pub(crate) consuming: CallableProtocol,
-}
-
-impl CallableRuntime {
-    pub(crate) fn receiver_mode_for_method(
-        &self,
-        declaration: ByteSpan,
-    ) -> Option<crate::ast::MethodReceiverMode> {
-        if declaration == self.readonly.method_declaration {
-            Some(crate::ast::MethodReceiverMode::ReadonlyBorrow)
-        } else if declaration == self.repeated.method_declaration {
-            Some(crate::ast::MethodReceiverMode::ReadwriteBorrow)
-        } else if declaration == self.consuming.method_declaration {
-            Some(crate::ast::MethodReceiverMode::Owned)
-        } else {
-            None
-        }
-    }
-}
-
 impl InterpolationRuntime {
     pub(crate) fn new(
         string_type_declaration: ByteSpan,
@@ -130,7 +98,6 @@ pub(crate) struct TrustedDeclarationFacts {
     roles: HashMap<ByteSpan, TrustedDeclarationRole>,
     interpolation_runtime: Option<InterpolationRuntime>,
     iteration_runtime: Option<IterationRuntime>,
-    callable_runtime: Option<CallableRuntime>,
 }
 
 impl TrustedDeclarationFacts {
@@ -145,9 +112,6 @@ impl TrustedDeclarationFacts {
         }
         if other.iteration_runtime.is_some() {
             self.iteration_runtime = other.iteration_runtime;
-        }
-        if other.callable_runtime.is_some() {
-            self.callable_runtime = other.callable_runtime;
         }
     }
 
@@ -169,13 +133,5 @@ impl TrustedDeclarationFacts {
 
     pub(crate) fn iteration_runtime(&self) -> Option<&IterationRuntime> {
         self.iteration_runtime.as_ref()
-    }
-
-    pub(crate) fn set_callable_runtime(&mut self, runtime: CallableRuntime) {
-        self.callable_runtime = Some(runtime);
-    }
-
-    pub(crate) fn callable_runtime(&self) -> Option<&CallableRuntime> {
-        self.callable_runtime.as_ref()
     }
 }

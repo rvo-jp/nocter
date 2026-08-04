@@ -1,7 +1,8 @@
 use super::diagnostics::{
-    duplicate_generic_bound_diagnostic, generic_bound_not_interface_diagnostic,
-    generic_type_argument_count_diagnostic, self_type_outside_context_diagnostic,
-    unresolved_type_reference_diagnostic,
+    duplicate_callable_parameter_name_diagnostic, duplicate_generic_bound_diagnostic,
+    generic_bound_not_interface_diagnostic, generic_type_argument_count_diagnostic,
+    invalid_callable_provenance_origin_diagnostic, multiple_callable_bounds_diagnostic,
+    self_type_outside_context_diagnostic, unresolved_type_reference_diagnostic,
 };
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_substitutions;
@@ -167,6 +168,7 @@ fn check_generic_bounds(
         .collect();
     for parameter in &generics.parameters {
         let mut seen_bounds = HashMap::<String, ByteSpan>::new();
+        let mut callable_bound_span = None;
         for bound in &parameter.bounds {
             check_type_expr(sources, bound, resolved, scope, diagnostics);
             let bound_type =
@@ -174,17 +176,29 @@ fn check_generic_bounds(
             if bound_type.is_unknown_or_unresolved() {
                 continue;
             }
-            let is_interface = bound_type
-                .nominal_name()
-                .and_then(|name| resolved.type_symbol_by_canonical_name(name))
-                .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
-            if !is_interface {
+            let is_interface_or_callable = matches!(bound_type, Type::Callable(_))
+                || bound_type
+                    .nominal_name()
+                    .and_then(|name| resolved.type_symbol_by_canonical_name(name))
+                    .is_some_and(|symbol| symbol.kind == crate::resolve::TypeSymbolKind::Interface);
+            if !is_interface_or_callable {
                 diagnostics.push(generic_bound_not_interface_diagnostic(
                     sources,
                     bound,
                     &bound_type,
                 ));
                 continue;
+            }
+            if matches!(bound_type, Type::Callable(_)) {
+                if let Some(first_span) = callable_bound_span {
+                    diagnostics.push(multiple_callable_bounds_diagnostic(
+                        sources,
+                        bound.span(),
+                        first_span,
+                    ));
+                } else {
+                    callable_bound_span = Some(bound.span());
+                }
             }
             let key = bound_type.display();
             if let Some(first_span) = seen_bounds.insert(key, bound.span()) {
@@ -283,10 +297,36 @@ fn check_type_expr(
 ) {
     match ty {
         TypeExpr::Callable(callable) => {
+            let mut names = HashMap::new();
             for parameter in &callable.parameters {
+                if let (Some(name), Some(span)) = (&parameter.name, parameter.name_span)
+                    && let Some(first_span) = names.insert(name.as_str(), span)
+                {
+                    diagnostics.push(duplicate_callable_parameter_name_diagnostic(
+                        sources, name, span, first_span,
+                    ));
+                }
                 check_type_expr(sources, &parameter.ty, resolved, scope, diagnostics);
             }
             check_type_expr(sources, &callable.return_type, resolved, scope, diagnostics);
+            if let Some(clause) = &callable.result_provenance {
+                for origin in &clause.origins {
+                    let valid = match &origin.kind {
+                        crate::ast::ResultProvenanceOriginKind::Parameter(name) => callable
+                            .parameters
+                            .iter()
+                            .any(|parameter| parameter.name.as_deref() == Some(name)),
+                        crate::ast::ResultProvenanceOriginKind::Static
+                        | crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext => true,
+                        crate::ast::ResultProvenanceOriginKind::Receiver => false,
+                    };
+                    if !valid {
+                        diagnostics.push(invalid_callable_provenance_origin_diagnostic(
+                            sources, origin,
+                        ));
+                    }
+                }
+            }
         }
         TypeExpr::Closure(closure) => {
             for capture in &closure.captures {

@@ -821,7 +821,20 @@ fn check_expression_tree(
             }
             check_enum_variant_call(sources, expression, resolved, diagnostics, environment);
 
-            if let Some(signature) = resolved_call_signature(resolved, expression, environment) {
+            if let Some(contract) =
+                super::callables::callable_contract_for_call(expression, resolved, environment)
+            {
+                super::callables::check_callable_call(
+                    sources,
+                    expression,
+                    &contract,
+                    resolved,
+                    diagnostics,
+                    environment,
+                );
+            } else if let Some(signature) =
+                resolved_call_signature(resolved, expression, environment)
+            {
                 check_known_function_call(
                     sources,
                     expression,
@@ -834,6 +847,8 @@ fn check_expression_tree(
             check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
             if collection_builtin_call_type(expression, resolved, environment).is_none()
                 && !is_enum_variant_call(expression, resolved)
+                && super::callables::callable_contract_for_call(expression, resolved, environment)
+                    .is_none()
             {
                 check_unresolved_member_call(
                     sources,

@@ -81,6 +81,9 @@ fn signature_info_for_call(
     call: &CallExpr,
     offset: usize,
 ) -> Option<SignatureHelpInfo> {
+    if let Some(fact) = file.typecheck_facts.callable_call(call.span) {
+        return callable_value_signature_info(file, call, fact, offset);
+    }
     let call_target = call_target(file, call)?;
     let declaration = callable_declaration(analysis, call_target)?;
     let mut substitutions = HashMap::new();
@@ -194,6 +197,66 @@ fn signature_info_for_call(
         active_parameter: active_parameter(call, offset, parameters.len()),
         documentation: callable_documentation(sources, declaration, call_target),
         is_specialized: !substitutions.is_empty(),
+    })
+}
+
+fn callable_value_signature_info(
+    file: &FileAnalysis,
+    call: &CallExpr,
+    fact: &crate::typecheck::CallableCallFact,
+    offset: usize,
+) -> Option<SignatureHelpInfo> {
+    let signature = &fact.signature;
+    let prefix = fact.specialization.capability.source_prefix();
+    let callable_name = match call.callee.without_groups() {
+        Expr::Identifier(identifier) => identifier.name.clone(),
+        Expr::Member(member) => member.member.clone(),
+        _ => "callback".to_string(),
+    };
+    let parameters = signature
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let ty = parameter.ty.clone();
+            let type_label = type_expr_presentation_label(&ty, &file.resolved);
+            let label = if parameter.name.starts_with("argument") {
+                type_label
+            } else {
+                format!("{}: {type_label}", parameter.name)
+            };
+            SignatureParameterInfo {
+                label,
+                documentation: None,
+                ty,
+            }
+        })
+        .collect::<Vec<_>>();
+    let return_label = type_expr_presentation_label(&signature.return_type, &file.resolved);
+    let mut label = format!(
+        "{prefix}func {callable_name}({}): {return_label}",
+        parameters
+            .iter()
+            .map(|parameter| parameter.label.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    if let Some(clause) = &signature.result_provenance {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+    Some(SignatureHelpInfo {
+        label,
+        parameters,
+        active_parameter: active_parameter(call, offset, signature.parameters.len()),
+        documentation: None,
+        is_specialized: false,
     })
 }
 
@@ -439,6 +502,24 @@ pub func identity<T>(value: T): T {
             signature.documentation.as_deref(),
             Some("Returns its input.")
         );
+    }
+
+    #[test]
+    fn presents_direct_builtin_callable_signature() {
+        let text = r#"func invoke<F: &+func(value: i32): i32>(callback: F, input: i32): i32 {
+    var callable = move callback
+    return callable(input)
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("input)").expect("expected callable argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected callable signature help");
+
+        assert_eq!(signature.label, "&+func callable(value: i32): i32");
+        assert_eq!(signature.parameters[0].label, "value: i32");
     }
 
     #[test]

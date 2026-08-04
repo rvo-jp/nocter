@@ -3,10 +3,6 @@
 use super::{Block, CallableCapability, TypeExpr};
 use crate::source::ByteSpan;
 
-/// Kept as an internal spelling while closure-specific code migrates to the
-/// shared built-in callable capability model.
-pub type ClosureCallableCapability = CallableCapability;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureExpr {
     pub span: ByteSpan,

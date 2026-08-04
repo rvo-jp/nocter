@@ -612,6 +612,16 @@ fn expression_move_action(
         }
         Expr::Call(expression) => {
             if let Some(identifier) =
+                consuming_callable_identifier(expression, resolved, environment)
+                && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
+            {
+                return Some(BorrowAction {
+                    place: BorrowPlace::whole(identifier.name.clone()),
+                    span: identifier.span,
+                    description: "move",
+                });
+            }
+            if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
                 && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
             {

@@ -116,6 +116,12 @@ pub(super) fn expression_type(
                 return ty;
             }
 
+            if let Some(contract) =
+                super::callables::callable_contract_for_call(expression, resolved, environment)
+            {
+                return contract.return_type;
+            }
+
             resolved_call_signature(resolved, expression, environment)
                 .map(|signature| call_return_type(expression, &signature, resolved, environment))
                 .or_else(|| enum_variant_call_type(expression, resolved, environment))

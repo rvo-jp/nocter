@@ -406,14 +406,12 @@ pub(super) fn type_label(
 
 pub(super) fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
     match ty {
-        Type::Callable(callable) => {
-            crate::ast::type_expr_display_lossy(&TypeExpr::Callable(callable.clone()))
-        }
+        Type::Callable(_) => ty.display(),
         Type::Closure(closure) => {
             let capability = match closure.capability {
-                crate::ast::ClosureCallableCapability::Readonly => "closure",
-                crate::ast::ClosureCallableCapability::Readwrite => "closure mut",
-                crate::ast::ClosureCallableCapability::Consuming => "closure once",
+                crate::ast::CallableCapability::Readonly => "closure",
+                crate::ast::CallableCapability::Readwrite => "closure mut",
+                crate::ast::CallableCapability::Consuming => "closure once",
             };
             let parameters = closure
                 .parameters

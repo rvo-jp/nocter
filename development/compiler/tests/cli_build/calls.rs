@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn build_command_lowers_builtin_callable_invocation() {
+    let project = TempProject::new("cli-build-builtin-callable");
+    let source = project.write_source(
+        "builtin_callable.nct",
+        r#"func apply<F: &func(i32): i32>(callback: F): i32 {
+    return callback(3)
+}
+
+func main(): i32 {
+    return apply((value) { value * 2 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_i32_call_multiplication() {
     let project = TempProject::new("cli-build-i32-call-multiply");
     let source = project.write_source(

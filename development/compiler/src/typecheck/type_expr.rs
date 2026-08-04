@@ -1,4 +1,4 @@
-use super::model::{Type, TypeEnvironment};
+use super::model::{CallableParameterType, CallableType, Type, TypeEnvironment};
 use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
 use std::collections::{HashMap, HashSet};
@@ -57,30 +57,18 @@ pub(super) fn infer_type_expr_substitutions(
                 .iter()
                 .zip(&actual_callable.parameters)
             {
-                let actual = type_expr_to_type_with_substitutions(
-                    &actual.ty,
-                    resolved,
-                    self_type,
-                    substitutions,
-                );
                 infer_type_expr_substitutions(
                     &expected.ty,
-                    &actual,
+                    &actual.ty,
                     resolved,
                     self_type,
                     parameters,
                     substitutions,
                 );
             }
-            let actual_return = type_expr_to_type_with_substitutions(
-                &actual_callable.return_type,
-                resolved,
-                self_type,
-                substitutions,
-            );
             infer_type_expr_substitutions(
                 &expected_callable.return_type,
-                &actual_return,
+                &actual_callable.return_type,
                 resolved,
                 self_type,
                 parameters,
@@ -243,7 +231,33 @@ fn type_expr_to_type_inner(
     resolving_aliases: &mut HashSet<String>,
 ) -> Type {
     match ty {
-        TypeExpr::Callable(callable) => Type::Callable(callable.clone()),
+        TypeExpr::Callable(callable) => Type::Callable(CallableType {
+            span: callable.span,
+            capability: callable.capability,
+            parameters: callable
+                .parameters
+                .iter()
+                .map(|parameter| CallableParameterType {
+                    name: parameter.name.clone(),
+                    name_span: parameter.name_span,
+                    ty: type_expr_to_type_inner(
+                        &parameter.ty,
+                        resolved,
+                        self_type,
+                        substitutions,
+                        resolving_aliases,
+                    ),
+                })
+                .collect(),
+            return_type: Box::new(type_expr_to_type_inner(
+                &callable.return_type,
+                resolved,
+                self_type,
+                substitutions,
+                resolving_aliases,
+            )),
+            result_provenance: callable.result_provenance.clone(),
+        }),
         TypeExpr::Closure(closure) => Type::Closure(closure.clone()),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "Self" => self_type

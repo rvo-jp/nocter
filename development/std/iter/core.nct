@@ -4,7 +4,6 @@
 //! introduce a cyclic module dependency. Behavioral implementations remain in
 //! focused adapter modules.
 
-use std/callable.CallMut
 use std/vec.Vec
 
 /// Lazily transforms items from an owning source iterator.
@@ -61,7 +60,7 @@ pub interface Iterator<T> {
     pub method &+self.next(): T?
 
     /// Lazily transforms every yielded item.
-    pub method self.map<U, F: CallMut<T, U>>(transform: F): MapIter<T, U, Self, F> {
+    pub method self.map<U, F: &+func(T): U>(transform: F): MapIter<T, U, Self, F> {
         return MapIter<T, U, Self, F> {
             source: move self,
             transform: move transform,
@@ -69,7 +68,7 @@ pub interface Iterator<T> {
     }
 
     /// Lazily retains items accepted by `predicate`.
-    pub method self.filter<F: CallMut<&T, bool>>(predicate: F): FilterIter<T, Self, F> {
+    pub method self.filter<F: &+func(&T): bool>(predicate: F): FilterIter<T, Self, F> {
         return FilterIter<T, Self, F> {
             source: move self,
             predicate: move predicate,
@@ -132,12 +131,12 @@ pub interface Iterator<T> {
     }
 
     /// Returns the first item accepted by `predicate`, or `none`.
-    pub method self.find<F: CallMut<&T, bool>>(predicate: F): T? {
+    pub method self.find<F: &+func(&T): bool>(predicate: F): T? {
         var source = move self
         var test = move predicate
         while true {
             let item = source.next()?
-            if test.call_mut(&item) {
+            if test(&item) {
                 return move item
             }
         }
@@ -145,12 +144,12 @@ pub interface Iterator<T> {
     }
 
     /// Returns true when `predicate` accepts any yielded item.
-    pub method self.any<F: CallMut<&T, bool>>(predicate: F): bool {
+    pub method self.any<F: &+func(&T): bool>(predicate: F): bool {
         var source = move self
         var test = move predicate
         while true {
             let item = source.next() otherwise { return false }
-            if test.call_mut(&item) {
+            if test(&item) {
                 return true
             }
         }
@@ -158,12 +157,12 @@ pub interface Iterator<T> {
     }
 
     /// Returns true when `predicate` accepts every yielded item.
-    pub method self.all<F: CallMut<&T, bool>>(predicate: F): bool {
+    pub method self.all<F: &+func(&T): bool>(predicate: F): bool {
         var source = move self
         var test = move predicate
         while true {
             let item = source.next() otherwise { return true }
-            if !test.call_mut(&item) {
+            if !test(&item) {
                 return false
             }
         }
@@ -171,7 +170,7 @@ pub interface Iterator<T> {
     }
 
     /// Reduces every item into one accumulator value.
-    pub method self.fold<U, F: CallMut<FoldStep<T, U>, U>>(
+    pub method self.fold<U, F: &+func(FoldStep<T, U>): U>(
         initial: U,
         combine: F,
     ): U {
@@ -180,7 +179,7 @@ pub interface Iterator<T> {
         var accumulator = move initial
         while true {
             let item = source.next() otherwise { break }
-            accumulator = callback.call_mut(FoldStep<T, U> {
+            accumulator = callback(FoldStep<T, U> {
                 accumulator: move accumulator,
                 item: move item,
             })
@@ -216,7 +215,7 @@ pub interface IntoIterator<T, I> {
 }
 
 /// Constructs a lazy mapping adapter without allocating.
-pub func map<T, U, I: Iterator<T>, F: CallMut<T, U>>(
+pub func map<T, U, I: Iterator<T>, F: &+func(T): U>(
     source: I,
     transform: F,
 ): MapIter<T, U, I, F> {
@@ -226,15 +225,15 @@ pub func map<T, U, I: Iterator<T>, F: CallMut<T, U>>(
     }
 }
 
-impl<T, U, I: Iterator<T>, F: CallMut<T, U>> Iterator<U> for MapIter<T, U, I, F> {
+impl<T, U, I: Iterator<T>, F: &+func(T): U> Iterator<U> for MapIter<T, U, I, F> {
     /// Advances the source once and transforms the yielded item once.
     method &+self.next(): U? {
         let item = self.source.next()?
-        return self.transform.call_mut(move item)
+        return self.transform(move item)
     }
 }
 
-impl<T, U, I: ExactSizeIterator<T>, F: CallMut<T, U>> ExactSizeIterator<U> for MapIter<T, U, I, F> {
+impl<T, U, I: ExactSizeIterator<T>, F: &+func(T): U> ExactSizeIterator<U> for MapIter<T, U, I, F> {
     /// Mapping preserves the source iterator's exact cardinality.
     method &self.remaining_len(): usize {
         return self.source.remaining_len()
@@ -242,7 +241,7 @@ impl<T, U, I: ExactSizeIterator<T>, F: CallMut<T, U>> ExactSizeIterator<U> for M
 }
 
 /// Constructs a lazy filtering adapter without allocating.
-pub func filter<T, I: Iterator<T>, F: CallMut<&T, bool>>(
+pub func filter<T, I: Iterator<T>, F: &+func(&T): bool>(
     source: I,
     predicate: F,
 ): FilterIter<T, I, F> {
@@ -252,12 +251,12 @@ pub func filter<T, I: Iterator<T>, F: CallMut<&T, bool>>(
     }
 }
 
-impl<T, I: Iterator<T>, F: CallMut<&T, bool>> Iterator<T> for FilterIter<T, I, F> {
+impl<T, I: Iterator<T>, F: &+func(&T): bool> Iterator<T> for FilterIter<T, I, F> {
     /// Advances until the predicate accepts an item or the source is exhausted.
     method &+self.next(): T? {
         while true {
             let item = self.source.next()?
-            if self.predicate.call_mut(&item) {
+            if self.predicate(&item) {
                 return move item
             }
         }

@@ -54,6 +54,17 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        if let Some(signature) = self
+            .call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .callable_call(call.span)
+        {
+            return Some(substitute_type_expr_parameters(
+                &signature.signature.return_type,
+                &self.generic_substitutions,
+            ));
+        }
         if let Some(return_type) = self.method_call_return_type_expr(call) {
             return Some(return_type);
         }
@@ -92,6 +103,17 @@ impl<'a> LoweringContext<'a> {
         call: &CallExpr,
         index: usize,
     ) -> Option<TypeExpr> {
+        if let Some(signature) = self
+            .call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .callable_call(call.span)
+        {
+            return Some(substitute_type_expr_parameters(
+                &signature.signature.parameters.get(index)?.ty,
+                &self.generic_substitutions,
+            ));
+        }
         if let Some(ty) = self.method_call_argument_parameter_type_expr(call, index) {
             return Some(ty);
         }
@@ -275,6 +297,9 @@ impl<'a> LoweringContext<'a> {
         {
             return Some((target, target_name));
         }
+        if let Some((target, target_name)) = self.callable_call_target_and_name(call) {
+            return Some((target, target_name));
+        }
         match call.callee.as_ref() {
             Expr::Identifier(identifier) => Some((
                 self.call_target(call, &identifier.name),
@@ -442,6 +467,13 @@ impl<'a> LoweringContext<'a> {
         call: &'b CallExpr,
     ) -> Option<&'b Expr> {
         let resolution = self.call_resolution.as_ref()?;
+        if resolution
+            .typecheck_facts
+            .callable_call(call.span)
+            .is_some()
+        {
+            return Some(&call.callee);
+        }
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
@@ -506,6 +538,27 @@ impl<'a> LoweringContext<'a> {
             target_name.clone(),
         );
         Some((target, target_name))
+    }
+
+    fn callable_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let specialization = resolution
+            .typecheck_facts
+            .callable_call(call.span)?
+            .specialization
+            .with_context_substitutions(&self.generic_substitutions)?;
+        let target = self
+            .function_names
+            .unique_target_for_name(&specialization.target_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                call_target_for_source(
+                    specialization.callable_ty.span().source,
+                    resolution.root_source,
+                    specialization.target_name.clone(),
+                )
+            });
+        Some((target, specialization.target_name))
     }
 
     fn method_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {

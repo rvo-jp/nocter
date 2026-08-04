@@ -220,7 +220,14 @@ impl TypecheckFactCollector<'_> {
                         return_type,
                     );
                 } else {
-                    if let Some(symbol) = self.resolved.symbol_for_call(expression) {
+                    if let Some(contract) = crate::typecheck::callables::callable_contract_for_call(
+                        expression,
+                        self.resolved,
+                        environment,
+                    ) && let Some(fact) = callable_call_fact(expression, &contract)
+                    {
+                        self.facts.callable_calls.insert(expression.span, fact);
+                    } else if let Some(symbol) = self.resolved.symbol_for_call(expression) {
                         match &symbol.kind {
                             SymbolKind::Function(signature) => {
                                 self.record_function_call_reference(

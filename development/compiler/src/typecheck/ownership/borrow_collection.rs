@@ -264,6 +264,10 @@ pub(super) fn collect_direct_borrow_expressions(
             if let Some(source) = method_borrow_receiver_source(expression, resolved, environment) {
                 borrows.push(source);
             }
+            if let Some(source) = callable_borrow_receiver_source(expression, resolved, environment)
+            {
+                borrows.push(source);
+            }
             collect_direct_borrow_expressions(&expression.callee, resolved, environment, borrows);
             for argument in &expression.arguments {
                 collect_direct_borrow_expressions(argument, resolved, environment, borrows);
@@ -645,5 +649,22 @@ fn method_borrow_receiver_source(
         source,
         source_span: method.object.span(),
         is_readwrite: signature.receiver.mode == MethodReceiverMode::ReadwriteBorrow,
+    })
+}
+
+fn callable_borrow_receiver_source(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<DirectBorrowSource> {
+    let contract = callable_contract_for_call(call, resolved, environment)?;
+    if contract.capability == crate::ast::CallableCapability::Consuming {
+        return None;
+    }
+    let source = expression_place(&call.callee)?;
+    Some(DirectBorrowSource {
+        source,
+        source_span: call.callee.span(),
+        is_readwrite: contract.capability == crate::ast::CallableCapability::Readwrite,
     })
 }

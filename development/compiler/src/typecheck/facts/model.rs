@@ -30,6 +30,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     pub(super) generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
     pub(super) method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
+    pub(super) callable_calls: HashMap<ByteSpan, CallableCallFact>,
     pub(super) drop_type_specializations: Vec<DropTypeSpecialization>,
     pub(super) field_drop_type_specializations: HashMap<ByteSpan, DropTypeSpecialization>,
 }
@@ -255,6 +256,16 @@ impl TypecheckFacts {
         self.method_call_specializations
             .iter()
             .map(|(span, specialization)| (*span, specialization))
+    }
+
+    pub(crate) fn callable_call(&self, call_span: ByteSpan) -> Option<&CallableCallFact> {
+        self.callable_calls.get(&call_span)
+    }
+
+    pub(crate) fn callable_call_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &CallableCallFact)> + '_ {
+        self.callable_calls.iter().map(|(span, fact)| (*span, fact))
     }
 
     pub(crate) fn drop_type_specializations(

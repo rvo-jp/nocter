@@ -1,4 +1,5 @@
 use super::bindings::continuing_binding_type;
+use super::callables::{callable_contract_for_call, consuming_callable_identifier};
 use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
 use super::copyability::{non_copy_owned_type_kind, non_copy_struct_type_name};
 use super::diagnostics::{

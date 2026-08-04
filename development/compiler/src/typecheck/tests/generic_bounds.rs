@@ -1,5 +1,131 @@
 use super::check_text;
 
+#[test]
+fn accepts_builtin_readonly_callable_bound_and_direct_invocation() {
+    let diagnostics = check_text(
+        r#"func invoke<F: &func(i32): i32>(callback: F, value: i32): i32 {
+    return callback(value)
+}
+
+func main(): i32 {
+    return invoke((value) { value * 2 }, 7)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_builtin_readwrite_callable_bound_through_writable_place() {
+    let diagnostics = check_text(
+        r#"func invoke<F: &+func(i32): i32>(callback: F, value: i32): i32 {
+    var callable = move callback
+    return callable(value)
+}
+
+func main(): i32 {
+    var total: i32 = 0
+    return invoke((&+total; value) {
+        total += value
+        total
+    }, 7)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_readwrite_callable_invocation_through_immutable_place() {
+    let diagnostics = check_text(
+        r#"func invoke<F: &+func(i32): i32>(callback: F, value: i32): i32 {
+    return callback(value)
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0454"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn consuming_callable_invocation_moves_the_callback() {
+    let diagnostics = check_text(
+        r#"func invoke<F: func(i32): i32>(callback: F, value: i32): i32 {
+    let first = callback(value)
+    return callback(first)
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("after it was moved")
+                || diagnostic.message.contains("already moved")
+                || diagnostic.message.contains("because it was moved")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_multiple_callable_contracts_on_one_parameter() {
+    let diagnostics = check_text(
+        r#"func invoke<F: &func(i32): i32 + func(i32): i32>(callback: F): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0455"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn diagnoses_invalid_callable_parameter_and_provenance_names() {
+    let diagnostics = check_text(
+        r#"func invoke<F: &func(value: &i32, value: &i32): &i32 from missing>(callback: F): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0456"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0457"),
+        "{diagnostics:?}"
+    );
+}
+
 const MEASURE_INTERFACE: &str = r#"interface Measure {
     pub method &self.measure(): i32
 }

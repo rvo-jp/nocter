@@ -2,7 +2,6 @@ pub mod arm64;
 pub mod macho;
 pub mod primitive;
 pub(crate) mod trusted;
-pub(crate) mod trusted_callable;
 pub(crate) mod trusted_interpolation;
 mod trusted_io;
 pub(crate) mod trusted_iteration;

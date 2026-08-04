@@ -1,10 +1,12 @@
-use crate::ast::{BindingKind, CallableTypeExpr, ClosureTypeExpr, TypeExpr};
+use crate::ast::{
+    BindingKind, CallableCapability, ClosureTypeExpr, ResultProvenanceClause, TypeExpr,
+};
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Type {
-    Callable(CallableTypeExpr),
+    Callable(CallableType),
     Closure(ClosureTypeExpr),
     I32,
     Primitive(String),
@@ -41,12 +43,26 @@ pub(super) enum Type {
     Unknown,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CallableType {
+    pub(super) span: ByteSpan,
+    pub(super) capability: CallableCapability,
+    pub(super) parameters: Vec<CallableParameterType>,
+    pub(super) return_type: Box<Type>,
+    pub(super) result_provenance: Option<ResultProvenanceClause>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CallableParameterType {
+    pub(super) name: Option<String>,
+    pub(super) name_span: Option<ByteSpan>,
+    pub(super) ty: Type,
+}
+
 impl Type {
     pub(super) fn display(&self) -> String {
         match self {
-            Type::Callable(callable) => {
-                crate::ast::type_expr_display_lossy(&TypeExpr::Callable(callable.clone()))
-            }
+            Type::Callable(callable) => callable.display(),
             Type::Closure(closure) => closure.identity_name(),
             Type::I32 => "i32".to_string(),
             Type::Primitive(name) => name.clone(),
@@ -171,6 +187,42 @@ impl Type {
             Type::Unknown | Type::Unresolved(_) => Type::Unknown,
             _ => Type::Unknown,
         }
+    }
+}
+
+impl CallableType {
+    fn display(&self) -> String {
+        let parameters = self
+            .parameters
+            .iter()
+            .map(|parameter| {
+                let ty = parameter.ty.display();
+                parameter
+                    .name
+                    .as_ref()
+                    .map_or(ty.clone(), |name| format!("{name}: {ty}"))
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let provenance = self
+            .result_provenance
+            .as_ref()
+            .map_or_else(String::new, |clause| {
+                format!(
+                    " from {}",
+                    clause
+                        .origins
+                        .iter()
+                        .map(|origin| origin.kind.source_label())
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                )
+            });
+        format!(
+            "{}func({parameters}): {}{provenance}",
+            self.capability.source_prefix(),
+            self.return_type.display()
+        )
     }
 }
 

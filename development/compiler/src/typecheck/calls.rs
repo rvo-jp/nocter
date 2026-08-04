@@ -426,9 +426,18 @@ fn check_generic_interface_bounds(
             continue;
         };
         for bound in bounds {
-            let Some((_, bound_type)) = interface_symbol_for_bound(bound, substitutions, resolved)
-            else {
-                continue;
+            let bound_type = match bound {
+                TypeExpr::Callable(_) => {
+                    type_expr_to_type_with_substitutions(bound, resolved, None, substitutions)
+                }
+                _ => {
+                    let Some((_, bound_type)) =
+                        interface_symbol_for_bound(bound, substitutions, resolved)
+                    else {
+                        continue;
+                    };
+                    bound_type
+                }
             };
             if type_satisfies_bound_in_environment(actual, &bound_type, resolved, environment) {
                 continue;
@@ -438,7 +447,7 @@ fn check_generic_interface_bounds(
                     .unwrap_or(call.span);
             if let Type::Closure(closure) = actual
                 && let Some(expected_capability) =
-                    super::closures::callable_bound_capability(&bound_type, resolved)
+                    super::closures::callable_bound_capability(&bound_type)
             {
                 diagnostics.push(closure_callable_contract_diagnostic(
                     sources,

@@ -1,31 +1,38 @@
 use super::*;
 
-const CALLABLE: &str = r#"pub interface Call<Input, Output> {
-    pub method &self.call(value: Input): Output
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_invokes_builtin_callable_directly() {
+    let project = TempProject::new("cli-run-builtin-callable");
+    let source = project.write_source(
+        "builtin_callable.nct",
+        r#"func apply<F: &func(i32): i32>(callback: F): i32 {
+    return callback(3)
 }
 
-pub interface CallMut<Input, Output> {
-    pub method &+self.call_mut(value: Input): Output
+func main(): i32 {
+    return apply((value) { value * 2 })
 }
+"#,
+    );
 
-pub interface CallOnce<Input, Output> {
-    pub method self.call_once(value: Input): Output
-}
-"#;
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
 
-fn write_callable_home(project: &TempProject) {
-    project.write_nocter_home_file("std/callable.nct", CALLABLE);
+    assert_eq!(
+        output.status.code(),
+        Some(6),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
 }
 
 #[test]
 fn check_command_rejects_consuming_closure_for_repeated_callback_contract() {
     let project = TempProject::new("cli-check-consuming-callback-capability");
-    write_callable_home(&project);
     let source = project.write_source(
         "consuming_callback_capability.nct",
-        r#"use std/callable.CallMut
-
-struct Token {
+        r#"struct Token {
     value: i32
 }
 
@@ -39,9 +46,9 @@ func consume(token: Token): i32 {
     return token.value
 }
 
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {
@@ -60,21 +67,21 @@ func main(): i32 {
         stderr.contains("requires a consuming callback"),
         "stderr:\n{stderr}"
     );
-    assert!(stderr.contains("use `CallOnce`"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("use a `func(...): ...` bound"),
+        "stderr:\n{stderr}"
+    );
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn run_command_invokes_zero_capture_closure() {
     let project = TempProject::new("cli-run-zero-capture-closure");
-    write_callable_home(&project);
     let source = project.write_source(
         "zero_capture_closure.nct",
-        r#"use std/callable.CallMut
-
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {
@@ -98,14 +105,11 @@ func main(): i32 {
 #[test]
 fn run_command_preserves_borrow_capture_across_return_call() {
     let project = TempProject::new("cli-run-borrow-capture-closure");
-    write_callable_home(&project);
     let source = project.write_source(
         "borrow_capture_closure.nct",
-        r#"use std/callable.CallMut
-
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {
@@ -130,14 +134,11 @@ func main(): i32 {
 #[test]
 fn run_command_invokes_move_capture_closure() {
     let project = TempProject::new("cli-run-move-capture-closure");
-    write_callable_home(&project);
     let source = project.write_source(
         "move_capture_closure.nct",
-        r#"use std/callable.CallMut
-
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {
@@ -163,14 +164,11 @@ func main(): i32 {
 #[test]
 fn run_command_mutates_readwrite_capture() {
     let project = TempProject::new("cli-run-readwrite-capture-closure");
-    write_callable_home(&project);
     let source = project.write_source(
         "readwrite_capture_closure.nct",
-        r#"use std/callable.CallMut
-
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+        r#"func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {
@@ -198,24 +196,21 @@ func main(): i32 {
 #[test]
 fn run_command_loads_and_mutates_all_scalar_capture_kinds() {
     let project = TempProject::new("cli-run-scalar-capture-closure");
-    write_callable_home(&project);
     let source = project.write_source(
         "scalar_capture_closure.nct",
-        r#"use std/callable.CallMut
-
-func apply_byte<F: CallMut<u8, u8>>(callback: F): u8 {
+        r#"func apply_byte<F: &+func(u8): u8>(callback: F): u8 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
-func apply_size<F: CallMut<usize, usize>>(callback: F): usize {
+func apply_size<F: &+func(usize): usize>(callback: F): usize {
     var current = move callback
-    return current.call_mut(4)
+    return current(4)
 }
 
-func apply_flag<F: CallMut<bool, bool>>(callback: F): bool {
+func apply_flag<F: &+func(bool): bool>(callback: F): bool {
     var current = move callback
-    return current.call_mut(true)
+    return current(true)
 }
 
 func main(): i32 {
@@ -257,12 +252,10 @@ func main(): i32 {
 #[test]
 fn run_command_drops_moved_capture_exactly_with_closure_environment() {
     let project = TempProject::new("cli-run-owned-capture-drop");
-    write_callable_home(&project);
     write_process_exit_home(&project);
     let source = project.write_source(
         "owned_capture_drop.nct",
-        r#"use std/callable.CallMut
-use std/process.exit
+        r#"use std/process.exit
 
 struct Guard {
     code: i32
@@ -274,9 +267,9 @@ impl Guard {
     }
 }
 
-func apply<F: CallMut<i32, i32>>(callback: F): i32 {
+func apply<F: &+func(i32): i32>(callback: F): i32 {
     var current = move callback
-    return current.call_mut(3)
+    return current(3)
 }
 
 func main(): i32 {

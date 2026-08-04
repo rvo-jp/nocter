@@ -43,6 +43,7 @@ use crate::resolve::{
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
+mod callables;
 mod collector;
 mod hover_labels;
 mod model;
@@ -53,6 +54,7 @@ mod utility;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use callables::{CallableCallFact, CallableCallSpecialization};
 pub(crate) use collector::collect_typecheck_facts;
 pub(crate) use model::{
     DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
@@ -64,6 +66,7 @@ pub(crate) use model::{
 };
 pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 
+use callables::*;
 use hover_labels::*;
 pub(crate) use specializations::drop_type_specialization_from_self_ty;
 use specializations::*;

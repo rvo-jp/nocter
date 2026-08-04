@@ -11,12 +11,13 @@ pub(in crate::typecheck) fn generic_bound_not_interface_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0446",
         format!(
-            "generic parameter bounds must name an interface, found `{}`",
+            "generic parameter bounds must name an interface or callable contract, found `{}`",
             actual.display()
         ),
     );
     diagnostic.primary_span = sources.span_to_json(bound.span()).ok().map(Box::new);
-    diagnostic.help = Some("replace the bound with an interface type".to_string());
+    diagnostic.help =
+        Some("replace the bound with an interface type or built-in callable contract".to_string());
     diagnostic
 }
 
@@ -28,10 +29,7 @@ pub(in crate::typecheck) fn duplicate_generic_bound_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0450",
-        format!(
-            "generic parameter repeats interface bound `{}`",
-            actual.display()
-        ),
+        format!("generic parameter repeats bound `{}`", actual.display()),
     );
     diagnostic.primary_span = sources.span_to_json(bound.span()).ok().map(Box::new);
     if let Ok(span) = sources.span_to_json(first_span) {
@@ -40,7 +38,7 @@ pub(in crate::typecheck) fn duplicate_generic_bound_diagnostic(
             span: Some(span),
         });
     }
-    diagnostic.help = Some("remove the duplicate interface bound".to_string());
+    diagnostic.help = Some("remove the duplicate bound".to_string());
     diagnostic
 }
 

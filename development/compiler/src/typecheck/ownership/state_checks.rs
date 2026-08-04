@@ -738,6 +738,16 @@ pub(super) fn check_expression_ownership(
         }
         Expr::Call(expression) => {
             if let Some(identifier) =
+                consuming_callable_identifier(expression, resolved, environment)
+            {
+                ownership.ensure_binding_from_environment(
+                    &identifier.name,
+                    identifier.span,
+                    environment,
+                    resolved,
+                );
+                ownership.move_binding(sources, identifier, diagnostics);
+            } else if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
             {
                 ownership.ensure_binding_from_environment(
