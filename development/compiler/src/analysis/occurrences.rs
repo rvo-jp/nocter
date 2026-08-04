@@ -303,16 +303,16 @@ impl OccurrenceBuilder<'_> {
     }
 
     fn collect_type_references(&mut self) {
-        for reference in self.facts.type_references() {
+        for occurrence in self.facts.type_occurrences() {
             self.push(
-                reference.span,
-                reference
-                    .symbol_declaration_span
+                occurrence.focus_span,
+                occurrence
+                    .target_declaration_span
                     .map(SemanticIdentity::Declaration),
                 SemanticOccurrenceRole::Reference,
                 SemanticOccurrenceKind::Type,
                 false,
-                Some(reference.contextual_type.clone()),
+                Some(occurrence.contextual_type.clone()),
                 1,
             );
         }

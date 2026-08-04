@@ -232,6 +232,12 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: alias
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         generic_arity: alias.generics.parameters.len(),
         is_copy: false,
         alias_target: Some(alias.target.clone()),
@@ -254,6 +260,12 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone())
+            .collect(),
+        generic_parameter_bounds: interface
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
             .collect(),
         generic_arity: interface.generics.parameters.len(),
         is_copy: false,
@@ -286,6 +298,12 @@ pub(super) fn struct_type_symbol(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: struct_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         generic_arity: struct_.generics.parameters.len(),
         is_copy,
         alias_target: None,
@@ -317,6 +335,12 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone())
+            .collect(),
+        generic_parameter_bounds: enum_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
             .collect(),
         generic_arity: enum_.generics.parameters.len(),
         is_copy: false,

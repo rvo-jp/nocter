@@ -87,14 +87,21 @@ pub(crate) fn target_documentation(
     documentation_for_target_span(&documentation, &symbols, target_span)
 }
 
-pub(in crate::analysis::hover) fn type_reference_hover_for_file_analysis(
+pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     file: &FileAnalysis,
     offset: usize,
 ) -> Option<HoverInfo> {
-    let reference = file.typecheck_facts.type_reference_at_offset(offset)?;
-    let declaration_span = reference.symbol_declaration_span?;
+    let occurrence = file.occurrences.at_offset(offset)?;
+    if occurrence.kind != crate::analysis::occurrences::SemanticOccurrenceKind::Type {
+        return None;
+    }
+    let crate::analysis::occurrences::SemanticIdentity::Declaration(declaration_span) =
+        occurrence.identity?
+    else {
+        return None;
+    };
     let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
     let (declaration_label, documentation) =
         resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
@@ -103,16 +110,22 @@ pub(in crate::analysis::hover) fn type_reference_hover_for_file_analysis(
                 None::<String>,
             )
         });
-    let label = crate::analysis::presentation::type_reference_presentation(
-        symbol,
-        &reference.contextual_type,
-        &file.resolved,
-    )
-    .map(|presentation| presentation.render())
-    .unwrap_or(declaration_label);
+    let presentation = match occurrence.contextual_type.as_ref() {
+        Some(contextual_type) => crate::analysis::presentation::type_reference_presentation(
+            symbol,
+            contextual_type,
+            &file.resolved,
+        ),
+        None => {
+            crate::analysis::presentation::type_declaration_presentation(symbol, &file.resolved)
+        }
+    };
+    let label = presentation
+        .map(|presentation| presentation.render())
+        .unwrap_or(declaration_label);
 
     Some(HoverInfo {
-        span: reference.span,
+        span: occurrence.focus_span,
         label,
         documentation,
     })
@@ -126,8 +139,8 @@ pub(in crate::analysis::hover) fn type_reference_hover_for_ast(
     documentation: &crate::comments::AttachedDocumentation,
     offset: usize,
 ) -> Option<HoverInfo> {
-    let reference = facts.type_reference_at_offset(offset)?;
-    let declaration_span = reference.symbol_declaration_span?;
+    let reference = facts.type_occurrence_at_offset(offset)?;
+    let declaration_span = reference.target_declaration_span?;
     let symbol = resolved
         .symbols
         .symbols()
@@ -136,7 +149,7 @@ pub(in crate::analysis::hover) fn type_reference_hover_for_ast(
         single_file_symbol_hover_contents(text, symbols, documentation, symbol);
 
     Some(HoverInfo {
-        span: reference.span,
+        span: reference.focus_span,
         label,
         documentation,
     })

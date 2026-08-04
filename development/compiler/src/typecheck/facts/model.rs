@@ -16,7 +16,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) call_hover_labels: HashMap<ByteSpan, String>,
     pub(super) field_hover_labels: HashMap<ByteSpan, String>,
     pub(super) enum_variant_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) type_references: Vec<TypeReferenceFact>,
+    pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
     pub(super) field_targets: HashMap<ByteSpan, ByteSpan>,
     pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
@@ -139,15 +139,15 @@ impl TypecheckFacts {
             .map(|(span, label)| (*span, label.as_str()))
     }
 
-    pub(crate) fn type_reference_at_offset(&self, offset: usize) -> Option<&TypeReferenceFact> {
-        self.type_references
+    pub(crate) fn type_occurrence_at_offset(&self, offset: usize) -> Option<&TypeOccurrenceFact> {
+        self.type_occurrences
             .iter()
-            .filter(|reference| span_contains(reference.span, offset))
-            .min_by_key(|reference| (reference.span.len(), reference.span.start))
+            .filter(|occurrence| span_contains(occurrence.focus_span, offset))
+            .min_by_key(|occurrence| (occurrence.focus_span.len(), occurrence.focus_span.start))
     }
 
-    pub(crate) fn type_references(&self) -> impl Iterator<Item = &TypeReferenceFact> + '_ {
-        self.type_references.iter()
+    pub(crate) fn type_occurrences(&self) -> impl Iterator<Item = &TypeOccurrenceFact> + '_ {
+        self.type_occurrences.iter()
     }
 
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -535,12 +535,10 @@ pub(crate) enum TypecheckMethodReceiverKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TypeReferenceFact {
-    pub(crate) name: String,
-    pub(crate) span: ByteSpan,
+pub(crate) struct TypeOccurrenceFact {
+    pub(crate) focus_span: ByteSpan,
     pub(crate) contextual_type: TypeExpr,
-    pub(crate) symbol_name_span: Option<ByteSpan>,
-    pub(crate) symbol_declaration_span: Option<ByteSpan>,
+    pub(crate) target_declaration_span: Option<ByteSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

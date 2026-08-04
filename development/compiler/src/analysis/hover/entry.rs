@@ -54,6 +54,10 @@ pub(crate) fn hover_for_file_analysis(
         });
     }
 
+    if let Some(hover) = type_occurrence_hover_for_file_analysis(sources, analysis, file, offset) {
+        return Some(hover);
+    }
+
     if let Some(symbol) = symbols
         .iter()
         .find(|symbol| span_contains(symbol.target.focus_span, offset))
@@ -97,10 +101,6 @@ pub(crate) fn hover_for_file_analysis(
                 .enum_variant_target(span)
                 .and_then(|target| target_documentation(sources, analysis, target)),
         });
-    }
-
-    if let Some(hover) = type_reference_hover_for_file_analysis(sources, analysis, file, offset) {
-        return Some(hover);
     }
 
     if let Some(interpolation) =

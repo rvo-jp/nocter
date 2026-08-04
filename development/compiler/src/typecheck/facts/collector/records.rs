@@ -53,20 +53,17 @@ impl TypecheckFactCollector<'_> {
         span: ByteSpan,
         contextual_type: TypeExpr,
     ) {
-        let (symbol_name_span, symbol_declaration_span) =
-            match self.resolved.symbols.symbol_by_name(name) {
-                Some(symbol) if matches!(symbol.kind, SymbolKind::Type(_)) => {
-                    (Some(symbol.name_span), Some(symbol.declaration_span))
-                }
-                Some(_) | None => (None, None),
-            };
+        let target_declaration_span = self
+            .resolved
+            .symbols
+            .symbol_by_name(name)
+            .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
+            .map(|symbol| symbol.declaration_span);
 
-        self.facts.type_references.push(TypeReferenceFact {
-            name: name.to_string(),
-            span,
+        self.facts.type_occurrences.push(TypeOccurrenceFact {
+            focus_span: span,
             contextual_type,
-            symbol_name_span,
-            symbol_declaration_span,
+            target_declaration_span,
         });
     }
 

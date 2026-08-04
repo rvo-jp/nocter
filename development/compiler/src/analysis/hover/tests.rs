@@ -429,6 +429,14 @@ impl<T, I: ExactSizeIterator<T>> ExactSizeIterator<Indexed<T>> for EnumerateIter
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
 
+    let declaration = hover_for_file_analysis(&sources, &analysis, file, "interface ".len())
+        .expect("expected interface declaration hover");
+    assert_eq!(declaration.label, "interface Iterator<T>");
+    assert_eq!(
+        &text[declaration.span.start..declaration.span.end],
+        "Iterator"
+    );
+
     let iterator_offset = text.find("I: Iterator").unwrap() + "I: ".len();
     let iterator = hover_for_file_analysis(&sources, &analysis, file, iterator_offset)
         .expect("expected function-bound hover");
