@@ -19,7 +19,7 @@ chronological implementation history.
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
   `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
   `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
-- active milestone gate: none; Phase 10 is the requested stopping boundary
+- active milestone gate: `v0.3.0 Stabilization`
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -44,7 +44,8 @@ editor integration.
 
 ## Current Objective
 
-Stop at the completed Phase 10 boundary until the next milestone contract is explicitly adopted.
-Required and default interface methods remain distinct; default selection and closure invocation
-resolve by declaration identity without runtime dispatch, heap boxing, implicit capture, or
-member-name rewriting.
+Qualify v0.3.0 as one stable release without expanding its feature set. The first structural audit
+must preserve optional and fallible outcome identity through IR instead of recovering the layer in
+individual lowering paths. Subsequent loops enforce the checked-to-buildable-to-native boundary,
+then audit ownership, cleanup, packaged runtime behavior, editor facts, malformed-input resilience,
+diagnostic terminology, and responsibility hotspots against the stabilization gate.

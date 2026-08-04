@@ -11,8 +11,9 @@ and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Proces
 **Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
 **Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
 Iterators and Collection Builders**, and **Phase 10: Callable Values and Interface Default
-Methods** are complete on `develop`. The completion records and dependency order are defined in the
-[v0.3.0 Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
+Methods** are complete on `develop`. **v0.3.0 Stabilization** is the active release gate. The
+completion records, stabilization criteria, and dependency order are defined in the [v0.3.0
+Development Contract](docs/v0.3.0.md). The completed v0.2.0 criteria remain available in the
 [v0.2.0 release record](docs/v0.2.0.md).
 
 ## Quick Start

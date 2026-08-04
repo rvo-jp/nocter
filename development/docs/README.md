@@ -10,13 +10,14 @@ Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bound
 Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
 **Phase 7: Protocol-Driven Collection Iteration**, **Phase 8: Explicit Sequence Spread and
 Composable Element Packs**, **Phase 9: Composable Iterators and Collection Builders**, and **Phase
-10: Callable Values and Interface Default Methods** are complete on `develop`. Do
-not use `v0` as shorthand for a release name or work scope.
+10: Callable Values and Interface Default Methods** are complete on `develop`. **v0.3.0
+Stabilization** is the active release gate. Do not use `v0` as shorthand for a release name or work
+scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 10 records and the single
-  entry point for current milestone status
+- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 10 records,
+  stabilization criteria, and the single entry point for current milestone status
 - [v0.2.0 Release Record](v0.2.0.md): immutable completion criteria for the released baseline
 - [Architecture](architecture.md): compiler phase responsibilities and boundaries
 - [Region, Provenance, and Allocation Context](region-provenance.md): shared storage-origin,
