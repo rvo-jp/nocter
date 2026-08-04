@@ -19,7 +19,7 @@ chronological implementation history.
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
   `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
   `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
-- active milestone gate: `v0.3.0 Stabilization` (body-bearing interface implementations)
+- active milestone gate: none; `v0.3.0` release preparation requires an explicit release decision
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -85,9 +85,10 @@ with warnings denied, public documentation generation, local release packaging, 
 `doctor`, and archive inspection pass from `develop`. The distributed runtime suite passes all 199
 Phase 0 through Phase 10 integration cases.
 
-The previous qualification is retained as a checkpoint, and the stabilization gate remains open
-until the full clean-worktree release matrix is repeated. Body-bearing interface implementations
-are now implemented across parser, formatter, JSON AST, resolver, typecheck, specialization,
-buildability, lowering, analysis, LSP, the distributed standard library, and packaged execution.
-Brace-less conformance and inherent-method satisfaction have no compatibility path. The remaining
-task is release requalification of this completed migration, not further interface surface design.
+The stabilization gate is complete. Body-bearing interface implementations are implemented across
+parser, formatter, JSON AST, resolver, typecheck, specialization, buildability, lowering, analysis,
+LSP, the distributed standard library, and packaged execution. Brace-less conformance and
+inherent-method satisfaction have no compatibility path. The full clean-worktree compiler matrix,
+warnings-denied Clippy, documentation build, optimized local distribution, installed-home `doctor`,
+packaged-home runtime suite, and archive inspection pass. The next operation is an explicit v0.3.0
+release-preparation decision, not further interface stabilization work.

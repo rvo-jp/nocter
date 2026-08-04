@@ -63,6 +63,8 @@ inherent blocks into conformance blocks. Unrelated inherent helpers remain in `i
 Brace-less conformances and structural inherent-method satisfaction are removed rather than
 deprecated. No hidden desugaring recreates the former model.
 
-The gate closes only after repository-home and packaged-home checks agree for direct calls,
-generic-bound calls, conditional conformances, interface defaults, ownership-sensitive receivers,
-provenance, allocation effects, malformed source, and all editor requests.
+Repository-home and packaged-home checks now agree for direct calls, generic-bound calls,
+conditional conformances, interface defaults, ownership-sensitive receivers, provenance,
+allocation effects, malformed source, and editor requests. The migration passed the full compiler,
+native runtime, packaged-home, Clippy, documentation, local distribution, `doctor`, and archive
+qualification matrix on 2026-08-04.
