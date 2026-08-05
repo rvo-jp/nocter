@@ -2503,6 +2503,86 @@ fn returns_definition_for_import_module_path() {
 }
 
 #[test]
+fn returns_definition_for_package_executable_module() {
+    let project = TempProject::new("lsp-definition-package-module");
+    let index_text = r#"#executable: {
+    name: "app",
+    module: "./src/app",
+}
+"#;
+    let index = project.write_source("index.nct", index_text);
+    let app = project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    let index_uri = file_uri(&index.canonicalize().unwrap());
+    let root = project.root.canonicalize().unwrap();
+    let server = LspServer {
+        documents: HashMap::from([(
+            index_uri.clone(),
+            open_document(index_uri.clone(), Some(1), index_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: vec![WorkspaceRoot {
+            uri: file_uri(&root),
+            path: Some(root),
+        }],
+        shutdown_requested: false,
+    };
+
+    let response = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": index_uri },
+            "position": { "line": 2, "character": 15 }
+        })),
+    );
+
+    let definition = definition_link(&response);
+    assert_eq!(
+        definition["targetUri"],
+        json!(file_uri(&app.canonicalize().unwrap()))
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(13)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(22)
+    );
+}
+
+#[test]
+fn nested_index_is_not_treated_as_the_workspace_package_root() {
+    let project = TempProject::new("lsp-definition-nested-index");
+    let index_text = "#executable: { name: \"app\", module: \"./app\" }\n";
+    let index = project.write_source("src/index.nct", index_text);
+    project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
+    let index_uri = file_uri(&index.canonicalize().unwrap());
+    let root = project.root.canonicalize().unwrap();
+    let server = LspServer {
+        documents: HashMap::from([(
+            index_uri.clone(),
+            open_document(index_uri.clone(), Some(1), index_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: vec![WorkspaceRoot {
+            uri: file_uri(&root),
+            path: Some(root),
+        }],
+        shutdown_requested: false,
+    };
+
+    let response = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": index_uri },
+            "position": { "line": 0, "character": 47 }
+        })),
+    );
+
+    assert_eq!(response["result"], Value::Null);
+}
+
+#[test]
 fn returns_definition_for_block_import_module_path() {
     let project = TempProject::new("lsp-definition-block-import-module");
     let home = project.write_nocter_home();

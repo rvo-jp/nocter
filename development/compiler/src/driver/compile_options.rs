@@ -1,18 +1,34 @@
-use crate::entry::DEFAULT_ENTRY_FILE;
 use crate::target::{DEFAULT_TARGET, validate_requested_target};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum CompileInput {
+    Package { root: PathBuf },
+    File { file: PathBuf },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SourceCommand {
-    pub(super) file: PathBuf,
+    pub(super) input: CompileInput,
+    pub(super) executable: Option<String>,
     pub(super) target: String,
 }
 
 impl SourceCommand {
-    pub(super) fn new(file: PathBuf) -> Self {
+    pub(super) fn package(root: PathBuf) -> Self {
         Self {
-            file,
+            input: CompileInput::Package { root },
+            executable: None,
+            target: DEFAULT_TARGET.to_string(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn file(file: PathBuf) -> Self {
+        Self {
+            input: CompileInput::File { file },
+            executable: None,
             target: DEFAULT_TARGET.to_string(),
         }
     }
@@ -42,22 +58,98 @@ pub(super) fn parse_compile_command(
     args: &[OsString],
     kind: CompileCommandKind,
 ) -> Result<CompileCommandOptions, String> {
-    let (mut source, option_start) = match args.get(1) {
-        Some(value) if is_source_argument(value) => {
-            (SourceCommand::new(PathBuf::from(value.clone())), 2)
-        }
-        _ => (SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)), 1),
-    };
+    let mut source = SourceCommand::package(PathBuf::from("."));
     let mut json = false;
     let mut output = None;
-    parse_compile_options(
-        args,
-        option_start,
-        kind,
-        &mut source,
-        &mut json,
-        &mut output,
-    )?;
+    let mut root_was_set = false;
+    let mut file_was_set = false;
+    let mut index = 1;
+
+    while index < args.len() {
+        let flag = args[index].to_string_lossy();
+        match flag.as_ref() {
+            "--root" => {
+                let value = required_value(args, index, "expected package root after `--root`")?;
+                if root_was_set {
+                    return Err("package root specified more than once".to_string());
+                }
+                if file_was_set {
+                    return Err("`--root` cannot be combined with `--file`".to_string());
+                }
+                source.input = CompileInput::Package {
+                    root: PathBuf::from(value),
+                };
+                root_was_set = true;
+                index += 2;
+            }
+            "--file" => {
+                let value = required_value(args, index, "expected source file after `--file`")?;
+                if file_was_set {
+                    return Err("source file specified more than once".to_string());
+                }
+                if root_was_set {
+                    return Err("`--file` cannot be combined with `--root`".to_string());
+                }
+                source.input = CompileInput::File {
+                    file: PathBuf::from(value),
+                };
+                file_was_set = true;
+                index += 2;
+            }
+            "--executable" => {
+                let value =
+                    required_value(args, index, "expected executable name after `--executable`")?;
+                if source.executable.is_some() {
+                    return Err("executable specified more than once".to_string());
+                }
+                source.executable = Some(value.to_string_lossy().into_owned());
+                index += 2;
+            }
+            "--format" if kind == CompileCommandKind::Check => {
+                let value = required_value(args, index, "expected `--format json`")?;
+                if !is_arg(value, "json") {
+                    return Err("expected `--format json`".to_string());
+                }
+                json = true;
+                index += 2;
+            }
+            "-o" if kind == CompileCommandKind::Build => {
+                let value = required_value(args, index, "expected output path after `-o`")?;
+                if output.is_some() {
+                    return Err("output path specified more than once".to_string());
+                }
+                output = Some(PathBuf::from(value));
+                index += 2;
+            }
+            "-o" => return Err("unexpected argument `-o`".to_string()),
+            "--target" => {
+                let value = required_value(args, index, "expected target after `--target`")?;
+                let target = value.to_string_lossy();
+                validate_requested_target(&target)?;
+                source.target = target.into_owned();
+                index += 2;
+            }
+            "--format" => return Err("unexpected argument `--format`".to_string()),
+            _ if !flag.starts_with('-') => {
+                if file_was_set {
+                    return Err(format!("unexpected additional source `{flag}`"));
+                }
+                if root_was_set {
+                    return Err("a positional source cannot be combined with `--root`".to_string());
+                }
+                source.input = CompileInput::File {
+                    file: PathBuf::from(&args[index]),
+                };
+                file_was_set = true;
+                index += 1;
+            }
+            _ => return Err(format!("unexpected argument `{flag}`")),
+        }
+    }
+
+    if file_was_set && source.executable.is_some() {
+        return Err("`--executable` cannot be combined with `--file`".to_string());
+    }
 
     Ok(CompileCommandOptions {
         source,
@@ -66,79 +158,14 @@ pub(super) fn parse_compile_command(
     })
 }
 
-pub(super) fn parse_bare_run_command(args: &[OsString]) -> Result<SourceCommand, String> {
-    let mut source = SourceCommand::new(PathBuf::from(args[0].clone()));
-    let mut json = false;
-    let mut output = None;
-    parse_compile_options(
-        args,
-        1,
-        CompileCommandKind::Run,
-        &mut source,
-        &mut json,
-        &mut output,
-    )?;
-    Ok(source)
-}
-
-fn parse_compile_options(
-    args: &[OsString],
-    mut index: usize,
-    kind: CompileCommandKind,
-    source: &mut SourceCommand,
-    json: &mut bool,
-    output: &mut Option<PathBuf>,
-) -> Result<(), String> {
-    while index < args.len() {
-        let flag = args[index].to_string_lossy();
-        match flag.as_ref() {
-            "--format" if kind == CompileCommandKind::Check => {
-                let Some(value) = args.get(index + 1) else {
-                    return Err("expected `--format json`".to_string());
-                };
-                if !is_arg(value, "json") {
-                    return Err("expected `--format json`".to_string());
-                }
-                *json = true;
-                index += 2;
-            }
-            "-o" if kind == CompileCommandKind::Build => {
-                let Some(value) = args.get(index + 1) else {
-                    return Err("expected output path after `-o`".to_string());
-                };
-                if output.is_some() {
-                    return Err("output path specified more than once".to_string());
-                }
-                *output = Some(PathBuf::from(value.clone()));
-                index += 2;
-            }
-            "-o" => return Err("unexpected argument `-o`".to_string()),
-            "--target" => {
-                let Some(value) = args.get(index + 1) else {
-                    return Err("expected target after `--target`".to_string());
-                };
-                let target = value.to_string_lossy();
-                validate_requested_target(&target)?;
-                source.target = target.into_owned();
-                index += 2;
-            }
-            "--format" => return Err("unexpected argument `--format`".to_string()),
-            _ => {
-                return Err(format!(
-                    "unexpected argument `{}`",
-                    args[index].to_string_lossy()
-                ));
-            }
-        }
-    }
-
-    Ok(())
+fn required_value<'a>(
+    args: &'a [OsString],
+    index: usize,
+    message: &str,
+) -> Result<&'a OsString, String> {
+    args.get(index + 1).ok_or_else(|| message.to_string())
 }
 
 fn is_arg(arg: &OsString, expected: &str) -> bool {
     arg.to_string_lossy() == expected
-}
-
-fn is_source_argument(arg: &OsString) -> bool {
-    !arg.to_string_lossy().starts_with('-')
 }

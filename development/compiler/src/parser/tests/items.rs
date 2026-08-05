@@ -2,7 +2,59 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+use crate::ast::{DirectiveValue, ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
+
+#[test]
+fn parses_package_directives_before_root_items() {
+    let (sources, output) = parse_text_with_sources(
+        r#"#name: "json-tool"
+#version: "0.1.0"
+#executable: {
+    name: "json-tool",
+    module: "./src/app",
+}
+
+pub use ./src/json
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    assert_eq!(ast.package_header.directives.len(), 3);
+    assert!(matches!(
+        &ast.package_header.directives[0].value,
+        DirectiveValue::String { value, .. } if value == "json-tool"
+    ));
+    let DirectiveValue::Record { fields, .. } = &ast.package_header.directives[2].value else {
+        panic!("expected executable record");
+    };
+    assert_eq!(fields[0].name, "name");
+    assert_eq!(fields[1].name, "module");
+    let Item::Import(reexport) = &ast.items[0] else {
+        panic!("expected namespace re-export");
+    };
+    assert_eq!(reexport.visibility, Visibility::Public);
+    assert_eq!(reexport.alias.name, "json");
+
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "package_directive").is_some());
+    assert!(find_json_node(&json, "pub_use_namespace_item").is_some());
+}
+
+#[test]
+fn rejects_removed_parenthesized_target_directive() {
+    let output = parse_text(
+        r#"#target("arm64-darwin")
+func main(): i32 { 0 }
+"#,
+    );
+    assert!(output.ast.is_none());
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected `:` after `#target`")
+    );
+}
 
 #[test]
 fn parses_hello_entry_function() {
@@ -1233,7 +1285,7 @@ fn diagnoses_embedding_declarations_as_deferred() {
 #[test]
 fn parses_target_directive_on_primitive_declaration() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -1259,7 +1311,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 #[test]
 fn parses_target_directive_on_function_declaration() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 func main(): i32 {
     return 0
 }
@@ -1283,21 +1335,21 @@ func main(): i32 {
 #[test]
 fn parses_target_directive_on_type_declarations() {
     let (sources, output) = parse_text_with_sources(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) type RawWord = usize
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) enum PlatformError {
     interrupted
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) interface PlatformContract {
     pub method &self.code(): i32
 }

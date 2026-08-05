@@ -11,6 +11,7 @@ mod documents;
 mod hover;
 mod import_completion;
 mod locations;
+mod package_navigation;
 mod protocol;
 mod recovery;
 mod references;
@@ -46,6 +47,7 @@ use documents::{
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 use import_completion::{module_completion_items, source_root_for_document};
+use package_navigation::package_module_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
 use protocol::{
@@ -349,11 +351,17 @@ impl LspServer {
 
     fn definition_response(&self, id: Value, params: Option<&Value>) -> Value {
         let definition = document_uri_from_params(params).and_then(|uri| {
-            self.workspace_definition_for_uri(&uri, params).or_else(|| {
-                self.documents
-                    .get(&uri)
-                    .and_then(|document| definition_for_document(document, params))
-            })
+            self.documents
+                .get(&uri)
+                .and_then(|document| {
+                    package_module_definition(document, &self.workspace_roots, params)
+                })
+                .or_else(|| self.workspace_definition_for_uri(&uri, params))
+                .or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .and_then(|document| definition_for_document(document, params))
+                })
         });
         response(id, definition.unwrap_or(Value::Null))
     }

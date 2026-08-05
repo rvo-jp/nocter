@@ -63,6 +63,27 @@ impl Resolver<'_> {
         name: &str,
     ) -> Option<ImportableSymbol> {
         ast.items.iter().find_map(|item| match item {
+            Item::Import(import)
+                if import.visibility == Visibility::Public && import.alias.name == name =>
+            {
+                let source = self
+                    .module_index
+                    .import_ast_for_span(import.path.span, self.import_sources)
+                    .map(|(_, source)| source);
+                Some(ImportableSymbol {
+                    declaration_span: import.alias.span,
+                    declaration_name_span: import.alias.span,
+                    visibility: Visibility::Public,
+                    kind: SymbolKind::Imported(ImportedSymbol {
+                        path: import.path.value.clone(),
+                        source: source.map(|source| source.source),
+                        access: source.map(|source| source.access),
+                        kind: ImportedSymbolKind::Namespace,
+                    }),
+                    local_type_names: Vec::new(),
+                    imported_type_names: Vec::new(),
+                })
+            }
             Item::Function(function) if function.owner.is_none() && function.name == name => {
                 Some(ImportableSymbol {
                     declaration_span: function.name_span,

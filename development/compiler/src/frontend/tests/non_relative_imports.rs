@@ -793,23 +793,23 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"#target("x64-linux")
+        r#"#target: "x64-linux"
 pub(nocter) primitive unknown_for_linux(): void
 
-#target("x64-linux")
+#target: "x64-linux"
 pub func answer(): &str {
     return "inactive"
 }
 
-#target("x64-linux")
+#target: "x64-linux"
 pub type RawAnswer = &str
 
-#target("x64-linux")
+#target: "x64-linux"
 pub copy struct Handle {
     pub raw: &str
 }
 
-#target("x64-linux")
+#target: "x64-linux"
 pub enum Status {
     inactive
 }

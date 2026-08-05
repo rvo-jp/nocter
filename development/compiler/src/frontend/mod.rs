@@ -80,6 +80,13 @@ pub(crate) fn load_compile_unit(
             }
         };
 
+        diagnostics.extend(crate::package::validate_package_header_location(
+            sources,
+            source,
+            &ast.package_header,
+            source_root.as_deref(),
+        ));
+
         filter_target_items(&mut ast, &options.target);
 
         diagnostics.extend(validate_nocter_visibility_declarations(

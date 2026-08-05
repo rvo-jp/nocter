@@ -1,10 +1,8 @@
 use super::compile_options::{
-    BuildCommand, CompileCommandKind, CompileCommandOptions, SourceCommand, parse_bare_run_command,
-    parse_compile_command,
+    BuildCommand, CompileCommandKind, CompileCommandOptions, SourceCommand, parse_compile_command,
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
 use super::json_tool_options::parse_json_tool_command;
-use crate::entry::DEFAULT_ENTRY_FILE;
 use crate::target::DEFAULT_TARGET;
 use std::ffi::OsString;
 use std::fmt;
@@ -121,7 +119,6 @@ pub(super) fn parse_command(args: &[OsString]) -> Result<Command, CommandError> 
         "tokens" => parse_json_tool_command(args).map(Command::Tokens),
         "ast" => parse_json_tool_command(args).map(Command::Ast),
         "lsp" => expect_no_extra(args, Command::Lsp),
-        value if value.ends_with(".nct") => parse_bare_run_command(args).map(Command::Run),
         _ => Err(format!("unknown command `{command}`")),
     };
 
@@ -175,7 +172,6 @@ fn command_name(args: &[OsString]) -> Option<String> {
         "tokens" => "tokens",
         "ast" => "ast",
         "lsp" => "lsp",
-        value if value.ends_with(".nct") => "run",
         _ => return None,
     };
 
@@ -185,9 +181,11 @@ fn command_name(args: &[OsString]) -> Option<String> {
 fn root_argument(args: &[OsString]) -> Option<String> {
     let first = args.first()?.to_string_lossy();
     match first.as_ref() {
-        "build" | "run" | "check" => {
-            root_after_command(args, 1).or_else(|| Some(DEFAULT_ENTRY_FILE.to_string()))
-        }
+        "build" | "run" | "check" => root_option(args)
+            .map(|root| format!("{root}/index.nct"))
+            .or_else(|| file_option(args))
+            .or_else(|| root_after_command(args, 1))
+            .or_else(|| Some("./index.nct".to_string())),
         "tokens" | "ast" => root_after_command(args, 1),
         "fmt" => {
             if args
@@ -199,9 +197,22 @@ fn root_argument(args: &[OsString]) -> Option<String> {
                 root_after_command(args, 1)
             }
         }
-        value if value.ends_with(".nct") => Some(value.to_string()),
         _ => None,
     }
+}
+
+fn root_option(args: &[OsString]) -> Option<String> {
+    option_value(args, "--root")
+}
+
+fn file_option(args: &[OsString]) -> Option<String> {
+    option_value(args, "--file")
+}
+
+fn option_value(args: &[OsString], name: &str) -> Option<String> {
+    args.windows(2).find_map(|window| {
+        (window[0].to_string_lossy() == name).then(|| window[1].to_string_lossy().into_owned())
+    })
 }
 
 fn root_after_command(args: &[OsString], index: usize) -> Option<String> {

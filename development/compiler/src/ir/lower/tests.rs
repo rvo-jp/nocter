@@ -502,16 +502,16 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 fn std_io_file() -> (&'static str, &'static str) {
     (
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive close_fd_raw(fd: i32): void
 
 pub func print(text: &str): void! {
@@ -539,7 +539,7 @@ fn std_process_file() -> (&'static str, &'static str) {
         "std/process.nct",
         r#"use std/os.trap
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {
@@ -556,10 +556,10 @@ pub func abort(): never {
 fn std_os_file() -> (&'static str, &'static str) {
     (
         "std/os.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive unreachable(): never
 "#,
     )

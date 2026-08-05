@@ -110,10 +110,29 @@ struct SemanticIdentifierCollector<'a> {
 
 impl SemanticIdentifierCollector<'_> {
     fn collect(&mut self) {
+        self.collect_package_header();
         self.collect_semantic_occurrences();
         self.collect_signature_parameter_declarations();
         self.collect_provenance_references();
         self.collect_editor_targets();
+    }
+
+    fn collect_package_header(&mut self) {
+        for directive in &self.ast.package_header.directives {
+            self.push(directive.name_span, SemanticTokenKind::Property, true, 0);
+            let crate::ast::DirectiveValue::Record { fields, .. } = &directive.value else {
+                continue;
+            };
+            for field in fields {
+                self.push(field.name_span, SemanticTokenKind::Property, true, 0);
+                if directive.name == "executable"
+                    && field.name == "module"
+                    && let Some((_, span)) = field.value.string_value()
+                {
+                    self.push(span, SemanticTokenKind::Namespace, false, 0);
+                }
+            }
+        }
     }
 
     fn finish(mut self) -> Vec<ClassifiedIdentifier> {
@@ -377,6 +396,27 @@ mod tests {
                 "expected `{name}` to be classified as a type"
             );
         }
+    }
+
+    #[test]
+    fn package_directives_use_exact_semantic_ranges() {
+        let text = "#name: \"tool\"\n#executable: { name: \"app\", module: \"./src/app\" }\n";
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+
+        for property in ["name", "executable", "module"] {
+            assert!(
+                identifiers_for_lexeme(text, &identifiers, property)
+                    .iter()
+                    .any(|identifier| identifier.kind == SemanticTokenKind::Property),
+                "expected `{property}` to be a package property"
+            );
+        }
+        let module = identifiers_for_lexeme(text, &identifiers, "./src/app")
+            .into_iter()
+            .next()
+            .expect("expected module string content token");
+        assert_eq!(module.kind, SemanticTokenKind::Namespace);
     }
 
     #[test]

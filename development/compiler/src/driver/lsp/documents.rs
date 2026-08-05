@@ -117,6 +117,6 @@ pub(super) fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
 fn workspace_root_from_uri(uri: &str) -> WorkspaceRoot {
     WorkspaceRoot {
         uri: uri.to_string(),
-        path: file_uri_to_path(uri),
+        path: file_uri_to_path(uri).map(|path| path.canonicalize().unwrap_or(path)),
     }
 }

@@ -189,12 +189,30 @@ enum AppError {missing_path,open_failed(path:&str)}
 #[test]
 fn formats_target_directive_on_primitive() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_package_header_and_namespace_reexport() {
+    assert_formats_stably(
+        r#"#name:"json-tool"
+#executable:{name:"json-tool",module:"./src/app"}
+pub use ./src/json
+"#,
+        concat!(
+            "#name: \"json-tool\"\n",
+            "#executable: {\n",
+            "    name: \"json-tool\",\n",
+            "    module: \"./src/app\",\n",
+            "}\n\n",
+            "pub use ./src/json\n",
         ),
     );
 }
@@ -202,11 +220,11 @@ pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 #[test]
 fn formats_target_directive_on_function() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) func free_pages(address:usize,size:usize):void{return}
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) func free_pages(address: usize, size: usize): void {\n",
             "    return\n",
             "}\n",
@@ -217,31 +235,31 @@ pub(nocter) func free_pages(address:usize,size:usize):void{return}
 #[test]
 fn formats_target_directive_on_type_declarations() {
     assert_formats_stably(
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) type RawWord=usize
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {pub value:usize,errno:i32}
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) enum PlatformError {interrupted}
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) interface PlatformContract {pub method &self.code():i32}
 "#,
         concat!(
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) type RawWord = usize\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) copy struct SyscallResult {\n",
             "    pub value: usize,\n",
             "    errno: i32,\n",
             "}\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) enum PlatformError {\n",
             "    interrupted,\n",
             "}\n",
             "\n",
-            "#target(\"arm64-darwin\")\n",
+            "#target: \"arm64-darwin\"\n",
             "pub(nocter) interface PlatformContract {\n",
             "    pub method &self.code(): i32\n",
             "}\n",

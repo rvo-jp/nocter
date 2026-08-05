@@ -7,6 +7,7 @@ mod constructs;
 mod documentation;
 mod json;
 mod literals;
+mod packages;
 mod provenance;
 mod receivers;
 mod type_notation;
@@ -19,6 +20,7 @@ pub use collection_for::*;
 pub use constructs::*;
 pub use json::{AstEnvelope, JsonAstNode};
 pub use literals::*;
+pub use packages::*;
 pub use provenance::*;
 pub use receivers::*;
 pub(crate) use type_notation::canonical_type_expr;
@@ -33,6 +35,7 @@ use crate::source::ByteSpan;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
     pub span: ByteSpan,
+    pub package_header: PackageHeader,
     pub items: Vec<Item>,
 }
 
@@ -60,6 +63,7 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportItem {
     pub span: ByteSpan,
+    pub visibility: Visibility,
     pub path: ModulePath,
     pub alias: ImportAlias,
     pub alias_is_default: bool,

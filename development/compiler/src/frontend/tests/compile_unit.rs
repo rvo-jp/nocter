@@ -148,7 +148,7 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/os.nct"),
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub copy struct PlatformWord {
     pub value: usize
 }

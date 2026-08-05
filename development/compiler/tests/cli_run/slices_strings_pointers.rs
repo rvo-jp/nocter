@@ -175,7 +175,7 @@ fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write(text: &str): void! {
@@ -573,7 +573,7 @@ fn run_command_writes_str_parameter_when_len_register_aliases_destination() {
     let project = TempProject::new("cli-run-str-parameter-len-register-alias");
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write_after_two_words(first: usize, second: usize, text: &str): void! {
@@ -612,7 +612,7 @@ fn run_command_writes_slice_parameter_when_len_register_aliases_destination() {
     let project = TempProject::new("cli-run-slice-parameter-len-register-alias");
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 pub func write_after_two_words(first: usize, second: usize, bytes: &[u8]): void! {

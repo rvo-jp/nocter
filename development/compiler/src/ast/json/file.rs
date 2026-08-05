@@ -6,9 +6,11 @@ impl AstFile {
         let mut node = JsonAstNode::new(
             "source_file",
             json_span(sources, self.span),
-            self.items
+            self.package_header
+                .directives
                 .iter()
-                .map(|item| item.to_json(sources))
+                .map(|directive| directive.to_json(sources))
+                .chain(self.items.iter().map(|item| item.to_json(sources)))
                 .collect(),
         )
         .with_documentation(documentation.file());

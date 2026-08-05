@@ -2,6 +2,7 @@
 
 mod expressions;
 mod items;
+mod package_directives;
 mod statements;
 mod types;
 

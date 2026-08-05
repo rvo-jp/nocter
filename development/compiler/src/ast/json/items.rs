@@ -4,7 +4,10 @@ impl Item {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
             Item::Import(item) => JsonAstNode::with_value(
-                "use_namespace_item",
+                match item.visibility {
+                    Visibility::Public => "pub_use_namespace_item",
+                    Visibility::Private | Visibility::Nocter => "use_namespace_item",
+                },
                 item.path.value.clone(),
                 json_span(sources, item.span),
                 vec![item.path.to_json(sources), item.alias.to_json(sources)],

@@ -2,7 +2,7 @@ use super::*;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn bare_source_command_runs_source_file() {
+fn bare_source_command_is_rejected() {
     let project = TempProject::new("cli-run-bare-source");
     let source = project.write_source(
         "exit23.nct",
@@ -14,22 +14,17 @@ fn bare_source_command_runs_source_file() {
 
     let output = nocter(&project, [source.to_str().unwrap()]);
 
-    assert_eq!(
-        output.status.code(),
-        Some(23),
-        "stdout:\n{}\nstderr:\n{}",
-        text(&output.stdout),
-        text(&output.stderr)
-    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(text(&output.stderr).contains("unknown command"));
 }
 
 #[test]
-fn check_command_uses_main_nct_when_source_is_omitted() {
+fn check_command_uses_index_nct_when_source_is_omitted() {
     let project = TempProject::new("cli-check-default-source");
     project.write_source(
-        "main.nct",
-        r#"func main(): i32 {
-    return 0
+        "index.nct",
+        r#"pub func answer(): i32 {
+    return 42
 }
 "#,
     );

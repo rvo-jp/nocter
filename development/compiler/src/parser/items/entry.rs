@@ -6,6 +6,7 @@ impl Parser<'_> {
         let mut allow_use = true;
 
         self.skip_newlines();
+        let package_header = self.parse_package_header()?;
         while !self.at_eof() {
             if !allow_use && self.at_top_level_use_start() {
                 self.error_current(
@@ -24,6 +25,7 @@ impl Parser<'_> {
         let eof = self.current().clone();
         Ok(AstFile {
             span: self.span(0, eof.span.end),
+            package_header,
             items,
         })
     }
@@ -225,9 +227,8 @@ impl Parser<'_> {
             self.error_at(name.span, "expected `target` directive");
             return Err(());
         }
-        self.expect_punctuation("(", "`(`")?;
+        self.expect_punctuation(":", "`:` after `#target`")?;
         let target = self.expect_string_literal("expected target string literal")?;
-        let end = self.expect_punctuation(")", "`)`")?;
         let target_text = self.lexeme(&target);
         let target_bytes = decode_string_literal_bytes(&target_text).map_err(|message| {
             self.error_at(
@@ -241,7 +242,7 @@ impl Parser<'_> {
         };
 
         Ok(Some(TargetDirective {
-            span: self.span(start.span.start, end.span.end),
+            span: self.span(start.span.start, target.span.end),
             target_span: target.span,
             target: target_name,
         }))

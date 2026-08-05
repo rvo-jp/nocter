@@ -265,6 +265,11 @@ impl Parser<'_> {
         matches!(self.token_kind_at_offset(1), Some(TokenKind::Identifier))
     }
 
+    pub(super) fn identifier_text_at_offset(&self, offset: usize) -> Option<String> {
+        let token = self.token_at_offset(offset)?;
+        (token.kind == TokenKind::Identifier).then(|| self.lexeme(token))
+    }
+
     pub(super) fn next_is_keyword(&self, keyword: Keyword) -> bool {
         matches!(
             self.token_kind_at_offset(1),

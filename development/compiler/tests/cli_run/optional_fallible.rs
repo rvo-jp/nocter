@@ -142,7 +142,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -1149,7 +1149,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -1985,13 +1985,13 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     project.write_nocter_home_file(
         "std/process.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 
 pub func exit(code: i32): never {
@@ -2890,7 +2890,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3467,7 +3467,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
@@ -3632,7 +3632,7 @@ pub func write(text: &str): void! {
     );
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"#target("arm64-darwin")
+        r#"#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );

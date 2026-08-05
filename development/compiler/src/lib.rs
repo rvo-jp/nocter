@@ -16,6 +16,7 @@ pub mod ir;
 pub mod lexer;
 mod literals;
 mod outcomes;
+pub mod package;
 pub mod parser;
 pub mod resolve;
 mod semantics;

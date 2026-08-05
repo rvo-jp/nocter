@@ -84,7 +84,7 @@ impl PrimitiveSpec {
     fn source_signature(self) -> String {
         let target = self
             .target
-            .map(|target| format!("#target(\"{target}\")\n"))
+            .map(|target| format!("#target: \"{target}\"\n"))
             .unwrap_or_default();
         let visibility = match self.visibility {
             Visibility::Private => "",

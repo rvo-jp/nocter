@@ -92,7 +92,7 @@ pub func layout_align(value: &Layout): usize {
     return value.align
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func alloc_pages(size: usize): usize! {
     let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
     if result.errno != 0 {
@@ -101,7 +101,7 @@ pub(nocter) func alloc_pages(size: usize): usize! {
     return result.value
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) func free_pages(address: usize, size: usize): void {
     let result = syscall2(0x02000049, address, size)
     return
