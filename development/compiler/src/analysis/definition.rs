@@ -268,6 +268,32 @@ func main(): i32 {
     }
 
     #[test]
+    fn definition_query_resolves_construct_function_calls() {
+        let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self {
+        return Bucket<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    let bucket = Bucket.new(42)
+    return 0
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("new(42)").expect("expected construct call");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected definition span");
+
+        assert_eq!(&text[span.start..span.end], "new");
+        assert_eq!(span.start, text.find("new(value").unwrap());
+    }
+
+    #[test]
     fn definition_query_resolves_namespace_imported_function_member_call() {
         let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
         let module_text = "pub func answer(): i32 {\n    return 7\n}\n";

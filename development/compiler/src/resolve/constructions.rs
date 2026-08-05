@@ -81,9 +81,8 @@ impl Resolver<'_> {
         }
 
         target.construction.declaration_span = Some(construct.span);
-        let mut explicit_default = None;
         for member in &construct.members {
-            let entry = match &member.declaration {
+            match &member.declaration {
                 ConstructMemberDecl::Function(function) => {
                     if !success_payload_is_self(&function.return_type) {
                         self.output.diagnostics.push(construction_diagnostic(
@@ -96,26 +95,6 @@ impl Resolver<'_> {
                             None,
                         ));
                     }
-                    if let Some(signature) = target
-                        .associated_functions
-                        .iter_mut()
-                        .find(|signature| signature.name_span == function.member_name_span)
-                    {
-                        for (bounds, owner_bounds) in signature
-                            .signature
-                            .generic_parameter_bounds
-                            .iter_mut()
-                            .zip(&target.generic_parameter_bounds)
-                        {
-                            *bounds = owner_bounds.clone();
-                        }
-                    }
-                    ConstructionEntry {
-                        kind: ConstructionEntryKind::Function(function.member_name.clone()),
-                        declaration_span: member.span,
-                        focus_span: function.member_name_span,
-                        is_accessible: true,
-                    }
                 }
                 ConstructMemberDecl::Literal(literal) => {
                     if !success_payload_is_self(&literal.return_type) {
@@ -126,33 +105,22 @@ impl Resolver<'_> {
                             None,
                         ));
                     }
-                    ConstructionEntry {
-                        kind: ConstructionEntryKind::Literal(literal.shape),
-                        declaration_span: member.span,
-                        focus_span: literal.shape_span,
-                        is_accessible: true,
-                    }
-                }
-            };
-            let entry_index = target.construction.entries.len();
-            target.construction.entries.push(entry);
-            if let Some(default_span) = member.default_span {
-                if let Some((_, first_span)) = explicit_default {
-                    self.output.diagnostics.push(construction_diagnostic(
-                        self.sources,
-                        "a construct declaration may have only one default member",
-                        default_span,
-                        Some(("first default member is here", first_span)),
-                    ));
-                } else {
-                    explicit_default = Some((entry_index, default_span));
                 }
             }
         }
 
-        if let Some((entry, _)) = explicit_default {
+        let explicit_defaults = append_construction_entries(target, construct);
+        if let Some(&(entry, first_span)) = explicit_defaults.first() {
             target.construction.default_entry = Some(entry);
             hide_structural_entry(&mut target.construction);
+            for &(_, duplicate_span) in explicit_defaults.iter().skip(1) {
+                self.output.diagnostics.push(construction_diagnostic(
+                    self.sources,
+                    "a construct declaration may have only one default member",
+                    duplicate_span,
+                    Some(("first default member is here", first_span)),
+                ));
+            }
         } else if !construct.members.is_empty()
             && !target
                 .fields
@@ -286,7 +254,18 @@ pub(super) fn attach_construction_surfaces_to_symbol(
     };
 
     symbol.construction.declaration_span = Some(construct.span);
-    let mut explicit_default = None;
+    let explicit_defaults = append_construction_entries(symbol, construct);
+    if let Some(&(default_entry, _)) = explicit_defaults.first() {
+        symbol.construction.default_entry = Some(default_entry);
+        hide_structural_entry(&mut symbol.construction);
+    }
+}
+
+fn append_construction_entries(
+    symbol: &mut TypeSymbol,
+    construct: &ConstructDecl,
+) -> Vec<(usize, ByteSpan)> {
+    let mut explicit_defaults = Vec::new();
     for member in &construct.members {
         let kind = match &member.declaration {
             ConstructMemberDecl::Function(function) => {
@@ -318,14 +297,11 @@ pub(super) fn attach_construction_surfaces_to_symbol(
             },
             is_accessible: true,
         });
-        if member.is_default() && explicit_default.is_none() {
-            explicit_default = Some(entry_index);
+        if let Some(default_span) = member.default_span {
+            explicit_defaults.push((entry_index, default_span));
         }
     }
-    if let Some(default_entry) = explicit_default {
-        symbol.construction.default_entry = Some(default_entry);
-        hide_structural_entry(&mut symbol.construction);
-    }
+    explicit_defaults
 }
 
 fn hide_structural_entry(surface: &mut ConstructionSurface) {

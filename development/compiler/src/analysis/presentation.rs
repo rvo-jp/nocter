@@ -351,7 +351,7 @@ fn signature_with_owner_type(
     specialized
 }
 
-fn owner_type_expr(owner: &TypeSymbol, span: crate::source::ByteSpan) -> TypeExpr {
+pub(crate) fn owner_type_expr(owner: &TypeSymbol, span: crate::source::ByteSpan) -> TypeExpr {
     if owner.generic_parameters.is_empty() {
         TypeExpr::Reference(crate::ast::TypeReference {
             span,

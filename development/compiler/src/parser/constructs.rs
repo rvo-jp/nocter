@@ -15,7 +15,12 @@ impl Parser<'_> {
                 "construct target must be a nominal type reference",
             );
         })?;
-        let owner_generics = construct_target_generics(&target)?;
+        let owner_generics = construct_target_generics(&target).map_err(|()| {
+            self.error_at(
+                target.span(),
+                "construct target arguments must be generic parameter names",
+            );
+        })?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
         self.skip_newlines();

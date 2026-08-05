@@ -463,6 +463,35 @@ impl Token {
     }
 
     #[test]
+    fn single_file_analysis_classifies_construct_function_members() {
+        let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self {
+        return Bucket<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    let bucket = Bucket.new(42)
+    return 0
+}
+"#;
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
+        let new_identifiers = identifiers_for_lexeme(text, &identifiers, "new");
+
+        assert!(new_identifiers.iter().any(|identifier| {
+            identifier.kind == SemanticTokenKind::Function
+                && identifier.modifiers & SEMANTIC_DECLARATION_MODIFIER != 0
+        }));
+        assert!(new_identifiers.iter().any(|identifier| {
+            identifier.kind == SemanticTokenKind::Function
+                && identifier.modifiers & SEMANTIC_DECLARATION_MODIFIER == 0
+        }));
+    }
+
+    #[test]
     fn analysis_classifies_namespace_imported_function_member_calls() {
         let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
         let module_text = "pub func answer(): i32 {\n    return 7\n}\n";

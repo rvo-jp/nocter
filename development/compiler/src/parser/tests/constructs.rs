@@ -87,3 +87,20 @@ fn rejects_qualified_construct_function_names() {
             .contains("construct function names are unqualified")
     }));
 }
+
+#[test]
+fn diagnoses_non_parameter_construct_target_arguments() {
+    let output = parse_text(
+        r#"construct Value<Vec<T>> {
+    pub func new(): Self { return make() }
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("construct target arguments must be generic parameter names")
+    }));
+}

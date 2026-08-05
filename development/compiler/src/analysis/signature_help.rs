@@ -4,8 +4,8 @@ use super::call_sites::{CallCursorRegion, call_at_offset};
 use super::call_specializations::impl_substitutions_for_self_ty;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    CallExpr, Expr, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, MethodReceiver,
-    Parameter, PrimitiveDecl, TypeExpr, substitute_type_expr_parameters,
+    CallExpr, ConstructMemberDecl, Expr, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl,
+    MethodReceiver, Parameter, PrimitiveDecl, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::source::{ByteSpan, SourceMap};
@@ -88,6 +88,20 @@ fn signature_info_for_call(
     let declaration = callable_declaration(analysis, call_target)?;
     let mut substitutions = HashMap::new();
 
+    let construction_owner = match &declaration {
+        CallableDeclaration::Function(function) => function
+            .owner
+            .as_ref()
+            .and_then(|owner| file.resolved.type_symbol_by_name(&owner.name))
+            .filter(|owner| {
+                crate::analysis::constructions::construction_owns_function(
+                    owner,
+                    &function.member_name,
+                )
+            }),
+        _ => None,
+    };
+
     if let Some(specialization) = file.typecheck_facts.function_call_specialization(call.span) {
         substitutions.extend(specialization.substitutions.clone());
     }
@@ -108,12 +122,18 @@ fn signature_info_for_call(
     match &declaration {
         CallableDeclaration::Function(function) => {
             if let Some(owner) = &function.owner {
-                substitutions.entry("Self".to_string()).or_insert_with(|| {
-                    TypeExpr::Reference(crate::ast::TypeReference {
-                        span: owner.name_span,
-                        name: owner.name.clone(),
+                let self_ty = construction_owner
+                    .map(|target| {
+                        crate::analysis::presentation::owner_type_expr(target, owner.name_span)
                     })
-                });
+                    .map(|ty| substitute_type_expr_parameters(&ty, &substitutions))
+                    .unwrap_or_else(|| {
+                        TypeExpr::Reference(crate::ast::TypeReference {
+                            span: owner.name_span,
+                            name: owner.name.clone(),
+                        })
+                    });
+                substitutions.entry("Self".to_string()).or_insert(self_ty);
             }
         }
         CallableDeclaration::Method { impl_, .. } => {
@@ -124,7 +144,7 @@ fn signature_info_for_call(
         CallableDeclaration::Primitive(_) | CallableDeclaration::InterfaceMethod(_) => {}
     }
 
-    let (kind, name, parameters, return_type, result_provenance, generic_parameters, receiver) =
+    let (kind, name, parameters, return_type, result_provenance, mut generic_parameters, receiver) =
         match declaration {
             CallableDeclaration::Function(function) => (
                 "func",
@@ -175,10 +195,25 @@ fn signature_info_for_call(
         .collect::<Vec<_>>();
     let return_type = substitute_type_expr_parameters(return_type, &substitutions);
     let return_label = type_expr_presentation_label(&return_type, &file.resolved);
-    let display_name = match call.callee.without_groups() {
-        Expr::Identifier(identifier) => identifier.name.as_str(),
-        _ => name,
-    };
+    let constructed_name = construction_owner.map(|owner| {
+        let owner_ty = crate::analysis::presentation::owner_type_expr(owner, call.span);
+        let owner_ty = substitute_type_expr_parameters(&owner_ty, &substitutions);
+        format!(
+            "{}.{}",
+            type_expr_presentation_label(&owner_ty, &file.resolved),
+            name.rsplit('.').next().unwrap_or(name)
+        )
+    });
+    if let Some(owner) = construction_owner {
+        generic_parameters.drain(..owner.generic_parameters.len().min(generic_parameters.len()));
+    }
+    let display_name =
+        constructed_name
+            .as_deref()
+            .unwrap_or_else(|| match call.callee.without_groups() {
+                Expr::Identifier(identifier) => identifier.name.as_str(),
+                _ => name,
+            });
     let name = specialized_callable_name(
         display_name,
         &generic_parameters,
@@ -342,6 +377,13 @@ fn callable_declaration(
             .iter()
             .find(|method| method.name_span == target)
             .map(CallableDeclaration::InterfaceMethod),
+        Item::Construct(construct) => construct.members.iter().find_map(|member| {
+            let ConstructMemberDecl::Function(function) = &member.declaration else {
+                return None;
+            };
+            (function.name_span == target || function.member_name_span == target)
+                .then_some(CallableDeclaration::Function(function))
+        }),
         _ => None,
     })
 }
@@ -516,6 +558,35 @@ pub func identity<T>(value: T): T {
             signature.documentation.as_deref(),
             Some("Returns its input.")
         );
+    }
+
+    #[test]
+    fn presents_construct_function_generics_on_the_owner() {
+        let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self {
+        return Bucket<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    let bucket = Bucket.new(42)
+    return 0
+}
+"#;
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("42").expect("expected construct argument");
+
+        let signature = signature_help_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected signature help");
+
+        assert_eq!(
+            signature.label,
+            "func Bucket<i32>.new(value: i32): Bucket<i32>"
+        );
+        assert_eq!(signature.parameters[0].label, "value: i32");
     }
 
     #[test]

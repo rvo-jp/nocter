@@ -200,6 +200,31 @@ mod tests {
     }
 
     #[test]
+    fn reference_query_groups_construct_function_declaration_and_calls() {
+        let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self {
+        return Bucket<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    let first = Bucket.new(20)
+    let second = Bucket.new(22)
+    return 0
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("new(value").expect("expected declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(span_fragments(text, &spans), vec!["new", "new", "new"]);
+    }
+
+    #[test]
     fn reference_query_finds_enum_pattern_variant_references() {
         let text = r#"enum Choice {
     hit(value: i32)
