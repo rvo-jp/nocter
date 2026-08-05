@@ -89,9 +89,6 @@ pub(super) fn check_body_expressions(
                     );
                 }
             }
-            Item::Literal(literal) => {
-                check_literal_body_expressions(sources, literal, resolved, diagnostics);
-            }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     let mut environment = environment_for_function(function, resolved);

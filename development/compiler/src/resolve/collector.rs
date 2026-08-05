@@ -193,7 +193,6 @@ impl Resolver<'_> {
                         }
                     }
                 }
-                Item::Literal(_) => {}
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         self.output

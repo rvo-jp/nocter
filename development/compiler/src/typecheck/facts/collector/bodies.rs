@@ -10,7 +10,7 @@ impl TypecheckFactCollector<'_> {
             Item::Enum(item) => Some(&item.generics),
             Item::Interface(item) => Some(&item.generics),
             Item::Impl(item) => Some(&item.generics),
-            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) | Item::Construct(_) => None,
+            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) => None,
         };
         if let Some(generics) = generics {
             self.with_generic_scope(generics, |collector| {
@@ -66,19 +66,6 @@ impl TypecheckFactCollector<'_> {
                         );
                     });
                 }
-            }
-            Item::Literal(literal) => {
-                let mut environment = environment_for_literal(literal, self.resolved);
-                let return_type = type_expr_to_type_in_environment(
-                    &literal.return_type,
-                    self.resolved,
-                    &environment,
-                );
-                self.collect_block_facts(
-                    &literal.body,
-                    &mut environment,
-                    Some(return_type.success_type()),
-                );
             }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {

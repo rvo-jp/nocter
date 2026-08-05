@@ -15,7 +15,6 @@ fn completion_context_in_item_at_offset(
 ) -> Option<CompletionContext<'_>> {
     match item {
         Item::Function(function) => completion_context_in_block_at_offset(&function.body, offset),
-        Item::Literal(literal) => completion_context_in_block_at_offset(&literal.body, offset),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
                 .body

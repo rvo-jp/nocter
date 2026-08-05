@@ -66,33 +66,6 @@ pub(super) fn check_result_provenance_contracts(
                 resolved,
                 diagnostics,
             ),
-            Item::Literal(literal) => {
-                let environment = environment_for_literal(literal, resolved);
-                check_clause(
-                    sources,
-                    literal.result_provenance.as_ref(),
-                    None,
-                    &literal.parameters.parameters,
-                    &literal.return_type,
-                    Some(&environment),
-                    resolved,
-                    diagnostics,
-                );
-                if let Some(clause) = &literal.result_provenance {
-                    check_body_contract(
-                        sources,
-                        &literal.body,
-                        clause,
-                        None,
-                        &literal.parameters.parameters,
-                        &literal.return_type,
-                        resolved,
-                        &environment,
-                        summaries,
-                        diagnostics,
-                    );
-                }
-            }
             Item::Interface(interface) => {
                 for method in &interface.methods {
                     let environment = environment_for_interface_method(method, resolved, interface);

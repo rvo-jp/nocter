@@ -176,7 +176,6 @@ fn collect_import_sites<'a>(ast: &'a AstFile, sites: &mut Vec<ImportSite<'a>>) {
                     }
                 }
             }
-            Item::Literal(literal) => collect_block_import_sites(&literal.body, sites),
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     collect_block_import_sites(&function.body, sites);

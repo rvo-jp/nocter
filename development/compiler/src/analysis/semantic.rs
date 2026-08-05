@@ -223,9 +223,6 @@ impl SemanticIdentifierCollector<'_> {
                         }
                     }
                 }
-                crate::ast::Item::Literal(item) => {
-                    collect_provenance_parameter_spans(item.result_provenance.as_ref(), &mut spans);
-                }
                 crate::ast::Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         collect_provenance_parameter_spans(
@@ -631,8 +628,10 @@ func read<M: Lookup<i32>>(map: &M): &i32 from map {
 
 struct Text { value: &str }
 
-literal Text ""(text: &str): Self from text {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self from text {
+        return Text { value: text }
+    }
 }
 "#;
         let identifiers =

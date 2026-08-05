@@ -410,24 +410,6 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
-                    Item::Literal(literal) => {
-                        for specialization in call_specializations
-                            .literals
-                            .get(&literal.span)
-                            .into_iter()
-                            .flatten()
-                        {
-                            let target = call_target_for_source(
-                                file.ast.span.source,
-                                root_source,
-                                specialization.target_name.clone(),
-                            );
-                            definitions.insert(
-                                target,
-                                IndexedCallable::new_literal(literal, specialization.clone(), file),
-                            );
-                        }
-                    }
                     Item::Construct(construct) => {
                         for (_, function) in construct.functions() {
                             if function.generics.parameters.is_empty() {

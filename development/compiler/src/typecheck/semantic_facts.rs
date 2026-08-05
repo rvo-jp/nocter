@@ -115,15 +115,6 @@ pub(crate) fn collect_callable_semantic_facts(
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
                 | Item::Enum(_) => {}
-                Item::Literal(literal) => {
-                    insert_fact(
-                        literal.span,
-                        &literal.return_type,
-                        source.resolved,
-                        &summaries,
-                        &mut facts,
-                    );
-                }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         insert_fact(

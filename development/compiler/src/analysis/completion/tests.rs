@@ -34,8 +34,10 @@ fn completion_candidates_include_keywords_and_symbols() {
 fn completion_candidates_offer_declared_literal_shapes_after_target() {
     let text = r#"struct Bucket<T> { length: usize }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(): i32 {
@@ -66,8 +68,10 @@ func main(): i32 {
 fn completion_candidates_offer_string_literal_shape() {
     let text = r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {
@@ -1086,8 +1090,10 @@ fn completion_recovers_incomplete_result_provenance_clause() {
 fn completion_recovers_incomplete_literal_result_provenance_clause() {
     let text = r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self from {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self from {
+        return Text { value: text }
+    }
 }
 "#;
     let offset = text.find("from ").unwrap() + "from ".len();

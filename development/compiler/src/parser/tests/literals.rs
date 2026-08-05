@@ -1,22 +1,27 @@
 use super::support::{find_json_node, parse_text, parse_text_with_sources};
-use crate::ast::{Expr, Item, LiteralShape, Stmt, TypeExpr};
+use crate::ast::{ConstructMemberDecl, Expr, Item, LiteralShape, Stmt, TypeExpr};
 
 #[test]
 fn parses_sequence_literal_definition_and_pack_loop() {
     let (sources, output) = parse_text_with_sources(
-        r#"pub literal Vec<T> [](...items: T): Self from current {
+        r#"construct Vec<T> {
+    pub default literal [](...items: T): Self from current {
     for item in items {
         consume(move item)
     }
     return Self.empty()
+    }
 }
 "#,
     );
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.expect("expected AST");
-    let Item::Literal(literal) = &ast.items[0] else {
-        panic!("expected literal definition");
+    let Item::Construct(construct) = &ast.items[0] else {
+        panic!("expected construct declaration");
+    };
+    let ConstructMemberDecl::Literal(literal) = &construct.members[0].declaration else {
+        panic!("expected construct literal member");
     };
     assert_eq!(literal.shape, LiteralShape::Sequence);
     assert!(matches!(literal.target, TypeExpr::Generic(_)));
@@ -36,7 +41,7 @@ fn parses_sequence_literal_definition_and_pack_loop() {
     assert_eq!(loop_.pack_name, "items");
 
     let json = ast.to_json(&sources);
-    assert!(find_json_node(&json, "literal_decl").is_some());
+    assert!(find_json_node(&json, "construct_literal_member").is_some());
     assert!(find_json_node(&json, "result_provenance").is_some());
     assert!(find_json_node(&json, "literal_pack_for_statement").is_some());
 }
@@ -93,6 +98,23 @@ fn keeps_adjacent_brackets_as_index_syntax() {
         panic!("expected return");
     };
     assert!(matches!(statement.expression, Some(Expr::Index(_))));
+}
+
+#[test]
+fn rejects_top_level_literal_definitions_with_a_construct_migration() {
+    let output = parse_text(
+        r#"literal Vec<T> [](...items: T): Self {
+    return Vec<T> {}
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("declare the literal inside `construct Type { ... }`")
+    }));
 }
 
 #[test]

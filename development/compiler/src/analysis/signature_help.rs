@@ -508,8 +508,10 @@ mod tests {
     fn presents_sequence_literal_element_pack_signature() {
         let text = r#"struct Bucket<T> { length: usize }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(): i32 {

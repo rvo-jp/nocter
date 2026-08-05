@@ -101,7 +101,10 @@ impl Parser<'_> {
                 self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
-            return self.parse_literal_decl(visibility);
+            self.error_current(
+                "top-level literal definitions have been removed; declare the literal inside `construct Type { ... }`",
+            );
+            return Err(());
         }
 
         if self.at_keyword(Keyword::Construct) {

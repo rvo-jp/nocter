@@ -8,8 +8,10 @@ struct Text {
     value: &str
 }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {
@@ -45,12 +47,14 @@ struct Numbers {
 
 func consume(value: i32): void {}
 
-literal Numbers [](...items: i32): Self {
-    let result = Numbers { length: items.len() }
-    for item in items {
-        consume(item)
+construct Numbers {
+    pub default literal [](...items: i32): Self {
+        let result = Numbers { length: items.len() }
+        for item in items {
+            consume(item)
+        }
+        return move result
     }
-    return move result
 }
 
 func main(): i32 {
@@ -95,8 +99,10 @@ struct Bucket<T> {
     length: usize
 }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(): i32 {
@@ -131,8 +137,10 @@ struct Text {
     value: &str
 }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {
@@ -184,11 +192,13 @@ impl File {
 
 struct Holder { count: usize }
 
-literal Holder [](...items: File): Self {
-    for item in items {
-        return Holder { count: 1 }
+construct Holder {
+    pub default literal [](...items: File): Self {
+        for item in items {
+            return Holder { count: 1 }
+        }
+        return Holder { count: 0 }
     }
-    return Holder { count: 0 }
 }
 
 func main(): i32 {
@@ -233,8 +243,10 @@ impl Token {
     drop &+self { return }
 }
 
-literal Numbers [](...items: i32): Self {
-    return Numbers { count: items.len() }
+construct Numbers {
+    pub default literal [](...items: i32): Self {
+        return Numbers { count: items.len() }
+    }
 }
 
 func next(): i32! { return 2 }
@@ -290,8 +302,10 @@ fn lowers_typed_literal_directly_from_aggregate_return_context() {
         r#"
 struct Text { value: &str }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
 }
 
 func make(): Text {
@@ -330,8 +344,10 @@ func main(): i32 {
             "std/items.nct",
             r#"pub struct Bucket<T> { length: usize }
 
-pub literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 "#,
         )],

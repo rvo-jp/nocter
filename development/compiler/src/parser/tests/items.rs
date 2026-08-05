@@ -1065,8 +1065,10 @@ fn reserves_literal_for_literal_definitions() {
 #[test]
 fn rejects_the_obsolete_capture_inside_shape_marker() {
     let output = parse_text(
-        r#"literal Vec<T> [...items: [T]]: Self {
+        r#"construct Vec<T> {
+    pub default literal [...items: [T]]: Self {
     return Self.empty()
+    }
 }
 "#,
     );

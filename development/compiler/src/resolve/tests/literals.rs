@@ -6,7 +6,9 @@ fn attaches_and_resolves_literal_by_nominal_identity_and_shape() {
     let output = resolve_text(
         r#"struct Vec<T> {}
 
-literal Vec<T> [](...items: T): Self {}
+construct Vec<T> {
+    pub default literal [](...items: T): Self {}
+}
 
 func build(): Vec<i32> {
     return Vec<i32> [1, 2]
@@ -26,8 +28,10 @@ fn rejects_duplicate_literal_shape_for_one_target() {
     let output = resolve_text(
         r#"struct Text {}
 
-literal Text ""(text: &str): Self {}
-literal Text ""(text: &str): Self {}
+construct Text {
+    pub default literal ""(text: &str): Self {}
+    pub literal ""(text: &str): Self {}
+}
 "#,
     );
 
@@ -43,7 +47,9 @@ literal Text ""(text: &str): Self {}
 fn rejects_non_nominal_and_mismatched_generic_targets() {
     let alias = resolve_text(
         r#"type Words = [u8]
-literal Words [](...items: u8): Self {}
+construct Words {
+    pub default literal [](...items: u8): Self {}
+}
 "#,
     );
     assert!(
@@ -55,7 +61,9 @@ literal Words [](...items: u8): Self {}
 
     let generic = resolve_text(
         r#"struct Vec<T> {}
-literal Vec<U> [](...items: U): Self {}
+construct Vec<U> {
+    pub default literal [](...items: U): Self {}
+}
 "#,
     );
     assert!(generic.diagnostics.iter().any(|diagnostic| {

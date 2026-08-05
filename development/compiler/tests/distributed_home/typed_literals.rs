@@ -459,13 +459,15 @@ struct Count {
     after: usize
 }
 
-literal Count [](...items: i32): Self {
-    let before = items.len()
-    for item in items {
-        let copy = item
+construct Count {
+    pub default literal [](...items: i32): Self {
+        let before = items.len()
+        for item in items {
+            let copy = item
+        }
+        let after = items.len()
+        return Count { before: before, after: after }
     }
-    let after = items.len()
-    return Count { before: before, after: after }
 }
 
 func main(): i32 {
@@ -670,8 +672,10 @@ struct Sink {
     code: i32
 }
 
-literal Sink [](...items: Token): Self {
-    return Sink { code: 0 }
+construct Sink {
+    pub default literal [](...items: Token): Self {
+        return Sink { code: 0 }
+    }
 }
 
 func main(): i32 {
@@ -705,9 +709,11 @@ struct Exhausted {
     code: i32
 }
 
-literal Exhausted [](...items: i32): Self {
-    let impossible: Vec<u8> = Vec.with_capacity(18446744073709551615)
-    return Exhausted { code: 0 }
+construct Exhausted {
+    pub default literal [](...items: i32): Self {
+        let impossible: Vec<u8> = Vec.with_capacity(18446744073709551615)
+        return Exhausted { code: 0 }
+    }
 }
 
 func main(): i32 {
@@ -898,8 +904,10 @@ impl Token {
     }
 }
 
-literal Numbers [](...items: i32): Self {
-    return Numbers { count: items.len() }
+construct Numbers {
+    pub default literal [](...items: i32): Self {
+        return Numbers { count: items.len() }
+    }
 }
 
 func next(): i32! {
@@ -966,8 +974,10 @@ struct Sink {
     code: i32
 }
 
-literal Sink [](...items: Token): Self {
-    return Sink { code: 0 }
+construct Sink {
+    pub default literal [](...items: Token): Self {
+        return Sink { code: 0 }
+    }
 }
 
 func main(): i32 {

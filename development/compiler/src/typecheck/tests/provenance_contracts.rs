@@ -127,8 +127,10 @@ fn accepts_literal_result_provenance_contract_satisfied_by_body() {
     let diagnostics = check_text(
         r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self from text {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self from text {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {
@@ -145,8 +147,10 @@ fn diagnoses_literal_body_result_outside_declared_provenance() {
     let diagnostics = check_text(
         r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self from current {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self from current {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {

@@ -153,7 +153,6 @@ fn literal_declaration(
         .items
         .iter()
         .find_map(|item| match item {
-            Item::Literal(literal) if literal.span == declaration_span => Some(literal),
             Item::Construct(construct) => construct
                 .literals()
                 .find_map(|(_, literal)| (literal.span == declaration_span).then_some(literal)),
@@ -247,9 +246,11 @@ mod tests {
 
     const SOURCE: &str = r#"struct Bucket<T> { length: usize }
 
-/// Constructs a bucket.
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    /// Constructs a bucket.
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(): i32 {
@@ -296,8 +297,10 @@ func main(): i32 {
     fn preserves_generic_element_facts_for_editor_queries() {
         let text = r#"struct Bucket<T> { length: usize }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func build<T>(value: T): Bucket<T> {

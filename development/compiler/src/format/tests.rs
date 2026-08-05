@@ -120,13 +120,15 @@ fn formats_generic_interface_bounds_stably() {
 #[test]
 fn formats_typed_literal_definitions_and_expressions_stably() {
     assert_formats_stably(
-        r#"pub literal Vec<T>[](...items:T):Self from current{for item in items{return move item}}
+        r#"construct Vec<T>{pub default literal [](...items:T):Self from current{for item in items{return move item}}}
 func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&other,...move other,3] using arena}
 "#,
         concat!(
-            "pub literal Vec<T> [](...items: T): Self from current {\n",
-            "    for item in items {\n",
-            "        return move item\n",
+            "construct Vec<T> {\n",
+            "    pub default literal [](...items: T): Self from current {\n",
+            "        for item in items {\n",
+            "            return move item\n",
+            "        }\n",
             "    }\n",
             "}\n",
             "\n",
@@ -145,7 +147,6 @@ pub func new():Self{return make()}
 pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
 "#,
         r#"construct Vec<T> {
-
     pub default literal [](...items: T): Self {
         return Self.empty()
     }

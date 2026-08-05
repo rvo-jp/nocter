@@ -171,7 +171,7 @@ pub(super) fn check_generic_type_arities(
                     check_block(sources, &function.body, resolved, &scope, diagnostics);
                 }
             }
-            Item::Import(_) | Item::FromImport(_) | Item::Literal(_) => {}
+            Item::Import(_) | Item::FromImport(_) => {}
         }
     }
 }

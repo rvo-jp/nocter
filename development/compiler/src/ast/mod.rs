@@ -45,7 +45,6 @@ pub enum Item {
     Enum(EnumDecl),
     Interface(InterfaceDecl),
     Impl(ImplDecl),
-    Literal(LiteralDecl),
     Construct(ConstructDecl),
 }
 
@@ -788,7 +787,6 @@ impl Item {
             Item::Enum(item) => item.span,
             Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
-            Item::Literal(item) => item.span,
             Item::Construct(item) => item.span,
         }
     }

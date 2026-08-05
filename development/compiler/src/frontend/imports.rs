@@ -23,7 +23,6 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
         Item::Import(item) => paths.push(&item.path),
         Item::FromImport(item) => paths.push(&item.path),
         Item::Function(function) => collect_block_import_paths(&function.body, paths),
-        Item::Literal(literal) => collect_block_import_paths(&literal.body, paths),
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {

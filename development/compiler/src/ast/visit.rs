@@ -43,7 +43,6 @@ pub(crate) fn visit_file_expressions<'a>(ast: &'a AstFile, visitor: &mut impl Fn
                     }
                 }
             }
-            Item::Literal(literal) => visit_block_expressions(&literal.body, visitor),
             Item::Construct(construct) => {
                 for member in &construct.members {
                     match &member.declaration {

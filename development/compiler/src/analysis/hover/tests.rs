@@ -10,8 +10,10 @@ fn workspace_hover_normalizes_literal_declaration_signatures() {
 
 struct Text { value: &str }
 
-literal Text ""(text: TextInput): Self from text {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: TextInput): Self from text {
+        return Text { value: text }
+    }
 }
 "#;
     let (sources, analysis) = analyze_text(text);
@@ -147,9 +149,11 @@ fn workspace_hover_resolves_an_imported_name_at_its_import_site() {
 fn workspace_hover_presents_typed_literal_signature_and_documentation() {
     let text = r#"struct Text { value: &str }
 
-/// Copies text into owned storage.
-literal Text ""(text: &str): Self from text {
-    return Text { value: text }
+construct Text {
+    /// Copies text into owned storage.
+    pub default literal ""(text: &str): Self from text {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {

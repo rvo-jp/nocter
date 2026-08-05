@@ -29,7 +29,6 @@ impl Formatter {
             Item::Enum(item) => self.format_enum_decl(item),
             Item::Interface(item) => self.format_interface_decl(item),
             Item::Impl(item) => self.format_impl_decl(item),
-            Item::Literal(item) => self.format_literal_decl(item),
             Item::Construct(item) => self.format_construct_decl(item),
         }
     }
@@ -42,7 +41,6 @@ impl Formatter {
             return;
         }
         self.write(" {");
-        self.newline();
         self.newline();
         let owner_generic_count = match &item.target {
             TypeExpr::Generic(generic) => generic.arguments.len(),
@@ -85,31 +83,6 @@ impl Formatter {
 
     fn format_construct_literal(&mut self, item: &LiteralDecl) {
         self.write("literal ");
-        self.write(match item.shape {
-            LiteralShape::Sequence => "[]",
-            LiteralShape::String => "\"\"",
-        });
-        self.write("(");
-        if let Some(capture) = &item.capture {
-            self.write("...");
-            self.write(&capture.name);
-            self.write(": ");
-            self.format_type(&capture.element_type);
-        } else {
-            self.write_comma_separated(&item.parameters.parameters, Self::format_parameter);
-        }
-        self.write("): ");
-        self.format_type(&item.return_type);
-        self.format_result_provenance(item.result_provenance.as_ref());
-        self.write(" ");
-        self.format_block(&item.body);
-    }
-
-    fn format_literal_decl(&mut self, item: &LiteralDecl) {
-        self.format_visibility(item.visibility);
-        self.write("literal ");
-        self.format_type(&item.target);
-        self.write(" ");
         self.write(match item.shape {
             LiteralShape::Sequence => "[]",
             LiteralShape::String => "\"\"",

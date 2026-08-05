@@ -7,14 +7,6 @@ use crate::ast::{
 use crate::lexer::{Keyword, TokenKind};
 
 impl Parser<'_> {
-    pub(super) fn parse_literal_decl(
-        &mut self,
-        visibility: Visibility,
-    ) -> ParseResult<crate::ast::Item> {
-        self.parse_literal_decl_data(visibility, None)
-            .map(crate::ast::Item::Literal)
-    }
-
     pub(super) fn parse_literal_decl_data(
         &mut self,
         visibility: Visibility,

@@ -164,8 +164,10 @@ mod tests {
     fn definition_query_resolves_typed_literal_delimiter_to_shape_declaration() {
         let text = r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {

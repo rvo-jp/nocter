@@ -197,8 +197,10 @@ fn typed_literal_signature_help_reports_the_specialized_element_pack() {
     let _home = NocterHomeEnv::set(&home);
     let text = r#"struct Bucket<T> { length: usize }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(): i32 {
@@ -244,9 +246,11 @@ fn typed_literal_hover_reports_the_resolved_definition() {
     let _home = NocterHomeEnv::set(&home);
     let text = r#"struct Text { value: &str }
 
-/// Copies text into an owned value.
-literal Text ""(text: &str): Self from text {
-    return Text { value: text }
+construct Text {
+    /// Copies text into an owned value.
+    pub default literal ""(text: &str): Self from text {
+        return Text { value: text }
+    }
 }
 
 func main(): i32 {
@@ -290,8 +294,10 @@ fn typed_literal_shape_completion_recovers_a_missing_delimiter() {
         home.join("std/vec.nct"),
         r#"pub struct Vec<T> { length: usize }
 
-pub literal Vec<T> [](...items: T): Self {
-    return Vec<T> { length: items.len() }
+construct Vec<T> {
+    pub default literal [](...items: T): Self {
+        return Vec<T> { length: items.len() }
+    }
 }
 "#,
     )
@@ -343,8 +349,10 @@ fn incomplete_typed_literal_keeps_expected_element_completion_ranking() {
     let _home = NocterHomeEnv::set(&home);
     let text = r#"struct Bucket<T> { length: usize }
 
-literal Bucket<T> [](...items: T): Self {
-    return Bucket<T> { length: items.len() }
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
 }
 
 func main(candidate: i32, text: &str): i32 {
@@ -392,8 +400,9 @@ fn hover_recovers_an_unclosed_typed_literal_declaration_body() {
     let _home = NocterHomeEnv::set(&home);
     let text = r#"struct Text { value: &str }
 
-literal Text ""(text: &str): Self {
-    return Text { value: text }
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
 "#;
     let app = project.write_source("app.nct", text);
     let uri = file_uri(&app);

@@ -41,7 +41,6 @@ pub(in crate::typecheck::returns) fn item_callable_count(item: &Item) -> usize {
         Item::Function(_) => 1,
         Item::Primitive(_) => 1,
         Item::Interface(interface) => interface.methods.len(),
-        Item::Literal(_) => 1,
         Item::Construct(construct) => construct.functions().count() + construct.literals().count(),
         Item::Impl(impl_) => impl_
             .members
@@ -200,38 +199,6 @@ pub(in crate::typecheck::returns) fn collect_callable_provenance_summaries(
                             method.result_provenance.as_ref(),
                         );
                     }
-                }
-                Item::Literal(literal) => {
-                    let environment = environment_for_literal(literal, source.resolved);
-                    let return_type = type_expr_to_type_in_environment(
-                        &literal.return_type,
-                        source.resolved,
-                        &environment,
-                    );
-                    let provenance = borrow_return_provenance_for_callable_body(
-                        &literal.body,
-                        &return_type,
-                        source.resolved,
-                        &environment,
-                        previous,
-                    )
-                    .unwrap_or(ValueProvenance::Independent);
-                    let declared = literal.result_provenance.as_ref().and_then(|clause| {
-                        result_provenance_contract(
-                            clause,
-                            None,
-                            &literal.parameters.parameters,
-                            source.resolved,
-                        )
-                        .ok()
-                    });
-                    let callable = CallableId::declared_at(literal.span);
-                    summaries.insert_result(callable, declared.unwrap_or(provenance));
-                    seed_declared_allocation_effect(
-                        &mut summaries,
-                        callable,
-                        literal.result_provenance.as_ref(),
-                    );
                 }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {

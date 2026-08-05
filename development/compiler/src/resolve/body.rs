@@ -31,9 +31,6 @@ impl Resolver<'_> {
                         self.resolve_method(method);
                     }
                 }
-                Item::Literal(literal) => {
-                    self.resolve_literal_body(literal);
-                }
                 Item::Construct(construct) => {
                     for (_, function) in construct.functions() {
                         self.resolve_function_body(function);

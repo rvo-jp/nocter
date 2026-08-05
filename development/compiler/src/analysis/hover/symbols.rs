@@ -97,9 +97,6 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 }
             }
         }
-        Item::Literal(literal) => {
-            collect_literal_hover_symbols(text, literal, symbols);
-        }
         Item::Construct(construct) => {
             for (_, function) in construct.functions() {
                 push_function_hover_symbol(text, function, symbols);

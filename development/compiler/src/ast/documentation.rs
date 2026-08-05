@@ -55,10 +55,6 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 collect_impl_member_targets(text, member, targets);
             }
         }
-        Item::Literal(literal) => {
-            push_target(text, literal.span, targets);
-            collect_block_targets(text, &literal.body, targets);
-        }
         Item::Construct(construct) => {
             push_target(text, construct.span, targets);
             for member in &construct.members {

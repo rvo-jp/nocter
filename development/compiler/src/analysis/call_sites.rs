@@ -26,7 +26,6 @@ fn call_in_item_at_offset(
 ) -> Option<&CallExpr> {
     match item {
         Item::Function(function) => call_in_block_at_offset(&function.body, offset, region),
-        Item::Literal(literal) => call_in_block_at_offset(&literal.body, offset, region),
         Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
             ImplMember::Method(method) => method
                 .body

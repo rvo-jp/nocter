@@ -75,9 +75,6 @@ pub(super) fn check_sized_value_types(
             Item::Impl(impl_) => {
                 check_impl(sources, impl_, resolved, diagnostics);
             }
-            Item::Literal(literal) => {
-                check_literal(sources, literal, resolved, diagnostics);
-            }
             Item::Construct(construct) => {
                 for (_, function) in construct.functions() {
                     let self_type = function_self_type(function, resolved);

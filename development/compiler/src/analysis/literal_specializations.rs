@@ -269,9 +269,6 @@ fn literal_declarations(analysis: &CompileUnitAnalysis) -> HashMap<ByteSpan, &Li
     for file in &analysis.files {
         for item in &file.ast.items {
             match item {
-                Item::Literal(literal) => {
-                    declarations.insert(literal.span, literal);
-                }
                 Item::Construct(construct) => {
                     declarations.extend(
                         construct
