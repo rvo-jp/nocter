@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NonCopyOwnedValueKind {
+    Closure,
     Struct,
     CopyStructInstantiation,
     Enum,
@@ -17,6 +18,7 @@ pub(super) enum NonCopyOwnedValueKind {
 impl NonCopyOwnedValueKind {
     pub(super) fn noun(self) -> &'static str {
         match self {
+            NonCopyOwnedValueKind::Closure => "move-only closure",
             NonCopyOwnedValueKind::Struct => "non-copy struct",
             NonCopyOwnedValueKind::CopyStructInstantiation => "move-only copy-struct instantiation",
             NonCopyOwnedValueKind::Enum => "move-only enum",
@@ -28,6 +30,9 @@ impl NonCopyOwnedValueKind {
 
     pub(super) fn copy_help(self, source_name: &str, type_name: &str) -> String {
         match self {
+            NonCopyOwnedValueKind::Closure => format!(
+                "remove readwrite captures or make every moved capture copyable, or write `move {source_name}` to transfer `{type_name}`"
+            ),
             NonCopyOwnedValueKind::Struct => format!(
                 "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
             ),
@@ -35,7 +40,7 @@ impl NonCopyOwnedValueKind {
                 "use copyable type arguments for `{type_name}` or write `move {source_name}` to transfer ownership"
             ),
             NonCopyOwnedValueKind::Enum => format!(
-                "payload-carrying enums are move-only in v0; write `move {source_name}` to transfer ownership"
+                "payload-carrying enums are move-only; write `move {source_name}` to transfer ownership"
             ),
             NonCopyOwnedValueKind::FixedArray => format!(
                 "make the fixed array element type copyable or write `move {source_name}` to transfer ownership"
@@ -145,6 +150,17 @@ fn non_copy_owned_type_kind_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<NonCopyOwnedValueKind> {
     match ty {
+        Type::Closure(closure)
+            if !type_expr_is_copy_inner(
+                &TypeExpr::Closure(closure.clone()),
+                resolved,
+                &HashMap::new(),
+                resolving_names,
+            )
+            .unwrap_or(false) =>
+        {
+            Some(NonCopyOwnedValueKind::Closure)
+        }
         Type::Named(name) => {
             let symbol = resolved.type_symbol_by_canonical_name(name)?;
             non_copy_owned_type_symbol_kind(symbol, resolved, &HashMap::new(), resolving_names)
@@ -224,6 +240,18 @@ fn type_expr_is_copy_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        TypeExpr::Callable(_) => None,
+        TypeExpr::Closure(closure) => closure
+            .captures
+            .iter()
+            .map(|capture| match capture.mode {
+                crate::ast::ClosureCaptureMode::ReadonlyBorrow => Some(true),
+                crate::ast::ClosureCaptureMode::ReadwriteBorrow => Some(false),
+                crate::ast::ClosureCaptureMode::Move => {
+                    type_expr_is_copy_inner(&capture.ty, resolved, substitutions, resolving_names)
+                }
+            })
+            .try_fold(true, |all, copy| copy.map(|copy| all && copy)),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => Some(true),
@@ -301,6 +329,13 @@ fn type_is_copy_maybe_inner(
     resolving_names: &mut HashSet<String>,
 ) -> Option<bool> {
     match ty {
+        Type::Callable(_) => None,
+        Type::Closure(closure) => type_expr_is_copy_inner(
+            &TypeExpr::Closure(closure.clone()),
+            resolved,
+            &HashMap::new(),
+            resolving_names,
+        ),
         Type::I32 | Type::Primitive(_) | Type::Str | Type::Error | Type::Pointer(_) => Some(true),
         Type::View {
             is_readwrite: false,

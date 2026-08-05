@@ -88,7 +88,10 @@ pub(in crate::typecheck) fn optional_propagation_in_non_optional_context_diagnos
     );
     diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
     add_declared_return_note(sources, &mut diagnostic, context);
-    diagnostic.help = Some("handle `none` with `?` or `otherwise`".to_string());
+    diagnostic.help = Some(
+        "handle `none` with `otherwise` or make the current callable return an optional value"
+            .to_string(),
+    );
     diagnostic
 }
 

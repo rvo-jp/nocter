@@ -3,8 +3,8 @@ use super::*;
 use crate::abi::ValueLayout;
 use crate::ir::{
     AggregateArgumentSource, AggregateLocation, BoolLocation, BoolValue, BorrowArgument,
-    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function,
-    I32ComparisonOperator, I32Location, I32Value, ScalarArgument, SliceElementAddressKind,
+    BorrowSource, CallTarget, DirectAggregateArgument, Function, I32ComparisonOperator,
+    I32Location, I32Value, OutcomeFailureMode, ScalarArgument, SliceElementAddressKind,
     SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value,
     UsizeLocation, UsizeValue,
 };
@@ -20,6 +20,8 @@ mod control_flow;
 mod entry_validation;
 mod io_runtime;
 mod memory_stores;
+mod outcome_values;
+mod region_runtime;
 mod symbols;
 mod views;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

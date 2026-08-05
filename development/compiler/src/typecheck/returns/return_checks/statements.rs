@@ -7,8 +7,8 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => {}
@@ -64,8 +64,11 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 binding_kind_is_mutable(statement.kind),
             );
             borrow_provenance.define_binding(
-                statement.name.clone(),
-                type_contains_borrow_like(&binding_type, resolved),
+                statement.name_span,
+                type_contains_borrow_like(&binding_type, resolved)
+                    || provenance
+                        .as_ref()
+                        .is_some_and(ValueProvenance::has_storage_dependency),
                 provenance,
             );
         }
@@ -101,11 +104,16 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                     borrow_provenance,
                     summaries,
                 );
-                borrow_provenance.define_binding(
-                    identifier.name.clone(),
-                    type_contains_borrow_like(target_type, resolved),
-                    provenance,
-                );
+                if let Some(symbol) = resolved.local_symbol_for_identifier(identifier) {
+                    borrow_provenance.define_binding(
+                        symbol.name_span,
+                        type_contains_borrow_like(target_type, resolved)
+                            || provenance
+                                .as_ref()
+                                .is_some_and(ValueProvenance::has_storage_dependency),
+                        provenance,
+                    );
+                }
             }
         }
         Stmt::If(statement) => {
@@ -344,6 +352,51 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 summaries,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression_for_nested_returns(
+                sources,
+                &statement.source,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            let item_type = super::super::super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .map_or(Type::Unknown, |plan| plan.item_type);
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+        }
+        Stmt::LiteralPackFor(statement) => {
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+        }
         Stmt::Loop(statement) => {
             let mut body_environment = environment.clone();
             let mut body_borrow_provenance = borrow_provenance.clone();
@@ -357,6 +410,59 @@ pub(in crate::typecheck::returns) fn check_statement_returns(
                 &mut body_borrow_provenance,
                 summaries,
             );
+        }
+        Stmt::Region(statement) => {
+            check_expression_for_nested_returns(
+                sources,
+                &statement.allocator,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+                summaries,
+            );
+            let mut body_environment = environment.clone();
+            body_environment.define(
+                statement.name.clone(),
+                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
+            );
+            let mut body_borrow_provenance = borrow_provenance.clone();
+            body_borrow_provenance.enter_region(
+                crate::typecheck::regions::region_id(statement),
+                format!("region `{}`", statement.name),
+            );
+            body_borrow_provenance.define_binding(
+                statement.name_span,
+                true,
+                Some(ValueProvenance::region(
+                    crate::typecheck::regions::region_id(statement),
+                    format!("region `{}`", statement.name),
+                )),
+            );
+            check_block_return_statements(
+                sources,
+                &statement.body,
+                context,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                &mut body_borrow_provenance,
+                summaries,
+            );
+            let region_id = crate::typecheck::regions::region_id(statement);
+            if let Some((binding_span, description)) = borrow_provenance
+                .first_existing_binding_with_region(&body_borrow_provenance, region_id)
+            {
+                diagnostics.push(region_binding_escape_diagnostic(
+                    sources,
+                    statement.span,
+                    binding_span,
+                    description,
+                    region_id.declaration_span(),
+                ));
+            }
+            borrow_provenance.update_existing_from(&body_borrow_provenance);
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {

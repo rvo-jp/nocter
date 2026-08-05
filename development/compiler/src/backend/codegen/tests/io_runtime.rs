@@ -10,9 +10,9 @@ fn open_read_uses_open_syscall() {
             Instruction::OpenRead {
                 destination: I32Location::Return,
                 path: UsizeValue::Const(4096),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     }]);
 
@@ -152,7 +152,7 @@ fn generated_read_zero_bytes_runs() {
                 destination: UsizeLocation::Local(0),
                 fd: I32Value::Const(0),
                 buffer: SliceValue::StrBytes(StrValue::StaticBytes(Vec::new())),
-                failure_mode: FallibleFailureMode::Trap,
+                failure_mode: OutcomeFailureMode::Trap,
             },
             set_return_i32(0),
             Instruction::Return,

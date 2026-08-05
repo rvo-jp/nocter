@@ -1,13 +1,16 @@
 //! Completion candidates derived from lexical keywords and resolver symbols.
 
+mod context;
+mod members;
+
 use super::completion_recovery::completion_recovery_text;
 use super::scoped_imports::visible_scoped_import_spans_at_offset;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::visible_locals::visible_local_bindings_at_offset;
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, MemberExpr, Stmt, StructLiteralExpr,
-    SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
+    AstFile, Block, Expr, IfIsStmt, ImplMember, Item, LiteralShape, MemberExpr, MethodReceiverMode,
+    Stmt, StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, substitute_type_expr_parameters,
 };
 use crate::lexer::KEYWORD_LEXEMES;
 use crate::resolve::{
@@ -17,13 +20,26 @@ use crate::resolve::{
 };
 use crate::source::ByteSpan;
 use crate::source::SourceMap;
-use crate::typecheck::type_expr_presentation_label;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use crate::typecheck::{
+    enum_variant_member_label, field_member_label, interface_method_completion_candidates,
+    type_expr_is_aborting_allocator_capability, type_expr_presentation_label,
+    type_symbol_presentation_label,
+};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
+use context::completion_context_at_offset;
+use members::{
+    ValueMemberOwner, enum_variant_completion_items, member_completion_items,
+    struct_literal_field_completion_items,
+};
+
+const CONTEXTUAL_COMPLETION_KEYWORDS: &[&str] = &["from"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompletionItemKind {
+    Constructor,
     Function,
     Method,
     Class,
@@ -50,6 +66,8 @@ pub(crate) struct CompletionItemInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionContext<'a> {
+    LiteralShape(&'a TypeExpr),
+    RegionAllocator,
     EnumPatternMembers(&'a str),
     MemberAccess {
         owner_name: &'a str,
@@ -70,6 +88,9 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     file: &FileAnalysis,
     offset: usize,
 ) -> Vec<CompletionItemInfo> {
+    if let Some(items) = result_provenance_completion_items(&file.ast, offset) {
+        return items;
+    }
     if let Some(items) =
         contextual_completion_items(&file.ast, &file.resolved, &file.typecheck_facts, offset)
     {
@@ -89,6 +110,18 @@ pub(crate) fn completion_items_for_file_analysis_at_offset(
     items
 }
 
+pub(crate) fn literal_shape_completion_items_for_file_analysis_at_offset(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    let CompletionContext::LiteralShape(target) = completion_context_at_offset(&file.ast, offset)?
+    else {
+        return None;
+    };
+    let items = literal_shape_completion_items(&file.resolved, target);
+    (!items.is_empty()).then_some(items)
+}
+
 pub(crate) fn completion_items_for_compile_unit_at_offset(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
@@ -105,6 +138,10 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
         .map(|source| identifier_prefix_at_offset(source.text(), offset))
         .unwrap_or_default();
     for item in &mut items {
+        let is_default_construction = item
+            .sort_text
+            .as_deref()
+            .is_some_and(|sort| sort.starts_with("0-"));
         let expected_rank = if item
             .declaration_span
             .is_some_and(|span| compatible_locals.contains(&span))
@@ -114,7 +151,8 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
             1
         };
         let prefix_rank = usize::from(!prefix.is_empty() && !item.label.starts_with(prefix));
-        let locality_rank = usize::from(item.kind != CompletionItemKind::Variable);
+        let locality_rank =
+            usize::from(item.kind != CompletionItemKind::Variable && !is_default_construction);
         item.sort_text = Some(format!(
             "{prefix_rank}{locality_rank}{expected_rank}-{}",
             item.label
@@ -164,6 +202,10 @@ pub(crate) fn completion_items_for_text_at_offset(
     );
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
+    if let Some(items) = result_provenance_completion_items(&parsed.ast, offset) {
+        return Some(items);
+    }
+
     if let Some(items) = contextual_completion_items(&parsed.ast, &resolved, &facts, offset) {
         return Some(items);
     }
@@ -181,9 +223,122 @@ pub(crate) fn completion_items_for_text_at_offset(
     Some(items)
 }
 
+fn result_provenance_completion_items(
+    ast: &AstFile,
+    offset: usize,
+) -> Option<Vec<CompletionItemInfo>> {
+    for item in &ast.items {
+        match item {
+            Item::Function(function) => {
+                if clause_contains_offset(function.result_provenance.as_ref(), offset) {
+                    return Some(provenance_origin_items(
+                        None,
+                        &function.parameters.parameters,
+                    ));
+                }
+            }
+            Item::Primitive(primitive) => {
+                if clause_contains_offset(primitive.result_provenance.as_ref(), offset) {
+                    return Some(provenance_origin_items(
+                        None,
+                        &primitive.parameters.parameters,
+                    ));
+                }
+            }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    if clause_contains_offset(method.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            Some(method.receiver.mode),
+                            &method.parameters.parameters,
+                        ));
+                    }
+                }
+            }
+            Item::Impl(impl_) => {
+                for member in &impl_.members {
+                    let ImplMember::Method(method) = member else {
+                        continue;
+                    };
+                    if clause_contains_offset(method.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            Some(method.receiver.mode),
+                            &method.parameters.parameters,
+                        ));
+                    }
+                }
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    if clause_contains_offset(function.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            None,
+                            &function.parameters.parameters,
+                        ));
+                    }
+                }
+                for (_, literal) in construct.literals() {
+                    if clause_contains_offset(literal.result_provenance.as_ref(), offset) {
+                        return Some(provenance_origin_items(
+                            None,
+                            &literal.parameters.parameters,
+                        ));
+                    }
+                }
+            }
+            Item::Import(_)
+            | Item::FromImport(_)
+            | Item::TypeAlias(_)
+            | Item::Struct(_)
+            | Item::Enum(_) => {}
+        }
+    }
+    None
+}
+
+fn clause_contains_offset(
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+    offset: usize,
+) -> bool {
+    clause.is_some_and(|clause| clause.span.start <= offset && offset <= clause.span.end)
+}
+
+fn provenance_origin_items(
+    receiver: Option<MethodReceiverMode>,
+    parameters: &[crate::ast::Parameter],
+) -> Vec<CompletionItemInfo> {
+    let mut labels = Vec::new();
+    if receiver.is_some_and(|mode| mode != MethodReceiverMode::Owned) {
+        labels.push(("self".to_string(), CompletionItemKind::Variable));
+    }
+    labels.extend(
+        parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.ty, TypeExpr::Borrow(_) | TypeExpr::View(_)))
+            .map(|parameter| (parameter.name.clone(), CompletionItemKind::Variable)),
+    );
+    labels.extend([
+        ("static".to_string(), CompletionItemKind::Keyword),
+        ("current".to_string(), CompletionItemKind::Keyword),
+    ]);
+    labels
+        .into_iter()
+        .map(|(label, kind)| CompletionItemInfo {
+            insert_text: Some(label.clone()),
+            label,
+            kind,
+            detail: Some("result provenance origin".to_string()),
+            documentation: None,
+            sort_text: None,
+            declaration_span: None,
+        })
+        .collect()
+}
+
 pub(crate) fn keyword_completion_items() -> Vec<CompletionItemInfo> {
     KEYWORD_LEXEMES
         .iter()
+        .chain(CONTEXTUAL_COMPLETION_KEYWORDS.iter())
         .map(|keyword| CompletionItemInfo {
             label: (*keyword).to_string(),
             kind: CompletionItemKind::Keyword,
@@ -216,6 +371,7 @@ fn completion_items_for_resolved_symbols_excluding(
     let mut items = keyword_completion_items();
     let mut seen = KEYWORD_LEXEMES
         .iter()
+        .chain(CONTEXTUAL_COMPLETION_KEYWORDS.iter())
         .map(|keyword| (*keyword).to_string())
         .collect::<HashSet<_>>();
     seen.extend(excluded_names.iter().cloned());
@@ -344,21 +500,8 @@ fn callable_detail(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> String {
-    let generics = if signature.generic_parameters.is_empty() {
-        String::new()
-    } else {
-        format!("<{}>", signature.generic_parameters.join(", "))
-    };
-    format!(
-        "{kind} {name}{generics}({}): {}",
-        signature
-            .parameters
-            .iter()
-            .map(|parameter| parameter_detail(parameter, resolved))
-            .collect::<Vec<_>>()
-            .join(", "),
-        type_expr_presentation_label(&signature.return_type, resolved)
-    )
+    crate::analysis::presentation::callable_signature_presentation(kind, name, signature, resolved)
+        .render()
 }
 
 fn parameter_detail(parameter: &ParameterSignature, resolved: &ResolveOutput) -> String {
@@ -376,6 +519,13 @@ fn contextual_completion_items(
     offset: usize,
 ) -> Option<Vec<CompletionItemInfo>> {
     match completion_context_at_offset(ast, offset)? {
+        CompletionContext::LiteralShape(target) => {
+            let items = literal_shape_completion_items(resolved, target);
+            (!items.is_empty()).then_some(items)
+        }
+        CompletionContext::RegionAllocator => Some(region_allocator_completion_items(
+            ast, resolved, facts, offset,
+        )),
         CompletionContext::EnumPatternMembers(enum_name) => Some(
             resolved
                 .type_symbol_by_name(enum_name)
@@ -386,7 +536,7 @@ fn contextual_completion_items(
             owner_name,
             owner_span,
         } => Some(member_completion_items(
-            resolved, facts, owner_name, owner_span,
+            ast, resolved, facts, owner_name, owner_span, offset,
         )),
         CompletionContext::StructLiteralFields { literal, offset } => Some(
             struct_literal_field_completion_items(resolved, literal, offset),
@@ -394,245 +544,74 @@ fn contextual_completion_items(
     }
 }
 
-fn member_completion_items(
+fn literal_shape_completion_items(
     resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
-    owner_name: &str,
-    owner_span: ByteSpan,
+    target: &TypeExpr,
 ) -> Vec<CompletionItemInfo> {
-    if let Some(symbol) = resolved.type_symbol_by_name(owner_name) {
-        return type_member_completion_items(symbol, resolved);
-    }
-
-    let Some(owner_ty) = facts.expression_type_expr(owner_span) else {
+    let Some(owner) = literal_owner(resolved, target) else {
         return Vec::new();
     };
-    let Some(owner) = value_member_owner(resolved, owner_ty) else {
-        return Vec::new();
-    };
-    let can_readwrite = owner_type_is_readwrite(owner_ty)
-        || (!matches!(owner_ty, TypeExpr::Borrow(_))
-            && !facts.binding_is_readonly(owner_span).unwrap_or(true));
-    let can_move = !matches!(owner_ty, TypeExpr::Borrow(_));
-    value_member_completion_items(&owner, resolved, can_readwrite, can_move)
-}
-
-fn type_member_completion_items(
-    symbol: &TypeSymbol,
-    resolved: &ResolveOutput,
-) -> Vec<CompletionItemInfo> {
-    let mut items = Vec::new();
-    if symbol.kind == TypeSymbolKind::Enum {
-        items.extend(enum_variant_completion_items(symbol, resolved));
-    }
-    items.extend(
-        symbol
-            .associated_functions
-            .iter()
-            .filter(|function| function.is_accessible)
-            .map(|function| associated_function_completion_item(function, resolved)),
-    );
-    items
-}
-
-fn value_member_completion_items(
-    owner: &ValueMemberOwner<'_>,
-    resolved: &ResolveOutput,
-    can_readwrite: bool,
-    can_move: bool,
-) -> Vec<CompletionItemInfo> {
-    let mut items = Vec::new();
-    items.extend(
-        owner
-            .symbol
-            .fields
-            .iter()
-            .filter(|field| field.is_accessible)
-            .map(|field| {
-                struct_field_completion_item(field, resolved, false, &owner.substitutions)
-            }),
-    );
-    items.extend(
-        owner
-            .symbol
-            .methods
-            .iter()
-            .filter(|method| {
-                method.is_accessible
-                    && method_receiver_is_available(method, can_readwrite, can_move)
-            })
-            .map(|method| method_completion_item(method, resolved, &owner.substitutions)),
-    );
-    items
-}
-
-fn struct_literal_field_completion_items(
-    resolved: &ResolveOutput,
-    literal: &StructLiteralExpr,
-    offset: usize,
-) -> Vec<CompletionItemInfo> {
-    let Some(owner) = value_member_owner(resolved, &literal.ty) else {
-        return Vec::new();
-    };
-    let used_fields = literal
-        .fields
-        .iter()
-        .filter(|field| !span_contains(field.name_span, offset))
-        .map(|field| field.name.as_str())
-        .collect::<HashSet<_>>();
-
     owner
         .symbol
-        .fields
+        .literals
         .iter()
-        .filter(|field| field.is_accessible && !used_fields.contains(field.name.as_str()))
-        .map(|field| struct_field_completion_item(field, resolved, true, &owner.substitutions))
-        .collect()
-}
-
-fn enum_variant_completion_items(
-    symbol: &TypeSymbol,
-    resolved: &ResolveOutput,
-) -> Vec<CompletionItemInfo> {
-    symbol
-        .variants
-        .iter()
-        .map(|variant| enum_variant_completion_item(variant, resolved))
-        .collect()
-}
-
-fn enum_variant_completion_item(
-    variant: &EnumVariantSignature,
-    resolved: &ResolveOutput,
-) -> CompletionItemInfo {
-    let payload = variant
-        .payload
-        .iter()
-        .map(|parameter| parameter_detail(parameter, resolved))
-        .collect::<Vec<_>>();
-    CompletionItemInfo {
-        label: variant.name.clone(),
-        kind: CompletionItemKind::EnumMember,
-        detail: Some(if payload.is_empty() {
-            format!("variant {}", variant.name)
-        } else {
-            format!("variant {}({})", variant.name, payload.join(", "))
-        }),
-        documentation: None,
-        insert_text: Some(if payload.is_empty() {
-            variant.name.clone()
-        } else {
-            format!("{}(_)", variant.name)
-        }),
-        sort_text: None,
-        declaration_span: Some(variant.name_span),
-    }
-}
-
-fn associated_function_completion_item(
-    function: &AssociatedFunctionSignature,
-    resolved: &ResolveOutput,
-) -> CompletionItemInfo {
-    CompletionItemInfo {
-        label: function.name.clone(),
-        kind: CompletionItemKind::Function,
-        detail: Some(callable_detail(
-            "func",
-            &function.name,
-            &function.signature,
-            resolved,
-        )),
-        documentation: None,
-        insert_text: Some(format!("{}()", function.name)),
-        sort_text: None,
-        declaration_span: Some(function.name_span),
-    }
-}
-
-fn struct_field_completion_item(
-    field: &StructFieldSignature,
-    resolved: &ResolveOutput,
-    literal: bool,
-    substitutions: &HashMap<String, TypeExpr>,
-) -> CompletionItemInfo {
-    let ty = substitute_type_expr_parameters(&field.ty, substitutions);
-    CompletionItemInfo {
-        label: field.name.clone(),
-        kind: CompletionItemKind::Field,
-        detail: Some(format!(
-            "field {}: {}",
-            field.name,
-            type_expr_presentation_label(&ty, resolved)
-        )),
-        documentation: None,
-        insert_text: Some(if literal {
-            format!("{}: ", field.name)
-        } else {
-            field.name.clone()
-        }),
-        sort_text: None,
-        declaration_span: Some(field.name_span),
-    }
-}
-
-fn method_completion_item(
-    method: &MethodSignature,
-    resolved: &ResolveOutput,
-    substitutions: &HashMap<String, TypeExpr>,
-) -> CompletionItemInfo {
-    let mut substitutions = substitutions.clone();
-    if let Some(impl_target) = &method.impl_target_ty {
-        let impl_target = substitute_type_expr_parameters(impl_target, &substitutions);
-        substitutions.insert("Self".to_string(), impl_target);
-    }
-    let receiver = substitute_type_expr_parameters(&method.receiver.ty, &substitutions);
-    let return_type =
-        substitute_type_expr_parameters(&method.signature.return_type, &substitutions);
-    CompletionItemInfo {
-        label: method.name.clone(),
-        kind: CompletionItemKind::Method,
-        detail: Some(format!(
-            "method {}.{}({}): {}",
-            type_expr_presentation_label(&receiver, resolved),
-            method.name,
-            method
-                .signature
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    let ty = substitute_type_expr_parameters(&parameter.ty, &substitutions);
-                    format!(
-                        "{}: {}",
-                        parameter.name,
-                        type_expr_presentation_label(&ty, resolved)
+        .filter(|literal| literal.is_accessible)
+        .map(|literal| {
+            let label = match literal.shape {
+                LiteralShape::Sequence => "[]",
+                LiteralShape::String => "\"\"",
+            };
+            CompletionItemInfo {
+                label: label.to_string(),
+                kind: CompletionItemKind::Constructor,
+                detail: Some(
+                    crate::analysis::presentation::literal_presentation_with_substitutions(
+                        owner.symbol,
+                        literal,
+                        &owner.substitutions,
+                        resolved,
                     )
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-            type_expr_presentation_label(&return_type, resolved)
-        )),
-        documentation: None,
-        insert_text: Some(format!("{}()", method.name)),
-        sort_text: None,
-        declaration_span: Some(method.name_span),
-    }
+                    .render(),
+                ),
+                documentation: None,
+                insert_text: Some(label.to_string()),
+                sort_text: None,
+                declaration_span: Some(literal.shape_span),
+            }
+        })
+        .collect()
 }
 
-struct ValueMemberOwner<'a> {
-    symbol: &'a TypeSymbol,
-    substitutions: HashMap<String, TypeExpr>,
-}
-
-fn value_member_owner<'a>(
+fn literal_owner<'a>(
     resolved: &'a ResolveOutput,
-    ty: &TypeExpr,
+    target: &TypeExpr,
 ) -> Option<ValueMemberOwner<'a>> {
-    match ty {
+    match target {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let self_ty = if symbol.generic_parameters.is_empty() {
+                target.clone()
+            } else {
+                TypeExpr::Generic(crate::ast::GenericType {
+                    span: reference.span,
+                    name: reference.name.clone(),
+                    name_span: reference.span,
+                    arguments: symbol
+                        .generic_parameters
+                        .iter()
+                        .map(|parameter| {
+                            TypeExpr::Reference(crate::ast::TypeReference {
+                                span: reference.span,
+                                name: parameter.clone(),
+                            })
+                        })
+                        .collect(),
+                })
+            };
             Some(ValueMemberOwner {
                 symbol,
-                substitutions: HashMap::from([("Self".to_string(), ty.clone())]),
+                substitutions: HashMap::from([("Self".to_string(), self_ty)]),
             })
         }
         TypeExpr::Generic(generic) => {
@@ -643,326 +622,35 @@ fn value_member_owner<'a>(
                 .cloned()
                 .zip(generic.arguments.iter().cloned())
                 .collect::<HashMap<_, _>>();
-            substitutions.insert("Self".to_string(), ty.clone());
+            substitutions.insert("Self".to_string(), target.clone());
             Some(ValueMemberOwner {
                 symbol,
                 substitutions,
             })
         }
-        TypeExpr::Borrow(borrow) => value_member_owner(resolved, &borrow.inner),
-        TypeExpr::View(view) => value_member_owner(resolved, &view.element),
         TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
         | TypeExpr::Array(_)
         | TypeExpr::Optional(_)
         | TypeExpr::Fallible(_) => None,
     }
 }
 
-fn owner_type_is_readwrite(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Borrow(borrow) if borrow.is_readwrite)
-}
-
-fn method_receiver_is_available(
-    method: &MethodSignature,
-    can_readwrite: bool,
-    can_move: bool,
-) -> bool {
-    match &method.receiver.ty {
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => can_readwrite,
-        TypeExpr::Borrow(_) => true,
-        _ => can_move,
-    }
-}
-
-fn completion_context_at_offset(ast: &AstFile, offset: usize) -> Option<CompletionContext<'_>> {
-    ast.items
-        .iter()
-        .find_map(|item| completion_context_in_item_at_offset(item, offset))
-}
-
-fn completion_context_in_item_at_offset(
-    item: &Item,
+fn region_allocator_completion_items(
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
     offset: usize,
-) -> Option<CompletionContext<'_>> {
-    match item {
-        Item::Function(function) => completion_context_in_block_at_offset(&function.body, offset),
-        Item::Impl(impl_) => impl_.members.iter().find_map(|member| match member {
-            ImplMember::Method(method) => method
-                .body
-                .as_ref()
-                .and_then(|body| completion_context_in_block_at_offset(body, offset)),
-            ImplMember::Drop(drop_) => completion_context_in_block_at_offset(&drop_.body, offset),
-        }),
-        Item::Import(_)
-        | Item::FromImport(_)
-        | Item::Primitive(_)
-        | Item::TypeAlias(_)
-        | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
-    }
-}
-
-fn completion_context_in_block_at_offset(
-    block: &Block,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    block
-        .statements
-        .iter()
-        .find_map(|statement| completion_context_in_statement_at_offset(statement, offset))
-        .or_else(|| {
-            block
-                .result
-                .as_ref()
-                .and_then(|result| completion_context_in_expression_at_offset(result, offset))
+) -> Vec<CompletionItemInfo> {
+    local_completion_items(ast, facts, offset)
+        .into_iter()
+        .filter(|item| {
+            item.declaration_span
+                .and_then(|span| facts.binding_type_expr(span))
+                .is_some_and(|ty| type_expr_is_aborting_allocator_capability(ty, resolved))
         })
-}
-
-fn completion_context_in_statement_at_offset(
-    statement: &Stmt,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    match statement {
-        Stmt::Return(statement) => statement
-            .expression
-            .as_ref()
-            .and_then(|expression| completion_context_in_expression_at_offset(expression, offset)),
-        Stmt::Binding(statement) => {
-            completion_context_in_expression_at_offset(&statement.initializer, offset)
-        }
-        Stmt::Assignment(statement) => {
-            completion_context_in_expression_at_offset(&statement.target, offset)
-                .or_else(|| completion_context_in_expression_at_offset(&statement.value, offset))
-        }
-        Stmt::If(statement) => {
-            completion_context_in_expression_at_offset(&statement.condition, offset)
-                .or_else(|| completion_context_in_block_at_offset(&statement.then_block, offset))
-                .or_else(|| {
-                    statement
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| completion_context_in_block_at_offset(block, offset))
-                })
-        }
-        Stmt::IfIs(statement) => {
-            enum_pattern_completion_context_in_if_is_at_offset(statement, offset)
-                .or_else(|| {
-                    completion_context_in_expression_at_offset(&statement.expression, offset)
-                })
-                .or_else(|| completion_context_in_block_at_offset(&statement.then_block, offset))
-                .or_else(|| {
-                    statement
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| completion_context_in_block_at_offset(block, offset))
-                })
-        }
-        Stmt::Switch(statement) => completion_context_in_switch_at_offset(statement, offset)
-            .or_else(|| completion_context_in_expression_at_offset(&statement.expression, offset)),
-        Stmt::ForRange(statement) => {
-            completion_context_in_expression_at_offset(&statement.start, offset)
-                .or_else(|| completion_context_in_expression_at_offset(&statement.end, offset))
-                .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
-        }
-        Stmt::While(statement) => {
-            completion_context_in_expression_at_offset(&statement.condition, offset)
-                .or_else(|| completion_context_in_block_at_offset(&statement.body, offset))
-        }
-        Stmt::Loop(statement) => completion_context_in_block_at_offset(&statement.body, offset),
-        Stmt::Expression(statement) => {
-            completion_context_in_expression_at_offset(&statement.expression, offset)
-        }
-        Stmt::Import(_)
-        | Stmt::FromImport(_)
-        | Stmt::Break(_)
-        | Stmt::Continue(_)
-        | Stmt::Drop(_) => None,
-    }
-}
-
-fn completion_context_in_expression_at_offset(
-    expression: &Expr,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    match expression {
-        Expr::InterpolatedString(expression) => {
-            expression.parts.iter().find_map(|part| match part {
-                crate::ast::InterpolatedStringPart::Expression(part) => {
-                    completion_context_in_expression_at_offset(&part.expression, offset)
-                }
-                crate::ast::InterpolatedStringPart::Text(_) => None,
-            })
-        }
-        Expr::ArrayLiteral(expression) => expression
-            .elements
-            .iter()
-            .find_map(|element| completion_context_in_expression_at_offset(element, offset)),
-        Expr::StructLiteral(expression) => expression
-            .fields
-            .iter()
-            .find_map(|field| completion_context_in_expression_at_offset(&field.value, offset))
-            .or_else(|| struct_literal_field_completion_context_at_offset(expression, offset)),
-        Expr::Propagate(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-        }
-        Expr::Force(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-        }
-        Expr::Catch(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-                .or_else(|| completion_context_in_block_at_offset(&expression.catch_block, offset))
-        }
-        Expr::Borrow(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-        }
-        Expr::Unary(expression) => {
-            completion_context_in_expression_at_offset(&expression.operand, offset)
-        }
-        Expr::Binary(expression) => {
-            completion_context_in_expression_at_offset(&expression.left, offset)
-                .or_else(|| completion_context_in_expression_at_offset(&expression.right, offset))
-        }
-        Expr::TypeConversion(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-        }
-        Expr::Call(expression) => {
-            completion_context_in_expression_at_offset(&expression.callee, offset).or_else(|| {
-                expression.arguments.iter().find_map(|argument| {
-                    completion_context_in_expression_at_offset(argument, offset)
-                })
-            })
-        }
-        Expr::Member(expression) => {
-            member_completion_context_in_member_expression_at_offset(expression, offset)
-                .or_else(|| completion_context_in_expression_at_offset(&expression.object, offset))
-        }
-        Expr::Index(expression) => {
-            completion_context_in_expression_at_offset(&expression.object, offset)
-                .or_else(|| completion_context_in_expression_at_offset(&expression.index, offset))
-        }
-        Expr::Group(expression) => {
-            completion_context_in_expression_at_offset(&expression.expression, offset)
-        }
-        Expr::Otherwise(expression) => {
-            completion_context_in_expression_at_offset(&expression.value, offset)
-                .or_else(|| completion_context_in_block_at_offset(&expression.fallback, offset))
-        }
-        Expr::If(expression) => {
-            completion_context_in_expression_at_offset(&expression.condition, offset)
-                .or_else(|| completion_context_in_block_at_offset(&expression.then_block, offset))
-                .or_else(|| {
-                    expression
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| completion_context_in_block_at_offset(block, offset))
-                })
-        }
-        Expr::IfIs(expression) => {
-            enum_pattern_completion_context_in_if_is_at_offset(expression, offset)
-                .or_else(|| {
-                    completion_context_in_expression_at_offset(&expression.expression, offset)
-                })
-                .or_else(|| completion_context_in_block_at_offset(&expression.then_block, offset))
-                .or_else(|| {
-                    expression
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| completion_context_in_block_at_offset(block, offset))
-                })
-        }
-        Expr::Match(expression) => completion_context_in_switch_at_offset(expression, offset)
-            .or_else(|| completion_context_in_expression_at_offset(&expression.expression, offset)),
-        Expr::Identifier(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::ByteLiteral(_)
-        | Expr::StringLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::NoneLiteral(_) => None,
-    }
-}
-
-fn enum_pattern_completion_context_in_if_is_at_offset(
-    statement: &IfIsStmt,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    offset_in_member_completion(
-        statement.enum_name_span,
-        statement.variant_name_span,
-        offset,
-    )
-    .then_some(CompletionContext::EnumPatternMembers(
-        statement.enum_name.as_str(),
-    ))
-}
-
-fn completion_context_in_switch_at_offset(
-    statement: &SwitchStmt,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    statement
-        .arms
-        .iter()
-        .find_map(|arm| enum_pattern_completion_context_in_switch_arm_at_offset(arm, offset))
-        .or_else(|| {
-            statement
-                .arms
-                .iter()
-                .find_map(|arm| completion_context_in_block_at_offset(&arm.body, offset))
-        })
-        .or_else(|| {
-            statement
-                .wildcard_arm
-                .as_ref()
-                .and_then(|arm| completion_context_in_block_at_offset(&arm.body, offset))
-        })
-}
-
-fn enum_pattern_completion_context_in_switch_arm_at_offset(
-    arm: &SwitchArm,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    offset_in_member_completion(arm.enum_name_span, arm.variant_name_span, offset).then_some(
-        CompletionContext::EnumPatternMembers(arm.enum_name.as_str()),
-    )
-}
-
-fn member_completion_context_in_member_expression_at_offset(
-    expression: &MemberExpr,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    let Expr::Identifier(owner) = expression.object.without_groups() else {
-        return None;
-    };
-
-    offset_in_member_completion(owner.span, expression.member_span, offset).then_some(
-        CompletionContext::MemberAccess {
-            owner_name: owner.name.as_str(),
-            owner_span: owner.span,
-        },
-    )
-}
-
-fn struct_literal_field_completion_context_at_offset(
-    literal: &StructLiteralExpr,
-    offset: usize,
-) -> Option<CompletionContext<'_>> {
-    if !span_contains(literal.fields_span, offset) {
-        return None;
-    }
-    if literal
-        .fields
-        .iter()
-        .any(|field| span_contains(field.value.span(), offset))
-    {
-        return None;
-    }
-
-    Some(CompletionContext::StructLiteralFields { literal, offset })
-}
-
-fn offset_in_member_completion(owner_span: ByteSpan, member_span: ByteSpan, offset: usize) -> bool {
-    owner_span.source == member_span.source && owner_span.end < offset && offset <= member_span.end
+        .collect()
 }
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {

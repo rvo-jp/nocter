@@ -15,7 +15,13 @@ pub(super) fn lower_borrow_argument(
         unreachable!("borrow argument lowering requires a borrow parameter type");
     };
 
-    let (instructions, source) = match unwrap_group(argument) {
+    let argument = match unwrap_group(argument) {
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            unwrap_group(&unary.operand)
+        }
+        argument => argument,
+    };
+    let (instructions, source) = match argument {
         Expr::Borrow(borrow) => {
             if borrow.is_readwrite != *is_readwrite {
                 return Err(unsupported_borrow_argument_diagnostic(
@@ -35,6 +41,7 @@ pub(super) fn lower_borrow_argument(
         }
         Expr::Identifier(identifier)
             if context.borrow_parameter(&identifier.name).is_some()
+                || context.borrow_local(&identifier.name).is_some()
                 || context
                     .aggregate_borrow_parameter(&identifier.name)
                     .is_some() =>
@@ -92,7 +99,7 @@ pub(super) fn lower_implicit_receiver_borrow_argument(
     Ok((instructions, BorrowArgument { source }))
 }
 
-fn lower_borrow_source_from_expression(
+pub(in crate::ir::lower) fn lower_borrow_source_from_expression(
     expression: &Expr,
     inner: &Type,
     is_readwrite: bool,
@@ -148,23 +155,12 @@ fn lower_borrow_source_from_expression(
 fn lower_borrow_source_from_slice_index_expression(
     expression: &IndexExpr,
     inner: &Type,
-    is_readwrite: bool,
+    _is_readwrite: bool,
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
-    if !is_readwrite {
-        return lower_readonly_temporary_borrow_source(
-            &Expr::Index(expression.clone()),
-            inner,
-            parameter_type,
-            callee_name,
-            context,
-            temporaries,
-        );
-    }
-
     let element_kind = slice_index_borrow_element_kind(&expression.object, context);
     let Some(element) = slice_element_address_kind_for_borrow(element_kind, inner) else {
         return Err(unsupported_borrow_argument_diagnostic(
@@ -300,6 +296,13 @@ fn slice_element_address_kind_for_borrow(
         (TypecheckSliceElementKind::Usize, Type::Usize) => Some(SliceElementAddressKind::Usize),
         (TypecheckSliceElementKind::Bool, Type::Bool) => Some(SliceElementAddressKind::Bool),
         (TypecheckSliceElementKind::Str, Type::Str) => Some(SliceElementAddressKind::Str),
+        (
+            TypecheckSliceElementKind::Other,
+            Type::Aggregate { layout } | Type::DirectAggregate { layout, .. },
+        ) => u32::try_from(layout.size)
+            .ok()
+            .filter(|stride| *stride != 0)
+            .map(|stride| SliceElementAddressKind::Aggregate { stride }),
         _ => None,
     }
 }
@@ -323,6 +326,12 @@ fn lower_borrow_source_from_identifier(
         && (!requires_readwrite || borrow.is_readwrite)
     {
         return Ok(BorrowSource::BorrowParameter(borrow.parameter_index));
+    }
+    if let Some((location, is_readwrite, local_inner)) = context.borrow_local(identifier_name)
+        && local_inner == inner
+        && (!requires_readwrite || is_readwrite)
+    {
+        return Ok(BorrowSource::BorrowLocal(location));
     }
 
     match inner {
@@ -513,6 +522,7 @@ fn lower_readonly_temporary_borrow_source(
         Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
             let (instructions, source) = lower_aggregate_argument_source(
                 expression,
+                false,
                 inner,
                 None,
                 callee_name,
@@ -554,6 +564,10 @@ fn aggregate_field_matches_borrow_inner(kind: &AggregateFieldKind, inner: &Type)
                 layout: expected, ..
             },
         ) => layout == expected,
+        (AggregateFieldKind::Outcome { storage, .. }, Type::Aggregate { layout })
+        | (AggregateFieldKind::Outcome { storage, .. }, Type::DirectAggregate { layout, .. }) => {
+            storage.layout == *layout
+        }
         _ => false,
     }
 }
@@ -565,7 +579,7 @@ fn unsupported_borrow_argument_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower `{}` arguments from scalar local bindings for function `{callee_name}`",
+            "native lowering can only lower `{}` arguments from scalar local bindings for function `{callee_name}`",
             describe_type(parameter_type),
         ),
     )]

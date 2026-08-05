@@ -132,7 +132,7 @@ pub(in crate::ir::lower) fn aggregate_member_field_kind_from_member(
             aggregate_call_member_field_kind(call, &field_path, context)
         }
         AggregateMemberRoot::FallibleCall(call, _) => {
-            aggregate_fallible_call_member_field_kind(call, &field_path, context)
+            aggregate_outcome_call_member_field_kind(call, &field_path, context)
         }
         AggregateMemberRoot::OptionalCall(otherwise) => {
             aggregate_optional_otherwise_member_field_kind(otherwise, &field_path, context)

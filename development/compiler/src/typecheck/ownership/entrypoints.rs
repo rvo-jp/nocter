@@ -4,6 +4,7 @@ pub(in crate::typecheck) fn check_ownership_states(
     sources: &SourceMap,
     ast: &AstFile,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for item in &ast.items {
@@ -20,29 +21,110 @@ pub(in crate::typecheck) fn check_ownership_states(
                     sources,
                     &function.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
                 );
             }
             Item::Impl(impl_) => {
-                check_impl_member_ownership(sources, impl_, resolved, diagnostics);
+                check_impl_member_ownership(sources, impl_, resolved, summaries, diagnostics);
+            }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, resolved, interface);
+                    let mut ownership = OwnershipState::default();
+                    ownership.define_binding_from_environment(
+                        &method.receiver.name,
+                        method.receiver.name_span,
+                        &environment,
+                        resolved,
+                    );
+                    ownership.define_parameters(
+                        &method.parameters.parameters,
+                        &environment,
+                        resolved,
+                    );
+                    check_block_ownership(
+                        sources,
+                        body,
+                        resolved,
+                        summaries,
+                        diagnostics,
+                        &mut environment,
+                        &mut ownership,
+                    );
+                }
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    check_function_ownership(sources, function, resolved, summaries, diagnostics);
+                }
+                for (_, literal) in construct.literals() {
+                    check_literal_ownership(sources, literal, resolved, summaries, diagnostics);
+                }
             }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
+}
+
+fn check_function_ownership(
+    sources: &SourceMap,
+    function: &crate::ast::FunctionDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = environment_for_function(function, resolved);
+    let mut ownership = OwnershipState::default();
+    ownership.define_parameters(&function.parameters.parameters, &environment, resolved);
+    check_block_ownership(
+        sources,
+        &function.body,
+        resolved,
+        summaries,
+        diagnostics,
+        &mut environment,
+        &mut ownership,
+    );
+}
+
+fn check_literal_ownership(
+    sources: &SourceMap,
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = environment_for_literal(literal, resolved);
+    let mut ownership = OwnershipState::default();
+    ownership.define_parameters(&literal.parameters.parameters, &environment, resolved);
+    check_block_ownership(
+        sources,
+        &literal.body,
+        resolved,
+        summaries,
+        diagnostics,
+        &mut environment,
+        &mut ownership,
+    );
 }
 
 fn check_impl_member_ownership(
     sources: &SourceMap,
     impl_: &ImplDecl,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for member in &impl_.members {
@@ -64,6 +146,7 @@ fn check_impl_member_ownership(
                     sources,
                     body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
@@ -85,6 +168,7 @@ fn check_impl_member_ownership(
                     sources,
                     &drop_.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut environment,
                     &mut ownership,
@@ -98,20 +182,43 @@ pub(super) fn check_block_ownership(
     sources: &SourceMap,
     block: &Block,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
 ) -> FlowState {
-    let mut active_borrows: Vec<ActiveBorrow> = Vec::new();
+    check_block_ownership_with_borrows(
+        sources,
+        block,
+        resolved,
+        summaries,
+        diagnostics,
+        environment,
+        ownership,
+        Vec::new(),
+    )
+}
+
+pub(super) fn check_block_ownership_with_borrows(
+    sources: &SourceMap,
+    block: &Block,
+    resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
+    ownership: &mut OwnershipState,
+    mut active_borrows: Vec<ActiveBorrow>,
+) -> FlowState {
     for (index, statement) in block.statements.iter().enumerate() {
         active_borrows.retain(|borrow| {
-            statements_or_result_use_identifier_before_terminal(
-                &block.statements[index..],
-                block.result.as_deref(),
-                &borrow.borrow_name,
-                resolved,
-                environment,
-            )
+            borrow.scope_bound
+                || statements_or_result_use_identifier_before_terminal(
+                    &block.statements[index..],
+                    block.result.as_deref(),
+                    &borrow.borrow_name,
+                    resolved,
+                    environment,
+                )
         });
         check_statement_borrow_conflicts(
             sources,
@@ -126,6 +233,7 @@ pub(super) fn check_block_ownership(
             sources,
             statement,
             resolved,
+            summaries,
             diagnostics,
             environment,
             ownership,
@@ -136,6 +244,7 @@ pub(super) fn check_block_ownership(
             block.result.as_deref(),
             resolved,
             environment,
+            summaries,
             &mut active_borrows,
         );
         if !flow.reaches_end {
@@ -144,7 +253,8 @@ pub(super) fn check_block_ownership(
     }
     if let Some(result) = &block.result {
         active_borrows.retain(|borrow| {
-            expression_uses_identifier(result, &borrow.borrow_name, resolved, environment)
+            borrow.scope_bound
+                || expression_uses_identifier(result, &borrow.borrow_name, resolved, environment)
         });
         check_expression_borrow_conflicts(
             sources,
@@ -158,6 +268,7 @@ pub(super) fn check_block_ownership(
             sources,
             result,
             resolved,
+            summaries,
             diagnostics,
             environment,
             ownership,

@@ -88,6 +88,10 @@ impl Parser<'_> {
             return self.parse_loop_statement();
         }
 
+        if self.at_keyword(Keyword::Region) {
+            return self.parse_region_statement();
+        }
+
         if self.at_keyword(Keyword::Break) {
             return self.parse_break_statement();
         }
@@ -421,7 +425,9 @@ impl Parser<'_> {
         let name = self.expect_name_identifier("expected loop variable name after `for`")?;
         self.expect_keyword(Keyword::In, "`in`")?;
         let range_start = self.parse_expression()?;
-        let range = self.expect_punctuation("..<", "`..<`")?;
+        let Some(range) = self.match_punctuation("..<") else {
+            return self.finish_non_range_for_statement(start, name, range_start);
+        };
         let range_end = self.parse_expression()?;
         let body = self.parse_block()?;
         let end = body.span.end;
@@ -524,9 +530,15 @@ impl Parser<'_> {
 
 fn deferred_drop_target_message(kind: TokenKind) -> Option<&'static str> {
     match kind {
-        TokenKind::Punctuation(".") => Some("`drop object.field` is not part of v0"),
-        TokenKind::Punctuation("[") => Some("`drop array[index]` is not part of v0"),
-        TokenKind::Punctuation("(") => Some("`drop make_value()` is not part of v0"),
+        TokenKind::Punctuation(".") => {
+            Some("`drop object.field` is invalid; `drop` requires a binding name")
+        }
+        TokenKind::Punctuation("[") => {
+            Some("`drop array[index]` is invalid; `drop` requires a binding name")
+        }
+        TokenKind::Punctuation("(") => {
+            Some("`drop make_value()` is invalid; `drop` requires a binding name")
+        }
         _ => None,
     }
 }

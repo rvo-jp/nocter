@@ -148,6 +148,41 @@ impl Stmt {
                     statement.body.to_json_with_kind(sources, "body"),
                 ],
             ),
+            Stmt::CollectionFor(statement) => JsonAstNode::with_value(
+                "collection_for_statement",
+                statement.name.clone(),
+                json_span(sources, statement.span),
+                vec![
+                    JsonAstNode::with_value(
+                        "for_binding",
+                        statement.name.clone(),
+                        json_span(sources, statement.name_span),
+                        Vec::new(),
+                    ),
+                    statement.source.to_json(sources),
+                    statement.body.to_json_with_kind(sources, "body"),
+                ],
+            ),
+            Stmt::LiteralPackFor(statement) => JsonAstNode::with_value(
+                "literal_pack_for_statement",
+                statement.name.clone(),
+                json_span(sources, statement.span),
+                vec![
+                    JsonAstNode::with_value(
+                        "for_binding",
+                        statement.name.clone(),
+                        json_span(sources, statement.name_span),
+                        Vec::new(),
+                    ),
+                    JsonAstNode::with_value(
+                        "literal_pack_reference",
+                        statement.pack_name.clone(),
+                        json_span(sources, statement.pack_span),
+                        Vec::new(),
+                    ),
+                    statement.body.to_json_with_kind(sources, "body"),
+                ],
+            ),
             Stmt::While(statement) => JsonAstNode::new(
                 "while_statement",
                 json_span(sources, statement.span),
@@ -160,6 +195,21 @@ impl Stmt {
                 "loop_statement",
                 json_span(sources, statement.span),
                 vec![statement.body.to_json_with_kind(sources, "body")],
+            ),
+            Stmt::Region(statement) => JsonAstNode::with_value(
+                "region_statement",
+                statement.name.clone(),
+                json_span(sources, statement.span),
+                vec![
+                    JsonAstNode::with_value(
+                        "region_binding",
+                        statement.name.clone(),
+                        json_span(sources, statement.name_span),
+                        Vec::new(),
+                    ),
+                    statement.allocator.to_json(sources),
+                    statement.body.to_json_with_kind(sources, "body"),
+                ],
             ),
             Stmt::Break(statement) => JsonAstNode::new(
                 "break_statement",

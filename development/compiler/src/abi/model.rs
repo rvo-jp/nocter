@@ -24,6 +24,39 @@ pub enum AbiType {
     Array { element: Box<AbiType>, length: u64 },
     Struct(Vec<AbiField>),
     Enum(AbiEnum),
+    Outcome { layout: ValueLayout },
+}
+
+impl AbiType {
+    /// Returns whether a value of this ABI type can carry an address whose
+    /// validity depends on the caller's current stack frame.
+    pub fn contains_borrow(&self) -> bool {
+        match self {
+            Self::Borrow => true,
+            Self::Array { element, .. } => element.contains_borrow(),
+            Self::Struct(fields) => fields.iter().any(|field| field.ty.contains_borrow()),
+            Self::Enum(value) => value
+                .variants
+                .iter()
+                .filter_map(|variant| variant.payload.as_ref())
+                .any(Self::contains_borrow),
+            Self::Bool
+            | Self::U8
+            | Self::I8
+            | Self::U16
+            | Self::I16
+            | Self::U32
+            | Self::I32
+            | Self::U64
+            | Self::I64
+            | Self::Usize
+            | Self::Isize
+            | Self::Pointer
+            | Self::StrView
+            | Self::SliceView
+            | Self::Outcome { .. } => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

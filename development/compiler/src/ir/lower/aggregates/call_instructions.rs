@@ -46,16 +46,16 @@ pub(in crate::ir::lower) fn fallible_aggregate_call_instruction(
     target: CallTarget,
     arguments: Vec<ScalarArgument>,
     layout: ValueLayout,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Instruction {
     match success_type {
-        Type::Aggregate { .. } => Instruction::CallFallibleAggregate {
+        Type::Aggregate { .. } => Instruction::CallOutcomeAggregate {
             destination,
             target,
             arguments,
             failure_mode,
         },
-        Type::DirectAggregate { .. } => Instruction::CallFallibleDirectAggregate {
+        Type::DirectAggregate { .. } => Instruction::CallOutcomeDirectAggregate {
             destination,
             target,
             arguments,
@@ -73,7 +73,7 @@ pub(in crate::ir::lower) fn push_fallible_aggregate_call_instruction(
     target: CallTarget,
     arguments: Vec<ScalarArgument>,
     layout: ValueLayout,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) {
     instructions.push(fallible_aggregate_call_instruction(
         success_type,

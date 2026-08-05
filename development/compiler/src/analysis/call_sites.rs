@@ -33,13 +33,26 @@ fn call_in_item_at_offset(
                 .and_then(|body| call_in_block_at_offset(body, offset, region)),
             ImplMember::Drop(drop_) => call_in_block_at_offset(&drop_.body, offset, region),
         }),
+        Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+            method
+                .body
+                .as_ref()
+                .and_then(|body| call_in_block_at_offset(body, offset, region))
+        }),
+        Item::Construct(construct) => construct
+            .functions()
+            .find_map(|(_, function)| call_in_block_at_offset(&function.body, offset, region))
+            .or_else(|| {
+                construct
+                    .literals()
+                    .find_map(|(_, literal)| call_in_block_at_offset(&literal.body, offset, region))
+            }),
         Item::Import(_)
         | Item::FromImport(_)
         | Item::Primitive(_)
         | Item::TypeAlias(_)
         | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
+        | Item::Enum(_) => None,
     }
 }
 
@@ -113,11 +126,20 @@ fn call_in_statement_at_offset(
         Stmt::ForRange(statement) => call_in_expression_at_offset(&statement.start, offset, region)
             .or_else(|| call_in_expression_at_offset(&statement.end, offset, region))
             .or_else(|| call_in_block_at_offset(&statement.body, offset, region)),
+        Stmt::CollectionFor(statement) => {
+            call_in_expression_at_offset(&statement.source, offset, region)
+                .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
+        }
+        Stmt::LiteralPackFor(statement) => call_in_block_at_offset(&statement.body, offset, region),
         Stmt::While(statement) => {
             call_in_expression_at_offset(&statement.condition, offset, region)
                 .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
         }
         Stmt::Loop(statement) => call_in_block_at_offset(&statement.body, offset, region),
+        Stmt::Region(statement) => {
+            call_in_expression_at_offset(&statement.allocator, offset, region)
+                .or_else(|| call_in_block_at_offset(&statement.body, offset, region))
+        }
         Stmt::Expression(statement) => {
             call_in_expression_at_offset(&statement.expression, offset, region)
         }
@@ -139,6 +161,7 @@ fn call_in_expression_at_offset(
     }
 
     let nested = match expression {
+        Expr::Closure(expression) => call_in_block_at_offset(&expression.body, offset, region),
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 crate::ast::InterpolatedStringPart::Expression(part) => {
@@ -151,6 +174,19 @@ fn call_in_expression_at_offset(
             .elements
             .iter()
             .find_map(|element| call_in_expression_at_offset(element, offset, region)),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| call_in_expression_at_offset(element, offset, region))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    call_in_expression_at_offset(&using.allocator, offset, region)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| call_in_expression_at_offset(&using.allocator, offset, region)),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

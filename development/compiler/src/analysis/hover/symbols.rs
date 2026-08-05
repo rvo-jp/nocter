@@ -26,18 +26,17 @@ pub(in crate::analysis::hover) fn apply_typecheck_hover_facts(
     symbols: &mut [HoverSymbol],
 ) {
     for symbol in symbols {
-        if let Some(label) = facts.declaration_hover_label(symbol.name_span) {
-            symbol.label = label.to_string();
-            continue;
-        }
-
-        let Some(ty) = facts.binding_type_label(symbol.name_span) else {
+        let Some(ty) = facts.binding_type_label(symbol.target.declaration_span) else {
             continue;
         };
+        if symbol.label.starts_with("capture ") {
+            symbol.label = format!("{}: {ty}", symbol.label);
+            continue;
+        }
         let Some(kind) = binding_hover_label_kind(&symbol.label) else {
             continue;
         };
-        let name = source_fragment(text, symbol.name_span);
+        let name = source_fragment(text, symbol.target.focus_span);
         symbol.label = format!("{kind} {name}: {ty}");
     }
 }
@@ -49,6 +48,10 @@ pub(in crate::analysis::hover) fn binding_hover_label_kind(label: &str) -> Optio
         Some("var")
     } else if label.starts_with("parameter ") {
         Some("parameter")
+    } else if label.starts_with("catch ") {
+        Some("catch")
+    } else if label.starts_with("region ") {
+        Some("region")
     } else {
         None
     }
@@ -94,7 +97,46 @@ pub(in crate::analysis::hover) fn collect_item_hover_symbols(
                 }
             }
         }
+        Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                push_function_hover_symbol(text, function, symbols);
+                collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+                collect_block_hover_symbols(text, &function.body, symbols);
+            }
+            for (_, literal) in construct.literals() {
+                collect_literal_hover_symbols(text, literal, symbols);
+            }
+        }
     }
+}
+
+fn collect_literal_hover_symbols(
+    text: &str,
+    literal: &crate::ast::LiteralDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        literal.shape_span,
+        literal.span.start,
+        function_like_header(text, literal.span, Some(literal.body.span.start)),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, &literal.parameters.parameters, symbols);
+    if let Some(capture) = &literal.capture {
+        push_hover_symbol(
+            text,
+            capture.name_span,
+            capture.span.start,
+            format!(
+                "literal pack {}: {}",
+                capture.name,
+                source_fragment(text, capture.element_type.span())
+            ),
+            symbols,
+        );
+    }
+    collect_block_hover_symbols(text, &literal.body, symbols);
 }
 
 pub(in crate::analysis::hover) fn collect_struct_hover_symbols(
@@ -102,16 +144,25 @@ pub(in crate::analysis::hover) fn collect_struct_hover_symbols(
     struct_: &StructDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
+    let owner = generic_type_owner_name(
+        &struct_.name,
+        &struct_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>(),
+    );
     let copy_prefix = if struct_.is_copy { "copy " } else { "" };
     push_hover_symbol(
         text,
         struct_.name_span,
         struct_.span.start,
-        format!("{copy_prefix}struct {}", struct_.name),
+        format!("{copy_prefix}struct {owner}"),
         symbols,
     );
     for field in &struct_.fields {
-        push_struct_field_hover_symbol(text, field, symbols);
+        push_struct_field_hover_symbol(text, &owner, field, symbols);
     }
 }
 
@@ -120,24 +171,32 @@ pub(in crate::analysis::hover) fn collect_enum_hover_symbols(
     enum_: &EnumDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
+    let owner = generic_type_owner_name(
+        &enum_.name,
+        &enum_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect::<Vec<_>>(),
+    );
     push_hover_symbol(
         text,
         enum_.name_span,
         enum_.span.start,
-        format!("enum {}", enum_.name),
+        format!("enum {owner}"),
         symbols,
     );
     for variant in &enum_.variants {
-        let payload = if variant.payload.is_empty() {
-            String::new()
-        } else {
-            format!("({})", parameters_label(text, &variant.payload))
-        };
         push_hover_symbol(
             text,
             variant.name_span,
             variant.span.start,
-            format!("variant {}{}", variant.name, payload),
+            enum_variant_member_label(
+                &owner,
+                &variant.name,
+                &parameter_labels(text, &variant.payload),
+            ),
             symbols,
         );
         collect_parameter_hover_symbols(text, &variant.payload, symbols);
@@ -168,7 +227,7 @@ pub(in crate::analysis::hover) fn collect_drop_hover_symbols(
 ) {
     push_hover_symbol(
         text,
-        drop_.binding.name_span,
+        drop_.name_span,
         drop_.span.start,
         function_like_header(text, drop_.span, Some(drop_.body.span.start)),
         symbols,
@@ -193,7 +252,8 @@ pub(in crate::analysis::hover) fn collect_method_hover_symbols(
         ),
         symbols,
     );
-    collect_parameter_hover_symbols(text, std::slice::from_ref(&method.receiver), symbols);
+    let receiver = method.receiver.implicit_parameter();
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&receiver), symbols);
     collect_parameter_hover_symbols(text, &method.parameters.parameters, symbols);
     if let Some(body) = &method.body {
         collect_block_hover_symbols(text, body, symbols);
@@ -205,8 +265,9 @@ pub(in crate::analysis::hover) fn push_function_hover_symbol(
     function: &FunctionDecl,
     symbols: &mut Vec<HoverSymbol>,
 ) {
-    push_hover_symbol(
+    push_hover_symbol_for_declaration(
         text,
+        function.member_name_span,
         function.name_span,
         function.span.start,
         function_like_header(text, function.span, Some(function.body.span.start)),
@@ -230,6 +291,7 @@ pub(in crate::analysis::hover) fn push_primitive_hover_symbol(
 
 pub(in crate::analysis::hover) fn push_struct_field_hover_symbol(
     text: &str,
+    owner: &str,
     field: &StructField,
     symbols: &mut Vec<HoverSymbol>,
 ) {
@@ -237,11 +299,7 @@ pub(in crate::analysis::hover) fn push_struct_field_hover_symbol(
         text,
         field.name_span,
         field.span.start,
-        format!(
-            "field {}: {}",
-            field.name,
-            source_fragment(text, field.ty.span())
-        ),
+        field_member_label(owner, &field.name, source_fragment(text, field.ty.span())),
         symbols,
     );
 }
@@ -253,6 +311,7 @@ pub(in crate::analysis::hover) fn collect_parameter_hover_symbols(
 ) {
     for parameter in parameters {
         push_hover_symbol_with_attach_start(
+            parameter.name_span,
             parameter.name_span,
             parameter.span.start,
             format!(
@@ -346,11 +405,43 @@ pub(in crate::analysis::hover) fn collect_statement_hover_symbols(
             collect_expression_hover_symbols(text, &statement.end, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
+        Stmt::CollectionFor(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.source, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
         Stmt::While(statement) => {
             collect_expression_hover_symbols(text, &statement.condition, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
         Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),
+        Stmt::Region(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("region {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.allocator, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
         Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_hover_symbols(text, &statement.expression, symbols);
@@ -389,9 +480,43 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
     symbols: &mut Vec<HoverSymbol>,
 ) {
     match expression {
+        Expr::Closure(expression) => {
+            for capture in &expression.captures {
+                push_hover_symbol(
+                    text,
+                    capture.name_span,
+                    capture.span.start,
+                    format!("capture {}{}", capture.mode.source_prefix(), capture.name),
+                    symbols,
+                );
+            }
+            for parameter in &expression.parameters {
+                push_hover_symbol(
+                    text,
+                    parameter.name_span,
+                    parameter.span.start,
+                    format!("parameter {}", parameter.name),
+                    symbols,
+                );
+            }
+            collect_block_hover_symbols(text, &expression.body, symbols);
+        }
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_hover_symbols(text, element, symbols);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_hover_symbols(text, element, symbols);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_hover_symbols(text, &using.allocator, symbols);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_hover_symbols(text, &using.allocator, symbols);
             }
         }
         Expr::StructLiteral(expression) => {
@@ -407,6 +532,13 @@ pub(in crate::analysis::hover) fn collect_expression_hover_symbols(
         }
         Expr::Catch(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
+            push_hover_symbol(
+                text,
+                expression.error_span,
+                expression.catch_span.start,
+                format!("catch {}", expression.error_name),
+                symbols,
+            );
             collect_block_hover_symbols(text, &expression.catch_block, symbols);
         }
         Expr::Borrow(expression) => {
@@ -501,8 +633,27 @@ pub(in crate::analysis::hover) fn push_hover_symbol(
     label: String,
     symbols: &mut Vec<HoverSymbol>,
 ) {
-    push_hover_symbol_with_attach_start(
+    push_hover_symbol_for_declaration(
+        text,
         name_span,
+        name_span,
+        declaration_start,
+        label,
+        symbols,
+    );
+}
+
+pub(in crate::analysis::hover) fn push_hover_symbol_for_declaration(
+    text: &str,
+    focus_span: ByteSpan,
+    declaration_span: ByteSpan,
+    declaration_start: usize,
+    label: String,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol_with_attach_start(
+        focus_span,
+        declaration_span,
         declaration_line_start(text, declaration_start),
         label,
         symbols,
@@ -510,13 +661,14 @@ pub(in crate::analysis::hover) fn push_hover_symbol(
 }
 
 pub(in crate::analysis::hover) fn push_hover_symbol_with_attach_start(
-    name_span: ByteSpan,
+    focus_span: ByteSpan,
+    declaration_span: ByteSpan,
     attach_start: usize,
     label: String,
     symbols: &mut Vec<HoverSymbol>,
 ) {
     symbols.push(HoverSymbol {
-        name_span,
+        target: crate::analysis::editor_targets::SourceTarget::new(focus_span, declaration_span),
         attach_start,
         label,
     });

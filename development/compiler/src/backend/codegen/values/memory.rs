@@ -659,6 +659,9 @@ impl EntryEmitter {
         }
         if let Some(shift) = slice_element_address_shift(element) {
             self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, shift);
+        } else if let SliceElementAddressKind::Aggregate { stride } = element {
+            emit_mov_u64_to_x(&mut self.encoder, XReg::X17, u64::from(stride));
+            self.encoder.emit_mul_x(XReg::X16, XReg::X16, XReg::X17);
         }
         self.encoder.emit_adds_x(destination, XReg::X8, XReg::X16);
         Ok(())

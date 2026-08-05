@@ -1,6 +1,7 @@
 use super::{
-    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    MethodSignature, ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
+    DropSignature, EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature,
+    StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
     AstFile, FunctionDecl, GenericParamList, ImplDecl, ImplMember, InterfaceDecl, MethodDecl,
@@ -10,6 +11,7 @@ use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
 
+use super::conformance::interface_conformance;
 use super::diagnostics::duplicate_inherent_member_name_diagnostic;
 
 pub(super) fn attach_inherent_impl_members_to_symbol(
@@ -20,6 +22,17 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
     if !type_symbol_accepts_inherent_impl(symbol) {
         return;
     }
+
+    symbol
+        .interface_conformances
+        .extend(ast.items.iter().filter_map(|item| {
+            let crate::ast::Item::Impl(impl_) = item else {
+                return None;
+            };
+            (impl_target_type_name(&impl_.target_ty) == Some(type_name))
+                .then(|| interface_conformance(impl_))
+                .flatten()
+        }));
 
     symbol
         .associated_functions
@@ -62,12 +75,18 @@ pub(super) fn top_level_associated_function_signatures<'a>(
     ast: &'a AstFile,
     type_name: &'a str,
 ) -> impl Iterator<Item = AssociatedFunctionSignature> + 'a {
-    ast.items.iter().filter_map(move |item| {
-        let crate::ast::Item::Function(function) = item else {
-            return None;
+    ast.items.iter().flat_map(move |item| {
+        let functions: Box<dyn Iterator<Item = &FunctionDecl>> = match item {
+            crate::ast::Item::Function(function) => Box::new(std::iter::once(function)),
+            crate::ast::Item::Construct(construct) => {
+                Box::new(construct.functions().map(|(_, function)| function))
+            }
+            _ => Box::new(std::iter::empty()),
         };
-        let owner = function.owner.as_ref()?;
-        (owner.name == type_name).then(|| associated_function_signature(function))
+        functions.filter_map(move |function| {
+            let owner = function.owner.as_ref()?;
+            (owner.name == type_name).then(|| associated_function_signature(function))
+        })
     })
 }
 
@@ -95,7 +114,7 @@ pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
     let target_name = impl_target_type_name(&impl_.target_ty)?;
     impl_.members.iter().find_map(|member| match member {
         ImplMember::Drop(drop_) => Some(DropSignature {
-            name_span: drop_name_span(drop_.span),
+            name_span: drop_.name_span,
             target_name: drop_function_name(target_name),
             binding: parameter_signature(&drop_.binding),
         }),
@@ -167,7 +186,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
             target_name,
             "drop",
             existing.name_span,
-            drop_name_span(drop_.span),
+            drop_.name_span,
         ));
     }
 
@@ -176,6 +195,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
 
 pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => Some(&reference.name),
         TypeExpr::Generic(generic) => Some(&generic.name),
         TypeExpr::Pointer(_)
@@ -191,15 +211,12 @@ pub(crate) fn drop_function_name(type_name: &str) -> String {
     format!("{type_name}.drop")
 }
 
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
-}
-
 pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
     callable_signature(
         &function.generics,
         &function.parameters.parameters,
         function.return_type.clone(),
+        function.result_provenance.clone(),
     )
 }
 
@@ -208,6 +225,7 @@ pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignatur
         &primitive.generics,
         &primitive.parameters.parameters,
         primitive.return_type.clone(),
+        primitive.result_provenance.clone(),
     )
 }
 
@@ -221,6 +239,12 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: alias
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         generic_arity: alias.generics.parameters.len(),
         is_copy: false,
         alias_target: Some(alias.target.clone()),
@@ -228,7 +252,10 @@ pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
+        construction: ConstructionSurface::default(),
     }
 }
 
@@ -242,6 +269,12 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: interface
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         generic_arity: interface.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
@@ -253,7 +286,10 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
             .iter()
             .map(|method| method_signature_inner(method, None, &interface.generics))
             .collect(),
+        interface_conformances: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
+        construction: ConstructionSurface::default(),
     }
 }
 
@@ -271,6 +307,12 @@ pub(super) fn struct_type_symbol(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: struct_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         generic_arity: struct_.generics.parameters.len(),
         is_copy,
         alias_target: None,
@@ -287,7 +329,20 @@ pub(super) fn struct_type_symbol(
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
+        construction: {
+            let mut surface = ConstructionSurface::default();
+            surface.entries.push(ConstructionEntry {
+                kind: ConstructionEntryKind::Structural,
+                declaration_span: struct_.span,
+                focus_span: struct_.name_span,
+                is_accessible: true,
+            });
+            surface.default_entry = Some(0);
+            surface
+        },
     }
 }
 
@@ -300,6 +355,12 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .parameters
             .iter()
             .map(|parameter| parameter.name.clone())
+            .collect(),
+        generic_parameter_bounds: enum_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
             .collect(),
         generic_arity: enum_.generics.parameters.len(),
         is_copy: false,
@@ -316,7 +377,23 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
             .collect(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        interface_conformances: Vec::new(),
         drop_member: None,
+        literals: Vec::new(),
+        construction: ConstructionSurface {
+            declaration_span: None,
+            entries: enum_
+                .variants
+                .iter()
+                .map(|variant| ConstructionEntry {
+                    kind: ConstructionEntryKind::Variant(variant.name.clone()),
+                    declaration_span: variant.span,
+                    focus_span: variant.name_span,
+                    is_accessible: true,
+                })
+                .collect(),
+            default_entry: None,
+        },
     }
 }
 
@@ -329,18 +406,48 @@ fn method_signature_inner(
     impl_target_ty: Option<TypeExpr>,
     generics: &GenericParamList,
 ) -> MethodSignature {
+    let has_default_body = method.body.is_some() && impl_target_ty.is_none();
     MethodSignature {
         name: method.name.clone(),
         name_span: method.name_span,
         visibility: method.visibility,
         is_accessible: true,
         impl_target_ty,
-        receiver: parameter_signature(&method.receiver),
-        signature: callable_signature(
+        has_default_body,
+        receiver: method.receiver.clone(),
+        signature: method_callable_signature(
             generics,
+            &method.generics,
             &method.parameters.parameters,
             method.return_type.clone(),
+            method.result_provenance.clone(),
         ),
+    }
+}
+
+fn method_callable_signature(
+    owner_generics: &GenericParamList,
+    method_generics: &GenericParamList,
+    parameters: &[Parameter],
+    return_type: TypeExpr,
+    result_provenance: Option<crate::ast::ResultProvenanceClause>,
+) -> FunctionSignature {
+    FunctionSignature {
+        generic_parameters: owner_generics
+            .parameters
+            .iter()
+            .chain(&method_generics.parameters)
+            .map(|parameter| parameter.name.clone())
+            .collect(),
+        generic_parameter_bounds: owner_generics
+            .parameters
+            .iter()
+            .chain(&method_generics.parameters)
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
+        parameters: parameters.iter().map(parameter_signature).collect(),
+        return_type,
+        result_provenance,
     }
 }
 
@@ -348,6 +455,7 @@ fn callable_signature(
     generics: &GenericParamList,
     parameters: &[Parameter],
     return_type: TypeExpr,
+    result_provenance: Option<crate::ast::ResultProvenanceClause>,
 ) -> FunctionSignature {
     FunctionSignature {
         generic_parameters: generics
@@ -355,8 +463,14 @@ fn callable_signature(
             .iter()
             .map(|parameter| parameter.name.clone())
             .collect(),
+        generic_parameter_bounds: generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.bounds.clone())
+            .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
+        result_provenance,
     }
 }
 

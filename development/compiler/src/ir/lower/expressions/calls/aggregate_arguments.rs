@@ -1,5 +1,227 @@
 use super::*;
 
+pub(super) fn lower_tracked_closure_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    _callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Expr::Closure(closure) = unwrap_group(argument) else {
+        return Ok(None);
+    };
+    let Some(parameter_type_expr @ TypeExpr::Closure(_)) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let slot_index = temporaries.next_aggregate_slot();
+    evaluation.sync_temporaries(temporaries)?;
+    let instructions = crate::ir::lower::closures::lower_closure_to_slot(
+        closure,
+        parameter_type_expr,
+        slot_index,
+        evaluation.context(),
+        temporaries,
+    )?;
+    let actual_layout = evaluation
+        .context()
+        .abi_value_for_type_expr(parameter_type_expr)
+        .map(|value| value.layout);
+    if actual_layout != Some(expected_layout) {
+        return Err(vec![Diagnostic::error(
+            "E8015",
+            "closure argument layout does not match its specialized callable parameter",
+        )]);
+    }
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
+pub(super) fn lower_tracked_spread_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    _callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Some(spread) = crate::typecheck::sequence_spread(argument) else {
+        return Ok(None);
+    };
+    let Some(plan) = evaluation.context().sequence_spread_plan(spread.span) else {
+        return Err(spread_argument_diagnostic("semantic plan is unavailable"));
+    };
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Err(spread_argument_diagnostic(
+            "iterator parameter type is unavailable",
+        ));
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let drop_kind = evaluation
+        .context()
+        .aggregate_drop_for_type_expr(parameter_type_expr);
+    let slot_index = temporaries.next_aggregate_slot();
+    evaluation.sync_temporaries(temporaries)?;
+    if let Some(drop_kind) = drop_kind.clone()
+        && !evaluation.complete_temporary(slot_index, expected_layout, drop_kind)
+    {
+        return Err(spread_argument_diagnostic(
+            "iterator temporary drop state conflicts",
+        ));
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    match plan.source_mode {
+        crate::typecheck::TypecheckCollectionForSourceMode::Direct => {
+            let Some((_root_source, resolved)) = evaluation.context().resolved_calls() else {
+                return Err(spread_argument_diagnostic(
+                    "resolution facts are unavailable",
+                ));
+            };
+            let iterator_ir = evaluation
+                .context()
+                .ir_type_for_type_expr(&plan.iterator_type)
+                .ok_or_else(|| {
+                    spread_argument_diagnostic("direct iterator IR type is unavailable")
+                })?;
+            instructions.extend(lower_aggregate_return_expression_to_location(
+                &spread.operand,
+                &iterator_ir,
+                AggregateLocation::Slot(slot_index),
+                evaluation.context().function_name(),
+                resolved,
+                evaluation.context(),
+            )?);
+        }
+        crate::typecheck::TypecheckCollectionForSourceMode::ReadonlyConversion
+        | crate::typecheck::TypecheckCollectionForSourceMode::OwnedConversion => {
+            let conversion = plan
+                .conversion
+                .as_ref()
+                .ok_or_else(|| spread_argument_diagnostic("conversion plan is unavailable"))?;
+            let target = evaluation
+                .context()
+                .iteration_method_target(conversion)
+                .ok_or_else(|| spread_argument_diagnostic("conversion target is unavailable"))?;
+            let return_type = evaluation
+                .context()
+                .call_return_type(&target)
+                .cloned()
+                .ok_or_else(|| spread_argument_diagnostic("conversion ABI is unavailable"))?;
+            let receiver = match plan.mode {
+                crate::typecheck::TypecheckSequenceSpreadMode::Copy => Expr::Borrow(BorrowExpr {
+                    span: spread.operand.span(),
+                    operator_span: spread.operator_span,
+                    is_readwrite: false,
+                    expression: spread.operand.clone(),
+                }),
+                crate::typecheck::TypecheckSequenceSpreadMode::Readonly
+                | crate::typecheck::TypecheckSequenceSpreadMode::Move => (*spread.operand).clone(),
+            };
+            let call = crate::ir::lower::collection_for::synthetic_call(
+                spread.span,
+                &conversion.target_name,
+                vec![receiver],
+            );
+            let parameter_types = vec![crate::ir::lower::collection_for::receiver_parameter_type(
+                conversion,
+                spread.span,
+            )];
+            let (argument_instructions, arguments) = lower_call_arguments_with_explicit_types(
+                &call,
+                &target,
+                &conversion.target_name,
+                evaluation.context(),
+                temporaries,
+                Some(&parameter_types),
+            )?;
+            instructions.extend(argument_instructions);
+            push_aggregate_call_instruction(
+                &mut instructions,
+                &return_type,
+                AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                expected_layout,
+            );
+        }
+    }
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
+fn spread_argument_diagnostic(detail: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8014",
+        format!("IR cannot prepare sequence spread: {detail}"),
+    )]
+}
+
+pub(super) fn lower_tracked_interpolation_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    parameter_type_expr: Option<&TypeExpr>,
+    callee_name: &str,
+    evaluation: &mut CallEvaluationContext<'_, '_>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<(Vec<Instruction>, AggregateArgumentSource)>, Vec<Diagnostic>> {
+    let Expr::InterpolatedString(interpolated) = unwrap_group(argument) else {
+        return Ok(None);
+    };
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let Some(parameter_type_expr) = parameter_type_expr else {
+        return Ok(None);
+    };
+    let Some(drop_kind) = evaluation
+        .context()
+        .aggregate_drop_for_type_expr(parameter_type_expr)
+    else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let slot_index = temporaries.next_aggregate_slot();
+    evaluation.sync_temporaries(temporaries)?;
+    if !evaluation.complete_temporary(slot_index, expected_layout, drop_kind) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(
+        crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+            interpolated,
+            slot_index,
+            evaluation.context(),
+        )?,
+    );
+    Ok(Some((
+        instructions,
+        AggregateArgumentSource::Slot(slot_index),
+    )))
+}
+
 pub(super) fn lower_tracked_payload_argument_source(
     argument: &Expr,
     parameter_type: &Type,
@@ -288,16 +510,43 @@ pub(super) fn lower_tracked_array_argument_source(
 
 pub(super) fn lower_aggregate_argument_source(
     argument: &Expr,
+    is_owned_method_receiver: bool,
     parameter_type: &Type,
     parameter_type_expr: Option<&TypeExpr>,
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    if crate::typecheck::sequence_spread(argument).is_some() {
+        return Err(spread_argument_diagnostic(
+            "spread argument bypassed its planned iterator lowering",
+        ));
+    }
     let expected_layout = match parameter_type {
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
     };
+    if matches!(
+        unwrap_group(argument),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        let slot_index = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+                argument,
+                AggregateLocation::Slot(slot_index),
+                context,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_argument_diagnostic(callee_name, parameter_type)
+            })?,
+        );
+        return Ok((instructions, AggregateArgumentSource::Slot(slot_index)));
+    }
     if let Some(source) = lower_payload_enum_constructor_argument_source(
         argument,
         parameter_type,
@@ -313,7 +562,11 @@ pub(super) fn lower_aggregate_argument_source(
     match unwrap_group(argument) {
         Expr::Identifier(identifier) => lower_aggregate_local_argument_source(
             &identifier.name,
-            AggregateValueUse::ImplicitCopy,
+            if is_owned_method_receiver {
+                AggregateValueUse::ExplicitMove
+            } else {
+                AggregateValueUse::ImplicitCopy
+            },
             expected_layout,
             parameter_type,
             callee_name,
@@ -440,7 +693,7 @@ pub(super) fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
             )
         }
         Expr::Force(force) => {
@@ -456,7 +709,7 @@ pub(super) fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {
@@ -740,7 +993,7 @@ fn lower_aggregate_fallible_call_argument_source(
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_argument_diagnostic(
@@ -748,19 +1001,22 @@ fn lower_aggregate_fallible_call_argument_source(
             parameter_type,
         ));
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         ));
     };
-    if success_type.as_ref() != parameter_type {
+    if success_type != parameter_type {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
         ));
     }
-    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(success_type) else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -773,7 +1029,7 @@ fn lower_aggregate_fallible_call_argument_source(
     instructions.extend(call_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        success_type,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,
@@ -790,7 +1046,7 @@ fn unsupported_aggregate_argument_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower `{}` arguments for function `{callee_name}` from supported aggregate locals, struct literals, or aggregate calls",
+            "native lowering can only lower `{}` arguments for function `{callee_name}` from supported aggregate locals, struct literals, or aggregate calls",
             describe_type(parameter_type),
         ),
     )]

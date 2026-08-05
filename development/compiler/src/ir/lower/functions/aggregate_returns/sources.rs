@@ -63,15 +63,18 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_fallible_call_return_to_l
     destination: AggregateLocation,
     function_name: &str,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    if success_type.as_ref() != return_type {
+    if success_type != return_type {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
     validate_aggregate_call_success_return_passing(&target, return_type, function_name, context)?;

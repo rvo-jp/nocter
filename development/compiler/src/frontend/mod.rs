@@ -16,6 +16,7 @@ use crate::resolve::{ImportSource, ImportSourceMap, PreludeSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use crate::target::primitive::validate_primitive_declaration;
+use crate::target::trusted::trusted_declarations_for_module;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
@@ -64,6 +65,7 @@ pub(crate) fn load_compile_unit(
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
+    let mut trusted_declarations = crate::semantics::TrustedDeclarationFacts::default();
 
     for (path, source) in sources.sources_with_absolute_paths() {
         loaded_sources_by_path.insert(path.to_path_buf(), source);
@@ -95,6 +97,12 @@ pub(crate) fn load_compile_unit(
             options,
             &mut resolved_nocter_home,
         ));
+
+        if let Some(module_path) =
+            trusted_module_path(sources, source, options, &mut resolved_nocter_home)
+        {
+            trusted_declarations.extend(trusted_declarations_for_module(&module_path, &ast));
+        }
 
         if should_load_prelude(sources, source, options, &mut resolved_nocter_home) {
             let path = standard_prelude_path(source);
@@ -226,13 +234,43 @@ pub(crate) fn load_compile_unit(
         .and_then(|home| home.as_ref().ok())
         .map(|home| canonicalize_existing(home));
 
+    let trusted_modules = files
+        .iter()
+        .filter_map(|ast| {
+            trusted_module_path(sources, ast.span.source, options, &mut resolved_nocter_home)
+                .map(|path| (path, ast))
+        })
+        .collect();
+    crate::target::trusted_interpolation::attach_interpolation_runtime(
+        &trusted_modules,
+        &mut trusted_declarations,
+    );
+    crate::target::trusted_iteration::attach_iteration_runtime(
+        &trusted_modules,
+        &mut trusted_declarations,
+    );
     Ok(CompileUnit::new(
         root_ast,
         files,
         import_sources,
         prelude_sources,
         nocter_home,
-    ))
+    )
+    .with_trusted_declarations(trusted_declarations))
+}
+
+fn trusted_module_path(
+    sources: &SourceMap,
+    source: SourceId,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Option<String> {
+    let home = active_nocter_home(options, resolved_nocter_home).ok()?;
+    let source_path = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))?;
+    primitive_module_path(&source_path, &home, &options.target)
 }
 
 fn active_source_root(

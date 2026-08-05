@@ -346,6 +346,10 @@ fn slice_element_address_shift(element: SliceElementAddressKind) -> Option<u32> 
         SliceElementAddressKind::I32 => Some(2),
         SliceElementAddressKind::Usize => Some(3),
         SliceElementAddressKind::Str => Some(4),
+        SliceElementAddressKind::Aggregate { stride } if stride.is_power_of_two() => {
+            Some(stride.trailing_zeros())
+        }
+        SliceElementAddressKind::Aggregate { .. } => None,
     }
 }
 
@@ -368,7 +372,7 @@ fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {
         XReg::X15 => Some(WReg::W15),
         XReg::X16 => Some(WReg::W16),
         XReg::X17 => Some(WReg::W17),
-        XReg::X8 | XReg::X19 | XReg::X30 => None,
+        XReg::X8 | XReg::X19 | XReg::X20 | XReg::X21 | XReg::X22 | XReg::X23 | XReg::X30 => None,
     }
 }
 

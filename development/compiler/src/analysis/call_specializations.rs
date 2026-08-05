@@ -1,3 +1,4 @@
+use super::literal_specializations::{LiteralSpecialization, collect_literal_specializations};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, TypeExpr,
@@ -5,14 +6,17 @@ use crate::ast::{
 };
 use crate::source::ByteSpan;
 use crate::typecheck::{
-    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
+    CallableCallSpecialization, DropTypeSpecialization, FunctionCallSpecialization,
+    MethodCallSpecialization,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) struct CallSpecializations {
     pub(crate) functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>>,
+    pub(crate) callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
     pub(crate) methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>>,
     pub(crate) drops: HashMap<ByteSpan, Vec<DropSpecialization>>,
+    pub(crate) literals: HashMap<ByteSpan, Vec<LiteralSpecialization>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,9 +29,11 @@ pub(crate) struct DropSpecialization {
 
 pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> CallSpecializations {
     let mut functions: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
+    let mut callables: HashMap<ByteSpan, Vec<CallableCallSpecialization>> = HashMap::new();
     let mut methods: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
     let mut drops: HashMap<ByteSpan, Vec<DropSpecialization>> = HashMap::new();
     let mut queue = VecDeque::new();
+    let literals = collect_literal_specializations(analysis);
 
     for file in &analysis.files {
         for specialization in file.typecheck_facts.function_call_specializations() {
@@ -42,6 +48,40 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 queue.push_back(PendingCallSpecialization::Method(specialization));
             }
         }
+        for (_, fact) in file.typecheck_facts.callable_call_entries() {
+            if let Some(specialization) = fact
+                .specialization
+                .with_context_substitutions(&HashMap::new())
+            {
+                queue.push_back(PendingCallSpecialization::Callable(specialization));
+            }
+        }
+        for (_, plan) in file.typecheck_facts.collection_for_plans() {
+            for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                else {
+                    continue;
+                };
+                if let Some(specialization) =
+                    specialization.with_context_substitutions(&HashMap::new())
+                {
+                    queue.push_back(PendingCallSpecialization::Method(specialization));
+                }
+            }
+        }
+        for (_, plan) in file.typecheck_facts.sequence_spread_plans() {
+            for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
+                let Some(specialization) = iteration_method_call_specialization(analysis, method)
+                else {
+                    continue;
+                };
+                if let Some(specialization) =
+                    specialization.with_context_substitutions(&HashMap::new())
+                {
+                    queue.push_back(PendingCallSpecialization::Method(specialization));
+                }
+            }
+        }
         for specialization in file.typecheck_facts.drop_type_specializations() {
             if let Some(specialization) = specialization.with_context_substitutions(&HashMap::new())
                 && let Some(specialization) =
@@ -49,6 +89,24 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
             {
                 queue.push_back(PendingCallSpecialization::Drop(specialization));
             }
+        }
+        for (_, ty) in file.typecheck_facts.binding_type_expr_entries() {
+            enqueue_drop_dependencies_for_type(analysis, file, ty, &mut queue);
+        }
+    }
+
+    for specializations in literals.values() {
+        for specialization in specializations {
+            let Some(file) = analysis.file_by_source(specialization.declaration_span.source) else {
+                continue;
+            };
+            enqueue_call_specializations_from_span(
+                analysis,
+                file,
+                specialization.declaration_span,
+                &specialization.substitutions,
+                &mut queue,
+            );
         }
     }
 
@@ -72,6 +130,8 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 );
             }
             PendingCallSpecialization::Method(specialization) => {
+                let specialization =
+                    redirect_interface_method_specialization(analysis, specialization);
                 if !insert_method_specialization(&mut methods, specialization.clone()) {
                     continue;
                 }
@@ -83,8 +143,14 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                 if method.body.is_none() {
                     continue;
                 }
-                let context_substitutions =
-                    method_specialization_context_substitutions(impl_, &specialization);
+                let context_substitutions = impl_.map_or_else(
+                    || {
+                        let mut substitutions = specialization.substitutions.clone();
+                        substitutions.insert("Self".to_string(), specialization.self_ty.clone());
+                        substitutions
+                    },
+                    |impl_| method_specialization_context_substitutions(impl_, &specialization),
+                );
                 enqueue_call_specializations_from_span(
                     analysis,
                     file,
@@ -92,6 +158,9 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
                     &context_substitutions,
                     &mut queue,
                 );
+            }
+            PendingCallSpecialization::Callable(specialization) => {
+                insert_callable_specialization(&mut callables, specialization);
             }
             PendingCallSpecialization::Drop(specialization) => {
                 if !insert_drop_specialization(&mut drops, specialization.clone()) {
@@ -115,15 +184,94 @@ pub(crate) fn collect_call_specializations(analysis: &CompileUnitAnalysis) -> Ca
 
     CallSpecializations {
         functions,
+        callables,
         methods,
         drops,
+        literals,
     }
+}
+
+fn redirect_interface_method_specialization(
+    analysis: &CompileUnitAnalysis,
+    mut specialization: MethodCallSpecialization,
+) -> MethodCallSpecialization {
+    let Some((interface_name, method_name)) =
+        interface_method_identity_for_span(analysis, specialization.declaration_span)
+    else {
+        return specialization;
+    };
+    if matches!(specialization.self_ty, TypeExpr::Closure(_)) {
+        return specialization;
+    }
+    let Some(file) = analysis
+        .file_by_source(specialization.self_ty.span().source)
+        .or_else(|| analysis.root_file())
+    else {
+        return specialization;
+    };
+    let Some(actual_method) = crate::typecheck::implementation_for_interface_type_expr(
+        &specialization.self_ty,
+        interface_name,
+        method_name,
+        &file.resolved,
+    ) else {
+        return specialization;
+    };
+    specialization.declaration_span = actual_method.name_span;
+    if let Some((_file, Some(impl_), _method)) =
+        method_declaration_for_span(analysis, actual_method.name_span)
+        && let Some(impl_substitutions) =
+            impl_substitutions_for_self_ty(impl_, &specialization.self_ty)
+    {
+        specialization.substitutions.extend(impl_substitutions);
+    }
+    specialization
+}
+
+fn interface_method_identity_for_span(
+    analysis: &CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<(&str, &str)> {
+    analysis.files.iter().find_map(|file| {
+        file.resolved.symbols.symbols().find_map(|symbol| {
+            let crate::resolve::SymbolKind::Type(interface) = &symbol.kind else {
+                return None;
+            };
+            if interface.kind != crate::resolve::TypeSymbolKind::Interface {
+                return None;
+            }
+            interface
+                .methods
+                .iter()
+                .find(|method| method.name_span == declaration_span)
+                .map(|method| (interface.canonical_name.as_str(), method.name.as_str()))
+        })
+    })
 }
 
 enum PendingCallSpecialization {
     Function(FunctionCallSpecialization),
+    Callable(CallableCallSpecialization),
     Method(MethodCallSpecialization),
     Drop(DropSpecialization),
+}
+
+fn insert_callable_specialization(
+    specializations: &mut HashMap<ByteSpan, Vec<CallableCallSpecialization>>,
+    specialization: CallableCallSpecialization,
+) -> bool {
+    let entries = specializations
+        .entry(specialization.callable_ty.span())
+        .or_default();
+    if entries.iter().any(|entry| {
+        entry.target_name == specialization.target_name
+            && entry.callable_ty == specialization.callable_ty
+            && entry.capability == specialization.capability
+    }) {
+        return false;
+    }
+    entries.push(specialization);
+    true
 }
 
 fn insert_function_specialization(
@@ -186,6 +334,13 @@ fn enqueue_call_specializations_from_span(
     context_substitutions: &HashMap<String, TypeExpr>,
     queue: &mut VecDeque<PendingCallSpecialization>,
 ) {
+    for (binding_span, ty) in file.typecheck_facts.binding_type_expr_entries() {
+        if !span_contains(span, binding_span) {
+            continue;
+        }
+        let ty = substitute_type_expr_parameters(ty, context_substitutions);
+        enqueue_drop_dependencies_for_type(analysis, file, &ty, queue);
+    }
     for (call_span, specialization) in file.typecheck_facts.function_call_specialization_entries() {
         if !span_contains(span, call_span) {
             continue;
@@ -206,6 +361,17 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Method(specialization));
         }
     }
+    for (call_span, fact) in file.typecheck_facts.callable_call_entries() {
+        if !span_contains(span, call_span) {
+            continue;
+        }
+        if let Some(specialization) = fact
+            .specialization
+            .with_context_substitutions(context_substitutions)
+        {
+            queue.push_back(PendingCallSpecialization::Callable(specialization));
+        }
+    }
     for specialization in file.typecheck_facts.drop_type_specializations() {
         if !span_contains(span, specialization.self_ty.span()) {
             continue;
@@ -218,6 +384,76 @@ fn enqueue_call_specializations_from_span(
             queue.push_back(PendingCallSpecialization::Drop(specialization));
         }
     }
+    for (statement_span, plan) in file.typecheck_facts.collection_for_plans() {
+        if !span_contains(span, *statement_span) {
+            continue;
+        }
+        for method in plan.conversion.iter().chain(std::iter::once(&plan.step)) {
+            let Some(specialization) = iteration_method_call_specialization(analysis, method)
+            else {
+                continue;
+            };
+            if let Some(specialization) =
+                specialization.with_context_substitutions(context_substitutions)
+            {
+                queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+    }
+    for (spread_span, plan) in file.typecheck_facts.sequence_spread_plans() {
+        if !span_contains(span, *spread_span) {
+            continue;
+        }
+        for method in plan.conversion.iter().chain([&plan.exact_size, &plan.step]) {
+            let Some(specialization) = iteration_method_call_specialization(analysis, method)
+            else {
+                continue;
+            };
+            if let Some(specialization) =
+                specialization.with_context_substitutions(context_substitutions)
+            {
+                queue.push_back(PendingCallSpecialization::Method(specialization));
+            }
+        }
+    }
+}
+
+fn enqueue_drop_dependencies_for_type(
+    analysis: &CompileUnitAnalysis,
+    fallback_file: &FileAnalysis,
+    ty: &TypeExpr,
+    queue: &mut VecDeque<PendingCallSpecialization>,
+) {
+    for specialization in
+        super::drop_dependencies::concrete_drop_dependencies(analysis, fallback_file, ty)
+    {
+        if let Some(specialization) =
+            drop_specialization_from_typecheck_fact(analysis, specialization)
+        {
+            queue.push_back(PendingCallSpecialization::Drop(specialization));
+        }
+    }
+}
+
+fn iteration_method_call_specialization(
+    analysis: &CompileUnitAnalysis,
+    method: &crate::typecheck::TypecheckIterationMethod,
+) -> Option<MethodCallSpecialization> {
+    let Some((_file, Some(impl_), _declaration)) =
+        method_declaration_for_span(analysis, method.declaration_span)
+    else {
+        return interface_method_identity_for_span(analysis, method.declaration_span)
+            .is_some()
+            .then(|| method.as_method_call_specialization(Vec::new(), HashMap::new()));
+    };
+    let substitutions = impl_substitutions_for_self_ty(impl_, &method.self_ty)?;
+    let generic_parameters = impl_
+        .generics
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name.clone())
+        .collect();
+    Some(method.as_method_call_specialization(generic_parameters, substitutions))
 }
 
 fn function_declaration_for_span(
@@ -226,12 +462,21 @@ fn function_declaration_for_span(
 ) -> Option<(&FileAnalysis, &FunctionDecl)> {
     analysis.files.iter().find_map(|file| {
         file.ast.items.iter().find_map(|item| {
-            let Item::Function(function) = item else {
-                return None;
-            };
-            (function.name_span == declaration_span
-                || function.member_name_span == declaration_span)
-                .then_some((file, function))
+            let function = match item {
+                Item::Function(function)
+                    if function.name_span == declaration_span
+                        || function.member_name_span == declaration_span =>
+                {
+                    Some(function)
+                }
+                Item::Construct(construct) => construct.functions().find_map(|(_, function)| {
+                    (function.name_span == declaration_span
+                        || function.member_name_span == declaration_span)
+                        .then_some(function)
+                }),
+                _ => None,
+            }?;
+            Some((file, function))
         })
     })
 }
@@ -239,18 +484,19 @@ fn function_declaration_for_span(
 fn method_declaration_for_span(
     analysis: &CompileUnitAnalysis,
     declaration_span: ByteSpan,
-) -> Option<(&FileAnalysis, &ImplDecl, &MethodDecl)> {
+) -> Option<(&FileAnalysis, Option<&ImplDecl>, &MethodDecl)> {
     analysis.files.iter().find_map(|file| {
-        file.ast.items.iter().find_map(|item| {
-            let Item::Impl(impl_) = item else {
-                return None;
-            };
-            impl_.members.iter().find_map(|member| {
+        file.ast.items.iter().find_map(|item| match item {
+            Item::Impl(impl_) => impl_.members.iter().find_map(|member| {
                 let ImplMember::Method(method) = member else {
                     return None;
                 };
-                (method.name_span == declaration_span).then_some((file, impl_, method))
-            })
+                (method.name_span == declaration_span).then_some((file, Some(impl_), method))
+            }),
+            Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+                (method.name_span == declaration_span).then_some((file, None, method))
+            }),
+            _ => None,
         })
     })
 }
@@ -268,7 +514,7 @@ fn drop_declaration_for_span(
                 let ImplMember::Drop(drop_) = member else {
                     return None;
                 };
-                (drop_name_span(drop_.span) == declaration_span).then_some((file, impl_, drop_))
+                (drop_.name_span == declaration_span).then_some((file, impl_, drop_))
             })
         })
     })
@@ -327,6 +573,34 @@ fn infer_impl_substitutions(
     substitutions: &mut HashMap<String, TypeExpr>,
 ) -> bool {
     match expected {
+        TypeExpr::Callable(expected) => {
+            let TypeExpr::Callable(actual) = actual else {
+                return false;
+            };
+            expected.capability == actual.capability
+                && expected.parameters.len() == actual.parameters.len()
+                && expected
+                    .parameters
+                    .iter()
+                    .zip(&actual.parameters)
+                    .all(|(expected, actual)| {
+                        infer_impl_substitutions(
+                            &expected.ty,
+                            &actual.ty,
+                            generic_parameters,
+                            substitutions,
+                        )
+                    })
+                && infer_impl_substitutions(
+                    &expected.return_type,
+                    &actual.return_type,
+                    generic_parameters,
+                    substitutions,
+                )
+        }
+        TypeExpr::Closure(expected) => {
+            matches!(actual, TypeExpr::Closure(actual) if expected.span == actual.span)
+        }
         TypeExpr::Reference(reference) if generic_parameters.contains(&reference.name) => {
             insert_impl_substitution(&reference.name, actual, substitutions)
         }
@@ -472,8 +746,4 @@ fn short_type_name(name: &str) -> &str {
 
 fn span_contains(outer: ByteSpan, inner: ByteSpan) -> bool {
     outer.source == inner.source && outer.start <= inner.start && inner.end <= outer.end
-}
-
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }

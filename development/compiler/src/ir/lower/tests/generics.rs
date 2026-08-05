@@ -443,6 +443,112 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_interface_bound_method_call_to_concrete_static_target() {
+    let ir = lower_text(
+        r#"interface Extract<T> {
+    pub method self.into_value(): T
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<T> Extract<T> for Box<T> {
+    method self.into_value(): T {
+        return self.value
+    }
+}
+
+func forward<B: Extract<T>, T>(box: B): T {
+    return (move box).into_value()
+}
+
+func main(): i32 {
+    let box = Box<i32> { value: 42 }
+    return forward(move box)
+}
+"#,
+    );
+
+    let forward_target = CallTarget::same_file("forward<Box<i32>, i32>");
+    let method_target = CallTarget::same_file("Box<i32>.into_value");
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.target == forward_target)
+        .expect("expected specialized bounded function");
+
+    assert!(
+        forward.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall { target, .. } if target == &method_target
+            )
+        }),
+        "{forward:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == method_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
+fn lowers_non_generic_interface_bound_method_call_to_concrete_static_target() {
+    let ir = lower_text(
+        r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count {
+    value: i32
+}
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+
+func read<T: Measure>(value: &T): i32 {
+    return value.measure()
+}
+
+func main(): i32 {
+    let count = Count { value: 42 }
+    return read(&count)
+}
+"#,
+    );
+
+    let read_target = CallTarget::same_file("read<Count>");
+    let method_target = CallTarget::same_file("Count.measure");
+    let read = ir
+        .functions
+        .iter()
+        .find(|function| function.target == read_target)
+        .expect("expected specialized bounded function");
+
+    assert!(
+        read.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallI32 { target, .. } if target == &method_target
+            )
+        }),
+        "{read:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == method_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_generic_impl_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {

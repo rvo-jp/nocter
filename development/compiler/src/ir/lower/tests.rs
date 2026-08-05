@@ -6,8 +6,8 @@ use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolComparisonOperator,
     BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument, BorrowSource, CallTarget,
-    DirectAggregateArgument, FallibleFailureMode, Function, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, IrModule, ScalarArgument, SliceElementAddressKind, SliceElementIndex,
+    DirectAggregateArgument, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    IrModule, OutcomeFailureMode, ScalarArgument, SliceElementAddressKind, SliceElementIndex,
     SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
     UsizeValue,
 };
@@ -30,11 +30,13 @@ mod diagnostics;
 mod drops;
 mod generics;
 mod imports;
+mod interpolation;
 mod optional_fallible;
 mod payload_enum_fields;
 mod payload_enums;
 mod scalars;
 mod slices_strings_pointers;
+mod typed_literals;
 
 fn lower_text(text: &str) -> IrModule {
     let diagnostics = lower_text_diagnostics(text);
@@ -49,6 +51,29 @@ fn lower_text(text: &str) -> IrModule {
 
 fn lower_text_with_std_error(text: &str) -> IrModule {
     lower_text_with_nocter_home_files(text, &[std_error_file()])
+}
+
+fn lower_text_with_development_home(text: &str) -> IrModule {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("app.nct", None, text);
+    let nocter_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("compiler crate should live below the development root")
+        .to_path_buf();
+    let unit: CompileUnit = load_compile_unit(
+        &mut sources,
+        source,
+        &FrontendOptions {
+            nocter_home: Some(nocter_home),
+            source_root: None,
+            target: DEFAULT_TARGET.to_string(),
+        },
+    )
+    .unwrap();
+    let analysis = analyze_executable_compile_unit(&sources, &unit);
+    let diagnostics = analysis.diagnostics();
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    lower_executable(&analysis, &sources).unwrap()
 }
 
 fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {
@@ -294,13 +319,13 @@ fn assert_contains_fallible_direct_aggregate_catch_call(
     expected_destination: AggregateLocation,
     expected_target: &str,
 ) {
-    let Some(Instruction::CallFallibleDirectAggregate {
+    let Some(Instruction::CallOutcomeDirectAggregate {
         destination,
         target,
         arguments,
         layout,
         failure_mode:
-            FallibleFailureMode::Catch {
+            OutcomeFailureMode::Catch {
                 code,
                 message,
                 instructions,
@@ -308,8 +333,8 @@ fn assert_contains_fallible_direct_aggregate_catch_call(
     }) = function.instructions.iter().find(|instruction| {
         matches!(
             instruction,
-            Instruction::CallFallibleDirectAggregate {
-                failure_mode: FallibleFailureMode::Catch { .. },
+            Instruction::CallOutcomeDirectAggregate {
+                failure_mode: OutcomeFailureMode::Catch { .. },
                 ..
             }
         )

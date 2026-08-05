@@ -3,6 +3,8 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
+mod iteration;
+
 #[test]
 fn decodes_file_uri_percent_encoding() {
     assert_eq!(
@@ -58,6 +60,77 @@ fn handles_initialize_request() {
 }
 
 #[test]
+fn unsupported_request_reports_the_compiler_version() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "nocter/unsupported"
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    let response = response_with_id(&messages, 2);
+
+    assert_eq!(response["error"]["code"], json!(-32601));
+    assert_eq!(
+        response["error"]["message"],
+        json!(format!(
+            "method `nocter/unsupported` is not supported by Nocter LSP v{}",
+            crate::driver::VERSION
+        ))
+    );
+}
+
+#[test]
+fn rejects_invalid_text_document_request_params_and_keeps_serving() {
+    let uri = "file:///tmp/nocter-invalid-request-params.nct";
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "textDocument/hover",
+        "params": { "textDocument": { "uri": uri } }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "textDocument/documentSymbol",
+        "params": { "position": { "line": 0, "character": 0 } }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 4, "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": "invalid" }
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 5, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+
+    for id in [2, 3, 4] {
+        let response = response_with_id(&messages, id);
+        assert_eq!(response["error"]["code"], json!(-32602), "{response:#?}");
+    }
+    assert_eq!(response_with_id(&messages, 5)["result"], Value::Null);
+}
+
+#[test]
 fn returns_specialized_signature_help_for_imported_generic_call() {
     let project = TempProject::new("lsp-signature-help-generic-import");
     let home = project.write_nocter_home();
@@ -108,6 +181,360 @@ pub func identity<T>(value: T): T {
 }
 
 #[test]
+fn returns_builtin_callable_signature_help_for_direct_invocation() {
+    let project = TempProject::new("lsp-signature-help-builtin-callable");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"func invoke<F: &+func(value: i32): i32>(callback: F, input: i32): i32 {
+    var callable = move callback
+    return callable(input)
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        text,
+        text.rfind("input)").expect("expected callable argument"),
+    );
+
+    let response = server.signature_help_response(
+        json!(2),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("&+func callable(value: i32): i32")
+    );
+    assert_eq!(response["result"]["activeParameter"], json!(0));
+}
+
+#[test]
+fn typed_literal_signature_help_reports_the_specialized_element_pack() {
+    let project = TempProject::new("lsp-typed-literal-signature-help");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Bucket<T> { length: usize }
+
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
+}
+
+func main(): i32 {
+    let values = Bucket [20, 22]
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
+
+    let response = server.signature_help_response(
+        json!(2),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["signatures"][0]["label"],
+        json!("literal Bucket<i32> [](...items: i32): Bucket<i32>")
+    );
+    assert_eq!(
+        response["result"]["signatures"][0]["parameters"][0]["label"],
+        json!("...items: i32")
+    );
+}
+
+#[test]
+fn typed_literal_hover_reports_the_resolved_definition() {
+    let project = TempProject::new("lsp-typed-literal-hover");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Text { value: &str }
+
+construct Text {
+    /// Copies text into an owned value.
+    pub default literal ""(text: &str): Self from text {
+        return Text { value: text }
+    }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
+
+    let response = server.hover_response(
+        json!(3),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let markdown = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover markdown");
+
+    assert!(markdown.contains("literal Text \"\"(text: &str): Text from text"));
+    assert!(markdown.contains("Copies text into an owned value."));
+}
+
+#[test]
+fn typed_literal_shape_completion_recovers_a_missing_delimiter() {
+    let project = TempProject::new("lsp-typed-literal-shape-completion");
+    let home = project.write_nocter_home();
+    std::fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> { length: usize }
+
+construct Vec<T> {
+    pub default literal [](...items: T): Self {
+        return Vec<T> { length: items.len() }
+    }
+}
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let text = concat!(
+        "use std/vec.Vec\n\nfunc main(): i32 {\n    let values: Vec<i32> = Vec",
+        " \n",
+        "    return 0\n}\n"
+    );
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(4),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let shape = completion_item_with_label(items, "[]").expect("expected sequence shape");
+
+    assert_eq!(shape["kind"], json!(LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR));
+    assert_eq!(shape["insertText"], json!("[]"));
+    assert_eq!(
+        shape["detail"],
+        json!("literal Vec<T> [](...items: T): Vec<T>")
+    );
+}
+
+#[test]
+fn incomplete_typed_literal_keeps_expected_element_completion_ranking() {
+    let project = TempProject::new("lsp-incomplete-typed-literal-element-completion");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Bucket<T> { length: usize }
+
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
+}
+
+func main(candidate: i32, text: &str): i32 {
+    let values: Bucket<i32> = Bucket [
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(5),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let items = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let candidate = completion_item_with_label(items, "candidate").expect("expected i32 local");
+    let text_item = completion_item_with_label(items, "text").expect("expected str local");
+
+    assert!(
+        candidate["sortText"].as_str() < text_item["sortText"].as_str(),
+        "expected the compatible element candidate to rank first: {items:#?}"
+    );
+}
+
+#[test]
+fn hover_recovers_an_unclosed_typed_literal_declaration_body() {
+    let project = TempProject::new("lsp-incomplete-typed-literal-declaration-hover");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"struct Text { value: &str }
+
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
+
+    let response = server.hover_response(
+        json!(6),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert!(
+        response["result"]["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| value.contains("literal Text \"\"(text: &str): Text")),
+        "expected recovered literal declaration hover: {response:#?}"
+    );
+}
+
+#[test]
+fn associated_function_declaration_hover_selects_only_the_member_name() {
+    let text =
+        "struct File { fd: i32 }\n\nfunc File.open(): Self {\n    return File { fd: 1 }\n}\n";
+    let uri = "file:///tmp/nocter-associated-hover.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let response = server.hover_response(
+        json!(6),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 2, "character": 12 }
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!("```nocter\nfunc File.open(): File\n```")
+    );
+    assert_eq!(response["result"]["range"]["start"]["character"], json!(10));
+    assert_eq!(response["result"]["range"]["end"]["character"], json!(14));
+}
+
+#[test]
+fn drop_declaration_editor_features_share_the_keyword_range() {
+    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n    }\n}\n";
+    let uri = "file:///tmp/nocter-drop-editor-identity.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let hover = server.hover_response(
+        json!(7),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 3, "character": 5 }
+        })),
+    );
+    assert_eq!(
+        hover["result"]["contents"]["value"],
+        json!("```nocter\ndrop &+self\n```")
+    );
+    assert_eq!(hover["result"]["range"]["start"]["character"], json!(4));
+    assert_eq!(hover["result"]["range"]["end"]["character"], json!(8));
+
+    let symbols =
+        server.document_symbol_response(json!(8), Some(&json!({ "textDocument": { "uri": uri } })));
+    let drop_symbol = &symbols["result"][1]["children"][0];
+    assert_eq!(drop_symbol["name"], json!("drop"));
+    assert_eq!(
+        drop_symbol["selectionRange"]["start"]["character"],
+        json!(4)
+    );
+    assert_eq!(drop_symbol["selectionRange"]["end"]["character"], json!(8));
+}
+
+#[test]
 fn initializes_with_semantic_token_legend() {
     let response = initialize_response(json!(1));
     let legend = response["result"]["capabilities"]["semanticTokensProvider"]["legend"]
@@ -122,7 +549,8 @@ fn initializes_with_semantic_token_legend() {
             "variable",
             "parameter",
             "type",
-            "property"
+            "property",
+            "namespace"
         ])
     );
     assert_eq!(legend["tokenModifiers"], json!(["declaration", "readonly"]));
@@ -277,6 +705,41 @@ fn classifies_builtin_types_and_methods_for_semantic_tokens() {
         }),
         "expected method call name to be classified as a method"
     );
+
+    let receiver = classified_identifier_starting_at(
+        &identifiers,
+        text.find("self.read").expect("expected method receiver"),
+    )
+    .expect("expected method receiver token");
+    assert_eq!(receiver.kind, SemanticTokenKind::Parameter);
+}
+
+#[test]
+fn classifies_an_import_module_path_as_one_namespace_token() {
+    let project = TempProject::new("lsp-semantic-import-path");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    std::fs::write(
+        home.join("std/error.nct"),
+        "pub struct Error { code: i32 }\n",
+    )
+    .unwrap();
+    let text = "use std/error.Error\n";
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let documents = HashMap::from([(uri.clone(), document)]);
+    let workspace =
+        workspace_analysis_for_uri(&uri, &documents).expect("expected workspace analysis");
+    let file = workspace.root_file().expect("expected analyzed file");
+    let identifiers = classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
+
+    let path = classified_identifier_with_lexeme(text, &identifiers, "std/error");
+    assert_eq!(path.len(), 1);
+    assert_eq!(path[0].kind, SemanticTokenKind::Namespace);
+    let imported = classified_identifier_with_lexeme(text, &identifiers, "Error");
+    assert_eq!(imported.len(), 1);
+    assert_eq!(imported[0].kind, SemanticTokenKind::Type);
 }
 
 #[test]
@@ -649,7 +1112,9 @@ fn returns_documented_hover_for_type_reference() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Header\n```\n\nRequest header.")
+        json!(
+            "```nocter\nstruct Header\n```\n\nRequest header.\n\n**Construction**\n\n- `default Header { code: i32 }`"
+        )
     );
     assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
     assert_eq!(response["result"]["range"]["start"]["character"], json!(20));
@@ -857,6 +1322,147 @@ fn returns_inferred_hover_for_integer_binding() {
 }
 
 #[test]
+fn returns_region_context_in_workspace_hover() {
+    let project = TempProject::new("lsp-hover-region-context");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"copy struct Arena {
+    id: usize
+}
+
+func run(arena: Arena): i32 {
+    region outer using arena {
+        region inner using outer {
+            return 1
+        }
+    }
+    return 0
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let position = byte_offset_to_lsp_position(
+        text,
+        text.rfind("outer").expect("expected region reference"),
+    );
+
+    let response = server.hover_response(
+        json!(7),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nregion outer: Arena\n```\n\n**Allocation context:** lexical region `outer` using `arena` (Arena); parent is the root allocation context. Its owned allocations are released when the region exits."
+        )
+    );
+
+    let definition = server.definition_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(5));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(11));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(16));
+}
+
+#[test]
+fn region_using_completion_recovers_header_and_filters_allocator_policy() {
+    let project = TempProject::new("lsp-region-using-completion");
+    let home = project.write_nocter_home();
+    write_allocator_capability_std(&home);
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/mem.{Allocator, TryAllocator}
+
+func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
+    region temp using
+}
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("using\n").expect("expected using") + "using".len();
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.completion_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+    let labels = response["result"]["items"]
+        .as_array()
+        .expect("expected completion items")
+        .iter()
+        .filter_map(|item| item["label"].as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(labels, vec!["parent"]);
+}
+
+#[test]
+fn region_hover_recovers_unclosed_body_without_losing_binding_facts() {
+    let project = TempProject::new("lsp-region-unclosed-hover");
+    let home = project.write_nocter_home();
+    write_allocator_capability_std(&home);
+    let _home = NocterHomeEnv::set(&home);
+    let text = r#"use std/mem.Allocator
+
+func run(parent: Allocator): void {
+    region temp using parent {
+        let value = 1
+"#;
+    let app = project.write_source("app.nct", text);
+    let uri = file_uri(&app);
+    let document = open_document(uri.clone(), Some(1), text.to_string());
+    let server = LspServer {
+        documents: HashMap::from([(uri.clone(), document)]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let offset = text.find("temp using").expect("expected region binding");
+    let position = byte_offset_to_lsp_position(text, offset);
+
+    let response = server.hover_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": uri },
+            "position": position
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nregion temp: Allocator\n```\n\n**Allocation context:** lexical region `temp` using `parent` (Allocator); parent is the root allocation context. Its owned allocations are released when the region exits."
+        )
+    );
+}
+
+#[test]
 fn returns_short_visible_type_names_for_hover() {
     let project = TempProject::new("lsp-hover-short-type-names");
     let home = project.write_nocter_home();
@@ -916,7 +1522,7 @@ fn returns_short_visible_type_names_for_hover() {
 
     assert_eq!(
         field_declaration["result"]["contents"]["value"],
-        json!("```nocter\nfield field3: String\n```")
+        json!("```nocter\nfield TestStruct.field3: String\n```")
     );
     assert_eq!(
         field_reference["result"]["contents"]["value"],
@@ -925,6 +1531,129 @@ fn returns_short_visible_type_names_for_hover() {
     assert_eq!(
         inferred_binding["result"]["contents"]["value"],
         json!("```nocter\nlet result: String\n```")
+    );
+}
+
+#[test]
+fn cyclic_standard_reexport_interface_hover_uses_visible_name() {
+    let project = TempProject::new("lsp-hover-cyclic-standard-reexport");
+    let home = project.write_nocter_home();
+    let core_text = r#"use std/vec.Vec
+
+pub struct Node<T> { value: T }
+
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+"#;
+    let core_source = home.join("std/iter/core.nct");
+    std::fs::create_dir_all(core_source.parent().unwrap()).unwrap();
+    std::fs::write(&core_source, core_text).unwrap();
+    std::fs::write(
+        home.join("std/iter.nct"),
+        "pub use std/iter/core.Iterable\n",
+    )
+    .unwrap();
+    std::fs::write(
+        home.join("std/vec.nct"),
+        r#"use std/iter.Iterable
+
+pub struct Vec<T> { value: T }
+"#,
+    )
+    .unwrap();
+    let _home = NocterHomeEnv::set(&home);
+    let core_uri = file_uri(&core_source);
+    let server = LspServer {
+        documents: HashMap::from([(
+            core_uri.clone(),
+            open_document(core_uri.clone(), Some(1), core_text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
+        .expect("expected workspace analysis");
+    let file = workspace
+        .root_file()
+        .expect("expected analyzed core module");
+    let identifiers =
+        classified_identifiers_for_file_analysis(server.documents.get(&core_uri).unwrap(), file);
+    let non_name_offsets = [
+        core_text.find("pub interface").unwrap(),
+        core_text.find("interface Iterable").unwrap(),
+        core_text.find("Iterable<T, I> {").unwrap() + "Iterable<T, I> ".len(),
+        core_text.find("pub struct").unwrap(),
+        core_text.find("struct Node").unwrap(),
+        core_text.find("Node<T> {").unwrap() + "Node<T> ".len(),
+    ];
+    for offset in non_name_offsets {
+        assert!(
+            identifiers.iter().all(|identifier| {
+                offset < identifier.start_byte || offset >= identifier.end_byte
+            })
+        );
+    }
+    let core_offset = core_text.find("interface Iterable").unwrap() + "interface ".len();
+    let core_response = server.hover_response(
+        json!(12),
+        Some(&json!({
+            "textDocument": { "uri": core_uri },
+            "position": byte_offset_to_lsp_position(core_text, core_offset)
+        })),
+    );
+    assert_eq!(
+        core_response["result"]["contents"]["value"],
+        json!("```nocter\ninterface Iterable<T, I>\n```")
+    );
+    assert_eq!(
+        core_response["result"]["range"]["start"],
+        json!(byte_offset_to_lsp_position(core_text, core_offset))
+    );
+    assert_eq!(
+        core_response["result"]["range"]["end"],
+        json!(byte_offset_to_lsp_position(
+            core_text,
+            core_offset + "Iterable".len()
+        ))
+    );
+
+    for offset in non_name_offsets {
+        let response = server.hover_response(
+            json!(13),
+            Some(&json!({
+                "textDocument": { "uri": core_uri },
+                "position": byte_offset_to_lsp_position(core_text, offset)
+            })),
+        );
+        assert_eq!(response["result"], Value::Null);
+    }
+
+    let struct_offset = core_text.find("Node<T>").unwrap();
+    let struct_response = server.hover_response(
+        json!(14),
+        Some(&json!({
+            "textDocument": { "uri": core_uri },
+            "position": byte_offset_to_lsp_position(core_text, struct_offset)
+        })),
+    );
+    assert_eq!(
+        struct_response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nstruct Node<T>\n```\n\n**Construction**\n\n- `default Node<T> { value: T }`"
+        )
+    );
+    assert_eq!(
+        struct_response["result"]["range"]["start"],
+        json!(byte_offset_to_lsp_position(core_text, struct_offset))
+    );
+    assert_eq!(
+        struct_response["result"]["range"]["end"],
+        json!(byte_offset_to_lsp_position(
+            core_text,
+            struct_offset + "Node".len()
+        ))
     );
 }
 
@@ -1240,10 +1969,81 @@ fn returns_documented_hover_for_imported_type_reference() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Config\n```\n\nRuntime configuration.")
+        json!(
+            "```nocter\nstruct Config\n```\n\nRuntime configuration.\n\n**Construction**\n\n- `default Config { value: i32 }`"
+        )
     );
     assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
     assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
+}
+
+#[test]
+fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
+    let project = TempProject::new("lsp-hover-imported-type-site");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let error_module = home.join("std/error.nct");
+    std::fs::write(
+        &error_module,
+        "/// A recoverable failure.\npub struct Error {\n    code: i32\n}\n",
+    )
+    .unwrap();
+    let error_uri = file_uri(&error_module.canonicalize().unwrap());
+    let text = "use std/error.Error\n";
+    let app = project.write_source("app.nct", text);
+    let app_uri = file_uri(&app);
+    let server = LspServer {
+        documents: HashMap::from([(
+            app_uri.clone(),
+            open_document(app_uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let response = server.hover_response(
+        json!(8),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 0, "character": 16 }
+        })),
+    );
+
+    assert_eq!(
+        response["result"]["contents"]["value"],
+        json!(
+            "```nocter\nstruct Error\n```\n\nA recoverable failure.\n\n**Construction**\n\nNo direct construction entry is available here."
+        )
+    );
+    assert_eq!(response["result"]["range"]["start"]["character"], json!(14));
+    assert_eq!(response["result"]["range"]["end"]["character"], json!(19));
+
+    let definition = server.definition_response(
+        json!(9),
+        Some(&json!({
+            "textDocument": { "uri": app_uri },
+            "position": { "line": 0, "character": 16 }
+        })),
+    );
+    let definition = definition_link(&definition);
+    assert_eq!(definition["targetUri"], json!(error_uri));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(14)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(19)
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["line"],
+        json!(1)
+    );
+    assert_eq!(
+        definition["targetSelectionRange"]["start"]["character"],
+        json!(11)
+    );
 }
 
 #[test]
@@ -1275,9 +2075,10 @@ fn returns_definition_for_resolved_function_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(4));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(4));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(5));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(11));
 }
 
 #[test]
@@ -1308,9 +2109,10 @@ fn returns_definition_for_local_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(12));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(1));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(8));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(12));
 }
 
 #[test]
@@ -1404,10 +2206,11 @@ fn returns_definition_for_imported_function_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(config_uri));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(config_uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(9));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(15));
 }
 
 #[test]
@@ -1450,10 +2253,11 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(config_uri));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(config_uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(9));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(15));
 }
 
 #[test]
@@ -1682,11 +2486,20 @@ fn returns_definition_for_import_module_path() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&io)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(0));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(4)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(10)
+    );
 }
 
 #[test]
@@ -1726,11 +2539,20 @@ fn returns_definition_for_block_import_module_path() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&io)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(0));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(8)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["end"]["character"],
+        json!(14)
+    );
 }
 
 #[test]
@@ -1783,10 +2605,11 @@ fn returns_definition_for_imported_type_reference() {
         })),
     );
 
-    assert_eq!(response["result"]["uri"], json!(file_uri(&config)));
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(17));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetUri"], json!(file_uri(&config)));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(0));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(11));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(17));
 }
 
 #[test]
@@ -1820,9 +2643,10 @@ fn returns_definition_for_method_call() {
         })),
     );
 
-    assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
-    assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
-    assert_eq!(response["result"]["range"]["end"]["character"], json!(20));
+    let definition = definition_link(&response);
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(5));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(16));
+    assert_eq!(definition["targetRange"]["end"]["character"], json!(20));
 }
 
 #[test]
@@ -1868,6 +2692,69 @@ fn returns_document_symbols_for_top_level_declarations() {
     );
     assert_eq!(symbols[2]["name"], json!("main"));
     assert_eq!(symbols[2]["kind"], json!(LSP_SYMBOL_KIND_FUNCTION));
+}
+
+#[test]
+fn document_features_recover_an_unclosed_member_body() {
+    let text = "struct Token { value: i32 }\n\nimpl Token {\n    drop &+self {\n        return\n";
+    let uri = "file:///tmp/nocter-unclosed-document-features.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+
+    let symbols = server
+        .document_symbol_response(json!(11), Some(&json!({ "textDocument": { "uri": uri } })));
+    let drop_symbol = &symbols["result"][1]["children"][0];
+    assert_eq!(drop_symbol["name"], json!("drop"));
+    assert_eq!(drop_symbol["selectionRange"]["start"]["line"], json!(3));
+    assert_eq!(
+        drop_symbol["selectionRange"]["start"]["character"],
+        json!(4)
+    );
+
+    let semantic = server
+        .semantic_tokens_response(json!(12), Some(&json!({ "textDocument": { "uri": uri } })));
+    assert!(
+        semantic["result"]["data"]
+            .as_array()
+            .is_some_and(|data| !data.is_empty()),
+        "expected recovered semantic tokens: {semantic:#?}"
+    );
+}
+
+#[test]
+fn navigation_recovers_an_unclosed_function_body() {
+    let text = "func main(): i32 {\n    let code = 0\n    return code + code\n";
+    let uri = "file:///tmp/nocter-unclosed-navigation.nct".to_string();
+    let server = LspServer {
+        documents: HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]),
+        published_diagnostic_uris: HashSet::new(),
+        workspace_roots: Vec::new(),
+        shutdown_requested: false,
+    };
+    let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
+    let params = json!({
+        "textDocument": { "uri": uri },
+        "position": reference,
+        "context": { "includeDeclaration": true }
+    });
+
+    let definition = server.definition_response(json!(13), Some(&params));
+    let link = definition_link(&definition);
+    assert_eq!(link["targetSelectionRange"]["start"]["line"], json!(1));
+    assert_eq!(link["targetSelectionRange"]["start"]["character"], json!(8));
+
+    let references = server.references_response(json!(14), Some(&params));
+    assert_eq!(references["result"].as_array().map(Vec::len), Some(3));
 }
 
 #[test]
@@ -2046,8 +2933,10 @@ struct File {
 fd: i32
 }
 
-func File.open(): File {
+construct File {
+pub default func open(): Self {
 return File { fd: 1 }
+}
 }
 
 func main(): i32 {
@@ -2087,6 +2976,10 @@ return file.fd
         Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
     );
     assert_eq!(
+        completion_item_with_label(variant_items, "yes").and_then(|item| item["detail"].as_str()),
+        Some("variant Choice.yes")
+    );
+    assert_eq!(
         completion_item_with_label(variant_items, "no").and_then(|item| item["kind"].as_u64()),
         Some(LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER as u64)
     );
@@ -2117,9 +3010,9 @@ return file.fd
 
     assert_eq!(
         open_item["kind"].as_u64(),
-        Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        Some(LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR as u64)
     );
-    assert_eq!(open_item["detail"].as_str(), Some("func open(): File"));
+    assert_eq!(open_item["detail"].as_str(), Some("func File.open(): File"));
     assert_eq!(open_item["insertText"].as_str(), Some("open()"));
     assert!(completion_item_with_label(function_items, "File").is_none());
 }
@@ -2176,7 +3069,7 @@ return file.fd
         fd_item["kind"].as_u64(),
         Some(LSP_COMPLETION_ITEM_KIND_FIELD as u64)
     );
-    assert_eq!(fd_item["detail"].as_str(), Some("field fd: i32"));
+    assert_eq!(fd_item["detail"].as_str(), Some("field File.fd: i32"));
     assert_eq!(fd_item["insertText"].as_str(), Some("fd"));
     assert_eq!(
         describe_item["kind"].as_u64(),
@@ -3371,7 +4264,7 @@ fn json_rpc_uses_one_open_overlay_for_diagnostics_definition_and_references() {
         .as_array()
         .unwrap();
 
-    assert_eq!(definition["result"]["uri"], json!(library_uri));
+    assert_eq!(definition_link(definition)["targetUri"], json!(library_uri));
     assert!(
         references
             .iter()
@@ -3424,6 +4317,13 @@ fn completion_item_with_label<'a>(items: &'a [Value], label: &str) -> Option<&'a
     items
         .iter()
         .find(|item| item.get("label").and_then(Value::as_str) == Some(label))
+}
+
+fn definition_link(response: &Value) -> &Value {
+    response["result"]
+        .as_array()
+        .and_then(|links| links.first())
+        .expect("expected a definition location link")
 }
 
 fn classified_identifier_with_lexeme<'a>(
@@ -3517,6 +4417,23 @@ impl TempProject {
         std::fs::write(home.join("std/prelude.nct"), "").unwrap();
         home
     }
+}
+
+fn write_allocator_capability_std(home: &Path) {
+    std::fs::write(
+        home.join("std/mem.nct"),
+        r#"pub struct Allocator {
+    state: usize
+    kind: usize
+}
+
+pub struct TryAllocator {
+    state: usize
+    kind: usize
+}
+"#,
+    )
+    .unwrap();
 }
 
 impl Drop for TempProject {

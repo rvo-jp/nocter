@@ -80,7 +80,7 @@ fn lower_aggregate_otherwise_value_failure_mode(
     resolved: &ResolveOutput,
     context: &LoweringContext,
     value: &AbiValue,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
     let local_mark = fallback_context.local_mark();
     mark_explicit_moves_in_block(fallback, &mut fallback_context);
@@ -94,13 +94,13 @@ fn lower_aggregate_otherwise_value_failure_mode(
         Some(value),
     )?;
     if exits {
-        return Ok(FallibleFailureMode::Handle { instructions });
+        return Ok(OutcomeFailureMode::Handle { instructions });
     }
     instructions.extend(lower_scope_end_drops_for_locals_since(
         &mut fallback_context,
         local_mark,
     )?);
-    Ok(FallibleFailureMode::Recover { instructions })
+    Ok(OutcomeFailureMode::Recover { instructions })
 }
 
 pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_return_failure_mode(
@@ -110,7 +110,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_return_failure_
     function_name: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
     let (mut instructions, exits) = lower_aggregate_otherwise_fallback_to_location(
         fallback,
@@ -127,7 +127,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_return_failure_
             &mut fallback_context,
         )?);
     }
-    Ok(FallibleFailureMode::Handle { instructions })
+    Ok(OutcomeFailureMode::Handle { instructions })
 }
 
 pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_fallback_to_location(
@@ -141,9 +141,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_fallback_to_loc
 ) -> Result<(Vec<Instruction>, bool), Vec<Diagnostic>> {
     if let Some(result) = &block.result {
         let mut instructions = lower_otherwise_return_leading_statements(block, context, "E8007")?;
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, context)?
-        {
+        if let Some(terminating_instructions) = lower_never_expression(result, context)? {
             instructions.extend(terminating_instructions);
             return Ok((instructions, true));
         }
@@ -190,7 +188,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_fallback_to_loc
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
@@ -210,7 +208,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_return_failure_
     function_name: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
     mark_explicit_moves_in_block(fallback, &mut fallback_context);
     let layout = aggregate_type_layout(success_type)
@@ -234,5 +232,5 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_otherwise_return_failure_
             &mut fallback_context,
         )?;
     }
-    Ok(FallibleFailureMode::Handle { instructions })
+    Ok(OutcomeFailureMode::Handle { instructions })
 }

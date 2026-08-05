@@ -2,6 +2,7 @@ use super::arrays::{array_literal_type, index_expression_type};
 use super::bindings::continuing_binding_type;
 use super::calls::{call_return_type, resolved_call_signature};
 use super::diagnostics::error_member_unknown_diagnostic;
+use super::literals::{literal_expression_type, literal_pack_len_call_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::binary_expression_type;
 use super::returns::block_guarantees_control_exit_or_never;
@@ -73,6 +74,10 @@ pub(super) fn expression_type(
     environment: &TypeEnvironment,
 ) -> Type {
     match expression {
+        Expr::Closure(closure) => {
+            super::closures::infer_closure_type(closure, resolved, environment, None, None)
+                .unwrap_or(Type::Unknown)
+        }
         Expr::IntegerLiteral(_) => Type::I32,
         Expr::ByteLiteral(_) => Type::Primitive("u8".to_string()),
         Expr::StringLiteral(_) => Type::Str,
@@ -80,11 +85,14 @@ pub(super) fn expression_type(
         Expr::BoolLiteral(_) => Type::Primitive("bool".to_string()),
         Expr::NoneLiteral(_) => Type::None,
         Expr::ArrayLiteral(expression) => array_literal_type(expression, resolved, environment),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+            literal_expression_type(expression, resolved, environment)
+        }
         Expr::StructLiteral(expression) => struct_literal_type(expression, resolved, environment),
         Expr::Binary(expression) => binary_expression_type(expression, resolved, environment),
         Expr::Unary(expression) => match expression.operator {
             UnaryOperator::LogicalNot => Type::Primitive("bool".to_string()),
-            UnaryOperator::Negate | UnaryOperator::Move => {
+            UnaryOperator::Negate | UnaryOperator::Move | UnaryOperator::Spread => {
                 expression_type(&expression.operand, resolved, environment)
             }
         },
@@ -101,8 +109,17 @@ pub(super) fn expression_type(
             .into_fallible_success_type(),
         Expr::Borrow(expression) => borrow_expression_type(expression, resolved, environment),
         Expr::Call(expression) => {
+            if let Some(ty) = literal_pack_len_call_type(expression, resolved, environment) {
+                return ty;
+            }
             if let Some(ty) = collection_builtin_call_type(expression, resolved, environment) {
                 return ty;
+            }
+
+            if let Some(contract) =
+                super::callables::callable_contract_for_call(expression, resolved, environment)
+            {
+                return contract.return_type;
             }
 
             resolved_call_signature(resolved, expression, environment)

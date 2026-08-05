@@ -11,6 +11,7 @@ use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation,
 };
+use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::{
@@ -36,6 +37,7 @@ pub(super) struct LoweringContext<'a> {
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
     generic_substitutions: HashMap<String, TypeExpr>,
+    literal_pack: Option<LiteralPackLowering>,
     i32_parameters: Vec<Option<String>>,
     u8_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
@@ -46,7 +48,11 @@ pub(super) struct LoweringContext<'a> {
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
+    closure_capture_fields: HashMap<String, AggregateFieldAccess>,
     temporary_aggregate_drops: Vec<PendingAggregateDrop>,
+    pub(in crate::ir::lower) region_cleanups: Vec<super::regions::RegionCleanup>,
+    pub(in crate::ir::lower) allocation_context_restores:
+        Vec<super::allocation_contexts::AllocationContextRestore>,
     borrow_parameters: Vec<BorrowParameter>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
     error_payloads: ErrorPayloads,
@@ -65,6 +71,7 @@ impl<'a> Clone for LoweringContext<'a> {
             call_resolution: self.call_resolution.clone(),
             function_names: self.function_names.clone(),
             generic_substitutions: self.generic_substitutions.clone(),
+            literal_pack: self.literal_pack.clone(),
             i32_parameters: self.i32_parameters.clone(),
             u8_parameters: self.u8_parameters.clone(),
             usize_parameters: self.usize_parameters.clone(),
@@ -75,7 +82,10 @@ impl<'a> Clone for LoweringContext<'a> {
             reserved_local_abi_words: self.reserved_local_abi_words,
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
+            closure_capture_fields: self.closure_capture_fields.clone(),
             temporary_aggregate_drops: self.temporary_aggregate_drops.clone(),
+            region_cleanups: self.region_cleanups.clone(),
+            allocation_context_restores: self.allocation_context_restores.clone(),
             borrow_parameters: self.borrow_parameters.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
             error_payloads: self.error_payloads.clone(),
@@ -95,7 +105,38 @@ pub(super) struct LoweringParameterSlots {
     pub(super) error: Vec<Option<String>>,
     pub(super) borrow_parameters: Vec<BorrowParameter>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
+    pub(super) outcomes: Vec<LoweringOutcomeParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LoweringOutcomeParameter {
+    pub(super) name: String,
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload_type: Type,
+    pub(super) slot_index: usize,
+    pub(super) source: AggregateParameterSource,
+    pub(super) is_copy: bool,
+    pub(super) drop_kind: Option<AggregateDrop>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LiteralPackLowering {
+    pub(super) capture_name: String,
+    pub(super) segments: Vec<LiteralPackLoweringSegment>,
+    pub(super) element_type: TypeExpr,
+    pub(super) runtime_length_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum LiteralPackLoweringSegment {
+    Value {
+        parameter_name: String,
+    },
+    Spread {
+        iterator_parameter_name: String,
+        plan: crate::typecheck::TypecheckSequenceSpreadPlan,
+    },
 }
 
 impl LoweringParameterSlots {
@@ -228,17 +269,21 @@ pub(super) struct BorrowParameter {
 }
 
 mod call_resolution;
+mod call_targets;
 mod construction;
 mod drop_glue;
 mod drop_obligation;
 mod drop_queries;
 mod enum_variants;
 mod locals;
+mod outcome_values;
 mod type_queries;
 
+use call_targets::UniqueCallTargets;
 pub(super) use drop_glue::{
     aggregate_drop_for_type_expr_with_resolver, aggregate_drop_for_type_expr_with_resolver_ref,
-    drop_glue_for_type_expr_with_resolver,
+    drop_glue_for_type_expr_with_resolver, outcome_drop_for_type_expr_with_resolver,
+    outcome_drop_for_type_expr_with_resolver_ref,
 };
 pub(super) use drop_obligation::{
     ArrayElementDropState, DropObligation, PayloadFieldDropState, StructFieldDropState,
@@ -277,17 +322,26 @@ struct CallResolution<'a> {
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionNames {
     by_declaration_span: HashMap<ByteSpan, String>,
+    unique_targets: UniqueCallTargets,
 }
 
 impl FunctionNames {
-    pub(super) fn from_declarations(functions: Vec<(ByteSpan, String)>) -> Self {
+    pub(super) fn from_index(
+        functions: Vec<(ByteSpan, String)>,
+        targets: Vec<(String, CallTarget)>,
+    ) -> Self {
         Self {
             by_declaration_span: functions.into_iter().collect(),
+            unique_targets: UniqueCallTargets::new(targets),
         }
     }
 
     fn name_for_declaration(&self, span: ByteSpan) -> Option<&String> {
         self.by_declaration_span.get(&span)
+    }
+
+    fn unique_target_for_name(&self, name: &str) -> Option<&CallTarget> {
+        self.unique_targets.get(name)
     }
 }
 
@@ -382,6 +436,17 @@ pub(super) struct AggregateLocal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OutcomeLocal {
+    pub(super) slot_index: usize,
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload_type: Type,
+    pub(super) is_copy: bool,
+    pub(super) is_live: bool,
+    pub(super) drop_obligation: DropObligation,
+    pub(super) drop_kind: Option<AggregateDrop>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PendingAggregateDrop {
     pub(super) name: String,
     pub(super) slot_index: usize,
@@ -396,6 +461,13 @@ pub(super) enum AggregateDrop {
     Struct(StructDrop),
     Array(ArrayDrop),
     PayloadEnum(PayloadEnumDrop),
+    Outcome(OutcomeDrop),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OutcomeDrop {
+    pub(super) storage: OutcomeStorageLayout,
+    pub(super) payload: Box<AggregateDrop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -474,6 +546,10 @@ pub(super) enum AggregateFieldKind {
     U8,
     Usize,
     Bool,
+    Borrow {
+        is_readwrite: bool,
+        inner: Type,
+    },
     Str,
     Slice(SliceTypeInfo),
     Array {
@@ -486,6 +562,10 @@ pub(super) enum AggregateFieldKind {
         layout: ValueLayout,
         fields: Vec<AggregateField>,
     },
+    Outcome {
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
+    },
 }
 
 impl AggregateFieldKind {
@@ -493,6 +573,7 @@ impl AggregateFieldKind {
         match self {
             AggregateFieldKind::Array { layout, .. }
             | AggregateFieldKind::Aggregate { layout, .. } => Some(*layout),
+            AggregateFieldKind::Outcome { storage, .. } => Some(storage.layout),
             _ => None,
         }
     }
@@ -503,6 +584,7 @@ impl AggregateFieldKind {
         match self {
             AggregateFieldKind::Array { layout, .. } => Some((*layout, Vec::new())),
             AggregateFieldKind::Aggregate { layout, fields } => Some((*layout, fields.clone())),
+            AggregateFieldKind::Outcome { .. } => None,
             _ => None,
         }
     }
@@ -513,6 +595,10 @@ enum LocalKind {
     I32,
     U8,
     Usize,
+    Borrow {
+        is_readwrite: bool,
+        inner: Type,
+    },
     Bool,
     Str,
     Slice(SliceTypeInfo),
@@ -524,15 +610,16 @@ enum LocalKind {
         drop_obligation: DropObligation,
         drop_kind: Option<AggregateDrop>,
     },
+    Outcome(OutcomeLocal),
 }
 
 impl LocalKind {
     fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
+            Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
-            Self::Aggregate { .. } => 0,
+            Self::Aggregate { .. } | Self::Outcome(_) => 0,
         }
     }
 }

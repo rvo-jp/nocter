@@ -343,6 +343,7 @@ impl Resolver<'_> {
                 Item::Function(function) if function.owner.is_none() => {
                     let imported = ImportableSymbol {
                         declaration_span: function.name_span,
+                        declaration_name_span: function.name_span,
                         visibility: function.visibility,
                         kind: SymbolKind::Function(function_signature(function)),
                         local_type_names: type_decl_names(ast),
@@ -360,6 +361,7 @@ impl Resolver<'_> {
                 Item::Primitive(primitive) => {
                     let imported = ImportableSymbol {
                         declaration_span: primitive.name_span,
+                        declaration_name_span: primitive.name_span,
                         visibility: primitive.visibility,
                         kind: SymbolKind::Primitive(primitive_signature(primitive)),
                         local_type_names: type_decl_names(ast),
@@ -378,6 +380,7 @@ impl Resolver<'_> {
                     let symbol = type_alias_symbol_with_impl_members(ast, alias);
                     let imported = type_importable_symbol(
                         alias.span,
+                        alias.name_span,
                         alias.visibility,
                         symbol,
                         type_decl_names(ast),
@@ -397,8 +400,15 @@ impl Resolver<'_> {
                 Item::Struct(struct_) => {
                     let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
+                    attach_literal_definitions_to_symbol(&mut symbol, ast, &struct_.name);
+                    super::super::constructions::attach_construction_surfaces_to_symbol(
+                        &mut symbol,
+                        ast,
+                        &struct_.name,
+                    );
                     let imported = type_importable_symbol(
                         struct_.span,
+                        struct_.name_span,
                         struct_.visibility,
                         symbol,
                         type_decl_names(ast),
@@ -418,8 +428,15 @@ impl Resolver<'_> {
                 Item::Enum(enum_) => {
                     let mut symbol = enum_type_symbol(enum_);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
+                    attach_literal_definitions_to_symbol(&mut symbol, ast, &enum_.name);
+                    super::super::constructions::attach_construction_surfaces_to_symbol(
+                        &mut symbol,
+                        ast,
+                        &enum_.name,
+                    );
                     let imported = type_importable_symbol(
                         enum_.span,
+                        enum_.name_span,
                         enum_.visibility,
                         symbol,
                         type_decl_names(ast),
@@ -439,6 +456,7 @@ impl Resolver<'_> {
                 Item::Interface(interface) => {
                     let imported = type_importable_symbol(
                         interface.span,
+                        interface.name_span,
                         interface.visibility,
                         interface_type_symbol(interface),
                         type_decl_names(ast),
@@ -457,7 +475,11 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Function(_) | Item::Import(_) | Item::FromImport(_) | Item::Impl(_) => {}
+                Item::Function(_)
+                | Item::Import(_)
+                | Item::FromImport(_)
+                | Item::Impl(_)
+                | Item::Construct(_) => {}
             }
         }
     }
@@ -559,17 +581,9 @@ impl Resolver<'_> {
                 continue;
             };
             let canonical_name = symbol.canonical_name.clone();
-            if self
-                .output
-                .symbols
-                .symbol_by_name(&canonical_name)
-                .is_some()
-            {
-                continue;
-            }
-            self.define_symbol(
+            self.output.symbols.ensure_hidden_resolvable(
                 canonical_name,
-                imported.declaration_span,
+                imported.declaration_name_span,
                 imported.declaration_span,
                 imported.kind,
             );
@@ -592,6 +606,12 @@ impl Resolver<'_> {
             if !imported.is_visible_to(import_source.access) {
                 continue;
             }
+            if !self
+                .collected_hidden_type_dependencies
+                .insert((imported_ast.span.source, type_name.imported_name.clone()))
+            {
+                continue;
+            }
             let imported = filter_importable_symbol_for_access(imported, import_source.access);
             let nested_local_type_names = imported.local_type_names.clone();
             let nested_imported_type_names = imported.imported_type_names.clone();
@@ -601,19 +621,12 @@ impl Resolver<'_> {
                 continue;
             };
             let canonical_name = symbol.canonical_name.clone();
-            if self
-                .output
-                .symbols
-                .symbol_by_name(&canonical_name)
-                .is_none()
-            {
-                self.define_symbol(
-                    canonical_name,
-                    imported.declaration_span,
-                    imported.declaration_span,
-                    imported.kind,
-                );
-            }
+            self.output.symbols.ensure_hidden_resolvable(
+                canonical_name,
+                imported.declaration_name_span,
+                imported.declaration_span,
+                imported.kind,
+            );
             self.collect_hidden_imported_type_symbols(
                 imported_ast,
                 &type_name.import_path,

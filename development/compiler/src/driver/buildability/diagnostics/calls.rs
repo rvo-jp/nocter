@@ -10,7 +10,7 @@ pub(in crate::driver::buildability) fn unsupported_unloaded_imported_call_diagno
         return None;
     };
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         call.span,
         "unloaded imported function calls",
@@ -66,7 +66,7 @@ pub(in crate::driver::buildability) fn unsupported_borrow_call_argument_diagnost
             }
         })?;
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         argument.span(),
         "read-write borrow call arguments from unsupported expressions",
@@ -99,7 +99,7 @@ pub(in crate::driver::buildability) fn unsupported_method_borrow_receiver_diagno
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         member.object.span(),
         "read-write method borrow receivers from unsupported expressions",
@@ -122,7 +122,7 @@ pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_method_
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         call.span,
         "generic impl method calls without concrete type arguments",
@@ -152,7 +152,7 @@ pub(in crate::driver::buildability) fn unsupported_unspecialized_generic_functio
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         call.span,
         "generic function calls without concrete type arguments",

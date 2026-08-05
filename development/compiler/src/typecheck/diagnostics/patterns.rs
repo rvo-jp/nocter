@@ -108,8 +108,7 @@ pub(in crate::typecheck) fn switch_arm_payload_mismatch_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(arm.span).ok().map(Box::new);
     diagnostic.help = Some(
-        "match the variant payload shape; v0 supports either no payload or one payload pattern"
-            .to_string(),
+        "match the variant payload shape; use either no payload or one payload pattern".to_string(),
     );
     diagnostic
 }
@@ -290,8 +289,7 @@ pub(in crate::typecheck) fn if_is_payload_mismatch_diagnostic(
         .ok()
         .map(Box::new);
     diagnostic.help = Some(
-        "match the variant payload shape; v0 supports either no payload or one payload pattern"
-            .to_string(),
+        "match the variant payload shape; use either no payload or one payload pattern".to_string(),
     );
     diagnostic
 }

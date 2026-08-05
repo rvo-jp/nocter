@@ -38,6 +38,32 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_i32()?;
+        if let Some(instructions) =
+            lower_i32_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredI32Value {
+                instructions,
+                value: I32Value::Location(destination),
+            });
+        }
+    }
+    if let Expr::Identifier(identifier) = expression
+        && context.closure_capture_field(&identifier.name).is_some()
+    {
+        let destination = temporaries.next_i32()?;
+        let instructions =
+            lower_i32_closure_capture_to_location(identifier, destination, context, temporaries)?
+                .ok_or_else(unsupported_i32_expression_diagnostic)?;
+        return Ok(LoweredI32Value {
+            instructions,
+            value: I32Value::Location(destination),
+        });
+    }
     match expression {
         Expr::Call(call) => {
             let temporary = temporaries.next_i32()?;
@@ -53,7 +79,7 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -65,7 +91,7 @@ pub(in crate::ir::lower::expressions) fn lower_i32_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -197,6 +223,29 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_u8()?;
+        if let Some(instructions) =
+            lower_u8_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredU8Value {
+                instructions,
+                value: U8Value::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_u8_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredU8Value {
+                instructions,
+                value: U8Value::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Call(call) => {
             let temporary = temporaries.next_u8()?;
@@ -212,7 +261,7 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -224,7 +273,7 @@ pub(in crate::ir::lower::expressions) fn lower_u8_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -443,6 +492,29 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        let destination = temporaries.next_usize()?;
+        if let Some(instructions) =
+            lower_usize_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_usize_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredUsizeValue {
+                instructions,
+                value: UsizeValue::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Call(call) => {
             if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {
@@ -480,11 +552,29 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     value,
                 });
             }
-            if primitive_arg_count_raw_call(call, context) {
-                let (instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+            if primitive_arg_count_raw_call(call, context)
+                || primitive_env_count_raw_call(call, context)
+            {
+                let (instructions, value) = if primitive_arg_count_raw_call(call, context) {
+                    lower_arg_count_raw_primitive_call_to_word(call)?
+                } else {
+                    lower_env_count_raw_primitive_call_to_word(call)?
+                };
                 return Ok(LoweredUsizeValue {
                     instructions,
                     value,
+                });
+            }
+            if primitive_current_allocation_state_call(call, context) {
+                return Ok(LoweredUsizeValue {
+                    instructions: Vec::new(),
+                    value: UsizeValue::CurrentAllocationState,
+                });
+            }
+            if primitive_current_allocation_kind_call(call, context) {
+                return Ok(LoweredUsizeValue {
+                    instructions: Vec::new(),
+                    value: UsizeValue::CurrentAllocationKind,
                 });
             }
 
@@ -501,7 +591,7 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: UsizeValue::Location(temporary),
             })
@@ -513,7 +603,7 @@ pub(in crate::ir::lower::expressions) fn lower_usize_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: UsizeValue::Location(temporary),
             })

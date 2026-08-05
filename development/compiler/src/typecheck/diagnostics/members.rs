@@ -1,6 +1,6 @@
 use super::{
     Diagnostic, DiagnosticNote, MemberExpr, MethodSignature, SourceMap, StructFieldSignature, Type,
-    TypeSymbol, type_expr_display_lossy,
+    TypeSymbol,
 };
 
 pub(in crate::typecheck) fn error_member_unknown_diagnostic(
@@ -31,33 +31,6 @@ pub(in crate::typecheck) fn struct_field_unknown_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn method_receiver_unsupported_diagnostic(
-    sources: &SourceMap,
-    member: &MemberExpr,
-    owner: &TypeSymbol,
-    method: &MethodSignature,
-) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error(
-        "E0377",
-        format!(
-            "method `{}.{}` uses unsupported receiver type `{}`",
-            owner.canonical_name,
-            method.name,
-            type_expr_display_lossy(&method.receiver.ty)
-        ),
-    );
-    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
-    if let Ok(span) = sources.span_to_json(method.receiver.ty.span()) {
-        diagnostic.notes.push(DiagnosticNote {
-            message: "receiver type is declared here".to_string(),
-            span: Some(span),
-        });
-    }
-    diagnostic.help =
-        Some("v0 method calls require receiver type `Self`, `&Self`, or `&+Self`".to_string());
-    diagnostic
-}
-
 pub(in crate::typecheck) fn method_readwrite_receiver_requires_var_diagnostic(
     sources: &SourceMap,
     member: &MemberExpr,
@@ -75,7 +48,7 @@ pub(in crate::typecheck) fn method_readwrite_receiver_requires_var_diagnostic(
         .span_to_json(member.object.span())
         .ok()
         .map(Box::new);
-    if let Ok(span) = sources.span_to_json(method.receiver.ty.span()) {
+    if let Ok(span) = sources.span_to_json(method.receiver.span) {
         diagnostic.notes.push(DiagnosticNote {
             message: "readwrite receiver is declared here".to_string(),
             span: Some(span),
@@ -120,8 +93,9 @@ pub(in crate::typecheck) fn method_unknown_diagnostic(
         ),
     );
     diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
-    diagnostic.help =
-        Some("define an inherent `method` in `impl Type` or call an existing method".to_string());
+    diagnostic.help = Some(
+        "define an inherent method or an explicit interface implementation member".to_string(),
+    );
     diagnostic
 }
 

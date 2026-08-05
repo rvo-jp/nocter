@@ -3,7 +3,7 @@ use super::*;
 pub(super) fn lower_nonterminal_loop_control_statement(
     instruction: Instruction,
     context: &mut LoweringContext,
-    loop_scope_mark: Option<usize>,
+    loop_scope_mark: Option<CleanupScopeMark>,
     continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
@@ -15,7 +15,8 @@ pub(super) fn lower_nonterminal_loop_control_statement(
         ));
     };
 
-    let mut instructions = lower_scope_end_drops_for_locals_since(context, loop_scope_mark)?;
+    let mut instructions = lower_scope_end_drops_for_locals_since(context, loop_scope_mark.locals)?;
+    instructions.extend(context.region_cleanup_instructions_since(loop_scope_mark.regions));
     if matches!(instruction, Instruction::Continue) {
         instructions.extend(continue_instructions.iter().cloned());
     }

@@ -9,48 +9,61 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location_at_offset,
     lower_aggregate_struct_literal_to_location_at_offset_with_temporaries,
     lower_aggregate_struct_literal_to_location_with_progress,
-    lower_aggregate_struct_literal_to_location_with_temporaries,
+    lower_aggregate_struct_literal_to_location_with_temporaries, lower_outcome_field_to_location,
     lower_payload_enum_constructor_to_location,
     lower_payload_enum_constructor_to_location_with_progress,
     payload_enum_constructor_member_and_arguments, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_aggregate_value_with_resolver, type_expr_is_copy_struct_with_resolver,
 };
-use super::context::{AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, SliceTypeInfo};
+use super::context::{
+    AggregateDrop, AggregateFieldKind, DropGlue, LoweringContext, OutcomeDrop, OutcomeLocal,
+    SliceTypeInfo,
+};
 use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, aggregate_member_field_kind_from_member,
-    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    fixed_array_element_access, fixed_array_element_indexed_access,
-    lower_aggregate_member_field_access, lower_bool_expression_to_location,
+    expression_is_lowerable_bool_binding, fixed_array_element_access,
+    fixed_array_element_indexed_access, lower_aggregate_member_field_access,
+    lower_bool_closure_capture_assignment, lower_bool_expression_to_location,
     lower_bool_expression_to_value, lower_bool_expression_to_value_with_temporaries,
-    lower_call_arguments_to_scalar_arguments,
+    lower_borrow_expression_to_location, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_composed_outcome_call, lower_fallible_bool_normal_call,
+    lower_fallible_borrow_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
-    lower_i32_expression_to_location, lower_i32_expression_to_word,
-    lower_i32_expression_to_word_with_temporaries, lower_macos_syscall_primitive_call_to_location,
-    lower_pointer_address_expression_to_word, lower_slice_expression_to_location,
-    lower_slice_expression_to_value, lower_str_expression_to_location,
-    lower_str_expression_to_value, lower_u8_expression_to_location, lower_u8_expression_to_word,
-    lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
+    lower_i32_closure_capture_assignment, lower_i32_expression_to_location,
+    lower_i32_expression_to_word, lower_i32_expression_to_word_with_temporaries,
+    lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
+    lower_slice_expression_to_location, lower_slice_expression_to_value,
+    lower_str_expression_to_location, lower_str_expression_to_value,
+    lower_u8_closure_capture_assignment, lower_u8_expression_to_location,
+    lower_u8_expression_to_word, lower_u8_expression_to_word_with_temporaries,
+    lower_usize_closure_capture_assignment, lower_usize_expression_to_location,
     lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
-    lower_void_expression_statement, push_store_slice_view_to_aggregate_field,
-    push_store_str_view_to_aggregate_field,
+    lower_void_expression_statement, primitive_take_value_at_ptr_call,
+    push_store_slice_view_to_aggregate_field, push_store_str_view_to_aggregate_field,
 };
 use super::functions::{
-    lower_aggregate_drop_instructions_at_location, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, propagating_failure_mode,
+    lower_aggregate_drop_instructions, lower_aggregate_drop_instructions_at_location,
+    lower_aggregate_return_expression_to_location, lower_drop_statement, lower_never_expression,
+    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
     replacement_drop_for_aggregate_slot,
 };
+use super::interpolation::lower_interpolated_string_binding;
 use super::literals::{
     lower_i8_literal, lower_i16_literal, lower_i64_literal, lower_u16_literal, lower_u32_literal,
     lower_u64_literal,
 };
+use super::outcome_propagation::{
+    propagating_outcome_mode, propagating_outcome_mode_for_layer,
+    stored_optional_propagation_instructions,
+};
+use super::regions::CleanupScopeMark;
 use super::types::{
-    return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr,
+    parameter_type_from_type_expr_with_resolver, return_type_expr_is_top_level_optional,
+    return_type_from_type_expr_with_resolver, scalar_or_view_type_from_type_expr,
     top_level_optional_success_abi_value_with_resolver, view_element_type_from_type_expr,
 };
 use crate::abi::{
@@ -62,10 +75,11 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, FallibleFailureMode, I32Location, I32Value,
-    Instruction, SliceElementIndex, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, ComposedOutcomeDestination, I32Location, I32Value,
+    Instruction, OutcomeFailureMode, SliceElementIndex, SliceLocation, SliceValue, StrLocation,
+    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
 use crate::resolve::ResolveOutput;
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -78,9 +92,13 @@ mod identifier_assignments;
 mod index_assignments;
 mod optional_assignments;
 mod otherwise_bindings;
+mod outcome_aggregate_values;
+mod outcome_values;
 mod payload_field_assignments;
+mod pointer_take_bindings;
 mod scalar_bindings;
 mod slice_types;
+mod typed_literals;
 mod utility;
 
 use aggregate_bindings::*;
@@ -91,15 +109,20 @@ use diagnostics::*;
 use identifier_assignments::*;
 use index_assignments::*;
 use optional_assignments::*;
+pub(in crate::ir::lower) use otherwise_bindings::lower_otherwise_recover_or_handle_failure_mode;
 use otherwise_bindings::*;
+use outcome_aggregate_values::*;
+use outcome_values::*;
 use payload_field_assignments::*;
+use pointer_take_bindings::*;
 use scalar_bindings::*;
 use slice_types::*;
+use typed_literals::*;
 use utility::*;
 
 #[derive(Clone, Copy)]
 pub(super) struct LoopControlContext<'a> {
-    pub(super) loop_scope_mark: usize,
+    pub(super) scope_mark: CleanupScopeMark,
     pub(super) continue_instructions: &'a [Instruction],
 }
 
@@ -115,8 +138,20 @@ pub(super) fn lower_local_binding_with_loop_control(
     context: &mut LoweringContext,
     loop_control: Option<LoopControlContext<'_>>,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_interpolated_string(&statement.initializer) {
-        return Err(unsupported_interpolated_string_diagnostic());
+    if let Some(instructions) = lower_interpolated_string_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_outcome_local_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_direct_outcome_local_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_stored_outcome_aggregate_binding(statement, context)? {
+        return Ok(instructions);
     }
 
     if let Some(instructions) = lower_otherwise_scalar_binding(statement, context, loop_control)? {
@@ -125,6 +160,14 @@ pub(super) fn lower_local_binding_with_loop_control(
 
     if let Some(instructions) = lower_otherwise_aggregate_binding(statement, context, loop_control)?
     {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_typed_literal_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_closure_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -137,6 +180,10 @@ pub(super) fn lower_local_binding_with_loop_control(
     }
 
     if let Some(instructions) = lower_payload_enum_constructor_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_pointer_take_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -168,6 +215,10 @@ pub(super) fn lower_local_binding_with_loop_control(
         ScalarBindingKind::I32 => lower_i32_local_binding(statement, context),
         ScalarBindingKind::U8 => lower_u8_local_binding(statement, context),
         ScalarBindingKind::Usize => lower_usize_local_binding(statement, context),
+        ScalarBindingKind::Borrow {
+            is_readwrite,
+            inner,
+        } => lower_borrow_local_binding(statement, is_readwrite, inner, context),
         ScalarBindingKind::Bool => lower_bool_local_binding(statement, context),
         ScalarBindingKind::Str => lower_str_local_binding(statement, context),
         ScalarBindingKind::Slice(info) => lower_slice_local_binding(statement, context, info),
@@ -184,7 +235,10 @@ pub(super) fn lower_assignment(
 
     match unwrap_group(&statement.target) {
         Expr::Identifier(identifier) => {
-            lower_identifier_assignment(identifier, &statement.value, context)
+            lower_outcome_assignment(identifier, &statement.value, context)?.map_or_else(
+                || lower_identifier_assignment(identifier, &statement.value, context),
+                Ok,
+            )
         }
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
         Expr::Index(index) => lower_index_assignment(index, &statement.value, context),
@@ -255,6 +309,17 @@ pub(super) fn lower_i32_optional_otherwise_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::I32(destination),
+        context,
+        move |expression, context| {
+            lower_i32_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower i32 stored `otherwise` fallbacks that produce i32 or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -266,7 +331,7 @@ pub(super) fn lower_i32_optional_otherwise_to_location(
         move |expression, context| {
             lower_i32_expression_to_location(expression, fallback_destination, context)
         },
-        "IR v0 can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
+        "native lowering can only lower i32 `otherwise` fallback blocks that produce an i32 value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_i32_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -278,6 +343,17 @@ pub(super) fn lower_u8_optional_otherwise_to_location(
     destination: U8Location,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::U8(destination),
+        context,
+        move |expression, context| {
+            lower_u8_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower u8 stored `otherwise` fallbacks that produce u8 or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -288,7 +364,7 @@ pub(super) fn lower_u8_optional_otherwise_to_location(
         move |expression, context| {
             lower_u8_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
+        "native lowering can only lower u8 `otherwise` fallback blocks that produce a u8 value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_u8_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -300,6 +376,17 @@ pub(super) fn lower_usize_optional_otherwise_to_location(
     destination: UsizeLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Usize(destination),
+        context,
+        move |expression, context| {
+            lower_usize_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower usize stored `otherwise` fallbacks that produce usize or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -310,7 +397,7 @@ pub(super) fn lower_usize_optional_otherwise_to_location(
         move |expression, context| {
             lower_usize_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
+        "native lowering can only lower usize `otherwise` fallback blocks that produce a usize value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_usize_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -322,6 +409,17 @@ pub(super) fn lower_bool_optional_otherwise_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Bool(destination),
+        context,
+        move |expression, context| {
+            lower_bool_expression_to_location(expression, destination, context, "E8008")
+        },
+        "IR can only lower bool stored `otherwise` fallbacks that produce bool or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -332,7 +430,7 @@ pub(super) fn lower_bool_optional_otherwise_to_location(
         move |expression, context| {
             lower_bool_expression_to_location(expression, destination, context, "E8008")
         },
-        "IR v0 can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
+        "native lowering can only lower bool `otherwise` fallback blocks that produce a bool value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_bool_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -344,6 +442,17 @@ pub(super) fn lower_str_optional_otherwise_to_location(
     destination: StrLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Str(destination),
+        context,
+        move |expression, context| {
+            lower_str_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower &str stored `otherwise` fallbacks that produce &str or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -354,7 +463,7 @@ pub(super) fn lower_str_optional_otherwise_to_location(
         move |expression, context| {
             lower_str_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
+        "native lowering can only lower &str `otherwise` fallback blocks that produce a &str value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_str_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -366,6 +475,17 @@ pub(super) fn lower_slice_optional_otherwise_to_location(
     destination: SliceLocation,
     context: &LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        value,
+        ComposedOutcomeDestination::Slice(destination),
+        context,
+        move |expression, context| {
+            lower_slice_expression_to_location(expression, destination, context)
+        },
+        "IR can only lower slice stored `otherwise` fallbacks that produce a slice or exit",
+    )? {
+        return Ok(Some(instructions));
+    }
     let Some((call, fallback)) = direct_optional_otherwise_call(value, context)? else {
         return Ok(None);
     };
@@ -376,7 +496,7 @@ pub(super) fn lower_slice_optional_otherwise_to_location(
         move |expression, context| {
             lower_slice_expression_to_location(expression, destination, context)
         },
-        "IR v0 can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
+        "native lowering can only lower slice `otherwise` fallback blocks that produce a slice value or exit",
     )?;
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_fallible_slice_normal_call(call, destination, context, &mut temporaries, failure_mode)
@@ -407,7 +527,7 @@ pub(in crate::ir::lower) fn lower_aggregate_optional_otherwise_to_location(
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_diagnostic());
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(Type::Optional(success_type)) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_diagnostic());
     };
     let Some(callee_layout) = aggregate_type_layout(success_type.as_ref()) else {

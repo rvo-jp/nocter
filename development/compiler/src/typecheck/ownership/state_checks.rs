@@ -4,6 +4,7 @@ pub(super) fn check_statement_ownership(
     sources: &SourceMap,
     statement: &Stmt,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
@@ -16,6 +17,7 @@ pub(super) fn check_statement_ownership(
                     sources,
                     expression,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -28,6 +30,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.initializer,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -59,6 +62,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.target,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -67,6 +71,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.value,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -88,6 +93,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.condition,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -99,6 +105,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.then_block,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut then_environment,
                 &mut then_ownership,
@@ -116,6 +123,7 @@ pub(super) fn check_statement_ownership(
                     sources,
                     else_block,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut else_environment,
                     &mut else_ownership,
@@ -139,6 +147,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -163,6 +172,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.then_block,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut then_environment,
                 &mut then_ownership,
@@ -180,6 +190,7 @@ pub(super) fn check_statement_ownership(
                     sources,
                     else_block,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut else_environment,
                     &mut else_ownership,
@@ -203,6 +214,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -226,6 +238,7 @@ pub(super) fn check_statement_ownership(
                     sources,
                     &arm.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut arm_environment,
                     &mut arm_ownership,
@@ -242,6 +255,7 @@ pub(super) fn check_statement_ownership(
                     sources,
                     &wildcard_arm.body,
                     resolved,
+                    summaries,
                     diagnostics,
                     &mut else_environment,
                     &mut else_ownership,
@@ -264,6 +278,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.condition,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -275,6 +290,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.body,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut body_environment,
                 &mut body_ownership,
@@ -293,6 +309,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.start,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -301,6 +318,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.end,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -312,6 +330,97 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.body,
                 resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+            );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
+        }
+        Stmt::CollectionFor(statement) => {
+            let resolution = super::super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            )
+            .ok();
+            check_expression_ownership(
+                sources,
+                &statement.source,
+                resolved,
+                summaries,
+                diagnostics,
+                environment,
+                ownership,
+            );
+            if resolution.as_ref().is_some_and(|plan| {
+                plan.source_mode == super::super::iteration::CollectionIterationSourceMode::Direct
+            }) && let Expr::Identifier(identifier) = statement.source.without_groups()
+            {
+                ownership.ensure_binding_from_environment(
+                    &identifier.name,
+                    identifier.span,
+                    environment,
+                    resolved,
+                );
+                ownership.move_binding(sources, identifier, diagnostics);
+            }
+            let item_type = resolution
+                .as_ref()
+                .map_or(Type::Unknown, |plan| plan.item_type.clone());
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            let mut body_ownership = ownership.clone();
+            let source_loan = resolution
+                .as_ref()
+                .filter(|plan| {
+                    plan.source_mode
+                        == super::super::iteration::CollectionIterationSourceMode::ReadonlyConversion
+                })
+                .and_then(|_| direct_borrow_source(&statement.source))
+                .map(|source| ActiveBorrow {
+                    source: source.source,
+                    borrow_name: format!("collection iterator `{}`", statement.name),
+                    borrow_span: source.source_span,
+                    is_readwrite: source.is_readwrite,
+                    scope_bound: true,
+                })
+                .into_iter()
+                .collect();
+            let body_flow = check_block_ownership_with_borrows(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+                source_loan,
+            );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
+        }
+        Stmt::LiteralPackFor(statement) => {
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            let mut body_ownership = ownership.clone();
+            let body_flow = check_block_ownership(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
                 diagnostics,
                 &mut body_environment,
                 &mut body_ownership,
@@ -332,6 +441,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.body,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut body_environment,
                 &mut body_ownership,
@@ -347,6 +457,36 @@ pub(super) fn check_statement_ownership(
                 ownership.join_branches(&incoming);
                 FlowState::fallthrough()
             }
+        }
+        Stmt::Region(statement) => {
+            check_expression_ownership(
+                sources,
+                &statement.allocator,
+                resolved,
+                summaries,
+                diagnostics,
+                environment,
+                ownership,
+            );
+            let mut body_environment = environment.clone();
+            body_environment.define(
+                statement.name.clone(),
+                crate::typecheck::regions::region_binding_type(statement, resolved, environment),
+            );
+            let mut body_ownership = ownership.clone();
+            let flow = check_block_ownership(
+                sources,
+                &statement.body,
+                resolved,
+                summaries,
+                diagnostics,
+                &mut body_environment,
+                &mut body_ownership,
+            );
+            if flow.reaches_end {
+                *ownership = body_ownership;
+            }
+            flow
         }
         Stmt::Drop(statement) => {
             let Some(ty) = environment.get(&statement.name) else {
@@ -381,6 +521,7 @@ pub(super) fn check_statement_ownership(
                 sources,
                 &statement.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -400,11 +541,71 @@ pub(super) fn check_expression_ownership(
     sources: &SourceMap,
     expression: &Expr,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                let identifier = crate::ast::IdentifierExpr {
+                    span: capture.name_span,
+                    name: capture.name.clone(),
+                };
+                ownership.require_initialized(sources, &identifier, "capture", diagnostics);
+                if capture.mode == crate::ast::ClosureCaptureMode::Move
+                    && let Some(ty) = environment.get(&capture.name)
+                    && (non_copy_owned_type_kind(ty, resolved).is_some()
+                        || matches!(ty, Type::Parameter(_)))
+                {
+                    ownership.ensure_binding_from_environment(
+                        &capture.name,
+                        capture.name_span,
+                        environment,
+                        resolved,
+                    );
+                    ownership.move_binding(sources, &identifier, diagnostics);
+                }
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_ownership(
+                    sources,
+                    element,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_ownership(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_ownership(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    summaries,
+                    diagnostics,
+                    environment,
+                    ownership,
+                );
+            }
+        }
         Expr::Identifier(identifier) => {
             ownership.require_initialized(sources, identifier, "use", diagnostics);
         }
@@ -428,6 +629,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -438,6 +640,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -448,6 +651,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -470,6 +674,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.catch_block,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut catch_environment,
                 &mut catch_ownership,
@@ -483,6 +688,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -493,6 +699,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.left,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -501,6 +708,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.right,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -511,6 +719,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.operand,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -521,6 +730,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -528,6 +738,16 @@ pub(super) fn check_expression_ownership(
         }
         Expr::Call(expression) => {
             if let Some(identifier) =
+                consuming_callable_identifier(expression, resolved, environment)
+            {
+                ownership.ensure_binding_from_environment(
+                    &identifier.name,
+                    identifier.span,
+                    environment,
+                    resolved,
+                );
+                ownership.move_binding(sources, identifier, diagnostics);
+            } else if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
             {
                 ownership.ensure_binding_from_environment(
@@ -543,6 +763,7 @@ pub(super) fn check_expression_ownership(
                         sources,
                         &method.object,
                         resolved,
+                        summaries,
                         diagnostics,
                         environment,
                         ownership,
@@ -555,6 +776,7 @@ pub(super) fn check_expression_ownership(
                     sources,
                     &method.object,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -564,6 +786,7 @@ pub(super) fn check_expression_ownership(
                     sources,
                     &expression.callee,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -575,6 +798,7 @@ pub(super) fn check_expression_ownership(
                     sources,
                     argument,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -586,6 +810,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.object,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -596,6 +821,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.object,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -604,6 +830,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.index,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -615,6 +842,7 @@ pub(super) fn check_expression_ownership(
                     sources,
                     element,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -627,6 +855,7 @@ pub(super) fn check_expression_ownership(
                     sources,
                     &field.value,
                     resolved,
+                    summaries,
                     diagnostics,
                     environment,
                     ownership,
@@ -638,6 +867,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.expression,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -650,6 +880,7 @@ pub(super) fn check_expression_ownership(
                         sources,
                         &part.expression,
                         resolved,
+                        summaries,
                         diagnostics,
                         environment,
                         ownership,
@@ -662,6 +893,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.value,
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -673,6 +905,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &expression.fallback,
                 resolved,
+                summaries,
                 diagnostics,
                 &mut fallback_environment,
                 &mut fallback_ownership,
@@ -688,6 +921,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &Stmt::If((**expression).clone()),
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -698,6 +932,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &Stmt::IfIs((**expression).clone()),
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -708,6 +943,7 @@ pub(super) fn check_expression_ownership(
                 sources,
                 &Stmt::Switch((**expression).clone()),
                 resolved,
+                summaries,
                 diagnostics,
                 environment,
                 ownership,
@@ -725,6 +961,7 @@ fn check_assignment_target_ownership(
     sources: &SourceMap,
     target: &Expr,
     resolved: &ResolveOutput,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
@@ -736,6 +973,7 @@ fn check_assignment_target_ownership(
         sources,
         target,
         resolved,
+        summaries,
         diagnostics,
         environment,
         ownership,

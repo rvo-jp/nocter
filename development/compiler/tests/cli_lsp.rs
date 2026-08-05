@@ -440,6 +440,98 @@ func main(choice: Choice): i32 {
 }
 
 #[test]
+fn lsp_command_hides_imported_signature_dependencies_from_completion() {
+    let project = TempProject::new("cli-lsp-hidden-signature-dependency");
+    let source_text = "use ./factory.make\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    project.write_source(
+        "factory.nct",
+        r#"pub struct Produced {
+    value: i32
+}
+
+pub func make(): Produced {
+    return Produced { value: 7 }
+}
+"#,
+    );
+    let uri = file_uri(&source);
+    let completion_offset = source_text.find("return 0").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": uri
+                    },
+                    "position": {
+                        "line": line,
+                        "character": character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let completion_items = response_with_id(&messages, 2)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+
+    assert!(completion_item_with_label(completion_items, "make").is_some());
+    assert!(
+        completion_items.iter().all(|item| {
+            item["label"]
+                .as_str()
+                .is_none_or(|label| !label.contains(".Produced"))
+        }),
+        "signature-only dependency leaked into LSP completion: {completion_items:#?}"
+    );
+}
+
+#[test]
 fn lsp_command_serves_v0_editor_features() {
     let project = TempProject::new("cli-lsp-editor-features");
     let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";
@@ -586,10 +678,22 @@ fn lsp_command_serves_v0_editor_features() {
     assert!(hover.contains("answer"), "hover:\n{hover}");
     assert!(hover.contains("Returns the answer."), "hover:\n{hover}");
 
-    let definition = &response_with_id(&messages, 4)["result"];
-    assert_eq!(definition["uri"], json!(uri));
-    assert_eq!(definition["range"]["start"]["line"], json!(1));
-    assert_eq!(definition["range"]["start"]["character"], json!(5));
+    let definitions = response_with_id(&messages, 4)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    let definition = &definitions[0];
+    assert_eq!(definition["targetUri"], json!(uri));
+    assert_eq!(definition["targetRange"]["start"]["line"], json!(1));
+    assert_eq!(definition["targetRange"]["start"]["character"], json!(5));
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["line"],
+        json!(10)
+    );
+    assert_eq!(
+        definition["originSelectionRange"]["start"]["character"],
+        json!(16)
+    );
 
     let references = response_with_id(&messages, 5)["result"]
         .as_array()
@@ -618,6 +722,560 @@ fn lsp_command_serves_v0_editor_features() {
         .as_array()
         .expect("expected semantic token data");
     assert!(!semantic_data.is_empty(), "messages:\n{messages:#?}");
+}
+
+#[test]
+fn lsp_hover_preserves_nested_process_result_and_static_provenance() {
+    let project = TempProject::new("cli-lsp-process-env-hover");
+    project.write_nocter_home_file(
+        "std/process.nct",
+        r#"pub func env(name: &str): &str?! from static {
+    return none
+}
+"#,
+    );
+    let source_text = r#"use std/process.env as lookup
+
+func main(): i32! {
+    let value = lookup("HOME")? otherwise { return 0 }
+    return 0
+}
+"#;
+    let source = project.write_source("process_env_hover.nct", source_text);
+    let uri = file_uri(&source);
+    let call_start = source_text.rfind("lookup").unwrap();
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, call_start);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": { "line": line, "character": character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    let hover_text = hover["contents"]["value"].as_str().unwrap();
+    assert!(
+        hover_text.contains("func lookup(name: &str): (&str)?! from static")
+            && hover_text.contains("Result provenance:** static storage"),
+        "{hover_text}"
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(line));
+    assert_eq!(hover["range"]["start"]["character"], json!(character));
+    assert_eq!(
+        hover["range"]["end"]["character"],
+        json!(character + "lookup".len())
+    );
+}
+
+#[test]
+fn lsp_hover_presents_catch_binding_type() {
+    let project = TempProject::new("cli-lsp-catch-binding-hover");
+    let source_text = r#"func attempt(): i32! {
+    return 1
+}
+
+func main(): i32! {
+    let value = attempt() catch problem {
+        return problem
+    }
+    return value
+}
+"#;
+    let source = project.write_source("catch_binding_hover.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text
+        .find("problem {")
+        .expect("expected catch binding");
+    let (line, character) = lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": { "line": line, "character": character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(
+        hover["contents"]["value"].as_str(),
+        Some("```nocter\ncatch problem: error\n```")
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(line));
+    assert_eq!(hover["range"]["start"]["character"], json!(character));
+}
+
+#[test]
+fn lsp_preserves_stored_composed_outcomes_across_protocol_queries() {
+    let project = TempProject::new("cli-lsp-stored-composed-outcome");
+    let source_text = r#"func main(): i32 {
+    let saved = lookup()
+    let forwarded = saved
+    return 0
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#;
+    let source = project.write_source("stored_composed_outcome.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("forwarded = saved").unwrap() + "forwarded = ".len();
+    let completion_offset = source_text.find("return 0").unwrap();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let messages = read_frames(&output.stdout);
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert_eq!(
+        hover["contents"]["value"].as_str(),
+        Some("```nocter\nlet saved: i32!?\n```")
+    );
+    assert_eq!(hover["range"]["start"]["line"], json!(hover_line));
+    assert_eq!(hover["range"]["start"]["character"], json!(hover_character));
+
+    let completion_items = response_with_id(&messages, 3)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let saved = completion_item_with_label(completion_items, "saved")
+        .expect("expected stored outcome completion");
+    assert_eq!(saved["detail"], json!("let saved: i32!?"));
+}
+
+#[test]
+fn lsp_command_exposes_generic_bound_and_provenance_source_ranges() {
+    let project = TempProject::new("cli-lsp-bound-provenance-ranges");
+    let source_text = r#"interface Read<T> {
+    pub method &self.read(): &T from self
+}
+
+interface Measure {
+    pub method &self.measure(): usize
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<T> Read<T> for Box<T> {
+    method &self.read(): &T from self {
+        return &self.value
+    }
+}
+
+impl<T> Measure for Box<T> {
+    method &self.measure(): usize {
+        return 1
+    }
+}
+
+func borrow<B: Read<T> + Measure, T>(value: &B): &T from value {
+    return value.read()
+}
+"#;
+    let source = project.write_source("bounds.nct", source_text);
+    let uri = file_uri(&source);
+    let call_start = source_text.rfind("read()").unwrap();
+    let declaration_start = source_text.find("read():").unwrap();
+    let (call_line, call_character) = lsp_position_for_ascii_byte_offset(source_text, call_start);
+    let (declaration_line, declaration_character) =
+        lsp_position_for_ascii_byte_offset(source_text, declaration_start);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": call_line, "character": call_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+
+    let hover = &response_with_id(&messages, 2)["result"];
+    let hover_text = hover["contents"]["value"]
+        .as_str()
+        .expect("expected hover contents");
+    assert!(hover_text.contains("method") && hover_text.contains("from self"));
+    assert_eq!(hover["range"]["start"]["line"], json!(call_line));
+    assert_eq!(hover["range"]["start"]["character"], json!(call_character));
+    assert_eq!(
+        hover["range"]["end"]["character"],
+        json!(call_character + "read".len())
+    );
+
+    let definitions = response_with_id(&messages, 3)["result"]
+        .as_array()
+        .expect("expected definition links");
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0]["targetUri"], json!(uri));
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["line"],
+        json!(declaration_line)
+    );
+    assert_eq!(
+        definitions[0]["targetSelectionRange"]["start"]["character"],
+        json!(declaration_character)
+    );
+    assert_eq!(
+        definitions[0]["originSelectionRange"]["start"]["line"],
+        json!(call_line)
+    );
+    assert_eq!(
+        definitions[0]["originSelectionRange"]["start"]["character"],
+        json!(call_character)
+    );
+
+    let completion_items = response_with_id(&messages, 4)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let read = completion_item_with_label(completion_items, "read")
+        .expect("expected bound method completion");
+    assert!(
+        read["detail"]
+            .as_str()
+            .is_some_and(|detail| { detail.contains("method") && detail.contains("from self") })
+    );
+    assert!(
+        completion_item_with_label(completion_items, "measure").is_some(),
+        "expected second capability method completion"
+    );
+}
+
+#[test]
+fn lsp_command_serves_closures_default_methods_and_incomplete_bodies() {
+    let project = TempProject::new("cli-lsp-phase10-editor-contract");
+    let source_text = r#"interface Identity {
+    pub method &self.keep<T>(value: T): T {
+        return value
+    }
+}
+
+copy struct Unit { marker: i32 }
+impl Identity for Unit {}
+
+func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    let unit = Unit { marker: 0 }
+    return unit.keep(42)
+}
+"#;
+    let incomplete_text = r#"copy struct Box {
+    value: i32
+}
+
+func main(): i32 {
+    let box = Box { value: 4 }
+    let transform = (&box; input: i32): i32 {
+        return box."#;
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("transform =").unwrap();
+    let signature_offset = source_text.rfind("42").unwrap();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (signature_line, signature_character) =
+        lsp_position_for_ascii_byte_offset(source_text, signature_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(incomplete_text, incomplete_text.len());
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/signatureHelp",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": signature_line, "character": signature_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": { "uri": uri.clone(), "version": 2 },
+                    "contentChanges": [{ "text": incomplete_text }]
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+
+    let hover = &response_with_id(&messages, 2)["result"];
+    assert!(
+        hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|value| { value.contains("let transform: closure (i32): i32") })
+    );
+
+    let signature = &response_with_id(&messages, 3)["result"];
+    assert_eq!(
+        signature["signatures"][0]["label"],
+        json!("method &Unit.keep<i32>(value: i32): i32")
+    );
+
+    let completion_items = response_with_id(&messages, 4)["result"]["items"]
+        .as_array()
+        .expect("expected recovered completion items");
+    let value = completion_item_with_label(completion_items, "value")
+        .expect("expected field completion inside unclosed closure");
+    assert_eq!(value["detail"], json!("field Box.value: i32"));
 }
 
 #[test]
@@ -750,6 +1408,114 @@ fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     drop(child.stdin.take());
 
     child.wait_with_output().unwrap()
+}
+
+#[test]
+fn lsp_exposes_type_owned_construction_surfaces() {
+    let project = TempProject::new("cli-lsp-construction-surfaces");
+    let source_text = r#"pub struct Bucket<T> { pub value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+}
+
+func main(): i32 {
+    let value = Bucket.new(1)
+    return 0
+}
+"#;
+    let source = project.write_source("construction.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("struct Bucket").unwrap() + "struct ".len();
+    let completion_offset = source_text.rfind("Bucket.new").unwrap() + "Bucket.".len();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hover = response_with_id(&messages, 2)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover contents");
+    assert!(hover.contains("struct Bucket<T>"), "hover:\n{hover}");
+    assert!(hover.contains("**Construction**"), "hover:\n{hover}");
+    assert!(
+        hover.contains("default func Bucket<T>.new(value: T): Bucket<T>"),
+        "hover:\n{hover}"
+    );
+
+    let items = response_with_id(&messages, 3)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let constructor =
+        completion_item_with_label(items, "new").expect("expected constructor completion");
+    assert_eq!(constructor["kind"], json!(4));
+    assert_eq!(
+        constructor["detail"],
+        json!("func Bucket<T>.new(value: T): Bucket<T>")
+    );
 }
 
 fn response_with_id(messages: &[Value], id: u64) -> &Value {
@@ -902,6 +1668,14 @@ impl TempProject {
         let path = self.root.join(name);
         fs::write(&path, text).unwrap();
         path
+    }
+
+    fn write_nocter_home_file(&self, relative: &str, text: &str) {
+        let path = self.nocter_home().join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
     }
 
     fn write_nocter_home(&self) {

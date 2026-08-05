@@ -4,6 +4,7 @@ use super::diagnostics::{
     struct_literal_inaccessible_field_diagnostic,
     struct_literal_inaccessible_missing_field_diagnostic, struct_literal_missing_field_diagnostic,
     struct_literal_target_type_mismatch_diagnostic, struct_literal_unknown_field_diagnostic,
+    structural_construction_inaccessible_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
@@ -15,7 +16,9 @@ use super::type_expr::{
 use super::visibility::member_visibility_is_accessible;
 use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
+use crate::resolve::{
+    ConstructionEntryKind, ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind,
+};
 use crate::source::SourceMap;
 use std::collections::HashMap;
 
@@ -91,7 +94,6 @@ pub(super) fn check_struct_member_expression(
         ));
         return;
     };
-
     let Some(field) = struct_field_for_member(member, struct_symbol) else {
         diagnostics.push(struct_field_unknown_diagnostic(
             sources,
@@ -166,6 +168,24 @@ pub(super) fn check_struct_literal_expression(
         ));
         return;
     };
+    let structural_is_hidden = struct_symbol
+        .construction
+        .entries
+        .iter()
+        .find(|entry| entry.kind == ConstructionEntryKind::Structural)
+        .is_some_and(|entry| !entry.is_accessible);
+    let is_defining_source = struct_symbol
+        .construction
+        .declaration_span
+        .is_some_and(|span| span.source == literal.ty.span().source);
+    if structural_is_hidden && !is_defining_source {
+        diagnostics.push(structural_construction_inaccessible_diagnostic(
+            sources,
+            literal,
+            struct_symbol,
+        ));
+        return;
+    }
 
     let mut seen: HashMap<String, &StructLiteralField> = HashMap::new();
     for field in &literal.fields {

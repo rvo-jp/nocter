@@ -6,8 +6,9 @@ use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, MethodDecl, Parameter,
-    SwitchArm,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, GenericType, IfIsStmt, ImplDecl,
+    InterfaceDecl, LiteralDecl, LiteralPackForStmt, MethodDecl, Parameter, SwitchArm, TypeExpr,
+    TypeReference,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
@@ -31,15 +32,68 @@ pub(super) fn environment_for_function(
         Some(self_type) => TypeEnvironment::with_self_type(self_type),
         None => TypeEnvironment::default(),
     };
-    environment.define_generic_parameters(
-        function
-            .generics
-            .parameters
+    if let Some(owner) = &function.owner
+        && let Some(symbol) = resolved.type_symbol_by_name(&owner.name)
+    {
+        for (name, bounds) in symbol
+            .generic_parameters
             .iter()
-            .map(|parameter| parameter.name.clone()),
-    );
+            .zip(&symbol.generic_parameter_bounds)
+        {
+            environment.define_generic_parameter(name.clone(), bounds.clone());
+        }
+    }
+    environment.define_generic_parameter_list(&function.generics);
     define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
     environment
+}
+
+pub(super) fn environment_for_literal(
+    literal: &LiteralDecl,
+    resolved: &ResolveOutput,
+) -> TypeEnvironment {
+    let generic_names = literal_target_generic_names(&literal.target);
+    let substitutions = generic_names
+        .iter()
+        .map(|name| (name.clone(), Type::Parameter(name.clone())))
+        .collect();
+    let self_type =
+        type_expr_to_type_with_substitutions(&literal.target, resolved, None, &substitutions);
+    let mut environment = TypeEnvironment::with_self_type(self_type);
+    if let Some(target_name) = literal_target_name(&literal.target)
+        && let Some(symbol) = resolved.type_symbol_by_name(target_name)
+    {
+        for (name, bounds) in symbol
+            .generic_parameters
+            .iter()
+            .zip(&symbol.generic_parameter_bounds)
+        {
+            environment.define_generic_parameter(name.clone(), bounds.clone());
+        }
+    } else {
+        environment.define_generic_parameters(generic_names);
+    }
+    define_parameters_in_environment(&literal.parameters.parameters, resolved, &mut environment);
+    if let Some(capture) = &literal.capture {
+        let element_type =
+            type_expr_to_type_in_environment(&capture.element_type, resolved, &environment);
+        environment.define_literal_pack(capture.name.clone(), element_type);
+    }
+    environment
+}
+
+fn literal_target_generic_names(target: &TypeExpr) -> Vec<String> {
+    let TypeExpr::Generic(generic) = target else {
+        return Vec::new();
+    };
+    generic
+        .arguments
+        .iter()
+        .filter_map(|argument| match argument {
+            TypeExpr::Reference(reference) => Some(reference.name.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(super) fn function_self_type(
@@ -47,12 +101,28 @@ pub(super) fn function_self_type(
     resolved: &ResolveOutput,
 ) -> Option<Type> {
     let owner = function.owner.as_ref()?;
-    Some(
-        resolved
-            .type_symbol_by_name(&owner.name)
-            .map(|symbol| Type::Named(symbol.canonical_name.clone()))
-            .unwrap_or_else(|| Type::Unresolved(owner.name.clone())),
-    )
+    Some(match resolved.type_symbol_by_name(&owner.name) {
+        Some(symbol) if symbol.generic_parameters.is_empty() => {
+            Type::Named(symbol.canonical_name.clone())
+        }
+        Some(symbol) => Type::Generic {
+            name: symbol.canonical_name.clone(),
+            arguments: symbol
+                .generic_parameters
+                .iter()
+                .map(|name| Type::Parameter(name.clone()))
+                .collect(),
+        },
+        None => Type::Unresolved(owner.name.clone()),
+    })
+}
+
+fn literal_target_name(target: &TypeExpr) -> Option<&str> {
+    match target {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        _ => None,
+    }
 }
 
 pub(super) fn environment_for_method(
@@ -62,11 +132,53 @@ pub(super) fn environment_for_method(
 ) -> TypeEnvironment {
     let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
     define_impl_generic_parameters(impl_, &mut environment);
-    let receiver_type =
-        type_expr_to_type_in_environment(&method.receiver.ty, resolved, &environment);
+    environment.define_generic_parameter_list(&method.generics);
+    let receiver = method.receiver.implicit_parameter();
+    let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
     environment.define(method.receiver.name.clone(), receiver_type);
     define_parameters_in_environment(&method.parameters.parameters, resolved, &mut environment);
     environment
+}
+
+pub(super) fn environment_for_interface_method(
+    method: &MethodDecl,
+    resolved: &ResolveOutput,
+    interface: &InterfaceDecl,
+) -> TypeEnvironment {
+    let mut environment = TypeEnvironment::with_self_type(Type::Parameter("Self".to_string()));
+    environment.define_generic_parameter_list(&interface.generics);
+    environment.define_generic_parameter("Self".to_string(), vec![interface_self_bound(interface)]);
+    environment.define_generic_parameter_list(&method.generics);
+    let receiver = method.receiver.implicit_parameter();
+    let receiver_type = type_expr_to_type_in_environment(&receiver.ty, resolved, &environment);
+    environment.define(method.receiver.name.clone(), receiver_type);
+    define_parameters_in_environment(&method.parameters.parameters, resolved, &mut environment);
+    environment
+}
+
+fn interface_self_bound(interface: &InterfaceDecl) -> TypeExpr {
+    if interface.generics.parameters.is_empty() {
+        return TypeExpr::Reference(TypeReference {
+            span: interface.name_span,
+            name: interface.name.clone(),
+        });
+    }
+    TypeExpr::Generic(GenericType {
+        span: interface.name_span,
+        name: interface.name.clone(),
+        name_span: interface.name_span,
+        arguments: interface
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| {
+                TypeExpr::Reference(TypeReference {
+                    span: parameter.name_span,
+                    name: parameter.name.clone(),
+                })
+            })
+            .collect(),
+    })
 }
 
 fn define_parameters_in_environment(
@@ -113,13 +225,7 @@ pub(super) fn generic_parameter_substitutions(
 }
 
 fn define_impl_generic_parameters(impl_: &ImplDecl, environment: &mut TypeEnvironment) {
-    environment.define_generic_parameters(
-        impl_
-            .generics
-            .parameters
-            .iter()
-            .map(|parameter| parameter.name.clone()),
-    );
+    environment.define_generic_parameter_list(&impl_.generics);
 }
 
 pub(super) fn environment_for_catch(
@@ -250,6 +356,29 @@ pub(super) fn environment_for_for_range_binding(
         statement.name.clone(),
         for_range_binding_type(statement, resolved, environment),
     );
+    body_environment
+}
+
+pub(super) fn environment_for_collection_for_binding(
+    statement: &crate::ast::CollectionForStmt,
+    item_type: Type,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut body_environment = environment.clone();
+    body_environment.define(statement.name.clone(), item_type);
+    body_environment
+}
+
+pub(super) fn environment_for_literal_pack_binding(
+    statement: &LiteralPackForStmt,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut body_environment = environment.clone();
+    let element_type = environment
+        .literal_pack_element(&statement.pack_name)
+        .cloned()
+        .unwrap_or(Type::Unknown);
+    body_environment.define(statement.name.clone(), element_type);
     body_environment
 }
 

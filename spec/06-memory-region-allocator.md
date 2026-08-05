@@ -1,217 +1,309 @@
 # Memory, Regions, and Allocators
 
-This file is part of the Nocter language specification.
-The specification entry point is [README.md](README.md).
+This file is part of the Nocter language specification. The specification entry point is
+[README.md](README.md).
 
-## Memory Management
+## Status
 
-Nocter does not use GC.
+Nocter v0.3.0 implements deterministic ownership, explicit fallible allocation, lexical regions,
+storage provenance, and a statically propagated current allocation context for `String`, `Vec<T>`,
+and `RawBuffer`. Typed literals, sequence spread, and collection iteration build on that
+foundation. The completed release criteria live in the
+[v0.3.0 Release Record](../development/docs/v0.3.0.md).
 
-The memory model is based on:
+## Memory Model
 
-- ownership
-- moves
-- borrowing
-- automatic destruction at scope end
-- explicit allocators
-- region allocation for bounded temporary memory
-- compile-time escape checking for borrows, views, and region-backed values
+Nocter does not use garbage collection. Its memory model combines:
 
-Owned values are destroyed when their scope ends unless ownership is moved.
+- owned values and explicit moves
+- readonly and readwrite borrows
+- source-level non-lexical loan ranges
+- deterministic drop at scope exit
+- allocator-backed owned storage
+- lexical allocation regions
+- compile-time escape checking
 
-```nct
-let text = file.read_to_string(allocator)?
-return move text
-```
+Owned values are dropped when their scope ends unless ownership has moved. A storage-dependent
+value may move only to a destination outlived by every storage origin it carries.
 
-After `move`, the original binding cannot be used.
+## Three Separate Concepts
 
-```nct
-let a = Buffer.alloc(1024)
-let b = move a
-// a is no longer valid here
-```
+Allocator, allocation context, and region are not synonyms.
 
-Temporary allocation uses regions when the lifetime is bounded by a lexical block.
+- An **allocator backend** obtains and releases bytes at runtime.
+- An **allocation context** selects an allocator backend, failure policy, and storage origin for an
+  allocating operation.
+- A **region** is a lexical child lifetime with its own allocation context and release boundary.
 
-```nct
-region scratch using allocator {
-    let source = read_file(scratch.allocator(), "main.nct")?
-    let tokens = lex(scratch.allocator(), source.view())?
-}
-```
+Borrow loans are separate again: they restrict access to source places while a borrow-like result is
+live. Allocator provenance does not replace loan checking, and a runtime allocator handle is not a
+source-level lifetime annotation.
 
-## Allocators
+## Default Allocation Context
 
-Adopted: allocator APIs live in the standard library module path `std/mem`.
+Every executable starts with a program-lifetime allocation context backed by the standard aborting
+system allocator. An allocating callable receives the current context as a compiler-propagated
+capability.
 
-The initial file for this module is:
+The current context is not:
+
+- a mutable process-global variable
+- a thread-local lookup
+- selected by searching for a standard-library name
+- reconstructed by the backend from source syntax
+
+The compiler records an allocation effect for each callable and statically passes the context only
+where required. Source functions infer that effect from their bodies and callees. Trusted bodyless
+standard-library declarations carry compiler metadata attached to declaration identity.
+
+Changing a helper body so that it allocates may change its inferred allocation effect. Before Nocter
+offers separate compilation or a stable v1 ABI, the whole compile unit contains the source and
+summary required to propagate that effect. A future stable public-API spelling may make the effect
+explicit; v0.3.0 Phase 0 does not add that surface syntax.
+
+## Allocation Failure Policies
+
+Nocter provides two policies over one fallible allocation implementation.
+
+### Standard allocator
+
+`Allocator` is the ordinary allocation capability. Its allocation and growth operations either
+succeed or terminate the process immediately.
+
+Allocation termination:
+
+- is not a recoverable `T!` result
+- performs no additional allocation
+- does not unwind Nocter scopes or run pending drops
+- uses a stable target-independent reason and abnormal process status
+- must not publish a partially updated buffer or collection before terminating
+
+This policy lets ordinary owning values and future typed literals avoid pervasive allocation-only
+`?` handling.
+
+### Recoverable allocator
+
+`TryAllocator` is the explicit recoverable capability. Its `try_*` operations return the built-in
+`error` payload and are failure-atomic.
+
+Stable memory error codes include:
+
+- `"std.mem.out_of_memory"`
+- `"std.mem.invalid_argument"`
+- `"std.mem.capacity_overflow"`
+
+Constructing these errors must not allocate. A fixed-capacity arena, per-request budget, speculative
+large operation, compiler, or server may use this path even when exhaustion of the process allocator
+would be fatal.
+
+The two policies share layout validation, backend calls, buffer publication, provenance, and cleanup
+logic. Conceptually, `Allocator` is an abort-on-error adapter over the `TryAllocator` core. They are
+not separate allocator implementations.
+
+During Phase 0, an ambient allocation context contains an `Allocator`, not a `TryAllocator`.
+Recoverable allocation uses named `try_*` APIs. This prevents the type of one expression from
+changing between `T` and `T!` based only on which context is selected.
+
+## Standard-Library Boundary
+
+Allocator APIs live in `std/mem`. `Allocator`, `TryAllocator`, `Layout`, and `RawBuffer` are ordinary
+standard-library names, not compiler built-ins.
+
+The compiler's special behavior is limited to:
+
+- allocation-effect and storage-origin metadata on trusted declarations
+- statically propagating the current allocation context
+- the `region name using allocator_place { ... }` language construct
+- escape checking and ordered region cleanup
+
+`Layout` validates size and alignment before a backend call. Zero-sized allocation produces a
+canonical empty buffer without invoking the OS. `RawBuffer` retains its actual allocated layout,
+backend identity, and storage origin. User code cannot construct or mutate its representation.
+
+Normal and recoverable collection APIs are paired over one implementation:
 
 ```text
-~/.nocter/std/mem.nct
+with_capacity / try_with_capacity
+reserve       / try_reserve
+push          / try_push
+copy          / try_copy
 ```
 
-`Allocator`, `Layout`, and `RawBuffer` are ordinary standard-library names. The compiler must not special-case those identifiers.
+Normal operations use the current aborting context. `try_*` operations take or otherwise select a
+`TryAllocator` explicitly. I/O, parsing, and other recoverable failures remain `T!`; only allocation
+failure is removed from the ordinary allocation path.
 
-The special language behavior is limited to:
-
-- the `region name using allocator_expr { ... }` syntax
-- provenance tracking for allocator values derived from a region handle
-- escape checking for values, borrows, and views backed by region allocation
-
-Initial public surface:
-
-```nct
-pub copy struct Layout {
-    pub(nocter) size: usize
-    pub(nocter) align: usize
-}
-
-pub struct RawBuffer {
-    pub(nocter) ptr: *u8
-    pub(nocter) len: usize
-    pub(nocter) align: usize
-    ...
-}
-
-pub struct Allocator {
-    ...
-}
-
-pub func page_allocator(): Allocator
-pub func Layout.new(size: usize, align: usize): Layout!
-pub func layout(size: usize, align: usize): Layout!
-pub func layout_size(value: &Layout): usize
-pub func layout_align(value: &Layout): usize
-pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
-pub func alloc_layout(allocator: &+Allocator, layout: Layout): RawBuffer!
-pub func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void!
-pub func free(allocator: &+Allocator, buffer: RawBuffer): void
-pub func out_of_memory(): error
-pub func invalid_argument(): error
-```
-
-In v0.2.0, allocator operations are not compiler primitives. These public functions are implemented in the standard library through target-gated syscall wrappers and ordinary Nocter code. Names such as `raw_alloc` and `raw_free` are not part of the compiler's closed primitive set.
-
-Rules:
-
-- Allocation is explicit.
-- Allocation APIs are fallible and return `T!` where allocation can fail.
-- The failure payload is always the built-in `error`; `std/mem` must not define `AllocError`, `Result<T, E>`, or another domain-specific fallible payload.
-- Out-of-memory is reported as `"std.mem.out_of_memory"`.
-- Invalid size / alignment requests are reported as `"std.mem.invalid_argument"`.
-- Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
-- Alignment must be a non-zero power of two supported by the target allocator.
-- A zero-size request produces a canonical empty buffer and performs no OS allocation.
-- `grow` is failure-atomic: allocation failure leaves pointer, length, alignment, provenance, and bytes unchanged.
-- `RawBuffer` is a low-level standard-library type for owned untyped bytes.
-- `RawBuffer`'s representation fields are `pub(nocter)`. User code cannot
-  construct a `RawBuffer` literal or inspect its pointer, length, and alignment
-  fields directly; it must use `std/mem` functions and methods such as `bytes`,
-  `bytes_mut`, `prefix`, `prefix_mut`, and `free`.
-- `RawBuffer` retains the private provenance required to release through its creating allocator and drops its allocation automatically if it is not explicitly consumed by `free`.
-- General application code should prefer owning wrappers such as `String` and `Buffer<T>`.
-- `RawBuffer` values allocated from a region allocator are region-owned and cannot escape that region.
-- `Allocator` values derived from a region handle cannot escape that region.
-- `free` consumes the `RawBuffer`; after `mem.free(&+allocator, move buffer)`, the original binding is no longer valid.
-
-Example:
-
-```nct
-use std/mem.{Allocator, RawBuffer}
-
-use std/mem as mem
-
-func make_bytes(allocator: &+Allocator, size: usize): RawBuffer! {
-    let buffer = mem.alloc(allocator, size, 16)?
-    return move buffer
-}
-```
-
-## Regions
-
-Adopted: `region` is a language construct, not only a standard-library arena API.
+## Lexical Regions
 
 Syntax:
 
 ```text
-region name using allocator_expr {
+region name using allocator_place {
     statements
 }
 ```
 
-The `name` after `region` is an ordinary block-local binding name for the region handle. It has no special meaning by spelling. `scratch`, `temp`, `work`, and `arena` are all ordinary names.
-
 Example:
 
 ```nct
-region scratch using allocator {
-    let source = read_file(scratch.allocator(), "main.nct")?
-    let tokens = lex(scratch.allocator(), source.view())?
-    let ast = parse(scratch.allocator(), tokens.view())?
-
-    consume(ast)
+region scratch using arena {
+    let source = read_file("main.nct")?
+    let tokens = lex(source.view())?
+    consume(tokens.view())
 }
 ```
+
+`allocator_place` must resolve to an established aborting allocator or allocation-context place. It
+is not an arbitrary effectful expression. The parent is evaluated and validated before the child
+region is entered.
+
+Entering the statement:
+
+1. creates a fresh lexical region identity
+2. derives a child runtime allocator from the selected parent
+3. binds the immutable region handle to `name`
+4. makes the child allocation context current for allocating calls in the body
+
+The region name is an ordinary lexical binding name for lookup and diagnostics. The compiler does
+not infer semantics from spellings such as `scratch`, `temp`, or `arena`.
 
 Rules:
 
-- `region name using allocator_expr { ... }` creates a lexical region scope.
-- `allocator_expr` is evaluated before entering the region body.
-- The region body is a block and creates a normal scope.
-- The region handle binding exists only inside the region body.
-- The region handle binding cannot be reassigned by user code.
-- The region handle cannot be explicitly dropped or moved out of the region.
-- The region handle provides access to a region allocator through ordinary standard-library APIs such as `name.allocator()`.
-- The compiler tracks allocator values derived from a region handle by provenance, not by special-casing the method name `allocator`.
-- Region-derived values use the `region` provenance source kind described in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#borrow-like-provenance).
-- The compiler tracks values allocated through a region allocator as region-owned.
-- Owned values backed by region allocation cannot be moved out of the region.
-- Borrows of region-owned values cannot escape the region.
-- Borrow-like views into region-owned storage cannot escape the region.
-- `&str`, `&[T]`, `&+[T]`, raw pointers, or user structs that carry region-derived storage cannot escape the region.
-- A copy value may leave the region only if its type and value do not carry region-derived storage.
-- Pure copy values such as integers, booleans, and copy structs containing only region-independent fields may leave the region.
-- Returning a region-owned value from inside the region is a compile error.
-- Storing a region-derived view into an outer variable is a compile error.
-- Assigning a region-owned value into a place that outlives the region is a compile error.
-- At normal region exit, local owned values still live inside the region body are dropped in reverse declaration order before the region releases its backing memory.
-- `return`, `break`, and `continue` that leave a region run the same region cleanup before transferring control.
-- Calling a `never` function inside a region does not imply stack unwinding or region cleanup. Cleanup must be explicit before such a call if it matters.
-- The exact allocator implementation may be arena-like, bump-like, or another standard-library strategy. The language feature is the scoped region and escape check, not a specific allocator algorithm.
+- The region handle exists only inside the body.
+- It cannot be reassigned, moved out, returned, or explicitly dropped by user code.
+- Allocator capabilities derived from the handle carry the same region origin.
+- Owned storage allocated through the current child context carries the region origin.
+- Borrows, views, iterators, raw pointers, and aggregates derived from that storage preserve the
+  origin.
+- A value can leave only when every component is proven independent of the child region.
+- Pure integers, booleans, and copy aggregates containing only independent fields may leave.
+- Unknown provenance cannot escape.
+- A nested child is shorter than its parent and may receive parent-derived values.
+- A child-derived value cannot flow into its parent or an unrelated region.
 
-Invalid:
+At every normal exiting edge, live values owned inside the body are dropped in reverse ownership
+order before the child allocator releases its storage. This applies to fallthrough, `return`,
+`break`, `continue`, and `?` propagation.
+
+Calling a `never` function does not cause implicit cleanup. Allocation failure on the standard path
+terminates immediately without region release; the operating system reclaims process resources.
+
+## Escape Examples
+
+Invalid owned escape:
 
 ```nct
-func load_path(allocator: &+Allocator): &str! {
+func load_text(allocator: &+Allocator): String {
     region scratch using allocator {
-        let text = read_file(scratch.allocator(), "main.nct")?
-        return text.view() // error: view points into scratch
+        let text = String.copy("temporary")
+        return move text // error: text storage belongs to scratch
     }
 }
 ```
 
-Invalid:
+Invalid indirect escape:
 
 ```nct
-func load_text(allocator: &+Allocator): String! {
+struct ResultView {
+    text: &str
+}
+
+func load_view(allocator: &+Allocator): ResultView {
     region scratch using allocator {
-        let text = read_file(scratch.allocator(), "main.nct")?
-        return move text // error: String is backed by scratch
+        let text = String.copy("temporary")
+        return ResultView { text: text.view() }
+        // error: ResultView carries a view into scratch
     }
 }
 ```
 
-Valid:
+Valid independent result:
 
 ```nct
-func count_words(allocator: &+Allocator, path: &str): WordStats! {
+func count_bytes(allocator: &+Allocator): usize {
     region scratch using allocator {
-        let text = read_file(scratch.allocator(), path)?
-        let stats = scan_words(text.view())
-        return stats
+        let text = String.copy("temporary")
+        return text.len()
     }
 }
 ```
 
-`WordStats` can leave the region if it is a copy value containing only counters and no region-derived storage.
+## Borrow Origins and Elision
+
+Nocter v0.3.0 does not add Rust-style lifetime parameters or annotations. The compiler tracks
+storage origins through values and callable summaries.
+
+Elision and inference rules:
+
+- A borrow-like result with one borrow-like input is tied to that input.
+- A method result may be tied to its borrowed receiver when that is its only declared origin.
+- A concrete body can establish that a result comes from a particular parameter, receiver, static
+  storage, or multiple possible inputs.
+- A result with multiple possible inputs is constrained by all of them at the caller.
+- A trusted bodyless declaration must provide origin metadata.
+- An untrusted bodyless declaration with an ambiguous borrow-like result is invalid.
+
+A borrow returned through a call remains a loan of the original caller place through the returned
+value's last source-level use. Return validation and ordinary NLL use the same callable provenance
+summary.
+
+Source-level lifetime syntax may be reconsidered only when public APIs need relationships that
+cannot be expressed by these rules, such as multiple independently named regions in bodyless APIs,
+higher-order functions, or separately compiled region-parameterized types.
+
+### Explicit result provenance
+
+Nocter v0.3.0 Phase 4 adds an identity-based `from` clause for public abstraction boundaries without
+adding lifetime names:
+
+```nct
+pub method &self.get(key: &K): (&V)? from self
+func choose<T>(left: &T, right: &T, first: bool): &T from left | right
+```
+
+An identifier after `from` names a receiver or borrow-like parameter declaration. `static` denotes
+program-lifetime storage. `current` denotes the current allocation context and implies the inferred
+allocation effect. Concrete bodies are checked against the declared origin set; bodyless interface
+methods use the clause as their callable provenance summary.
+
+Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
+Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
+buffer still carries the allocation context responsible for its storage.
+
+Allocation effects otherwise remain inferred and have no source annotation in Phase 4.
+
+## Typed Literal Allocation
+
+Typed literals were completed after Phase 0, and their allocation boundary follows the Phase 0
+contract:
+
+```nct
+let values = Vec [1, 2, 3]
+let values = Vec [1, 2, 3] using arena
+
+region temp using arena {
+    let text = String "hello"
+}
+```
+
+- Omitting `using` selects the current aborting allocation context.
+- `using arena` selects an established aborting allocator/context for that literal.
+- A region body changes the current context lexically and transitively for allocating callees.
+- A literal allocated in a lexical region carries that region origin.
+- Recoverable allocation uses named `try_*` construction rather than changing a literal's result
+  type according to allocator policy.
+- Bare `"hello"` remains a static `&str` and performs no allocation.
+
+The full literal and sequence rules live in
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
+
+## Phase 0 Non-goals
+
+- typed literal parsing or lowering
+- sequence spread, variadic capture, or embedding
+- ambient recoverable allocation contexts
+- fallible `region` statements
+- source-level lifetime parameters
+- dynamic allocator interface dispatch or arbitrary user allocator plugins
+- concurrency or thread-local context semantics
+- a native backend other than `arm64-darwin`

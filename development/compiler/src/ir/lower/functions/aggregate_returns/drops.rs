@@ -370,7 +370,49 @@ fn lower_aggregate_drop_at_offset(
         AggregateDrop::PayloadEnum(drop_) => {
             lower_payload_enum_drop_instructions_at_location(name, location, offset, drop_, context)
         }
+        AggregateDrop::Outcome(drop_) => {
+            lower_outcome_drop_instructions_at_location(name, location, offset, drop_, context)
+        }
     }
+}
+
+fn lower_outcome_drop_instructions_at_location(
+    name: &str,
+    location: AggregateLocation,
+    base_offset: u32,
+    drop_: &OutcomeDrop,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let payload_offset = base_offset
+        .checked_add(
+            u32::try_from(drop_.storage.payload_offset)
+                .map_err(|_| unsupported_drop_statement_diagnostic(name))?,
+        )
+        .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+    let mut active = lower_aggregate_drop_at_offset(
+        name,
+        location,
+        payload_offset,
+        true,
+        drop_.storage.payload_layout,
+        drop_.payload.as_ref(),
+        context,
+    )?;
+    for layer in drop_.storage.layers.iter().rev() {
+        let tag_offset = base_offset
+            .checked_add(
+                u32::try_from(layer.tag_offset)
+                    .map_err(|_| unsupported_drop_statement_diagnostic(name))?,
+            )
+            .ok_or_else(|| unsupported_drop_statement_diagnostic(name))?;
+        active = vec![Instruction::IfStoredOutcomeTag {
+            source: location,
+            tag_offset,
+            success_instructions: active,
+            outcome_instructions: Vec::new(),
+        }];
+    }
+    Ok(active)
 }
 
 fn lower_payload_enum_drop_instructions_at_location(

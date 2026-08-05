@@ -3,9 +3,67 @@
 const COMPLETION_PLACEHOLDER_IDENT: &str = "__nocter_completion_placeholder";
 
 pub(crate) fn completion_recovery_text(text: &str, offset: usize) -> Option<String> {
-    incomplete_member_completion_text(text, offset)
-        .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
-        .or_else(|| incomplete_import_symbol_completion_text(text, offset))
+    completion_recovery_overlay(text, offset).map(|(text, _)| text)
+}
+
+pub(crate) fn completion_recovery_overlay(text: &str, offset: usize) -> Option<(String, usize)> {
+    let recovery =
+        super::interpolation_completion_recovery_overlay(text, offset).or_else(|| {
+            incomplete_member_completion_text(text, offset)
+                .or_else(|| incomplete_result_provenance_completion_text(text, offset))
+                .or_else(|| incomplete_generic_bound_completion_text(text, offset))
+                .or_else(|| incomplete_struct_literal_field_completion_text(text, offset))
+                .or_else(|| incomplete_import_symbol_completion_text(text, offset))
+                .map(|text| (text, offset))
+                .or_else(|| {
+                    super::collection_for_recovery::collection_for_recovery_overlay(text, offset)
+                        .map(|recovery| (recovery.text, recovery.cursor))
+                })
+                .or_else(|| super::region_recovery::region_recovery_overlay(text, offset))
+                .or_else(|| {
+                    super::delimiter_recovery::block_recovery_text(text, offset)
+                        .map(|text| (text, offset))
+                })
+        })?;
+    let recovered =
+        super::delimiter_recovery::close_unmatched_braces(&recovery.0).unwrap_or(recovery.0);
+    Some((recovered, recovery.1))
+}
+
+fn incomplete_result_provenance_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    if !(prefix.ends_with(" from") || prefix.ends_with('|')) {
+        return None;
+    }
+    insert_completion_placeholder(text, offset)
+}
+
+fn incomplete_generic_bound_completion_text(text: &str, offset: usize) -> Option<String> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let prefix = text[line_start..offset].trim_end();
+    let open = prefix.rfind('<')?;
+    if prefix[open..].contains('>')
+        || (!prefix.ends_with(':') && !prefix.ends_with('+'))
+        || !prefix[open..].contains(':')
+    {
+        return None;
+    }
+    insert_completion_placeholder(text, offset)
+}
+
+fn insert_completion_placeholder(text: &str, offset: usize) -> Option<String> {
+    let mut recovered = String::with_capacity(text.len() + COMPLETION_PLACEHOLDER_IDENT.len());
+    recovered.push_str(text.get(..offset)?);
+    recovered.push_str(COMPLETION_PLACEHOLDER_IDENT);
+    recovered.push_str(text.get(offset..)?);
+    Some(recovered)
 }
 
 fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option<String> {
@@ -42,31 +100,56 @@ fn incomplete_import_symbol_completion_text(text: &str, offset: usize) -> Option
     Some(recovered)
 }
 
+#[cfg(test)]
 pub(crate) fn signature_recovery_text(text: &str, offset: usize) -> Option<String> {
+    signature_recovery_texts(text, offset).into_iter().next()
+}
+
+/// Returns parseable call overlays in decreasing likelihood order.
+///
+/// An empty active argument is ambiguous: it can be the missing argument of a
+/// non-empty callable or an unfinished zero-parameter call. Trying both keeps
+/// recovery syntax-driven instead of teaching it callable names or arities.
+pub(crate) fn signature_recovery_texts(text: &str, offset: usize) -> Vec<String> {
     if offset > text.len() || !text.is_char_boundary(offset) {
-        return None;
+        return Vec::new();
     }
     let unmatched = unmatched_parentheses_before(text, offset);
-    let call_open = unmatched.last().copied()?;
+    let Some(call_open) = unmatched.last().copied() else {
+        return Vec::new();
+    };
     if !parenthesis_follows_callable(text, call_open) {
-        return None;
+        return Vec::new();
     }
 
     let needs_argument =
         previous_non_whitespace_byte(text, offset).is_some_and(|byte| matches!(byte, b'(' | b','));
-    let mut insertion = String::new();
+    let closing = ")".repeat(unmatched.len());
+    let mut insertions = Vec::new();
     if needs_argument {
-        insertion.push('0');
+        insertions.push(format!("0{closing}"));
     }
-    for _ in 0..unmatched.len() {
-        insertion.push(')');
-    }
+    insertions.push(closing);
 
-    let mut recovered = String::with_capacity(text.len() + insertion.len());
-    recovered.push_str(&text[..offset]);
-    recovered.push_str(&insertion);
-    recovered.push_str(&text[offset..]);
-    Some(recovered)
+    insertions
+        .into_iter()
+        .map(|insertion| {
+            let mut recovered = String::with_capacity(text.len() + insertion.len());
+            recovered.push_str(&text[..offset]);
+            recovered.push_str(&insertion);
+            recovered.push_str(&text[offset..]);
+            super::delimiter_recovery::close_unmatched_braces(&recovered).unwrap_or(recovered)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn signature_recovery_text_without_placeholder(text: &str, offset: usize) -> Option<String> {
+    let recoveries = signature_recovery_texts(text, offset);
+    if recoveries.len() < 2 {
+        return None;
+    }
+    recoveries.into_iter().nth(1)
 }
 
 fn unmatched_parentheses_before(text: &str, offset: usize) -> Vec<usize> {
@@ -160,7 +243,10 @@ fn incomplete_member_completion_text(text: &str, offset: usize) -> Option<String
 }
 
 fn offset_is_after_member_dot(text: &str, offset: usize) -> bool {
-    offset > 0 && text.is_char_boundary(offset) && text.as_bytes().get(offset - 1) == Some(&b'.')
+    offset > 0
+        && text.is_char_boundary(offset)
+        && text.as_bytes().get(offset - 1) == Some(&b'.')
+        && text.as_bytes().get(offset.saturating_sub(2)) != Some(&b'.')
 }
 
 fn incomplete_struct_literal_field_completion_text(text: &str, offset: usize) -> Option<String> {
@@ -228,6 +314,16 @@ mod tests {
     }
 
     #[test]
+    fn also_closes_an_empty_zero_parameter_call_without_an_argument() {
+        let text = "func main(): i32 {\n    return iterator.next(\n}\n";
+        let offset = text.find("next(").unwrap() + "next(".len();
+        let recovered = signature_recovery_text_without_placeholder(text, offset)
+            .expect("expected zero-parameter recovery");
+
+        assert!(recovered.contains("iterator.next()\n"), "{recovered}");
+    }
+
+    #[test]
     fn ignores_parentheses_in_strings_and_comments() {
         let text = "func main(): i32 {\n    // ignored(\n    return parse(\"(\"\n}\n";
         let offset = text.rfind("\"").unwrap() + 1;
@@ -243,5 +339,13 @@ mod tests {
         let recovered = completion_recovery_text(text, offset).expect("expected recovery");
 
         assert_eq!(recovered, "use std/vec.__nocter_completion_placeholder\n");
+    }
+
+    #[test]
+    fn does_not_treat_sequence_spread_as_member_access() {
+        let text = "func main(): i32 {\n    let values = Vec [...source]\n}\n";
+        let offset = text.find("...source").unwrap() + 3;
+
+        assert!(incomplete_member_completion_text(text, offset).is_none());
     }
 }

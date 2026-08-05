@@ -1,5 +1,76 @@
 use super::support::resolve_text;
+use crate::ast::ClosureCaptureMode;
 use crate::resolve::LocalSymbolKind;
+
+#[test]
+fn resolves_only_explicit_closure_captures_into_the_nested_scope() {
+    let output = resolve_text(
+        r#"func main(threshold: i32): void {
+    let predicate = (&threshold; value) { value > threshold }
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    assert!(output.local_symbols().any(|symbol| {
+        symbol.name == "threshold"
+            && symbol.kind == LocalSymbolKind::ClosureCapture(ClosureCaptureMode::ReadonlyBorrow)
+    }));
+}
+
+#[test]
+fn rejects_implicit_closure_capture() {
+    let output = resolve_text(
+        r#"func main(threshold: i32): void {
+    let predicate = (value) { value > threshold }
+    return
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0452");
+    assert!(output.diagnostics[0].message.contains("threshold"));
+}
+
+#[test]
+fn resolves_region_allocator_before_its_lexical_binding() {
+    let output = resolve_text(
+        r#"func main(arena: usize): void {
+    region temp using arena {
+        let selected = temp
+    }
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let references = output
+        .local_symbol_identifier_references()
+        .map(|(_, symbol)| (symbol.name.as_str(), symbol.kind))
+        .collect::<Vec<_>>();
+    assert!(references.contains(&("arena", LocalSymbolKind::Parameter)));
+    assert!(references.contains(&("temp", LocalSymbolKind::Region)));
+}
+
+#[test]
+fn region_binding_does_not_escape_its_body() {
+    let output = resolve_text(
+        r#"func main(arena: usize): usize {
+    region temp using arena {
+        let selected = temp
+    }
+    return temp
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0416");
+    assert!(output.diagnostics[0].message.contains("temp"));
+}
 
 #[test]
 fn resolves_direct_function_calls() {

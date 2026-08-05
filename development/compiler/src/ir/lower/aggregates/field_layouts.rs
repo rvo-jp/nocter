@@ -73,6 +73,19 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Closure(closure) => Some(
+            closure
+                .captures
+                .iter()
+                .map(|capture| StructFieldSignature {
+                    name: capture.name.clone(),
+                    name_span: capture.ty.span(),
+                    ty: capture.ty.clone(),
+                    visibility: crate::ast::Visibility::Private,
+                    is_accessible: true,
+                })
+                .collect(),
+        ),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
@@ -207,19 +220,26 @@ where
     {
         let offset = u32::try_from(base_offset).ok()?;
         let is_copy = match &kind {
-            AggregateFieldKind::Array { .. } | AggregateFieldKind::Aggregate { .. } => source_ty
-                .is_some_and(|ty| {
-                    type_expr_is_copy_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
-                }),
+            AggregateFieldKind::Array { .. }
+            | AggregateFieldKind::Aggregate { .. }
+            | AggregateFieldKind::Outcome { .. } => source_ty.is_some_and(|ty| {
+                type_expr_is_copy_aggregate_value_with_resolver(ty, fallback_resolved, resolver)
+            }),
             _ => true,
         };
-        let drop_kind = source_ty.and_then(|ty| {
-            aggregate_drop_for_type_expr_with_resolver_ref(
+        let drop_kind = source_ty.and_then(|ty| match kind {
+            AggregateFieldKind::Outcome { .. } => outcome_drop_for_type_expr_with_resolver_ref(
                 ty,
                 root_source,
                 fallback_resolved,
                 resolver,
-            )
+            ),
+            _ => aggregate_drop_for_type_expr_with_resolver_ref(
+                ty,
+                root_source,
+                fallback_resolved,
+                resolver,
+            ),
         });
         aggregate_fields.push(AggregateField {
             name: name.to_string(),
@@ -323,6 +343,19 @@ where
         AbiType::U64 => Some(AggregateFieldKind::U64),
         AbiType::U8 => Some(AggregateFieldKind::U8),
         AbiType::Bool => Some(AggregateFieldKind::Bool),
+        AbiType::Borrow => {
+            let TypeExpr::Borrow(borrow) = source_ty? else {
+                return None;
+            };
+            Some(AggregateFieldKind::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: return_type_from_type_expr_with_resolver(
+                    &borrow.inner,
+                    fallback_resolved,
+                    resolver,
+                )?,
+            })
+        }
         AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
         AbiType::StrView => Some(AggregateFieldKind::Str),
         AbiType::Array { element, length } => {
@@ -353,6 +386,27 @@ where
             layout: layout_of(ty).ok()?,
             fields: Vec::new(),
         }),
+        AbiType::Outcome { layout } => {
+            let source_ty = source_ty?;
+            let shape = outcome_shape_with_resolver(source_ty, fallback_resolved, resolver);
+            let storage = shape.storage_layout(
+                abi_value_from_type_expr_with_resolver(&shape.payload, fallback_resolved, resolver)
+                    .ok()?
+                    .layout,
+            )?;
+            if storage.layout != *layout {
+                return None;
+            }
+            let payload_type = return_type_from_type_expr_with_resolver(
+                &shape.payload,
+                fallback_resolved,
+                resolver,
+            )?;
+            Some(AggregateFieldKind::Outcome {
+                storage,
+                payload_type,
+            })
+        }
         _ => None,
     }
 }

@@ -25,6 +25,38 @@ pub(super) fn location_for_document_span(document: &OpenDocument, span: ByteSpan
     })
 }
 
+pub(super) fn location_link_for_byte_target(
+    sources: &SourceMap,
+    open_documents: &HashMap<String, OpenDocument>,
+    document: &OpenDocument,
+    target: crate::analysis::editor_targets::SourceTarget,
+) -> Option<Value> {
+    let target_source = sources.get(target.declaration_span.source)?;
+    let target_uri = open_document_uri_for_source(open_documents, target_source)
+        .unwrap_or_else(|| source_file_uri(target_source));
+    let target_range = range_for_byte_span(target_source.text(), target.declaration_span);
+
+    Some(json!([{
+        "originSelectionRange": range_for_byte_span(&document.text, target.focus_span),
+        "targetUri": target_uri,
+        "targetRange": target_range,
+        "targetSelectionRange": target_range
+    }]))
+}
+
+pub(super) fn location_link_for_document_target(
+    document: &OpenDocument,
+    target: crate::analysis::editor_targets::SourceTarget,
+) -> Value {
+    let target_range = range_for_byte_span(&document.text, target.declaration_span);
+    json!([{
+        "originSelectionRange": range_for_byte_span(&document.text, target.focus_span),
+        "targetUri": document.uri,
+        "targetRange": target_range,
+        "targetSelectionRange": target_range
+    }])
+}
+
 fn open_document_uri_for_source(
     open_documents: &HashMap<String, OpenDocument>,
     source: &SourceFile,

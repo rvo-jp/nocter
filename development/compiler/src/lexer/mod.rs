@@ -13,7 +13,6 @@ mod scanner;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
 pub(crate) use identifiers::is_valid_identifier_name;
 pub use json::{JsonToken, TokensEnvelope};
 pub(crate) use model::KEYWORD_LEXEMES;

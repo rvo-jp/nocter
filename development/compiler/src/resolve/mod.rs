@@ -2,10 +2,15 @@
 
 mod body;
 mod builtins;
+mod closures;
 mod collector;
+mod conformance;
+mod constructions;
 mod diagnostics;
 mod imports;
+mod literals;
 mod module_index;
+mod regions;
 mod signatures;
 mod symbols;
 
@@ -13,17 +18,19 @@ mod symbols;
 mod tests;
 
 pub use symbols::{
-    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
-    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, ImportedSymbolKind, LocalSymbol,
-    LocalSymbolId, LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap,
-    ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol,
-    TypeSymbolKind,
+    AssociatedFunctionSignature, ConstructionEntry, ConstructionEntryKind, ConstructionSurface,
+    DropSignature, EnumVariantSignature, FunctionSignature, ImportAccess, ImportSource,
+    ImportSourceMap, ImportedSymbol, ImportedSymbolKind, InterfaceConformance,
+    LiteralCaptureSignature, LiteralResolution, LiteralSignature, LocalSymbol, LocalSymbolId,
+    LocalSymbolKind, MethodSignature, ParameterSignature, PreludeSourceMap, ResolveOutput,
+    StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;
 
 use crate::ast::{AstFile, Item};
-use crate::source::{ByteSpan, SourceMap};
+use crate::source::{ByteSpan, SourceId, SourceMap};
+use std::cell::RefCell;
 use std::collections::HashSet;
 
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
@@ -52,6 +59,8 @@ pub fn resolve_compile_unit(
         prelude_sources,
         output: ResolveOutput::new(access),
         synthetic_prelude_symbol_spans: HashSet::new(),
+        collected_hidden_type_dependencies: HashSet::new(),
+        collecting_imported_type_names: RefCell::new(HashSet::new()),
         collecting_synthetic_prelude: false,
     };
 
@@ -75,7 +84,8 @@ fn root_access(
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Interface(_)
-            | Item::Impl(_) => continue,
+            | Item::Impl(_)
+            | Item::Construct(_) => continue,
         };
         if let Some(import_source) = import_sources.get(&path_span) {
             return import_source.access;
@@ -95,5 +105,7 @@ struct Resolver<'a> {
     prelude_sources: &'a PreludeSourceMap,
     output: ResolveOutput,
     synthetic_prelude_symbol_spans: HashSet<ByteSpan>,
+    collected_hidden_type_dependencies: HashSet<(SourceId, String)>,
+    collecting_imported_type_names: RefCell<HashSet<SourceId>>,
     collecting_synthetic_prelude: bool,
 }

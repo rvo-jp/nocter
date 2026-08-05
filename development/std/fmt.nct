@@ -1,145 +1,160 @@
 //! Formatting append API for owned strings.
 //!
-//! Functions in this module append formatted values into an existing
-//! `std/string.String`. They are ordinary fallible standard-library functions,
-//! not compiler formatting primitives.
+//! Normal operations abort on allocation failure. Explicit `try_*` operations
+//! return allocation errors. Both surfaces share the same formatting core.
 
+use std/mem.allocation_abort_raw
 use std/error.Error
-use std/string.{String, push_str, view}
+use std/string.{String, try_push_str, view}
 
-pub func append_str(out: &+String, value: &str): void! {
-    push_str(out, value)?
+pub func try_append_str(out: &+String, value: &str): void! {
+    try_push_str(out, value)?
     return
 }
 
-pub func append_string(out: &+String, value: &String): void! {
-    append_str(out, view(value))?
+pub func append_str(out: &+String, value: &str): void {
+    try_append_str(out, value) catch allocation_error {
+        return allocation_abort_raw()
+    }
     return
 }
 
-pub func append_i32(out: &+String, value: i32): void! {
+pub func try_append_string(out: &+String, value: &String): void! {
+    try_append_str(out, view(value))?
+    return
+}
+
+pub func append_string(out: &+String, value: &String): void {
+    try_append_string(out, value) catch allocation_error {
+        return allocation_abort_raw()
+    }
+    return
+}
+
+pub func try_append_i32(out: &+String, value: i32): void! {
     if value == -2147483648 {
-        append_str(out, "-2147483648")?
+        try_append_str(out, "-2147483648")?
         return
     }
     if value < 0 {
-        append_str(out, "-")?
-        append_i32_digits(out, 0 - value)?
+        try_append_str(out, "-")?
+        try_append_i32_digits(out, 0 - value)?
         return
     }
-    append_i32_digits(out, value)?
+    try_append_i32_digits(out, value)?
     return
 }
 
-pub func append_usize(out: &+String, value: usize): void! {
-    append_usize_digits(out, value)?
+pub func append_i32(out: &+String, value: i32): void {
+    try_append_i32(out, value) catch allocation_error {
+        return allocation_abort_raw()
+    }
     return
 }
 
-func append_i32_digits(out: &+String, value: i32): void! {
-    if value >= 10 {
-        append_i32_digits(out, value / 10)?
-    }
-    append_i32_digit(out, value % 10)?
+pub func try_append_u8(out: &+String, value: u8): void! {
+    try_append_u8_digits(out, value)?
     return
 }
 
-func append_usize_digits(out: &+String, value: usize): void! {
-    if value >= 10 {
-        append_usize_digits(out, value / 10)?
+pub func append_u8(out: &+String, value: u8): void {
+    try_append_u8(out, value) catch allocation_error {
+        return allocation_abort_raw()
     }
-    append_usize_digit(out, value % 10)?
     return
 }
 
-func append_i32_digit(out: &+String, value: i32): void! {
-    if value == 0 {
-        append_str(out, "0")?
-        return
-    }
-    if value == 1 {
-        append_str(out, "1")?
-        return
-    }
-    if value == 2 {
-        append_str(out, "2")?
-        return
-    }
-    if value == 3 {
-        append_str(out, "3")?
-        return
-    }
-    if value == 4 {
-        append_str(out, "4")?
-        return
-    }
-    if value == 5 {
-        append_str(out, "5")?
-        return
-    }
-    if value == 6 {
-        append_str(out, "6")?
-        return
-    }
-    if value == 7 {
-        append_str(out, "7")?
-        return
-    }
-    if value == 8 {
-        append_str(out, "8")?
-        return
-    }
-    append_str(out, "9")?
+pub func try_append_usize(out: &+String, value: usize): void! {
+    try_append_usize_digits(out, value)?
     return
 }
 
-func append_usize_digit(out: &+String, value: usize): void! {
-    if value == 0 {
-        append_str(out, "0")?
-        return
+pub func append_usize(out: &+String, value: usize): void {
+    try_append_usize(out, value) catch allocation_error {
+        return allocation_abort_raw()
     }
-    if value == 1 {
-        append_str(out, "1")?
-        return
-    }
-    if value == 2 {
-        append_str(out, "2")?
-        return
-    }
-    if value == 3 {
-        append_str(out, "3")?
-        return
-    }
-    if value == 4 {
-        append_str(out, "4")?
-        return
-    }
-    if value == 5 {
-        append_str(out, "5")?
-        return
-    }
-    if value == 6 {
-        append_str(out, "6")?
-        return
-    }
-    if value == 7 {
-        append_str(out, "7")?
-        return
-    }
-    if value == 8 {
-        append_str(out, "8")?
-        return
-    }
-    append_str(out, "9")?
     return
 }
 
-pub func append_bool(out: &+String, value: bool): void! {
+pub func try_append_bool(out: &+String, value: bool): void! {
     if value {
-        append_str(out, "true")?
+        try_append_str(out, "true")?
         return
     }
-    append_str(out, "false")?
+    try_append_str(out, "false")?
+    return
+}
+
+pub func append_bool(out: &+String, value: bool): void {
+    try_append_bool(out, value) catch allocation_error {
+        return allocation_abort_raw()
+    }
+    return
+}
+
+func try_append_i32_digits(out: &+String, value: i32): void! {
+    if value >= 10 {
+        try_append_i32_digits(out, value / 10)?
+    }
+    try_append_i32_digit(out, value % 10)?
+    return
+}
+
+func try_append_u8_digits(out: &+String, value: u8): void! {
+    if value >= 10 {
+        try_append_u8_digits(out, value / 10)?
+    }
+    try_append_u8_digit(out, value % 10)?
+    return
+}
+
+func try_append_usize_digits(out: &+String, value: usize): void! {
+    if value >= 10 {
+        try_append_usize_digits(out, value / 10)?
+    }
+    try_append_usize_digit(out, value % 10)?
+    return
+}
+
+func try_append_i32_digit(out: &+String, value: i32): void! {
+    if value == 0 { try_append_str(out, "0")? return }
+    if value == 1 { try_append_str(out, "1")? return }
+    if value == 2 { try_append_str(out, "2")? return }
+    if value == 3 { try_append_str(out, "3")? return }
+    if value == 4 { try_append_str(out, "4")? return }
+    if value == 5 { try_append_str(out, "5")? return }
+    if value == 6 { try_append_str(out, "6")? return }
+    if value == 7 { try_append_str(out, "7")? return }
+    if value == 8 { try_append_str(out, "8")? return }
+    try_append_str(out, "9")?
+    return
+}
+
+func try_append_u8_digit(out: &+String, value: u8): void! {
+    if value == 0 { try_append_str(out, "0")? return }
+    if value == 1 { try_append_str(out, "1")? return }
+    if value == 2 { try_append_str(out, "2")? return }
+    if value == 3 { try_append_str(out, "3")? return }
+    if value == 4 { try_append_str(out, "4")? return }
+    if value == 5 { try_append_str(out, "5")? return }
+    if value == 6 { try_append_str(out, "6")? return }
+    if value == 7 { try_append_str(out, "7")? return }
+    if value == 8 { try_append_str(out, "8")? return }
+    try_append_str(out, "9")?
+    return
+}
+
+func try_append_usize_digit(out: &+String, value: usize): void! {
+    if value == 0 { try_append_str(out, "0")? return }
+    if value == 1 { try_append_str(out, "1")? return }
+    if value == 2 { try_append_str(out, "2")? return }
+    if value == 3 { try_append_str(out, "3")? return }
+    if value == 4 { try_append_str(out, "4")? return }
+    if value == 5 { try_append_str(out, "5")? return }
+    if value == 6 { try_append_str(out, "6")? return }
+    if value == 7 { try_append_str(out, "7")? return }
+    if value == 8 { try_append_str(out, "8")? return }
+    try_append_str(out, "9")?
     return
 }
 

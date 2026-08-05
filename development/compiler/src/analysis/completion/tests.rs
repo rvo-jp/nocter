@@ -1,5 +1,7 @@
 use super::*;
-use crate::analysis::test_support::{analyze_namespace_import_text, analyze_text};
+use crate::analysis::test_support::{
+    analyze_namespace_import_text, analyze_text, analyze_text_with_trusted_allocator_capabilities,
+};
 
 #[test]
 fn completion_candidates_include_keywords_and_symbols() {
@@ -29,6 +31,73 @@ fn completion_candidates_include_keywords_and_symbols() {
 }
 
 #[test]
+fn completion_candidates_offer_declared_literal_shapes_after_target() {
+    let text = r#"struct Bucket<T> { length: usize }
+
+construct Bucket<T> {
+    pub default literal [](...items: T): Self {
+        return Bucket<T> { length: items.len() }
+    }
+}
+
+func main(): i32 {
+    let values: Bucket<i32> = Bucket []
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Bucket []").unwrap() + "Bucket ".len();
+
+    let items = literal_shape_completion_items_for_file_analysis_at_offset(file, offset)
+        .expect("expected literal shape completion");
+    let sequence = items
+        .iter()
+        .find(|item| item.label == "[]")
+        .expect("expected sequence shape");
+
+    assert_eq!(sequence.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        sequence.detail.as_deref(),
+        Some("literal Bucket<T> [](...items: T): Bucket<T>")
+    );
+    assert_eq!(sequence.insert_text.as_deref(), Some("[]"));
+}
+
+#[test]
+fn completion_candidates_offer_string_literal_shape() {
+    let text = r#"struct Text { value: &str }
+
+construct Text {
+    pub default literal ""(text: &str): Self {
+        return Text { value: text }
+    }
+}
+
+func main(): i32 {
+    let text = Text "hello"
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Text \"hello\"").unwrap() + "Text ".len();
+
+    let items = literal_shape_completion_items_for_file_analysis_at_offset(file, offset)
+        .expect("expected literal shape completion");
+    let string = items
+        .iter()
+        .find(|item| item.label == "\"\"")
+        .expect("expected string shape");
+
+    assert_eq!(string.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        string.detail.as_deref(),
+        Some("literal Text \"\"(text: &str): Text")
+    );
+}
+
+#[test]
 fn completion_candidates_hide_namespace_import_members() {
     let root_text = "use lib/math\n\nfunc main(): i32 {\n    return math.answer()\n}\n";
     let module_text = "pub func answer(): i32 {\n    return 7\n}\n";
@@ -43,6 +112,29 @@ fn completion_candidates_hide_namespace_import_members() {
             && item.detail.as_deref() == Some("imported from lib/math")
     }));
     assert!(!items.iter().any(|item| item.label == "answer"));
+}
+
+#[test]
+fn completion_candidates_hide_imported_signature_dependencies() {
+    let root_text = "use lib/math.make\n\nfunc main(): i32 {\n    return 0\n}\n";
+    let module_text = r#"pub struct Produced {
+    value: i32
+}
+
+pub func make(): Produced {
+    return Produced { value: 7 }
+}
+"#;
+    let (_, analysis) = analyze_namespace_import_text(root_text, module_text);
+    let file = analysis.root_file().expect("expected root file");
+
+    let items = completion_items_for_file_analysis(file);
+
+    assert!(items.iter().any(|item| item.label == "make"));
+    assert!(
+        items.iter().all(|item| item.label != "lib/math.Produced"),
+        "signature-only dependencies must not become source-visible completion items: {items:#?}"
+    );
 }
 
 #[test]
@@ -109,6 +201,117 @@ func other(hidden: i32): i32 {
 }
 
 #[test]
+fn completion_candidates_include_closure_parameters_and_captures_only_inside_body() {
+    let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 {
+        return value + factor
+    }
+    return transform(3)
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let inside_offset = text.find("return value").unwrap();
+    let outside_offset = text.rfind("return transform").unwrap();
+
+    let inside = completion_items_for_file_analysis_at_offset(file, inside_offset);
+    for expected in ["value", "factor"] {
+        assert!(
+            inside.iter().any(|item| item.label == expected),
+            "expected `{expected}` in closure body: {inside:#?}"
+        );
+    }
+
+    let outside = completion_items_for_file_analysis_at_offset(file, outside_offset);
+    assert!(!outside.iter().any(|item| item.label == "value"));
+    assert!(outside.iter().any(|item| item.label == "factor"));
+}
+
+#[test]
+fn completion_recovers_member_facts_inside_unclosed_closure_body() {
+    let text = r#"copy struct Box {
+    value: i32
+}
+
+func main(): i32 {
+    let box = Box { value: 4 }
+    let transform = (&box; input: i32): i32 {
+        return box."#;
+    let offset = text.len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected completion from recovered closure body");
+
+    assert!(
+        items.iter().any(|item| {
+            item.label == "value"
+                && item.kind == CompletionItemKind::Field
+                && item.detail.as_deref() == Some("field Box.value: i32")
+        }),
+        "items: {items:#?}"
+    );
+}
+
+#[test]
+fn completion_preserves_stored_outcome_details() {
+    let text = r#"func main(): i32 {
+    let saved = lookup()
+    return 0
+}
+
+func lookup(): i32!? {
+    return 42
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("return 0").unwrap();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let saved = items
+        .iter()
+        .find(|item| item.label == "saved")
+        .expect("expected stored outcome local");
+
+    assert_eq!(saved.detail.as_deref(), Some("let saved: i32!?"));
+}
+
+#[test]
+fn region_allocator_completion_keeps_only_aborting_capabilities() {
+    let text = r#"struct Allocator {
+    state: usize
+}
+
+struct TryAllocator {
+    state: usize
+}
+
+func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
+    region temp using parent {
+        return
+    }
+}
+"#;
+    let (_, analysis) = analyze_text_with_trusted_allocator_capabilities(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("using parent").expect("expected allocator") + "using ".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["parent"]
+    );
+    assert_eq!(
+        items[0].detail.as_deref(),
+        Some("parameter parent: Allocator")
+    );
+}
+
+#[test]
 fn completion_candidates_include_enum_variants_after_pattern_dot() {
     let text = r#"enum Choice {
     hit(value: i32)
@@ -166,12 +369,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "yes"
             && item.kind == CompletionItemKind::EnumMember
-            && detail_starts_with(item, "variant ")
+            && item.detail.as_deref() == Some("variant Choice.yes")
     }));
     assert!(items.iter().any(|item| {
         item.label == "no"
             && item.kind == CompletionItemKind::EnumMember
-            && detail_starts_with(item, "variant ")
+            && item.detail.as_deref() == Some("variant Choice.no")
     }));
     assert!(!items.iter().any(|item| item.label == "Choice"));
 }
@@ -182,8 +385,10 @@ fn completion_candidates_include_associated_functions_after_type_member_dot() {
     fd: i32
 }
 
-func File.open(): File {
-    return File { fd: 1 }
+construct File {
+    pub default func open(): Self {
+        return File { fd: 1 }
+    }
 }
 
 func main(): i32 {
@@ -202,10 +407,41 @@ func main(): i32 {
 
     assert!(items.iter().any(|item| {
         item.label == "open"
-            && item.kind == CompletionItemKind::Function
-            && detail_starts_with(item, "func open")
+            && item.kind == CompletionItemKind::Constructor
+            && item.detail.as_deref() == Some("func File.open(): File")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
+}
+
+#[test]
+fn completion_candidates_present_construct_members_as_owned_constructors() {
+    let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+}
+
+func main(): i32 {
+    let value = Bucket.new(1)
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Bucket.new").unwrap() + "Bucket.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let constructor = items
+        .iter()
+        .find(|item| item.label == "new")
+        .expect("expected constructor completion");
+
+    assert_eq!(constructor.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        constructor.detail.as_deref(),
+        Some("func Bucket<T>.new(value: T): Bucket<T>")
+    );
+    assert_eq!(constructor.sort_text.as_deref(), Some("0-new"));
 }
 
 #[test]
@@ -291,12 +527,12 @@ func main(): i32 {
     assert!(items.iter().any(|item| {
         item.label == "fd"
             && item.kind == CompletionItemKind::Field
-            && detail_starts_with(item, "field ")
+            && item.detail.as_deref() == Some("field File.fd: i32")
     }));
     assert!(items.iter().any(|item| {
         item.label == "size"
             && item.kind == CompletionItemKind::Field
-            && detail_starts_with(item, "field ")
+            && item.detail.as_deref() == Some("field File.size: i32")
     }));
     assert!(items.iter().any(|item| {
         item.label == "describe"
@@ -304,6 +540,111 @@ func main(): i32 {
             && detail_starts_with(item, "method ")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));
+}
+
+#[test]
+fn member_completion_includes_unambiguous_interface_default_method() {
+    let text = r#"interface Value {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Value for Unit {}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.value").unwrap() + "unit.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let value = items
+        .iter()
+        .find(|item| item.label == "value")
+        .expect("expected interface default method");
+
+    assert_eq!(value.kind, CompletionItemKind::Method);
+    assert_eq!(value.detail.as_deref(), Some("method &Unit.value(): i32"));
+}
+
+#[test]
+fn member_completion_omits_inherent_interface_name_conflict() {
+    let text = r#"interface Value {
+    pub method &self.value(): i32 {
+        return 1
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Unit {
+    pub method &self.value(): i32 {
+        return 42
+    }
+}
+
+impl Value for Unit {}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.value()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.value").unwrap() + "unit.".len();
+
+    let values = completion_items_for_file_analysis_at_offset(file, offset)
+        .into_iter()
+        .filter(|item| item.label == "value")
+        .collect::<Vec<_>>();
+
+    assert!(values.is_empty(), "{values:?}");
+}
+
+#[test]
+fn member_completion_omits_competing_interface_default_methods() {
+    let text = r#"interface Left {
+    pub method &self.inspect(): i32 {
+        return 1
+    }
+}
+
+interface Right {
+    pub method &self.inspect(): i32 {
+        return 2
+    }
+}
+
+copy struct Unit {
+    marker: i32
+}
+
+impl Left for Unit {}
+impl Right for Unit {}
+
+func main(): i32 {
+    let unit = Unit { marker: 0 }
+    return unit.marker
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("unit.marker").unwrap() + "unit.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
 }
 
 #[test]
@@ -598,6 +939,9 @@ func use_boxes(readonly: &Box<i32>, readwrite: &+Box<i32>): void {
     let readwrite_offset = text.find("readwrite.inspect").unwrap() + "readwrite.".len();
 
     let readonly_items = completion_items_for_file_analysis_at_offset(file, readonly_offset);
+    assert!(readonly_items.iter().any(|item| {
+        item.label == "value" && item.detail.as_deref() == Some("field Box<i32>.value: i32")
+    }));
     assert!(readonly_items.iter().any(|item| item.label == "inspect"));
     assert!(!readonly_items.iter().any(|item| item.label == "mutate"));
 
@@ -609,5 +953,209 @@ func use_boxes(readonly: &Box<i32>, readwrite: &+Box<i32>): void {
     assert_eq!(
         mutate.detail.as_deref(),
         Some("method &+Box<i32>.mutate(value: i32): void")
+    );
+}
+
+#[test]
+fn member_completion_uses_generic_interface_bound() {
+    let text = r#"interface Lookup<V> {
+    pub method &self.get(): &V from self
+}
+
+func read<M: Lookup<i32>>(map: &M): &i32 from map {
+    return map.get()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("map.get").expect("expected bound method") + "map.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let get = items
+        .iter()
+        .find(|item| item.label == "get")
+        .expect("bound method should be suggested");
+    assert_eq!(
+        get.detail.as_deref(),
+        Some("method &M.get(): &i32 from self")
+    );
+    let declaration_start = text.find("get(): &V").expect("expected declaration");
+    assert_eq!(
+        get.declaration_span.map(|span| (span.start, span.end)),
+        Some((declaration_start, declaration_start + "get".len()))
+    );
+}
+
+#[test]
+fn member_completion_targets_conformance_member_implementation() {
+    let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count { value: i32 }
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let count = Count { value: 7 }
+    return count.measure()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("count.measure").unwrap() + "count.".len();
+
+    let item = completion_items_for_file_analysis_at_offset(file, offset)
+        .into_iter()
+        .find(|item| item.label == "measure")
+        .expect("expected conformance method completion");
+
+    assert_eq!(item.detail.as_deref(), Some("method &Count.measure(): i32"));
+    let declaration_start = text.find("method &self.measure(): i32 {").unwrap() + 13;
+    assert_eq!(
+        item.declaration_span.map(|span| span.start),
+        Some(declaration_start)
+    );
+}
+
+#[test]
+fn member_completion_combines_unambiguous_capability_set_members() {
+    let text = r#"interface Readable {
+    pub method &self.read(): i32
+}
+
+interface Measurable {
+    pub method &self.measure(): usize
+}
+
+func inspect<T: Readable + Measurable>(value: &T): i32 {
+    return value.read()
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("value.read").unwrap() + "value.".len();
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+
+    assert!(items.iter().any(|item| item.label == "read"));
+    assert!(items.iter().any(|item| item.label == "measure"));
+}
+
+#[test]
+fn member_completion_omits_ambiguous_capability_set_member() {
+    let text = r#"interface Left {
+    pub method &self.inspect(): i32
+}
+
+interface Right {
+    pub method &self.inspect(): i32
+}
+
+func inspect<T: Left + Right>(value: &T): i32 {
+    value.
+    return 0
+}
+"#;
+    let completion_offset = text.find("value.").unwrap() + "value.".len();
+    let items = completion_items_for_text_at_offset(text, completion_offset)
+        .expect("expected member completion response");
+
+    assert!(!items.iter().any(|item| item.label == "inspect"));
+}
+
+#[test]
+fn completion_recovers_incomplete_result_provenance_clause() {
+    let text = r#"func choose(left: &i32, right: &i32): &i32 from {
+    return left
+}
+"#;
+    let offset = text.find("from ").unwrap() + "from ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered provenance completion");
+    let labels = items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"left"), "{labels:?}");
+    assert!(labels.contains(&"right"), "{labels:?}");
+    assert!(labels.contains(&"static"), "{labels:?}");
+    assert!(labels.contains(&"current"), "{labels:?}");
+}
+
+#[test]
+fn completion_recovers_incomplete_literal_result_provenance_clause() {
+    let text = r#"struct Text { value: &str }
+
+construct Text {
+    pub default literal ""(text: &str): Self from {
+        return Text { value: text }
+    }
+}
+"#;
+    let offset = text.find("from ").unwrap() + "from ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered literal provenance completion");
+    let labels = items
+        .iter()
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"text"), "{labels:?}");
+    assert!(labels.contains(&"static"), "{labels:?}");
+    assert!(labels.contains(&"current"), "{labels:?}");
+    assert!(!labels.contains(&"self"), "{labels:?}");
+}
+
+#[test]
+fn completion_recovers_incomplete_generic_bound() {
+    let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+func read<T: >(value: &T): i32 {
+    return 0
+}
+"#;
+    let offset = text.find("T: ").unwrap() + "T: ".len();
+
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered bound completion");
+
+    assert!(
+        items
+            .iter()
+            .any(|item| { item.label == "Measure" && item.kind == CompletionItemKind::Interface })
+    );
+}
+
+#[test]
+fn completion_recovers_incomplete_additional_generic_bound() {
+    let text = r#"interface Readable {
+    pub method &self.read(): i32
+}
+
+interface Measurable {
+    pub method &self.measure(): usize
+}
+
+func inspect<T: Readable + >(value: &T): i32 {
+    return 0
+}
+"#;
+    let offset = text.find("Readable + ").unwrap() + "Readable + ".len();
+    let items = completion_items_for_text_at_offset(text, offset)
+        .expect("expected recovered additional-bound completion");
+
+    assert!(
+        items.iter().any(|item| {
+            item.label == "Measurable" && item.kind == CompletionItemKind::Interface
+        })
     );
 }

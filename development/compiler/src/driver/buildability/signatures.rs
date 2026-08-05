@@ -26,7 +26,7 @@ pub(super) fn callable_function_signature_issues(
     {
         issues.push(BuildabilityIssue {
             span: function.return_type.span(),
-            construct: "function return types outside the v0 runtime ABI subset",
+            construct: "function return types outside the supported runtime ABI",
             help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, a supported static `error` payload helper, or a fallible form with a non-`error` success type",
         });
     }
@@ -39,8 +39,9 @@ pub(super) fn callable_method_signature_issues(
     resolved: &ResolveOutput,
     resolved_sources: &ResolvedSources<'_>,
 ) -> Vec<BuildabilityIssue> {
+    let receiver = method.receiver.implicit_parameter();
     let mut issues = callable_parameter_issues(
-        std::slice::from_ref(&method.receiver),
+        std::slice::from_ref(&receiver),
         substitutions,
         resolved,
         resolved_sources,
@@ -56,7 +57,7 @@ pub(super) fn callable_method_signature_issues(
     if !callable_return_type_is_buildable_with_resolver(&return_type, resolved, &source_resolver) {
         issues.push(BuildabilityIssue {
             span: method.return_type.span(),
-            construct: "method return types outside the v0 runtime ABI subset",
+            construct: "method return types outside the supported runtime ABI",
             help: "return `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `void`, `never`, a supported aggregate, or a fallible form with a non-`error` success type",
         });
     }
@@ -79,7 +80,7 @@ pub(super) fn callable_parameter_issues(
             }
             Some(BuildabilityIssue {
                 span: parameter.span,
-                construct: "function or method parameters outside the v0 runtime ABI subset",
+                construct: "function or method parameters outside the supported runtime ABI",
                 help: "use `i32`, `u8`, `usize`, `bool`, `&str`, a slice view, `error`, scalar borrow parameters, aggregate borrow parameters, or supported aggregate value parameters",
             })
         })
@@ -345,6 +346,18 @@ pub(super) fn callable_non_alias_parameter_type_is_buildable_with_resolver<'a, F
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if !shape.layers.is_empty() && shape.is_supported_callable_shape() {
+        return type_expr_is_buildable_scalar_or_view_with_resolver(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+        ) || type_expr_is_supported_aggregate_value_with_resolver(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+        );
+    }
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_error_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)
@@ -437,5 +450,6 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     type_expr_is_buildable_scalar_or_view_with_resolver(ty, fallback_resolved, resolver)
+        || type_expr_is_supported_borrow_parameter_with_resolver(ty, fallback_resolved, resolver)
         || type_expr_is_supported_aggregate_return_with_resolver(ty, fallback_resolved, resolver)
 }

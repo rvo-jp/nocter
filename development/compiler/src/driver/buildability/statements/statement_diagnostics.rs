@@ -16,6 +16,44 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
 ) {
     match statement {
         Stmt::Import(_) | Stmt::FromImport(_) => {}
+        Stmt::Region(statement) => {
+            collect_expression_diagnostics(
+                &statement.allocator,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_nonterminal_control_block_aggregate_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
+            collect_block_diagnostics(
+                &statement.body,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_terminal_return_expression_diagnostics(
@@ -150,7 +188,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 typecheck_facts,
                 generic_substitutions,
             ) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
@@ -413,7 +451,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`if is`"))
                 .unwrap_or_else(|| {
-                    unsupported_v0_build_diagnostic(
+                    unsupported_native_build_diagnostic(
                         sources,
                         statement.pattern_span,
                         "`if is` pattern branches",
@@ -523,7 +561,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 )
                 .map(|span| unsupported_payload_binding_diagnostic(sources, span, "`match`"))
                 .unwrap_or_else(|| {
-                    unsupported_v0_build_diagnostic(
+                    unsupported_native_build_diagnostic(
                         sources,
                         statement.span,
                         "`match` statements",
@@ -621,7 +659,7 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
         }
         Stmt::ForRange(statement) => {
             if !range_for_binding_type_is_buildable(statement, typecheck_facts) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
+                diagnostics.push(unsupported_native_build_diagnostic(
                     sources,
                     statement.range_span,
                     "range `for` loops outside i32/usize bounds",
@@ -654,6 +692,70 @@ pub(in crate::driver::buildability) fn collect_statement_diagnostics(
                 queue,
                 diagnostics,
             );
+            collect_nonterminal_control_block_aggregate_diagnostics(
+                &statement.body,
+                sources,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
+            collect_block_diagnostics(
+                &statement.body,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_diagnostics(
+                &statement.source,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_nonterminal_control_payload_block_aggregate_diagnostics(
+                &statement.body,
+                Some(&statement.name),
+                sources,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                diagnostics,
+            );
+            collect_block_diagnostics(
+                &statement.body,
+                return_type,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                resolved_sources,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+        }
+        Stmt::LiteralPackFor(statement) => {
             collect_nonterminal_control_block_aggregate_diagnostics(
                 &statement.body,
                 sources,

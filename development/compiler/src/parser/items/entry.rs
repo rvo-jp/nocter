@@ -42,7 +42,7 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::Use) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations",
                 );
                 return Err(());
             }
@@ -55,7 +55,7 @@ impl Parser<'_> {
         }
 
         if self.at_identifier_text("include") {
-            self.error_current("textual include is not part of v0; write a `use` declaration");
+            self.error_current("textual include is not supported; write a `use` declaration");
             return Err(());
         }
 
@@ -64,11 +64,11 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Use) {
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             if visibility == Visibility::Nocter {
-                self.error_current("`pub(nocter) use` is not valid in v0");
+                self.error_current("`pub(nocter) use` is not valid");
                 return Err(());
             }
             return self.parse_use_item(visibility);
@@ -80,7 +80,7 @@ impl Parser<'_> {
         }
 
         if self.at_identifier_text("include") {
-            self.error_current("textual include is not part of v0; write a `use` declaration");
+            self.error_current("textual include is not supported; write a `use` declaration");
             return Err(());
         }
 
@@ -92,9 +92,40 @@ impl Parser<'_> {
             return self.parse_primitive_decl(visibility, target);
         }
 
+        if self.at_keyword(Keyword::Literal) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to literal definitions");
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            self.error_current(
+                "top-level literal definitions have been removed; declare the literal inside `construct Type { ... }`",
+            );
+            return Err(());
+        }
+
+        if self.at_keyword(Keyword::Construct) {
+            if target.is_some() {
+                self.error_current("`#target` does not apply to construct declarations");
+                return Err(());
+            }
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations");
+                return Err(());
+            }
+            if visibility != Visibility::Private {
+                self.error_current("`construct` declarations do not use visibility modifiers");
+                return Err(());
+            }
+            return self.parse_construct_decl();
+        }
+
         if self.at_keyword(Keyword::Type) {
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             return self.parse_type_alias_decl(visibility, target);
@@ -106,7 +137,7 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Enum) {
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             return self.parse_enum_decl(visibility, target);
@@ -114,7 +145,7 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Interface) {
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             return self.parse_interface_decl(visibility, target);
@@ -123,12 +154,12 @@ impl Parser<'_> {
         if self.at_identifier_text("trait") {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations",
                 );
                 return Err(());
             }
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             self.error_current("`trait` has been removed; use `interface` for contracts");
@@ -138,31 +169,31 @@ impl Parser<'_> {
         if self.at_identifier_text("literal") {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations",
                 );
                 return Err(());
             }
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
-            self.error_current("literal definitions are not part of v0");
+            self.error_current("literal definitions require the reserved `literal` keyword");
             return Err(());
         }
 
         if self.at_keyword(Keyword::Impl) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations",
                 );
                 return Err(());
             }
             if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
+                self.error_current("`copy` applies only to `struct` declarations");
                 return Err(());
             }
             if visibility != Visibility::Private {
-                self.error_current("`impl` blocks do not use visibility modifiers in v0");
+                self.error_current("`impl` blocks do not use visibility modifiers");
                 return Err(());
             }
             return self.parse_impl_decl();
@@ -175,7 +206,7 @@ impl Parser<'_> {
 
         if target.is_some() {
             self.error_current(
-                "`#target` applies only to function, primitive, or type declarations in v0",
+                "`#target` applies only to function, primitive, or type declarations",
             );
             return Err(());
         }
@@ -216,7 +247,7 @@ impl Parser<'_> {
         }))
     }
 
-    pub(super) fn parse_visibility(&mut self) -> ParseResult<Visibility> {
+    pub(in crate::parser) fn parse_visibility(&mut self) -> ParseResult<Visibility> {
         if self.match_keyword(Keyword::Pub).is_none() {
             return Ok(Visibility::Private);
         }

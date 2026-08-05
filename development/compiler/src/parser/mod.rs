@@ -1,15 +1,20 @@
 //! Parser for Nocter source syntax.
 
+mod closures;
+mod collection_for;
+mod constructs;
 mod cursor;
 mod expressions;
 mod items;
+mod literals;
+mod regions;
 mod statements;
 mod support;
 mod types;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenKind};
 use crate::source::{SourceId, SourceMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +24,10 @@ pub struct ParseOutput {
 }
 
 pub fn parse(sources: &SourceMap, source: SourceId, tokens: &[Token]) -> ParseOutput {
-    if tokens.is_empty() {
+    if !tokens
+        .last()
+        .is_some_and(|token| token.kind == TokenKind::Eof)
+    {
         return ParseOutput {
             ast: None,
             diagnostics: vec![Diagnostic::error(
@@ -36,6 +44,7 @@ pub fn parse(sources: &SourceMap, source: SourceId, tokens: &[Token]) -> ParseOu
         index: 0,
         pending_token: None,
         diagnostics: Vec::new(),
+        literal_pack_capture: None,
     };
 
     match parser.parse_source_file() {
@@ -59,6 +68,7 @@ struct Parser<'a> {
     index: usize,
     pending_token: Option<Token>,
     diagnostics: Vec<Diagnostic>,
+    literal_pack_capture: Option<String>,
 }
 
 #[cfg(test)]

@@ -78,7 +78,7 @@ Rules:
 - `ByteSpan.start` and `ByteSpan.end` are UTF-8 byte offsets in the normalized source text.
 - `ByteSpan.end` is exclusive.
 - The compiler normalizes CRLF to LF before computing spans.
-- Bare carriage return is a source error in v0.
+- Bare carriage return is a source error in v0.2.0.
 - Internal compiler analysis should use `ByteSpan` instead of line/column pairs.
 - Line and column pairs are derived only for human-readable diagnostics, JSON output, editor adapters, tests, and AI tooling.
 
@@ -183,7 +183,7 @@ Diagnostic object:
 Diagnostic object rules:
 
 - `code` uses the `E0000` form for source diagnostics, command-line errors, filesystem errors, Nocter-home errors, target-selection errors, and internal compiler errors that are reported through this JSON format.
-- `severity` is `"error"` in v0.
+- `severity` is `"error"` in v0.2.0.
 - Future schema versions may add `"warning"` and `"info"`.
 - `message` is the primary human-readable diagnostic message.
 - `primary_span` is a span object when a source location is known.
@@ -230,7 +230,7 @@ Adopted: parser recovery may be conservative; semantic diagnostics should avoid 
 
 Rules:
 
-- The parser may stop after the first syntax error in v0.
+- The parser may stop after the first syntax error in v0.2.0.
 - After parsing succeeds, later compiler phases may report multiple independent errors.
 - Cascaded errors should be suppressed when they are caused by an earlier error.
 - The compiler may use internal error placeholders to continue analysis, but diagnostics must not mention those placeholders.
@@ -241,7 +241,7 @@ Rules:
 
 Adopted: common Nocter-specific mistakes should have dedicated diagnostics instead of generic type errors.
 
-Required v0 diagnostic families:
+Required v0.2.0 diagnostic families:
 
 - Root file path missing, not found, or not a `.nct` file.
 - Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, or `std/`.
@@ -251,9 +251,9 @@ Required v0 diagnostic families:
 - Unterminated block comment, string literal, or byte literal.
 - Invalid escape sequence in a string literal or byte literal.
 - Invalid integer literal syntax or digit separator placement.
-- Float literal used in v0 source.
-- Plain single-quoted character literal used in v0 source.
-- Semicolon used in v0 source.
+- Float literal used in v0.2.0 source.
+- Plain single-quoted character literal used in v0.2.0 source.
+- Semicolon used in v0.2.0 source.
 - Non-ASCII identifier or invalid module path segment.
 - Import path not found.
 - Import cycle detected, including the cycle path.
@@ -261,7 +261,7 @@ Required v0 diagnostic families:
 - Type reference not declared in the current scope, such as `Int` when no alias
   or import defines it.
 - Name collision in imports or declarations.
-- Attribute syntax or reserved `@` used in v0 source.
+- Attribute syntax or reserved `@` used in v0.2.0 source.
 - `pub(nocter)` item imported from a user project module.
 - `pub(nocter)` used outside the active Nocter home.
 - Primitive declaration outside the active Nocter home.
@@ -292,8 +292,10 @@ Required v0 diagnostic families:
   supported.
 - `otherwise` used on a non-optional expression.
 - `otherwise` fallback whose body result is not assignable to the optional payload type.
-- Check-only construct used with `build` or `run`, such as string interpolation
-  before interpolation lowering is implemented, `std/process.env(name)` before
+- Interpolation expression whose value type is not supported by the adopted formatting surface.
+- Interpolation used when the active Nocter home does not provide the complete trusted string and
+  formatting runtime capability required by the compiler. This must be reported before IR lowering.
+- Check-only construct used with `build` or `run`, such as `std/process.env(name)` before
   environment runtime support is promoted, a fixed-array element type containing
   a payload enum, or move-only payload binding with an unsupported recursive drop
   tree and broader payload enum pattern target expressions before those lowering
@@ -303,8 +305,8 @@ Required v0 diagnostic families:
 - Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
-- Selected entry function with type parameters, such as `func main<T>(): i32!`, used in v0.
-- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.
+- Selected entry function with type parameters, such as `func main<T>(): i32!`, used in v0.2.0.
+- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.2.0.
 - Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
 - `return` without a value in a non-`void` function.
 - `return` with a value in a `void` function.

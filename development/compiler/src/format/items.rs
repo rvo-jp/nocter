@@ -1,9 +1,10 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
-    MethodDecl, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TypeAliasDecl,
-    Visibility,
+    AstFile, ConstructDecl, ConstructMember, ConstructMemberDecl, DropDecl, EnumDecl, EnumVariant,
+    FromImportItem, FunctionDecl, GenericParam, GenericParamList, ImplDecl, ImplMember, ImportItem,
+    ImportedName, InterfaceDecl, Item, LiteralDecl, LiteralShape, MethodDecl, MethodReceiver,
+    Parameter, ParameterList, PrimitiveDecl, ResultProvenanceClause, StructDecl, StructField,
+    TypeAliasDecl, TypeExpr, Visibility,
 };
 
 impl Formatter {
@@ -28,7 +29,78 @@ impl Formatter {
             Item::Enum(item) => self.format_enum_decl(item),
             Item::Interface(item) => self.format_interface_decl(item),
             Item::Impl(item) => self.format_impl_decl(item),
+            Item::Construct(item) => self.format_construct_decl(item),
         }
+    }
+
+    fn format_construct_decl(&mut self, item: &ConstructDecl) {
+        self.write("construct ");
+        self.format_type(&item.target);
+        if item.members.is_empty() {
+            self.write(" {}");
+            return;
+        }
+        self.write(" {");
+        self.newline();
+        let owner_generic_count = match &item.target {
+            TypeExpr::Generic(generic) => generic.arguments.len(),
+            _ => 0,
+        };
+        self.indented(|formatter| {
+            for (index, member) in item.members.iter().enumerate() {
+                if index > 0 {
+                    formatter.newline();
+                }
+                formatter.write_indent();
+                formatter.format_construct_member(member, owner_generic_count);
+                formatter.newline();
+            }
+        });
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn format_construct_member(&mut self, member: &ConstructMember, owner_generic_count: usize) {
+        self.write("pub ");
+        if member.is_default() {
+            self.write("default ");
+        }
+        match &member.declaration {
+            ConstructMemberDecl::Function(function) => {
+                self.write("func ");
+                self.write(&function.member_name);
+                self.format_generic_params(&function.generics.parameters[owner_generic_count..]);
+                self.format_parameters(&function.parameters);
+                self.write(": ");
+                self.format_type(&function.return_type);
+                self.format_result_provenance(function.result_provenance.as_ref());
+                self.write(" ");
+                self.format_block(&function.body);
+            }
+            ConstructMemberDecl::Literal(literal) => self.format_construct_literal(literal),
+        }
+    }
+
+    fn format_construct_literal(&mut self, item: &LiteralDecl) {
+        self.write("literal ");
+        self.write(match item.shape {
+            LiteralShape::Sequence => "[]",
+            LiteralShape::String => "\"\"",
+        });
+        self.write("(");
+        if let Some(capture) = &item.capture {
+            self.write("...");
+            self.write(&capture.name);
+            self.write(": ");
+            self.format_type(&capture.element_type);
+        } else {
+            self.write_comma_separated(&item.parameters.parameters, Self::format_parameter);
+        }
+        self.write("): ");
+        self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
+        self.write(" ");
+        self.format_block(&item.body);
     }
 
     pub(super) fn format_import_item(&mut self, item: &ImportItem) {
@@ -63,6 +135,7 @@ impl Formatter {
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
         self.write(" ");
         self.format_block(&item.body);
     }
@@ -76,6 +149,7 @@ impl Formatter {
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
     }
 
     fn format_type_alias_decl(&mut self, item: &TypeAliasDecl) {
@@ -172,7 +246,9 @@ impl Formatter {
     }
 
     fn format_impl_decl(&mut self, item: &ImplDecl) {
-        self.write("impl ");
+        self.write("impl");
+        self.format_generics(&item.generics);
+        self.write(" ");
         if let Some(interface_ty) = &item.interface_ty {
             self.format_type(interface_ty);
             self.write(" for ");
@@ -221,9 +297,11 @@ impl Formatter {
         self.format_method_receiver(&item.receiver);
         self.write(".");
         self.write(&item.name);
+        self.format_generics(&item.generics);
         self.format_parameters(&item.parameters);
         self.write(": ");
         self.format_type(&item.return_type);
+        self.format_result_provenance(item.result_provenance.as_ref());
 
         if let Some(body) = &item.body {
             self.write(" ");
@@ -236,6 +314,19 @@ impl Formatter {
             Visibility::Private => {}
             Visibility::Public => self.write("pub "),
             Visibility::Nocter => self.write("pub(nocter) "),
+        }
+    }
+
+    fn format_result_provenance(&mut self, clause: Option<&ResultProvenanceClause>) {
+        let Some(clause) = clause else {
+            return;
+        };
+        self.write(" from ");
+        for (index, origin) in clause.origins.iter().enumerate() {
+            if index > 0 {
+                self.write(" | ");
+            }
+            self.write(origin.kind.source_label());
         }
     }
 
@@ -264,20 +355,29 @@ impl Formatter {
     }
 
     fn format_generics(&mut self, generics: &GenericParamList) {
-        if generics.parameters.is_empty() {
+        self.format_generic_params(&generics.parameters);
+    }
+
+    fn format_generic_params(&mut self, parameters: &[GenericParam]) {
+        if parameters.is_empty() {
             return;
         }
 
         self.write("<");
-        self.write_comma_separated(&generics.parameters, Self::format_generic_param);
+        self.write_comma_separated(parameters, Self::format_generic_param);
         self.write(">");
     }
 
     fn format_generic_param(&mut self, parameter: &GenericParam) {
         self.write(&parameter.name);
-        if let Some(bound) = &parameter.bound {
+        if !parameter.bounds.is_empty() {
             self.write(": ");
-            self.format_type(bound);
+            for (index, bound) in parameter.bounds.iter().enumerate() {
+                if index != 0 {
+                    self.write(" + ");
+                }
+                self.format_type(bound);
+            }
         }
     }
 
@@ -287,8 +387,9 @@ impl Formatter {
         self.write(")");
     }
 
-    fn format_method_receiver(&mut self, receiver: &Parameter) {
-        self.format_self_receiver(receiver);
+    fn format_method_receiver(&mut self, receiver: &MethodReceiver) {
+        self.write(receiver.mode.source_prefix());
+        self.write(&receiver.name);
     }
 
     fn format_self_receiver(&mut self, receiver: &Parameter) {

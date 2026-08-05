@@ -99,7 +99,7 @@ func source(): Header! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -144,7 +144,7 @@ func source(): Header! {
     );
     assert_eq!(
         main.instructions.last(),
-        Some(&Instruction::ReturnFallibleSuccess)
+        Some(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -235,7 +235,7 @@ func source(): Header! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -286,11 +286,11 @@ func source(): Packet! {
     assert!(main.instructions.iter().any(|instruction| {
         matches!(
             instruction,
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 destination: AggregateLocation::Slot(1),
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Catch { .. },
+                failure_mode: OutcomeFailureMode::Catch { .. },
             } if target == &CallTarget::same_file("source") && arguments.is_empty()
         )
     }));
@@ -306,7 +306,7 @@ func source(): Packet! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -352,7 +352,7 @@ func source(): Header! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -408,7 +408,7 @@ func source(): Header! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -463,7 +463,7 @@ func source(): Header! {
     );
     assert!(
         main.instructions
-            .contains(&Instruction::ReturnFallibleSuccess)
+            .contains(&Instruction::ReturnOutcomeSuccess)
     );
 }
 
@@ -507,9 +507,9 @@ func answer(): i32! {
         .iter()
         .find(|function| function.name == "main")
         .unwrap();
-    let Some(Instruction::CallFallibleI32 {
+    let Some(Instruction::CallOutcomeI32 {
         failure_mode:
-            FallibleFailureMode::Catch {
+            OutcomeFailureMode::Catch {
                 code,
                 message,
                 instructions,
@@ -518,7 +518,7 @@ func answer(): i32! {
     }) = main
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleI32 { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeI32 { .. }))
     else {
         panic!("missing fallible i32 catch call: {main:?}");
     };

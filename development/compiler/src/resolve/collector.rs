@@ -1,4 +1,5 @@
 use super::builtins::{is_builtin_type_name, is_reserved_type_declaration_name};
+use super::conformance::interface_conformance;
 use super::diagnostics::{
     builtin_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
@@ -17,7 +18,7 @@ use super::signatures::{
 use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
     AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, InterfaceDecl, Item,
-    Parameter, PrimitiveDecl, StructDecl,
+    MethodReceiver, Parameter, PrimitiveDecl, StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -136,10 +137,20 @@ impl Resolver<'_> {
                             interface,
                         ));
                     for method in &interface.methods {
+                        let subject =
+                            format!("interface method `{}.{}`", interface.name, method.name);
+                        self.output
+                            .diagnostics
+                            .extend(method_generic_parameter_name_diagnostics(
+                                self.sources,
+                                &subject,
+                                &interface.generics,
+                                &method.generics,
+                            ));
                         self.output.diagnostics.extend(
                             duplicate_method_parameter_name_diagnostics(
                                 self.sources,
-                                &format!("interface method `{}.{}`", interface.name, method.name),
+                                &subject,
                                 &method.receiver,
                                 &method.parameters.parameters,
                             ),
@@ -162,10 +173,19 @@ impl Resolver<'_> {
                         ));
                     for member in &impl_.members {
                         if let crate::ast::ImplMember::Method(method) = member {
+                            let subject = format!("method `{}`", method.name);
+                            self.output.diagnostics.extend(
+                                method_generic_parameter_name_diagnostics(
+                                    self.sources,
+                                    &subject,
+                                    &impl_.generics,
+                                    &method.generics,
+                                ),
+                            );
                             self.output.diagnostics.extend(
                                 duplicate_method_parameter_name_diagnostics(
                                     self.sources,
-                                    &format!("method `{}`", method.name),
+                                    &subject,
                                     &method.receiver,
                                     &method.parameters.parameters,
                                 ),
@@ -173,14 +193,38 @@ impl Resolver<'_> {
                         }
                     }
                 }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.output
+                            .diagnostics
+                            .extend(generic_parameter_name_diagnostics(
+                                self.sources,
+                                &format!("construction function `{}`", function.name),
+                                &function.generics,
+                            ));
+                        self.output
+                            .diagnostics
+                            .extend(duplicate_parameter_name_diagnostics(
+                                self.sources,
+                                &format!("construction function `{}`", function.name),
+                                &function.parameters.parameters,
+                            ));
+                    }
+                }
             }
         }
 
         for item in &ast.items {
-            if let Item::Function(function) = item
-                && function.owner.is_some()
-            {
-                self.collect_top_level_associated_function(function);
+            match item {
+                Item::Function(function) if function.owner.is_some() => {
+                    self.collect_top_level_associated_function(function);
+                }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.collect_top_level_associated_function(function);
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -189,6 +233,9 @@ impl Resolver<'_> {
                 self.collect_inherent_impl_members(impl_);
             }
         }
+
+        self.collect_literal_definitions(ast);
+        self.collect_construction_surfaces(ast);
     }
 
     pub(super) fn define_symbol(
@@ -260,7 +307,7 @@ impl Resolver<'_> {
         );
     }
 
-    fn collect_top_level_associated_function(&mut self, function: &FunctionDecl) {
+    pub(super) fn collect_top_level_associated_function(&mut self, function: &FunctionDecl) {
         let Some(owner) = &function.owner else {
             return;
         };
@@ -359,10 +406,6 @@ impl Resolver<'_> {
     }
 
     fn collect_inherent_impl_members(&mut self, impl_: &ImplDecl) {
-        if impl_.interface_ty.is_some() {
-            return;
-        }
-
         let Some(target_name) = impl_target_type_name(&impl_.target_ty) else {
             return;
         };
@@ -383,6 +426,13 @@ impl Resolver<'_> {
             };
 
             if !type_symbol_accepts_inherent_impl(type_symbol) {
+                return;
+            }
+
+            if impl_.interface_ty.is_some() {
+                if let Some(conformance) = interface_conformance(impl_) {
+                    type_symbol.interface_conformances.push(conformance);
+                }
                 return;
             }
 
@@ -446,7 +496,7 @@ fn generic_parameter_name_diagnostics(
             diagnostics.push(reserved_generic_parameter_name_reuse_diagnostic(
                 sources,
                 &parameter.name,
-                parameter.span,
+                parameter.name_span,
             ));
         } else if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
             diagnostics.push(duplicate_generic_parameter_name_diagnostic(
@@ -454,10 +504,38 @@ fn generic_parameter_name_diagnostics(
                 subject,
                 &parameter.name,
                 first_span,
-                parameter.span,
+                parameter.name_span,
             ));
         } else {
-            seen.insert(parameter.name.as_str(), parameter.span);
+            seen.insert(parameter.name.as_str(), parameter.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn method_generic_parameter_name_diagnostics(
+    sources: &SourceMap,
+    subject: &str,
+    owner_generics: &GenericParamList,
+    method_generics: &GenericParamList,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = generic_parameter_name_diagnostics(sources, subject, method_generics);
+    let owner_parameters = owner_generics
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.name.as_str(), parameter.name_span))
+        .collect::<HashMap<_, _>>();
+
+    for parameter in &method_generics.parameters {
+        if let Some(first_span) = owner_parameters.get(parameter.name.as_str()).copied() {
+            diagnostics.push(duplicate_generic_parameter_name_diagnostic(
+                sources,
+                subject,
+                &parameter.name,
+                first_span,
+                parameter.name_span,
+            ));
         }
     }
 
@@ -523,7 +601,7 @@ fn duplicate_interface_method_name_diagnostics(
 fn duplicate_method_parameter_name_diagnostics(
     sources: &SourceMap,
     subject: &str,
-    receiver: &Parameter,
+    receiver: &MethodReceiver,
     parameters: &[Parameter],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();

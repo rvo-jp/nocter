@@ -6,13 +6,13 @@ use crate::abi::{ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT, ValueLayout};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode,
-    I32Location, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
-    UsizeValue,
+    AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowSource, I32Location,
+    OutcomeFailureMode, ScalarArgument, SliceLocation, StrLocation, Type, U8Location,
+    UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
-pub(super) struct FallibleDirectAggregateCall<'a> {
+pub(super) struct OutcomeDirectAggregateCall<'a> {
     pub(super) destination: AggregateLocation,
     pub(super) function: FunctionSymbol,
     pub(super) arguments: &'a [ScalarArgument],

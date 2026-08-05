@@ -21,11 +21,21 @@ pub(in crate::analysis::hover) fn module_path_in_item_at_offset(
                 .and_then(|body| module_path_in_block_at_offset(body, offset)),
             ImplMember::Drop(drop_) => module_path_in_block_at_offset(&drop_.body, offset),
         }),
-        Item::Primitive(_)
-        | Item::TypeAlias(_)
-        | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => None,
+        Item::Interface(interface) => interface.methods.iter().find_map(|method| {
+            method
+                .body
+                .as_ref()
+                .and_then(|body| module_path_in_block_at_offset(body, offset))
+        }),
+        Item::Construct(construct) => construct
+            .functions()
+            .find_map(|(_, function)| module_path_in_block_at_offset(&function.body, offset))
+            .or_else(|| {
+                construct
+                    .literals()
+                    .find_map(|(_, literal)| module_path_in_block_at_offset(&literal.body, offset))
+            }),
+        Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => None,
     }
 }
 
@@ -97,9 +107,18 @@ pub(in crate::analysis::hover) fn module_path_in_statement_at_offset(
         Stmt::ForRange(statement) => module_path_in_expression_at_offset(&statement.start, offset)
             .or_else(|| module_path_in_expression_at_offset(&statement.end, offset))
             .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
+        Stmt::CollectionFor(statement) => {
+            module_path_in_expression_at_offset(&statement.source, offset)
+                .or_else(|| module_path_in_block_at_offset(&statement.body, offset))
+        }
+        Stmt::LiteralPackFor(statement) => module_path_in_block_at_offset(&statement.body, offset),
         Stmt::While(statement) => module_path_in_expression_at_offset(&statement.condition, offset)
             .or_else(|| module_path_in_block_at_offset(&statement.body, offset)),
         Stmt::Loop(statement) => module_path_in_block_at_offset(&statement.body, offset),
+        Stmt::Region(statement) => {
+            module_path_in_expression_at_offset(&statement.allocator, offset)
+                .or_else(|| module_path_in_block_at_offset(&statement.body, offset))
+        }
         Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
         Stmt::Expression(statement) => {
             module_path_in_expression_at_offset(&statement.expression, offset)
@@ -112,6 +131,7 @@ pub(in crate::analysis::hover) fn module_path_in_expression_at_offset(
     offset: usize,
 ) -> Option<&ModulePath> {
     match expression {
+        Expr::Closure(expression) => module_path_in_block_at_offset(&expression.body, offset),
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 InterpolatedStringPart::Expression(part) => {
@@ -124,6 +144,20 @@ pub(in crate::analysis::hover) fn module_path_in_expression_at_offset(
             .elements
             .iter()
             .find_map(|element| module_path_in_expression_at_offset(element, offset)),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| module_path_in_expression_at_offset(element, offset))
+            .or_else(|| {
+                expression
+                    .using
+                    .as_ref()
+                    .and_then(|using| module_path_in_expression_at_offset(&using.allocator, offset))
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| module_path_in_expression_at_offset(&using.allocator, offset)),
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

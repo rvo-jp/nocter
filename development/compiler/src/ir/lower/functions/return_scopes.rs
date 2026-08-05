@@ -32,14 +32,22 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
     let function_name = context.function_name().to_string();
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) =
-            lower_never_expression_with_scope_drops(expression, context)?
+        && let Some(return_instructions) = lower_never_expression(expression, context)?
     {
         return Ok(return_instructions);
     }
 
     if let Some(expression) = &statement.expression
-        && matches!(return_type, Type::Fallible(_))
+        && let Some(return_instructions) = lower_stored_outcome_return(expression, context)?
+    {
+        return Ok(return_instructions);
+    }
+
+    if let Some(expression) = &statement.expression
+        && matches!(
+            return_type,
+            Type::Fallible(_) | Type::ComposedOutcome { .. }
+        )
         && let Some((root_source, resolved)) = context.resolved_calls()
         && let Some(payload) =
             lower_error_payload(expression, resolved, root_source, Some(context))?
@@ -116,6 +124,16 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
         (Type::Slice { .. }, Some(expression)) => {
             lower_slice_return_expression(expression, context)
         }
+        (Type::Borrow { .. }, Some(expression)) => {
+            let mut instructions = lower_borrow_expression_to_location(
+                expression,
+                UsizeLocation::Return,
+                &success_type,
+                context,
+            )?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
         (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
             let Some((_root_source, resolved)) = context.resolved_calls() else {
                 return Err(unsupported_return_diagnostic(
@@ -135,13 +153,15 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
         (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
             diagnostic_code,
             format!(
-                "IR v0 can only lower never function `{function_name}` returns from `never` calls"
+                "native lowering can only lower never function `{function_name}` returns from `never` calls"
             ),
         )]),
         (Type::Void, None) => Ok(vec![Instruction::Return]),
         (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
             diagnostic_code,
-            format!("IR v0 cannot lower value returns from void function `{function_name}`"),
+            format!(
+                "native lowering cannot lower value returns from void function `{function_name}`"
+            ),
         )]),
         (Type::I32, None) => Err(unsupported_bare_return_diagnostic(
             diagnostic_code,
@@ -181,7 +201,7 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             &function_name,
             "error",
         )),
-        (Type::Borrow { .. }, _) => Err(unsupported_return_diagnostic(
+        (Type::Borrow { .. }, None) => Err(unsupported_return_diagnostic(
             diagnostic_code,
             &function_name,
             "borrow",
@@ -191,14 +211,12 @@ pub(in crate::ir::lower) fn lower_return_statement_with_scope_drops(
             &function_name,
             "never",
         )),
-        (Type::Fallible(_), _) => Err(unsupported_return_diagnostic(
-            diagnostic_code,
-            &function_name,
-            "nested fallible",
-        )),
+        (Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => Err(
+            unsupported_return_diagnostic(diagnostic_code, &function_name, "nested fallible"),
+        ),
     }?;
 
-    let return_instructions = mark_fallible_success_returns(&return_type, return_instructions);
+    let return_instructions = mark_outcome_success_returns(&return_type, return_instructions);
     append_scope_end_drops_before_exit(return_instructions, context)
 }
 
@@ -366,7 +384,9 @@ pub(in crate::ir::lower) fn lower_value_return_with_scope_drops(
         | Type::Void
         | Type::Never
         | Type::Borrow { .. }
-        | Type::Fallible(_) => return Ok(None),
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => return Ok(None),
     };
 
     Ok(Some(std::mem::take(&mut instructions)))

@@ -6,22 +6,23 @@ use super::control_flow::{
     lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
     lower_nonterminal_if_statement_with_branch_prologues, lower_nonterminal_loop_statement,
     lower_nonterminal_payloadless_switch_body, lower_nonterminal_payloadless_switch_statement,
-    lower_nonterminal_while_statement, lower_terminal_condition,
-    lower_terminal_i32_if_statement_with_branch_prologues, lower_terminal_i32_switch_block,
-    lower_terminal_usize_if_statement_with_branch_prologues, lower_terminal_usize_switch_block,
-    lower_terminal_void_if_statement_with_branch_prologues, lower_terminal_void_switch_block,
+    lower_nonterminal_region_statement, lower_nonterminal_while_statement,
+    lower_terminal_condition, lower_terminal_i32_if_statement_with_branch_prologues,
+    lower_terminal_i32_switch_block, lower_terminal_usize_if_statement_with_branch_prologues,
+    lower_terminal_usize_switch_block, lower_terminal_void_if_statement_with_branch_prologues,
+    lower_terminal_void_switch_block,
 };
 use super::expressions::{
-    lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
+    lower_void_expression_statement, mark_outcome_success_returns, success_return_instruction,
 };
 use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitch, LoweredPayloadlessSwitchBody, LoweredSwitchBlock,
     LoweredSwitchCondition, append_scope_end_drops_before_exit, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_never_expression, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     reachable_body_prefix, tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
 };
-use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
+use super::types::{return_type_expr_has_optional_layer, return_type_from_type_expr};
 use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -45,7 +46,7 @@ pub(super) fn lower_entry_function(
         return Err(attach_primary_span_if_absent(
             vec![Diagnostic::error(
                 "E8001",
-                "IR v0 can only lower a non-generic zero-parameter entry function",
+                "native lowering can only lower a non-generic zero-parameter entry function",
             )],
             sources,
             span,
@@ -102,7 +103,7 @@ fn entry_return_type_is_supported(ty: &Type) -> bool {
 fn unsupported_entry_return_type_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8001",
-        "IR v0 can only lower entry function return type `i32`, `usize`, `i32!`, `usize!`, `void`, or `void!`",
+        "native lowering can only lower entry function return type `i32`, `usize`, `i32!`, `usize!`, `void`, or `void!`",
     )]
 }
 
@@ -134,7 +135,7 @@ fn lower_entry_body(
         function_signatures,
     )
     .with_function_return_type(return_type.clone())
-    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+    .with_function_returns_optional(return_type_expr_has_optional_layer(
         &function.return_type,
         resolved,
     ))
@@ -282,15 +283,13 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, &mut context)
-                    .map_err(|diagnostics| {
-                        attach_primary_span_if_absent(
-                            diagnostics,
-                            sources,
-                            statement.expression.span(),
-                        )
-                    })?
+            let Some(terminating_instructions) = lower_never_expression(
+                &statement.expression,
+                &mut context,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+            })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
@@ -337,6 +336,23 @@ fn lower_entry_body(
             );
             Ok(instructions)
         }
+        Stmt::Region(statement) => {
+            instructions.extend(
+                lower_nonterminal_region_statement(
+                    statement,
+                    &context,
+                    None,
+                    &[],
+                    "E8002",
+                    "entry functions",
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            );
+            Ok(instructions)
+        }
         _ => Err(attach_primary_span_if_absent(
             unsupported_entry_body_diagnostic(),
             sources,
@@ -358,8 +374,8 @@ fn lower_entry_body_result(
     }
 
     if return_type.success_type() == &Type::Void {
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+        if let Some(terminating_instructions) = lower_never_expression(expression, context)
+            .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, expression.span())
             })?
         {
@@ -461,7 +477,7 @@ fn lower_entry_payloadless_switch_body_result(
         Ok(Some(mut branch_instructions)) => {
             let mut instructions = switch.leading_instructions;
             instructions.append(&mut branch_instructions);
-            Ok(Some(mark_fallible_success_returns(
+            Ok(Some(mark_outcome_success_returns(
                 return_type,
                 instructions,
             )))
@@ -612,7 +628,7 @@ fn lower_terminal_entry_if_statement_for_success_type_with_branch_prologues(
         return Ok(None);
     };
 
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         branch_instructions,
     )))
@@ -681,7 +697,7 @@ fn lower_terminal_entry_payloadless_switch_for_success_type(
 
     let mut instructions = switch.leading_instructions;
     instructions.extend(branch_instructions);
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         instructions,
     )))
@@ -948,11 +964,41 @@ fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::CollectionFor(statement) => {
+                instructions.extend(
+                    super::collection_for::lower_collection_for_statement(
+                        statement,
+                        context,
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             Stmt::Loop(statement) => {
                 instructions.extend(
                     lower_nonterminal_loop_statement(
                         statement,
                         context,
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::Region(statement) => {
+                instructions.extend(
+                    lower_nonterminal_region_statement(
+                        statement,
+                        context,
+                        None,
+                        &[],
                         "E8002",
                         "entry functions",
                         sources,
@@ -979,6 +1025,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
+        "native lowering can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

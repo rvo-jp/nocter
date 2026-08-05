@@ -18,7 +18,7 @@ pub(in crate::driver::buildability) fn unsupported_expression_statement_diagnost
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         expression.span(),
         "value-producing expression statements",
@@ -33,8 +33,74 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
     generic_substitutions: &HashMap<String, TypeExpr>,
     resolved_sources: &ResolvedSources<'_>,
 ) -> bool {
-    let Expr::Call(call) = unwrap_group_expr(value) else {
-        return false;
+    let stored = match unwrap_group_expr(value) {
+        Expr::Identifier(identifier) => Some((
+            identifier.span,
+            &[crate::outcomes::OutcomeLayer::Optional][..],
+            true,
+        )),
+        Expr::Propagate(propagation) => match unwrap_group_expr(&propagation.expression) {
+            Expr::Identifier(identifier) => Some((
+                identifier.span,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+                false,
+            )),
+            _ => None,
+        },
+        Expr::Catch(catch) => match unwrap_group_expr(&catch.expression) {
+            Expr::Identifier(identifier) => Some((
+                identifier.span,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+                false,
+            )),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some((span, expected_layers, allow_trailing)) = stored
+        && let Some(ty) = typecheck_facts.expression_type_expr(span)
+    {
+        let ty = substitute_type_expr_parameters(ty, generic_substitutions);
+        let shape = outcome_shape_with_resolver(&ty, resolved, |source| {
+            resolved_sources.get(&source).copied()
+        });
+        return shape.is_supported_callable_shape()
+            && shape.layers.starts_with(expected_layers)
+            && (allow_trailing || shape.layers.len() == expected_layers.len());
+    }
+    let (call, expected_layers) = match unwrap_group_expr(value) {
+        Expr::Call(call) => (call, &[crate::outcomes::OutcomeLayer::Optional][..]),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group_expr(&propagation.expression) else {
+                return false;
+            };
+            (
+                call,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group_expr(&catch.expression) else {
+                return false;
+            };
+            (
+                call,
+                &[
+                    crate::outcomes::OutcomeLayer::Fallible,
+                    crate::outcomes::OutcomeLayer::Optional,
+                ][..],
+            )
+        }
+        _ => return false,
     };
     let Some(return_type) = call_return_type_expr_with_substitutions(
         call,
@@ -45,7 +111,7 @@ pub(in crate::driver::buildability) fn otherwise_optional_value_call_is_buildabl
         return false;
     };
     let source_resolver = |source| resolved_sources.get(&source).copied();
-    type_expr_is_top_level_optional_with_resolver(&return_type, resolved, &source_resolver)
+    outcome_shape_with_resolver(&return_type, resolved, source_resolver).layers == expected_layers
 }
 
 pub(in crate::driver::buildability) fn expression_is_never_runtime_shape_is_buildable(
@@ -96,7 +162,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
         if is_buildable {
             return None;
         }
-        return Some(unsupported_v0_build_diagnostic(
+        return Some(unsupported_native_build_diagnostic(
             sources,
             index.span,
             "fixed array index assignment targets outside scalar/view element locals or aggregate fields",
@@ -116,7 +182,7 @@ pub(in crate::driver::buildability) fn unsupported_index_assignment_target_diagn
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         index.object.span(),
         "index assignment targets outside supported slice values",

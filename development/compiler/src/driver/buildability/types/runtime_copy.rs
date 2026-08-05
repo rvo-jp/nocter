@@ -137,6 +137,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) => false,
+        TypeExpr::Closure(closure) => closure.captures.iter().all(|capture| match capture.mode {
+            crate::ast::ClosureCaptureMode::ReadonlyBorrow => true,
+            crate::ast::ClosureCaptureMode::ReadwriteBorrow => false,
+            crate::ast::ClosureCaptureMode::Move => type_expr_is_runtime_copy_value_with_resolver(
+                &capture.ty,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ),
+        }),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => true,

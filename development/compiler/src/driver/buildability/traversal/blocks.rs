@@ -11,7 +11,7 @@ pub(in crate::driver::buildability) fn collect_callable_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for issue in &callable.issues {
-        diagnostics.push(unsupported_v0_build_diagnostic(
+        diagnostics.push(unsupported_native_build_diagnostic(
             sources,
             issue.span,
             issue.construct,

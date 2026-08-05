@@ -1,12 +1,13 @@
 //! Shared type normalization for IR lowering.
 //!
-//! Converts resolved AST type expressions into the limited IR type set used by v0 lowering.
+//! Converts resolved AST type expressions into the native lowerer's IR type set.
 
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr_with_resolver};
 use crate::ast::{
     ArrayType, BorrowType, FallibleType, GenericType, OptionalType, PointerType, TypeExpr, ViewType,
 };
 use crate::ir::Type;
+use crate::outcomes::{OutcomeLayer, outcome_shape_with_resolver};
 use crate::resolve::{ResolveOutput, TypeSymbol};
 use crate::source::SourceId;
 use std::collections::HashSet;
@@ -17,6 +18,16 @@ pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput
 
 pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
     match ty {
+        TypeExpr::Callable(callable) => {
+            let mut callable = callable.clone();
+            for parameter in &mut callable.parameters {
+                parameter.ty = type_expr_with_self_type(&parameter.ty, self_ty);
+            }
+            callable.return_type =
+                Box::new(type_expr_with_self_type(&callable.return_type, self_ty));
+            TypeExpr::Callable(callable)
+        }
+        TypeExpr::Closure(_) => ty.clone(),
         TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
         TypeExpr::Reference(_) => ty.clone(),
         TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {
@@ -65,6 +76,23 @@ pub(super) fn return_type_expr_is_top_level_optional(
     resolved: &ResolveOutput,
 ) -> bool {
     return_type_expr_is_top_level_optional_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn return_type_expr_has_optional_layer(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    return_type_expr_has_optional_layer_with_resolver(ty, resolved, |_| Some(resolved))
+}
+
+pub(super) fn return_type_expr_has_optional_layer_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> bool
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    outcome_shape_with_resolver(ty, fallback_resolved, resolver)
+        .layers
+        .contains(&OutcomeLayer::Optional)
 }
 
 pub(super) fn return_type_expr_is_top_level_optional_with_resolver<'a, F>(
@@ -176,6 +204,20 @@ pub(super) fn return_type_from_type_expr_with_resolver<'a, F>(
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, &resolver);
+    if let [outer, inner] = shape.layers.as_slice() {
+        let payload = return_type_from_type_expr_inner(
+            &shape.payload,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        )?;
+        return Some(Type::ComposedOutcome {
+            outer: *outer,
+            inner: *inner,
+            payload: Box::new(payload),
+        });
+    }
     return_type_from_type_expr_inner(ty, fallback_resolved, &resolver, &mut HashSet::new())
 }
 
@@ -230,7 +272,19 @@ where
             resolver,
             resolving_names,
         )
-        .map(|success| Type::Fallible(Box::new(success))),
+        .map(|payload| Type::Optional(Box::new(payload))),
+        TypeExpr::Borrow(borrow) => {
+            scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver).or_else(
+                || {
+                    borrow_inner_type_inner(&borrow.inner, fallback_resolved, resolver).map(
+                        |inner| Type::Borrow {
+                            is_readwrite: borrow.is_readwrite,
+                            inner: Box::new(inner),
+                        },
+                    )
+                },
+            )
+        }
         _ => scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver)
             .or_else(|| aggregate_type_from_type_expr_inner(ty, fallback_resolved, resolver)),
     }
@@ -279,6 +333,26 @@ where
         && reference.name == "error"
     {
         return Some(Type::Error);
+    }
+
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if !shape.layers.is_empty() {
+        let payload = parameter_type_from_type_expr_inner(
+            &shape.payload,
+            fallback_resolved,
+            resolver,
+            resolving_names,
+        )?;
+        return match shape.layers.as_slice() {
+            [OutcomeLayer::Optional] => Some(Type::Optional(Box::new(payload))),
+            [OutcomeLayer::Fallible] => Some(Type::Fallible(Box::new(payload))),
+            [outer, inner] => Some(Type::ComposedOutcome {
+                outer: *outer,
+                inner: *inner,
+                payload: Box::new(payload),
+            }),
+            _ => None,
+        };
     }
 
     if let Some(ty) = scalar_or_view_type_from_type_expr_inner(ty, fallback_resolved, resolver) {
@@ -410,7 +484,7 @@ where
 pub(super) fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
     if !matches!(
         value.ty,
-        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_)
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
     ) {
         return None;
     }
@@ -451,7 +525,7 @@ where
         AbiType::U8 => Some(Type::U8),
         AbiType::Usize | AbiType::Pointer => Some(Type::Usize),
         AbiType::Bool => Some(Type::Bool),
-        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) => {
+        AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. } => {
             aggregate_type_from_abi_value(&value)
         }
         _ => None,

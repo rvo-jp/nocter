@@ -1,26 +1,12 @@
 //! Find-references queries derived from compile-unit analysis.
 
-use super::scoped_imports::scoped_import_name_spans;
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::AstFile;
-use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbol};
-use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
-use std::collections::HashSet;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReferenceTarget {
-    Local(ByteSpan),
-    Declaration(ByteSpan),
-    Member(ByteSpan),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ReferenceCandidate {
-    span: ByteSpan,
-    target: ReferenceTarget,
-}
+use crate::analysis::occurrences::{
+    SemanticIdentity, SemanticOccurrenceIndex, SemanticOccurrenceRole,
+};
+use crate::source::ByteSpan;
+use crate::typecheck::collect_typecheck_facts;
 
 pub(crate) fn reference_spans_for_file_analysis(
     analysis: &CompileUnitAnalysis,
@@ -28,11 +14,19 @@ pub(crate) fn reference_spans_for_file_analysis(
     offset: usize,
     include_declaration: bool,
 ) -> Vec<ByteSpan> {
-    let Some(target) = selected_reference_target(file, offset) else {
+    let Some(target) = file
+        .occurrences
+        .at_offset(offset)
+        .and_then(|occurrence| occurrence.identity)
+    else {
         return Vec::new();
     };
 
-    reference_spans_for_target(analysis.files.iter(), target, include_declaration)
+    reference_spans_for_semantic_identity(
+        analysis.files.iter().map(|file| &file.occurrences),
+        target,
+        include_declaration,
+    )
 }
 
 pub(crate) fn reference_spans_for_text(
@@ -40,340 +34,45 @@ pub(crate) fn reference_spans_for_text(
     offset: usize,
     include_declaration: bool,
 ) -> Option<Vec<ByteSpan>> {
+    reference_spans_for_complete_text(text, offset, include_declaration).or_else(|| {
+        let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+        reference_spans_for_complete_text(&recovered, offset, include_declaration)
+    })
+}
+
+fn reference_spans_for_complete_text(
+    text: &str,
+    offset: usize,
+    include_declaration: bool,
+) -> Option<Vec<ByteSpan>> {
     let parsed = parse_single_file_text("references.nct", text)?;
     let resolved = resolve_single_file_ast("references.nct", text, parsed.source, &parsed.ast);
     let facts = collect_typecheck_facts(&parsed.ast, &resolved);
-    let file = SingleFileAnalysis {
-        ast: &parsed.ast,
-        resolved: &resolved,
-        facts: &facts,
-    };
-    let target = selected_reference_target_for_parts(file.ast, file.resolved, file.facts, offset)?;
-    let spans = reference_spans_for_single_file(file, target, include_declaration);
+    let occurrences = SemanticOccurrenceIndex::new(&parsed.ast, &resolved, &facts);
+    let target = occurrences.at_offset(offset)?.identity?;
+    let spans = reference_spans_for_semantic_identity(
+        std::iter::once(&occurrences),
+        target,
+        include_declaration,
+    );
 
     Some(spans)
 }
 
-fn selected_reference_target(file: &FileAnalysis, offset: usize) -> Option<ReferenceTarget> {
-    selected_reference_target_for_parts(&file.ast, &file.resolved, &file.typecheck_facts, offset)
-}
-
-fn selected_reference_target_for_parts(
-    ast: &AstFile,
-    resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
-    offset: usize,
-) -> Option<ReferenceTarget> {
-    let mut candidates = Vec::new();
-
-    push_member_reference_candidates(facts, offset, &mut candidates);
-    push_function_call_reference_candidates(facts, offset, &mut candidates);
-    push_type_reference_candidates(facts, offset, &mut candidates);
-    push_resolved_reference_candidates(resolved, offset, &mut candidates);
-    push_declaration_candidates(ast.span.source, resolved, offset, &mut candidates);
-
-    candidates.sort_by_key(|candidate| (candidate.span.len(), candidate.span.start));
-    candidates
-        .into_iter()
-        .next()
-        .map(|candidate| candidate.target)
-}
-
-fn push_member_reference_candidates(
-    facts: &TypecheckFacts,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    if let Some((span, target)) = facts.field_target_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Member(target),
-        });
-    }
-    if let Some((span, target)) = facts.associated_function_target_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Member(target),
-        });
-    }
-    if let Some((span, target)) = facts.enum_variant_target_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Member(target),
-        });
-    }
-    for span in facts.method_call_spans() {
-        if span_contains(span, offset)
-            && let Some(target) = facts.method_call_target(span)
-        {
-            candidates.push(ReferenceCandidate {
-                span,
-                target: ReferenceTarget::Member(target),
-            });
-        }
-    }
-}
-
-fn push_function_call_reference_candidates(
-    facts: &TypecheckFacts,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    if let Some((span, target)) = facts.function_call_target_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Declaration(target),
-        });
-    }
-}
-
-fn push_type_reference_candidates(
-    facts: &TypecheckFacts,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    let Some(reference) = facts.type_reference_at_offset(offset) else {
-        return;
-    };
-    let Some(declaration_span) = reference.symbol_declaration_span else {
-        return;
-    };
-    candidates.push(ReferenceCandidate {
-        span: reference.span,
-        target: ReferenceTarget::Declaration(declaration_span),
-    });
-}
-
-fn push_resolved_reference_candidates(
-    resolved: &ResolveOutput,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    if let Some((span, symbol)) = resolved.local_symbol_reference_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Local(symbol.name_span),
-        });
-    }
-    if let Some((span, symbol)) = resolved.symbol_reference_at_offset(offset) {
-        candidates.push(ReferenceCandidate {
-            span,
-            target: ReferenceTarget::Declaration(symbol.declaration_span),
-        });
-    }
-}
-
-fn push_declaration_candidates(
-    source: SourceId,
-    resolved: &ResolveOutput,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    for local in resolved.local_symbols() {
-        if span_contains(local.name_span, offset) {
-            candidates.push(ReferenceCandidate {
-                span: local.name_span,
-                target: ReferenceTarget::Local(local.name_span),
-            });
-        }
-    }
-
-    for symbol in resolved.symbols.symbols() {
-        if span_contains(symbol.name_span, offset) {
-            candidates.push(ReferenceCandidate {
-                span: symbol.name_span,
-                target: ReferenceTarget::Declaration(symbol.declaration_span),
-            });
-        }
-        push_member_declaration_candidates(source, symbol, offset, candidates);
-    }
-}
-
-fn push_member_declaration_candidates(
-    source: SourceId,
-    symbol: &Symbol,
-    offset: usize,
-    candidates: &mut Vec<ReferenceCandidate>,
-) {
-    let SymbolKind::Type(type_symbol) = &symbol.kind else {
-        return;
-    };
-
-    for span in member_name_spans(type_symbol).filter(|span| span.source == source) {
-        if span_contains(span, offset) {
-            candidates.push(ReferenceCandidate {
-                span,
-                target: ReferenceTarget::Member(span),
-            });
-        }
-    }
-}
-
-fn reference_spans_for_target<'a>(
-    files: impl Iterator<Item = &'a FileAnalysis>,
-    target: ReferenceTarget,
+fn reference_spans_for_semantic_identity<'a>(
+    indexes: impl Iterator<Item = &'a SemanticOccurrenceIndex>,
+    target: SemanticIdentity,
     include_declaration: bool,
 ) -> Vec<ByteSpan> {
-    let mut spans = Vec::new();
-    for file in files {
-        collect_reference_spans_for_file(file, target, include_declaration, &mut spans);
-    }
+    let spans = indexes
+        .flat_map(SemanticOccurrenceIndex::iter)
+        .filter(|occurrence| occurrence.identity == Some(target))
+        .filter(|occurrence| {
+            include_declaration || occurrence.role != SemanticOccurrenceRole::Declaration
+        })
+        .map(|occurrence| occurrence.focus_span)
+        .collect();
     sort_and_dedup_spans(spans)
-}
-
-#[derive(Debug, Clone, Copy)]
-struct SingleFileAnalysis<'a> {
-    ast: &'a AstFile,
-    resolved: &'a ResolveOutput,
-    facts: &'a TypecheckFacts,
-}
-
-fn reference_spans_for_single_file(
-    file: SingleFileAnalysis<'_>,
-    target: ReferenceTarget,
-    include_declaration: bool,
-) -> Vec<ByteSpan> {
-    let mut spans = Vec::new();
-    collect_reference_spans_for_parts(
-        file.ast,
-        file.resolved,
-        file.facts,
-        target,
-        include_declaration,
-        &mut spans,
-    );
-    sort_and_dedup_spans(spans)
-}
-
-fn collect_reference_spans_for_file(
-    file: &FileAnalysis,
-    target: ReferenceTarget,
-    include_declaration: bool,
-    spans: &mut Vec<ByteSpan>,
-) {
-    collect_reference_spans_for_parts(
-        &file.ast,
-        &file.resolved,
-        &file.typecheck_facts,
-        target,
-        include_declaration,
-        spans,
-    );
-}
-
-fn collect_reference_spans_for_parts(
-    ast: &AstFile,
-    resolved: &ResolveOutput,
-    facts: &TypecheckFacts,
-    target: ReferenceTarget,
-    include_declaration: bool,
-    spans: &mut Vec<ByteSpan>,
-) {
-    match target {
-        ReferenceTarget::Local(name_span) => {
-            if include_declaration && name_span.source == ast.span.source {
-                spans.push(name_span);
-            }
-            spans.extend(
-                resolved
-                    .local_symbol_identifier_references()
-                    .filter_map(|(span, symbol)| (symbol.name_span == name_span).then_some(span)),
-            );
-        }
-        ReferenceTarget::Declaration(declaration_span) => {
-            let scoped_import_spans = scoped_import_name_spans(ast);
-            if include_declaration {
-                spans.extend(declaration_name_spans(resolved, declaration_span));
-            }
-            spans.extend(
-                resolved
-                    .symbol_identifier_references()
-                    .filter_map(|(span, symbol)| {
-                        (symbol.declaration_span == declaration_span).then_some(span)
-                    }),
-            );
-            spans.extend(imported_name_spans(
-                resolved,
-                declaration_span,
-                &scoped_import_spans,
-            ));
-            spans.extend(
-                facts
-                    .function_call_target_spans()
-                    .filter(|span| facts.function_call_target(*span) == Some(declaration_span)),
-            );
-            spans.extend(facts.type_references().filter_map(|reference| {
-                (reference.symbol_declaration_span == Some(declaration_span))
-                    .then_some(reference.span)
-            }));
-        }
-        ReferenceTarget::Member(name_span) => {
-            if include_declaration && name_span.source == ast.span.source {
-                spans.push(name_span);
-            }
-            spans.extend(
-                facts
-                    .field_target_spans()
-                    .filter(|span| facts.field_target(*span) == Some(name_span)),
-            );
-            spans.extend(
-                facts
-                    .associated_function_target_spans()
-                    .filter(|span| facts.associated_function_target(*span) == Some(name_span)),
-            );
-            spans.extend(
-                facts
-                    .enum_variant_target_spans()
-                    .filter(|span| facts.enum_variant_target(*span) == Some(name_span)),
-            );
-            spans.extend(
-                facts
-                    .method_call_spans()
-                    .filter(|span| facts.method_call_target(*span) == Some(name_span)),
-            );
-        }
-    }
-}
-
-fn declaration_name_spans(
-    resolved: &ResolveOutput,
-    declaration_span: ByteSpan,
-) -> impl Iterator<Item = ByteSpan> + '_ {
-    resolved.symbols.symbols().filter_map(move |symbol| {
-        (!symbol.is_hidden
-            && symbol.declaration_span == declaration_span
-            && symbol.name_span.source == declaration_span.source)
-            .then_some(symbol.name_span)
-    })
-}
-
-fn imported_name_spans<'a>(
-    resolved: &'a ResolveOutput,
-    declaration_span: ByteSpan,
-    scoped_import_spans: &'a HashSet<ByteSpan>,
-) -> impl Iterator<Item = ByteSpan> + 'a {
-    resolved.symbols.symbols().filter_map(move |symbol| {
-        ((!symbol.is_hidden || scoped_import_spans.contains(&symbol.name_span))
-            && symbol.declaration_span == declaration_span
-            && symbol.name_span.source != declaration_span.source)
-            .then_some(symbol.name_span)
-    })
-}
-
-fn member_name_spans(symbol: &TypeSymbol) -> impl Iterator<Item = ByteSpan> + '_ {
-    symbol
-        .fields
-        .iter()
-        .map(|field| field.name_span)
-        .chain(symbol.variants.iter().map(|variant| variant.name_span))
-        .chain(
-            symbol
-                .associated_functions
-                .iter()
-                .map(|function| function.name_span),
-        )
-        .chain(symbol.methods.iter().map(|method| method.name_span))
-        .chain(symbol.drop_member.iter().map(|drop_| drop_.name_span))
 }
 
 fn sort_and_dedup_spans(mut spans: Vec<ByteSpan>) -> Vec<ByteSpan> {
@@ -382,16 +81,23 @@ fn sort_and_dedup_spans(mut spans: Vec<ByteSpan>) -> Vec<ByteSpan> {
     spans
 }
 
-fn span_contains(span: ByteSpan, offset: usize) -> bool {
-    span.start <= offset && offset < span.end
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::analysis::test_support::{
         analyze_namespace_import_text, analyze_text, span_fragments_from_sources,
     };
+
+    #[test]
+    fn reference_query_survives_an_unclosed_function_body() {
+        let text = "func main(): i32 {\n    let code = 0\n    return code + code\n";
+        let offset = text.find("code =").expect("expected declaration");
+
+        let spans =
+            reference_spans_for_text(text, offset, true).expect("expected recovered references");
+
+        assert_eq!(span_fragments(text, &spans), vec!["code", "code", "code"]);
+    }
 
     #[test]
     fn reference_query_finds_local_binding_references() {
@@ -404,6 +110,32 @@ mod tests {
         let fragments = span_fragments(text, &spans);
 
         assert_eq!(fragments, vec!["code", "code", "code"]);
+    }
+
+    #[test]
+    fn reference_query_distinguishes_capture_from_outer_binding() {
+        let text = r#"func main(): i32 {
+    let factor = 2
+    let transform = (&factor; value: i32): i32 { value * factor }
+    return transform(3)
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let capture_offset = text.find("&factor").unwrap() + 1;
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, capture_offset, true);
+        let fragments = span_fragments(text, &spans);
+
+        assert_eq!(fragments, vec!["factor", "factor"]);
+        assert_eq!(spans[0].start, text.find("factor =").unwrap());
+        assert_eq!(spans[1].start, capture_offset);
+
+        let body_offset = text.rfind("factor }").unwrap();
+        let body_spans = reference_spans_for_file_analysis(&analysis, file, body_offset, true);
+        assert_eq!(span_fragments(text, &body_spans), vec!["factor", "factor"]);
+        assert_eq!(body_spans[0].start, capture_offset);
+        assert_eq!(body_spans[1].start, body_offset);
     }
 
     #[test]
@@ -468,6 +200,31 @@ mod tests {
     }
 
     #[test]
+    fn reference_query_groups_construct_function_declaration_and_calls() {
+        let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self {
+        return Bucket<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    let first = Bucket.new(20)
+    let second = Bucket.new(22)
+    return 0
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("new(value").expect("expected declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(span_fragments(text, &spans), vec!["new", "new", "new"]);
+    }
+
+    #[test]
     fn reference_query_finds_enum_pattern_variant_references() {
         let text = r#"enum Choice {
     hit(value: i32)
@@ -495,6 +252,32 @@ func main(choice: Choice): i32 {
         let fragments = span_fragments(text, &spans);
 
         assert_eq!(fragments, vec!["hit", "hit", "hit", "hit"]);
+    }
+
+    #[test]
+    fn reference_query_groups_bound_calls_with_interface_method() {
+        let text = r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+func first<T: Measure>(value: &T): i32 {
+    return value.measure()
+}
+
+func second<U: Measure>(value: &U): i32 {
+    return value.measure()
+}
+"#;
+        let (_sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("measure():").expect("expected declaration");
+
+        let spans = reference_spans_for_file_analysis(&analysis, file, offset, true);
+
+        assert_eq!(
+            span_fragments(text, &spans),
+            vec!["measure", "measure", "measure"]
+        );
     }
 
     fn span_fragments<'a>(text: &'a str, spans: &[ByteSpan]) -> Vec<&'a str> {

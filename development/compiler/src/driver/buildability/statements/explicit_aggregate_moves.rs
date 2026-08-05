@@ -50,6 +50,9 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_expressio
     scope: ExplicitAggregateMoveScope<'_>,
 ) -> Option<ByteSpan> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            (capture.mode == crate::ast::ClosureCaptureMode::Move).then_some(capture.operator_span)
+        }),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group_expr(&unary.operand) {
                 explicit_aggregate_move_matches_identifier(
@@ -343,6 +346,41 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_expressio
                 None
             }
         }),
+        Expr::TypedSequenceLiteral(literal) => literal
+            .elements
+            .iter()
+            .find_map(|element| {
+                explicit_aggregate_move_span_in_expression(
+                    element,
+                    resolved,
+                    resolved_sources,
+                    typecheck_facts,
+                    generic_substitutions,
+                    scope,
+                )
+            })
+            .or_else(|| {
+                literal.using.as_ref().and_then(|using| {
+                    explicit_aggregate_move_span_in_expression(
+                        &using.allocator,
+                        resolved,
+                        resolved_sources,
+                        typecheck_facts,
+                        generic_substitutions,
+                        scope,
+                    )
+                })
+            }),
+        Expr::TypedStringLiteral(literal) => literal.using.as_ref().and_then(|using| {
+            explicit_aggregate_move_span_in_expression(
+                &using.allocator,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
+        }),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
@@ -595,6 +633,24 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_statement
                 scope,
             )
         }),
+        Stmt::CollectionFor(statement) => explicit_aggregate_move_span_in_payload_block(
+            &statement.body,
+            Some(&statement.name),
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
+        Stmt::LiteralPackFor(statement) => explicit_aggregate_move_span_in_payload_block(
+            &statement.body,
+            Some(&statement.name),
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        ),
         Stmt::While(statement) => explicit_aggregate_move_span_in_expression(
             &statement.condition,
             resolved,
@@ -621,6 +677,24 @@ pub(in crate::driver::buildability) fn explicit_aggregate_move_span_in_statement
             generic_substitutions,
             scope,
         ),
+        Stmt::Region(statement) => explicit_aggregate_move_span_in_expression(
+            &statement.allocator,
+            resolved,
+            resolved_sources,
+            typecheck_facts,
+            generic_substitutions,
+            scope,
+        )
+        .or_else(|| {
+            explicit_aggregate_move_span_in_block(
+                &statement.body,
+                resolved,
+                resolved_sources,
+                typecheck_facts,
+                generic_substitutions,
+                scope,
+            )
+        }),
         Stmt::Expression(statement) => explicit_aggregate_move_span_in_expression(
             &statement.expression,
             resolved,

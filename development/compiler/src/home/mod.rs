@@ -242,7 +242,7 @@ fn validate_manifest(home: &Path, version: &str, manifest: &Manifest, errors: &m
 
         if target.name != HOST {
             errors.push(format!(
-                "v0 supports only implemented target `{HOST}`, got `{}`",
+                "this compiler supports only implemented target `{HOST}`, got `{}`",
                 target.name
             ));
         }

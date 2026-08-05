@@ -13,57 +13,64 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBorrow { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
         | Instruction::CallAggregate { arguments, .. }
         | Instruction::CallDirectAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
+        | Instruction::CallStoredOutcome { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
         Instruction::DarwinSyscall { arguments, .. } => arguments.len() + 1,
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeAggregate {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -72,6 +79,17 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             .map(ScalarArgument::abi_word_count)
             .sum::<usize>()
             .max(failure_mode_max_call_argument_count(failure_mode)),
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => arguments
+            .iter()
+            .map(ScalarArgument::abi_word_count)
+            .sum::<usize>()
+            .max(failure_mode_max_call_argument_count(outer_mode))
+            .max(failure_mode_max_call_argument_count(inner_mode)),
         Instruction::ReadSlice { failure_mode, .. }
         | Instruction::OpenRead { failure_mode, .. } => {
             failure_mode_max_call_argument_count(failure_mode)
@@ -82,6 +100,18 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => max_call_argument_count(success_instructions)
+            .max(max_call_argument_count(outcome_instructions)),
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => max_call_argument_count(success_instructions)
+            .max(failure_mode_max_call_argument_count(failure_mode)),
         Instruction::While {
             condition_instructions,
             body_instructions,
@@ -93,7 +123,7 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
@@ -144,9 +174,14 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
         | Instruction::LoadAggregateBoolIndexed { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::RegionEnter { .. }
+        | Instruction::SetCurrentAllocationContext { .. }
+        | Instruction::RegionRelease { .. }
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
@@ -179,12 +214,12 @@ pub(super) fn instruction_max_call_argument_count(instruction: &Instruction) -> 
     }
 }
 
-pub(super) fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> usize {
+pub(super) fn failure_mode_max_call_argument_count(failure_mode: &OutcomeFailureMode) -> usize {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => 0,
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => 0,
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
     }
 }

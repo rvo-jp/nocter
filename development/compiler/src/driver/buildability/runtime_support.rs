@@ -700,7 +700,7 @@ pub(super) fn unsupported_std_vec_element_call_diagnostic(
             "move owned elements into a Vec with `push`; `from_slice` duplicates every source element",
         ),
     };
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources, call.span, feature, help,
     ))
 }
@@ -759,35 +759,6 @@ fn std_vec_element_use(
         .map(|ty| StdVecElementUse { operation, ty })
 }
 
-pub(super) fn unsupported_check_only_std_call_diagnostic(
-    sources: &SourceMap,
-    call: &CallExpr,
-    resolved: &ResolveOutput,
-    nocter_home: Option<&Path>,
-) -> Option<Diagnostic> {
-    let symbol = resolved.symbol_for_call(call)?;
-    if !matches!(
-        symbol.kind,
-        SymbolKind::Function(_) | SymbolKind::Primitive(_)
-    ) {
-        return None;
-    }
-    if !source_is_std_process(sources, symbol.declaration_span.source, nocter_home) {
-        return None;
-    }
-
-    let declaration_name = declaration_name(sources, symbol.declaration_span)?;
-    match declaration_name {
-        "env" => Some(unsupported_v0_build_diagnostic(
-            sources,
-            call.span,
-            "check-only `std/process.env` calls",
-            "`std/process.env` reserves the future `&str?!` API shape; keep this code on `check` until nested fallible/optional returns and process context runtime are promoted",
-        )),
-        _ => None,
-    }
-}
-
 pub(super) fn unsupported_null_from_addr_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
@@ -809,11 +780,11 @@ pub(super) fn unsupported_null_from_addr_call_diagnostic(
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         argument.span(),
         "null raw pointer construction",
-        "`*T` is non-null in v0; use `none` for `*T?` absence or pass a non-zero trusted address",
+        "`*T` is non-null; use `none` for `*T?` absence or pass a non-zero trusted address",
     ))
 }
 
@@ -829,14 +800,6 @@ pub(super) fn expression_is_statically_zero_integer(expression: &Expr) -> bool {
 
 pub(super) fn declaration_name(sources: &SourceMap, span: ByteSpan) -> Option<&str> {
     sources.get(span.source)?.text().get(span.start..span.end)
-}
-
-pub(super) fn source_is_std_process(
-    sources: &SourceMap,
-    source: SourceId,
-    nocter_home: Option<&Path>,
-) -> bool {
-    source_is_std_module(sources, source, nocter_home, Path::new("std/process.nct"))
 }
 
 pub(super) fn source_is_std_ptr(

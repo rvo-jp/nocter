@@ -6,6 +6,26 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression
+        && (context.borrow_parameter(&identifier.name).is_some()
+            || context.borrow_local(&identifier.name).is_some()
+            || context.closure_capture_field(&identifier.name).is_some())
+    {
+        if let Some(instructions) =
+            lower_bool_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(instructions);
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_bool_closure_capture_to_location(
+            identifier,
+            destination,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
     match expression {
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_location(
@@ -125,14 +145,14 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_bool_fallible_expression_to_location(
             &force.expression,
             destination,
             context,
             diagnostic_code,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_bool_fallible_expression_to_location(
             &catch.expression,
@@ -243,6 +263,25 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
     diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    if let Expr::Identifier(identifier) = expression {
+        let destination = temporaries.next_bool()?;
+        if let Some(instructions) =
+            lower_bool_borrow_binding_to_location(identifier, destination, context)
+        {
+            return Ok(LoweredBoolValue {
+                instructions,
+                value: BoolValue::Location(destination),
+            });
+        }
+        if let Some(instructions) =
+            lower_bool_closure_capture_to_location(identifier, destination, context, temporaries)?
+        {
+            return Ok(LoweredBoolValue {
+                instructions,
+                value: BoolValue::Location(destination),
+            });
+        }
+    }
     match expression {
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_value_with_temporaries(
@@ -319,7 +358,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: BoolValue::Location(temporary),
             })
@@ -332,7 +371,7 @@ pub(in crate::ir::lower) fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: BoolValue::Location(temporary),
             })
@@ -424,7 +463,7 @@ pub(in crate::ir::lower) fn lower_bool_value(
     diagnostic_code: &'static str,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(_) => Err(unsupported_scalar_call_value_diagnostic()),
         Expr::BoolLiteral(literal) => match literal.value.as_str() {
             "true" => Ok(BoolValue::Const(true)),
             "false" => Ok(BoolValue::Const(false)),

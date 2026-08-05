@@ -98,6 +98,21 @@ pub(super) fn collect_direct_borrow_expressions_in_statement(
                 borrows,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            collect_direct_borrow_expressions(&statement.source, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Stmt::LiteralPackFor(statement) => collect_direct_borrow_expressions_in_block(
+            &statement.body,
+            resolved,
+            environment,
+            borrows,
+        ),
         Stmt::While(statement) => {
             collect_direct_borrow_expressions(&statement.condition, resolved, environment, borrows);
             collect_direct_borrow_expressions_in_block(
@@ -113,6 +128,15 @@ pub(super) fn collect_direct_borrow_expressions_in_statement(
             environment,
             borrows,
         ),
+        Stmt::Region(statement) => {
+            collect_direct_borrow_expressions(&statement.allocator, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
         Stmt::Expression(statement) => {
             collect_direct_borrow_expressions(&statement.expression, resolved, environment, borrows)
         }
@@ -140,11 +164,55 @@ pub(super) fn collect_direct_borrow_expressions(
     environment: &TypeEnvironment,
     borrows: &mut Vec<DirectBorrowSource>,
 ) {
+    if let Some(spread) = crate::typecheck::sequence_spread(expression)
+        && !matches!(
+            spread.operand.without_groups(),
+            Expr::Borrow(_)
+                | Expr::Unary(crate::ast::UnaryExpr {
+                    operator: UnaryOperator::Move,
+                    ..
+                })
+        )
+        && let Some(source) = expression_place(&spread.operand)
+    {
+        borrows.push(DirectBorrowSource {
+            source,
+            source_span: spread.operand.span(),
+            is_readwrite: false,
+        });
+    }
     if let Some(source) = direct_borrow_source(expression) {
         borrows.push(source);
     }
 
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                let is_readwrite = match capture.mode {
+                    crate::ast::ClosureCaptureMode::ReadonlyBorrow => false,
+                    crate::ast::ClosureCaptureMode::ReadwriteBorrow => true,
+                    crate::ast::ClosureCaptureMode::Move => continue,
+                };
+                borrows.push(DirectBorrowSource {
+                    source: BorrowPlace::whole(capture.name.clone()),
+                    source_span: capture.name_span,
+                    is_readwrite,
+                });
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_direct_borrow_expressions(element, resolved, environment, borrows);
+            }
+            if let Some(using) = &expression.using {
+                collect_direct_borrow_expressions(&using.allocator, resolved, environment, borrows);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_direct_borrow_expressions(&using.allocator, resolved, environment, borrows);
+            }
+        }
         Expr::Propagate(expression) => collect_direct_borrow_expressions(
             &expression.expression,
             resolved,
@@ -194,6 +262,10 @@ pub(super) fn collect_direct_borrow_expressions(
         }
         Expr::Call(expression) => {
             if let Some(source) = method_borrow_receiver_source(expression, resolved, environment) {
+                borrows.push(source);
+            }
+            if let Some(source) = callable_borrow_receiver_source(expression, resolved, environment)
+            {
                 borrows.push(source);
             }
             collect_direct_borrow_expressions(&expression.callee, resolved, environment, borrows);
@@ -324,6 +396,244 @@ pub(super) fn direct_borrow_source(expression: &Expr) -> Option<DirectBorrowSour
     })
 }
 
+pub(super) fn returned_borrow_sources(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    active_borrows: &[ActiveBorrow],
+) -> Vec<DirectBorrowSource> {
+    if !type_contains_borrow_like(
+        &expression_type(expression, resolved, environment),
+        resolved,
+    ) {
+        return Vec::new();
+    }
+    if let Some(source) = direct_borrow_source(expression) {
+        return vec![source];
+    }
+
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => {
+            return active_borrows
+                .iter()
+                .filter(|borrow| borrow.borrow_name == identifier.name)
+                .map(|borrow| DirectBorrowSource {
+                    source: borrow.source.clone(),
+                    source_span: identifier.span,
+                    is_readwrite: borrow.is_readwrite,
+                })
+                .collect();
+        }
+        Expr::Otherwise(otherwise) => {
+            let mut sources = returned_borrow_sources(
+                &otherwise.value,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(result) = &otherwise.fallback.result {
+                sources.extend(returned_borrow_sources(
+                    result,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::Propagate(propagation) => {
+            return returned_borrow_sources(
+                &propagation.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+        }
+        Expr::Force(force) => {
+            return returned_borrow_sources(
+                &force.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+        }
+        Expr::Catch(catch) => {
+            let mut sources = returned_borrow_sources(
+                &catch.expression,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(result) = &catch.catch_block.result {
+                sources.extend(returned_borrow_sources(
+                    result,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        Expr::If(if_) => {
+            let mut sources = borrow_sources_for_block_result(
+                &if_.then_block,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            );
+            if let Some(else_block) = &if_.else_block {
+                sources.extend(borrow_sources_for_block_result(
+                    else_block,
+                    resolved,
+                    environment,
+                    summaries,
+                    active_borrows,
+                ));
+            }
+            return sources;
+        }
+        _ => {}
+    }
+
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return Vec::new();
+    };
+    let Some(signature) = resolved_call_signature(resolved, call, environment) else {
+        return Vec::new();
+    };
+    let Some(declaration) = signature.declaration_span else {
+        return Vec::new();
+    };
+    let Some(result) = summaries.result(CallableId::declared_at(declaration)) else {
+        return Vec::new();
+    };
+
+    let is_readwrite = returned_type_contains_readwrite_borrow(
+        &expression_type(expression, resolved, environment),
+        resolved,
+    );
+    result
+        .input_origins()
+        .into_iter()
+        .filter_map(|input| call_input_expression(input, call, &signature, resolved, environment))
+        .flat_map(|input| {
+            borrow_sources_for_input(
+                input.expression,
+                input.is_borrowed,
+                is_readwrite,
+                resolved,
+                environment,
+                summaries,
+                active_borrows,
+            )
+        })
+        .collect()
+}
+
+fn borrow_sources_for_block_result(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    active_borrows: &[ActiveBorrow],
+) -> Vec<DirectBorrowSource> {
+    block.result.as_deref().map_or_else(Vec::new, |result| {
+        returned_borrow_sources(result, resolved, environment, summaries, active_borrows)
+    })
+}
+
+struct CallInput<'a> {
+    expression: &'a Expr,
+    is_borrowed: bool,
+}
+
+fn call_input_expression<'a>(
+    input: InputId,
+    call: &'a crate::ast::CallExpr,
+    signature: &crate::typecheck::calls::CheckedCallSignature<'_>,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<CallInput<'a>> {
+    if signature.kind == crate::typecheck::calls::CheckedCallKind::Method
+        && let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
+        && InputId::declared_at(method.receiver.name_span) == input
+    {
+        return method_member_for_call(call).map(|member| CallInput {
+            expression: member.object.as_ref(),
+            is_borrowed: method.receiver.mode != MethodReceiverMode::Owned,
+        });
+    }
+
+    signature
+        .signature
+        .parameters
+        .iter()
+        .position(|parameter| InputId::declared_at(parameter.name_span) == input)
+        .and_then(|index| {
+            call.arguments.get(index).map(|expression| CallInput {
+                expression,
+                is_borrowed: matches!(
+                    signature.signature.parameters[index].ty,
+                    TypeExpr::Borrow(_)
+                ),
+            })
+        })
+}
+
+fn borrow_sources_for_input(
+    expression: &Expr,
+    input_is_borrowed: bool,
+    result_is_readwrite: bool,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    active_borrows: &[ActiveBorrow],
+) -> Vec<DirectBorrowSource> {
+    if let Some(mut source) = direct_borrow_source(expression) {
+        source.is_readwrite = result_is_readwrite;
+        return vec![source];
+    }
+
+    if let Expr::Identifier(identifier) = unwrap_group(expression) {
+        let aliases = active_borrows
+            .iter()
+            .filter(|borrow| borrow.borrow_name == identifier.name)
+            .map(|borrow| DirectBorrowSource {
+                source: borrow.source.clone(),
+                source_span: identifier.span,
+                is_readwrite: result_is_readwrite,
+            })
+            .collect::<Vec<_>>();
+        if !aliases.is_empty() {
+            return aliases;
+        }
+    }
+
+    if input_is_borrowed
+        && !type_contains_borrow_like(
+            &expression_type(expression, resolved, environment),
+            resolved,
+        )
+        && let Some(source) = expression_place(expression)
+    {
+        return vec![DirectBorrowSource {
+            source,
+            source_span: expression.span(),
+            is_readwrite: result_is_readwrite,
+        }];
+    }
+
+    returned_borrow_sources(expression, resolved, environment, summaries, active_borrows)
+}
+
 fn method_borrow_receiver_source(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
@@ -331,13 +641,30 @@ fn method_borrow_receiver_source(
 ) -> Option<DirectBorrowSource> {
     let method = method_member_for_call(call)?;
     let (_, signature) = resolved_method_for_call(resolved, call, environment)?;
-    let TypeExpr::Borrow(receiver) = &signature.receiver.ty else {
+    if signature.receiver.mode == MethodReceiverMode::Owned {
         return None;
-    };
+    }
     let source = expression_place(&method.object)?;
     Some(DirectBorrowSource {
         source,
         source_span: method.object.span(),
-        is_readwrite: receiver.is_readwrite,
+        is_readwrite: signature.receiver.mode == MethodReceiverMode::ReadwriteBorrow,
+    })
+}
+
+fn callable_borrow_receiver_source(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<DirectBorrowSource> {
+    let contract = callable_contract_for_call(call, resolved, environment)?;
+    if contract.capability == crate::ast::CallableCapability::Consuming {
+        return None;
+    }
+    let source = expression_place(&call.callee)?;
+    Some(DirectBorrowSource {
+        source,
+        source_span: call.callee.span(),
+        is_readwrite: contract.capability == crate::ast::CallableCapability::Readwrite,
     })
 }

@@ -7,10 +7,53 @@ pub(in crate::typecheck::returns) fn check_expression_for_nested_returns(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     match expression {
+        // Closure returns are checked against the closure's own inferred
+        // callable contract by the closure checker.
+        Expr::Closure(_) => {}
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_for_nested_returns(
+                    sources,
+                    element,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_for_nested_returns(
+                    sources,
+                    &using.allocator,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_for_nested_returns(
+                    sources,
+                    &using.allocator,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                );
+            }
+        }
         Expr::Propagate(expression) => {
             check_propagation(
                 sources,

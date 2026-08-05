@@ -4,7 +4,7 @@ pub(super) fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
     type_to_type_expr_inner(ty, span, None)
 }
 
-pub(super) fn type_to_type_expr_allowing_parameters(
+pub(in crate::typecheck) fn type_to_type_expr_allowing_parameters(
     ty: &Type,
     span: ByteSpan,
     free_type_parameters: &mut HashSet<String>,
@@ -18,6 +18,39 @@ pub(super) fn type_to_type_expr_inner(
     mut free_type_parameters: Option<&mut HashSet<String>>,
 ) -> Option<TypeExpr> {
     match ty {
+        Type::Callable(callable) => {
+            let parameters = callable
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    Some(crate::ast::CallableTypeParameter {
+                        span,
+                        name: parameter.name.clone(),
+                        name_span: parameter.name_span,
+                        ty: type_to_type_expr_inner(
+                            &parameter.ty,
+                            span,
+                            free_type_parameters.as_deref_mut(),
+                        )?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let return_type = type_to_type_expr_inner(
+                &callable.return_type,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?;
+            Some(TypeExpr::Callable(crate::ast::CallableTypeExpr {
+                span: callable.span,
+                func_span: callable.span,
+                capability: callable.capability,
+                parameters_span: callable.span,
+                parameters,
+                return_type: Box::new(return_type),
+                result_provenance: callable.result_provenance.clone(),
+            }))
+        }
+        Type::Closure(closure) => Some(TypeExpr::Closure(closure.clone())),
         Type::I32 => Some(type_reference("i32", span)),
         Type::Primitive(name) => Some(type_reference(name, span)),
         Type::Named(name) if name.starts_with("&+") => {

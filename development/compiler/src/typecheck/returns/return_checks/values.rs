@@ -7,11 +7,16 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let expected = context.success_type();
-    let actual = expression_type(expression, resolved, environment);
+    let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+        expression,
+        Some(expected),
+        resolved,
+        environment,
+    );
 
     if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
         return;
@@ -42,10 +47,23 @@ pub(in crate::typecheck::returns) fn check_body_result_return(
     }
 
     if return_expression_is_fallible_failure(expression, &actual, context, resolved, environment) {
+        check_borrow_return_provenance(
+            sources,
+            expression,
+            &actual,
+            context,
+            resolved,
+            environment,
+            borrow_provenance,
+            summaries,
+            diagnostics,
+        );
         return;
     }
 
-    if !is_expression_assignable(expected, expression, resolved, environment) {
+    if actual != context.declared_type
+        && !is_expression_assignable(expected, expression, resolved, environment)
+    {
         diagnostics.push(body_result_type_mismatch_diagnostic(
             sources, expression, expected, &actual, context,
         ));
@@ -83,8 +101,8 @@ pub(in crate::typecheck::returns) fn check_return_statement(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     let expected = context.success_type();
     if expected == &Type::Never {
@@ -99,7 +117,15 @@ pub(in crate::typecheck::returns) fn check_return_statement(
         (None, Type::Unknown) | (None, Type::Unresolved(_)) => {}
         (None, _) => diagnostics.push(missing_return_value_diagnostic(sources, statement, context)),
         (Some(expression), Type::Void) => {
-            let actual = expression_type(expression, resolved, environment);
+            let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+                expression,
+                Some(expected),
+                resolved,
+                environment,
+            );
+            if actual == Type::Never {
+                return;
+            }
             if return_expression_is_fallible_failure(
                 expression,
                 &actual,
@@ -107,6 +133,17 @@ pub(in crate::typecheck::returns) fn check_return_statement(
                 resolved,
                 environment,
             ) {
+                check_borrow_return_provenance(
+                    sources,
+                    expression,
+                    &actual,
+                    context,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    diagnostics,
+                );
                 return;
             }
 
@@ -115,7 +152,12 @@ pub(in crate::typecheck::returns) fn check_return_statement(
             ));
         }
         (Some(expression), expected) => {
-            let actual = expression_type(expression, resolved, environment);
+            let actual = crate::typecheck::literals::literal_expression_type_with_expected(
+                expression,
+                Some(expected),
+                resolved,
+                environment,
+            );
             if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
                 return;
             }
@@ -130,10 +172,23 @@ pub(in crate::typecheck::returns) fn check_return_statement(
                 resolved,
                 environment,
             ) {
+                check_borrow_return_provenance(
+                    sources,
+                    expression,
+                    &actual,
+                    context,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    diagnostics,
+                );
                 return;
             }
 
-            if !is_expression_assignable(expected, expression, resolved, environment) {
+            if actual != context.declared_type
+                && !is_expression_assignable(expected, expression, resolved, environment)
+            {
                 diagnostics.push(return_type_mismatch_diagnostic(
                     sources, expression, expected, &actual, context,
                 ));

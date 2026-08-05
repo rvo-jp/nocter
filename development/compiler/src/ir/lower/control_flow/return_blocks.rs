@@ -4,7 +4,7 @@ pub(in crate::ir::lower) fn instruction_list_ends_execution(instructions: &[Inst
     match instructions.last() {
         Some(
             Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }
@@ -133,10 +133,8 @@ pub(super) fn lower_i32_return_block_with_context_and_prefix(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Expression(statement)) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                &mut branch_context,
-            )?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, &mut branch_context)?
             else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -263,10 +261,8 @@ pub(super) fn lower_bool_return_block_with_context_and_prefix(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Expression(statement)) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                &mut branch_context,
-            )?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, &mut branch_context)?
             else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -506,10 +502,8 @@ pub(super) fn lower_scalar_return_block_with_context_and_prefix(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Expression(statement)) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                &mut branch_context,
-            )?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, &mut branch_context)?
             else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -693,10 +687,8 @@ pub(super) fn lower_void_return_block_with_context_and_prefix(
             Ok(instructions)
         }
         TerminalBranch::Statement(Stmt::Expression(statement)) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                &mut branch_context,
-            )?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, &mut branch_context)?
             else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -761,9 +753,7 @@ fn lower_void_result_expression(
             Ok(instructions)
         }
         _ => {
-            if let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(expression, context)?
-            {
+            if let Some(terminating_instructions) = lower_never_expression(expression, context)? {
                 mark_explicit_moves_in_expression(expression, context);
                 return Ok(terminating_instructions);
             }

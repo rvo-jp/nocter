@@ -4,6 +4,7 @@ use super::literals::{
     lower_payload_enum_constructor_to_location_at_offset_with_progress,
 };
 use super::*;
+use crate::ir::UsizeLocation;
 
 pub(super) fn lower_aggregate_field_to_location(
     field_type: &AbiType,
@@ -16,6 +17,83 @@ pub(super) fn lower_aggregate_field_to_location(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::InterpolatedString(interpolated) = unwrap_field_value_group(expression) {
+        let expected_layout = layout_of(field_type).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let result_ty = context
+            .expression_type_expr(interpolated.span)
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        let drop_kind = context
+            .aggregate_drop_for_type_expr(&result_ty)
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        let source_slot = temporaries.next_aggregate_slot();
+        let mut interpolation_context = context.clone();
+        if !interpolation_context.register_or_complete_temporary_aggregate_drop(
+            source_slot,
+            expected_layout,
+            drop_kind,
+        ) {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        }
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+                interpolated,
+                source_slot,
+                &interpolation_context,
+            )?,
+        );
+        instructions.push(Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: offset,
+            source: AggregateLocation::Slot(source_slot),
+            source_offset: 0,
+            layout: expected_layout,
+        });
+        return Ok(instructions);
+    }
+    if matches!(
+        unwrap_field_value_group(expression),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        let expected_layout = layout_of(field_type).map_err(|_error| {
+            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+        })?;
+        let source_slot = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: expected_layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+                expression,
+                AggregateLocation::Slot(source_slot),
+                context,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?,
+        );
+        instructions.push(Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: offset,
+            source: AggregateLocation::Slot(source_slot),
+            source_offset: 0,
+            layout: expected_layout,
+        });
+        return Ok(instructions);
+    }
     match field_type {
         AbiType::I64 | AbiType::Isize => {
             let value = lower_i64_literal(expression)? as u64;
@@ -134,6 +212,64 @@ pub(super) fn lower_aggregate_field_to_location(
             });
             Ok(instructions)
         }
+        AbiType::Borrow => {
+            let moved_value = match unwrap_field_value_group(expression) {
+                Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+                    unwrap_field_value_group(&unary.operand)
+                }
+                expression => expression,
+            };
+            if let Expr::Identifier(identifier) = moved_value {
+                let pointer = context
+                    .borrow_parameter(&identifier.name)
+                    .map(|parameter| {
+                        UsizeValue::Location(UsizeLocation::Parameter(parameter.parameter_index))
+                    })
+                    .or_else(|| {
+                        context
+                            .borrow_local(&identifier.name)
+                            .map(|(pointer, _, _)| UsizeValue::Location(pointer))
+                    });
+                if let Some(pointer) = pointer {
+                    return Ok(vec![Instruction::StoreAggregateUsize {
+                        destination,
+                        offset,
+                        value: pointer,
+                    }]);
+                }
+            }
+            let Expr::Borrow(borrow) = unwrap_field_value_group(expression) else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let Expr::Identifier(identifier) = unwrap_field_value_group(&borrow.expression) else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let inner_ty = context
+                .local_binding_type_expr_for_identifier(identifier)
+                .and_then(|ty| context.ir_type_for_type_expr(&ty))
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            let borrow_ty = Type::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: Box::new(inner_ty),
+            };
+            let pointer = temporaries.next_usize()?;
+            let mut instructions =
+                lower_borrow_expression_to_location(expression, pointer, &borrow_ty, context)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value: UsizeValue::Location(pointer),
+            });
+            Ok(instructions)
+        }
         AbiType::Array { .. } => {
             let expected_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -229,7 +365,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        propagating_failure_mode(context)?,
+                        propagating_outcome_mode(&propagation.expression, context)?,
                     )
                 }
                 Expr::Force(force) => {
@@ -248,7 +384,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        FallibleFailureMode::Trap,
+                        OutcomeFailureMode::Trap,
                     )
                 }
                 Expr::Catch(catch) => {
@@ -310,6 +446,9 @@ pub(super) fn lower_aggregate_field_to_location(
             let expected_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
+            if expected_layout.size == 0 {
+                return Ok(Vec::new());
+            }
 
             match expression {
                 Expr::StructLiteral(literal) => {
@@ -419,7 +558,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        propagating_failure_mode(context)?,
+                        propagating_outcome_mode(&propagation.expression, context)?,
                     )
                 }
                 Expr::Force(force) => {
@@ -438,7 +577,7 @@ pub(super) fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        FallibleFailureMode::Trap,
+                        OutcomeFailureMode::Trap,
                     )
                 }
                 Expr::Catch(catch) => {
@@ -507,10 +646,38 @@ pub(super) fn lower_aggregate_field_to_location(
             context,
             temporaries,
         ),
-        _ => Err(unsupported_aggregate_struct_literal_diagnostic(
-            diagnostic_code,
-            subject,
-        )),
+        AbiType::Outcome { layout } => {
+            let expression_type =
+                context
+                    .expression_type_expr(expression.span())
+                    .ok_or_else(|| {
+                        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                    })?;
+            let shape = outcome_shape_with_resolver(&expression_type, resolved, |source| {
+                context.resolved_source(source)
+            });
+            let storage = context
+                .abi_value_for_type_expr(&shape.payload)
+                .and_then(|payload| shape.storage_layout(payload.layout))
+                .filter(|storage| storage.layout == *layout)
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            lower_outcome_field_to_location(
+                &storage,
+                expression,
+                destination,
+                offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })
+        }
     }
 }
 
@@ -583,6 +750,20 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
         .zip(struct_layout.fields.iter())
         .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout)))
         .collect::<HashMap<_, _>>();
+    let literal_type = context.specialize_type_expr(&literal.ty);
+    let outcome_fields = aggregate_fields_from_type_expr_with_resolver(
+        &literal_type,
+        literal.span.source,
+        resolved,
+        |source| context.resolved_source(source),
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|field| match field.kind {
+        AggregateFieldKind::Outcome { storage, .. } => Some((field.name, storage)),
+        _ => None,
+    })
+    .collect::<HashMap<_, _>>();
 
     let mut instructions = Vec::new();
     for field in &literal.fields {
@@ -672,6 +853,27 @@ pub(super) fn lower_aggregate_struct_fields_to_location(
                 ));
             };
             instructions.append(&mut payload_instructions);
+        } else if let (AbiType::Outcome { .. }, Some(storage)) =
+            (field_type, outcome_fields.get(field.name.as_str()))
+        {
+            let Some(mut outcome_instructions) = lower_outcome_field_to_location(
+                storage,
+                &field.value,
+                destination,
+                nested_offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+                temporaries,
+            )?
+            else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            instructions.append(&mut outcome_instructions);
         } else {
             instructions.extend(lower_aggregate_field_to_location(
                 field_type,
@@ -818,7 +1020,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     subject: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
@@ -826,13 +1028,16 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
             subject,
         ));
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         ));
     };
-    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(success_type) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
@@ -861,7 +1066,7 @@ pub(super) fn lower_aggregate_fallible_call_field_value_to_location(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        success_type,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,

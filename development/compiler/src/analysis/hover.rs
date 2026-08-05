@@ -1,6 +1,5 @@
 //! Hover information derived from compile-unit analysis.
 
-use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterfaceDecl,
@@ -12,7 +11,9 @@ use crate::resolve::{
     LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind, TypeSymbolKind,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+use crate::typecheck::{
+    TypecheckFacts, enum_variant_member_label, field_member_label, generic_type_owner_name,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HoverInfo {
@@ -23,7 +24,7 @@ pub(crate) struct HoverInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HoverSymbol {
-    name_span: ByteSpan,
+    target: crate::analysis::editor_targets::SourceTarget,
     attach_start: usize,
     label: String,
 }
@@ -50,13 +51,10 @@ mod symbols;
 mod targets;
 
 pub(in crate::analysis::hover) use contents::*;
-#[allow(unused_imports)]
-pub(crate) use entry::hover_for_ast;
-pub(crate) use entry::{definition_span_for_ast, hover_for_file_analysis, hover_for_text};
-pub(crate) use module_paths::module_path_at_offset;
+pub(crate) use entry::{definition_target_for_ast, hover_for_file_analysis, hover_for_text};
 pub(in crate::analysis::hover) use module_paths::*;
 pub(in crate::analysis::hover) use symbols::*;
-pub(in crate::analysis::hover) use targets::*;
+pub(crate) use targets::*;
 
 #[cfg(test)]
 mod tests;

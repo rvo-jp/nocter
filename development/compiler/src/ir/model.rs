@@ -1,4 +1,6 @@
 use crate::abi::{ReturnPassing, ValueLayout};
+use crate::outcomes::OutcomeLayer;
+use crate::outcomes::storage::OutcomeStorageLayout;
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,12 +55,12 @@ pub(crate) enum Instruction {
         destination: UsizeLocation,
         fd: I32Value,
         buffer: SliceValue,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     OpenRead {
         destination: I32Location,
         path: UsizeValue,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     CloseFd {
         fd: I32Value,
@@ -74,6 +76,18 @@ pub(crate) enum Instruction {
     SetUsize {
         destination: UsizeLocation,
         value: UsizeValue,
+    },
+    RegionEnter {
+        destination: UsizeLocation,
+    },
+    SetCurrentAllocationContext {
+        state: UsizeValue,
+        kind: UsizeValue,
+    },
+    RegionRelease {
+        state: UsizeValue,
+        parent_state: UsizeValue,
+        parent_kind: UsizeValue,
     },
     SetUsizeFromBorrow {
         destination: UsizeLocation,
@@ -469,11 +483,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleI32 {
+    CallOutcomeI32 {
         destination: I32Location,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallU8 {
@@ -481,11 +495,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleU8 {
+    CallOutcomeU8 {
         destination: U8Location,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallUsize {
@@ -493,11 +507,22 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleUsize {
+    CallOutcomeUsize {
         destination: UsizeLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
+    },
+    CallBorrow {
+        destination: UsizeLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
+    CallOutcomeBorrow {
+        destination: UsizeLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallBool {
@@ -505,11 +530,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleBool {
+    CallOutcomeBool {
         destination: BoolLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallStr {
@@ -517,11 +542,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleStr {
+    CallOutcomeStr {
         destination: StrLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallSlice {
@@ -529,11 +554,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleSlice {
+    CallOutcomeSlice {
         destination: SliceLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     #[allow(dead_code)]
     CallAggregate {
@@ -548,27 +573,66 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         layout: ValueLayout,
     },
-    CallFallibleDirectAggregate {
+    CallOutcomeDirectAggregate {
         destination: AggregateLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
         layout: ValueLayout,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
-    CallFallibleAggregate {
+    CallOutcomeAggregate {
         destination: AggregateLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
     CallVoid {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
-    CallFallibleVoid {
+    CallOutcomeVoid {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
+    },
+    CallComposedOutcome {
+        destination: ComposedOutcomeDestination,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        outer: OutcomeLayer,
+        inner: OutcomeLayer,
+        outer_mode: OutcomeFailureMode,
+        inner_mode: OutcomeFailureMode,
+    },
+    CallStoredOutcome {
+        destination: AggregateLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
+    },
+    IfStoredOutcomeTag {
+        source: AggregateLocation,
+        tag_offset: u32,
+        success_instructions: Vec<Instruction>,
+        outcome_instructions: Vec<Instruction>,
+    },
+    CheckStoredFallible {
+        source: AggregateLocation,
+        tag_offset: u32,
+        error_offset: u32,
+        success_instructions: Vec<Instruction>,
+        failure_mode: OutcomeFailureMode,
+    },
+    LoadStoredOutcomePayload {
+        destination: ComposedOutcomeDestination,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    ReturnStoredOutcome {
+        source: AggregateLocation,
+        storage: OutcomeStorageLayout,
+        payload_type: Type,
     },
     TailCall {
         target: CallTarget,
@@ -593,9 +657,9 @@ pub(crate) enum Instruction {
     PropagateFailure,
     TrapOnFailure,
     CheckFailure {
-        failure_mode: FallibleFailureMode,
+        failure_mode: OutcomeFailureMode,
     },
-    ReturnFallibleSuccess,
+    ReturnOutcomeSuccess,
     ReturnOptionalNone,
     ReturnFallibleFailure {
         code: StrValue,
@@ -605,7 +669,7 @@ pub(crate) enum Instruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum FallibleFailureMode {
+pub(crate) enum OutcomeFailureMode {
     Propagate,
     PropagateWithCleanup {
         code: StrLocation,
@@ -624,6 +688,17 @@ pub(crate) enum FallibleFailureMode {
         message: StrLocation,
         instructions: Vec<Instruction>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ComposedOutcomeDestination {
+    I32(I32Location),
+    U8(U8Location),
+    Usize(UsizeLocation),
+    Borrow(UsizeLocation),
+    Bool(BoolLocation),
+    Str(StrLocation),
+    Slice(SliceLocation),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -691,6 +766,9 @@ pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
     ProcessArgCount,
+    ProcessEnvironmentCount,
+    CurrentAllocationState,
+    CurrentAllocationKind,
     U8ZeroExtend(Box<U8Value>),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
@@ -757,6 +835,7 @@ pub(crate) enum BorrowSource {
     Usize(UsizeLocation),
     Bool(BoolLocation),
     BorrowParameter(usize),
+    BorrowLocal(UsizeLocation),
     SliceIndex {
         source: SliceLocation,
         index: SliceElementIndex,
@@ -786,6 +865,7 @@ pub(crate) enum SliceElementAddressKind {
     Usize,
     Bool,
     Str,
+    Aggregate { stride: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -799,6 +879,12 @@ pub(crate) enum StrValue {
     StaticBytes(Vec<u8>),
     Location(StrLocation),
     ProcessArg {
+        index: UsizeValue,
+    },
+    ProcessEnvironmentName {
+        index: UsizeValue,
+    },
+    ProcessEnvironmentValue {
         index: UsizeValue,
     },
     SliceIndex {
@@ -916,13 +1002,47 @@ pub(crate) enum Type {
     Error,
     Void,
     Never,
+    Optional(Box<Type>),
     Fallible(Box<Type>),
+    ComposedOutcome {
+        outer: OutcomeLayer,
+        inner: OutcomeLayer,
+        payload: Box<Type>,
+    },
 }
 
 impl Type {
+    pub(crate) fn outer_outcome_layer(&self) -> Option<OutcomeLayer> {
+        match self {
+            Self::Optional(_) => Some(OutcomeLayer::Optional),
+            Self::Fallible(_) => Some(OutcomeLayer::Fallible),
+            Self::ComposedOutcome { outer, .. } => Some(*outer),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn contains_outcome_layer(&self, expected: OutcomeLayer) -> bool {
+        match self {
+            Self::Optional(_) => expected == OutcomeLayer::Optional,
+            Self::Fallible(_) => expected == OutcomeLayer::Fallible,
+            Self::ComposedOutcome { outer, inner, .. } => *outer == expected || *inner == expected,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn single_outcome(&self) -> Option<(OutcomeLayer, &Type)> {
+        match self {
+            Self::Optional(payload) => Some((OutcomeLayer::Optional, payload)),
+            Self::Fallible(payload) => Some((OutcomeLayer::Fallible, payload)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn success_type(&self) -> &Type {
         match self {
+            Self::Optional(payload) => payload,
             Self::Fallible(success) => success,
+            Self::ComposedOutcome { payload, .. } => payload,
             Self::I32
             | Self::U8
             | Self::Usize
@@ -949,8 +1069,10 @@ impl Type {
             Self::Error => None,
             Self::Void => Some(ReturnPassing::Void),
             Self::Never => Some(ReturnPassing::Never),
+            Self::Optional(payload) => payload.success_return_passing(),
             Self::Fallible(success) => success.success_return_passing(),
-            Self::Borrow { .. } => None,
+            Self::ComposedOutcome { payload, .. } => payload.success_return_passing(),
+            Self::Borrow { .. } => Some(ReturnPassing::Direct { words: 1 }),
         }
     }
 }

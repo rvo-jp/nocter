@@ -84,7 +84,10 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
 ) -> bool {
     match expression {
         Expr::BoolLiteral(_) => true,
-        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Identifier(identifier) => {
+            context.bool_location(&identifier.name).is_some()
+                || identifier_is_borrow_or_closure_scalar(identifier, Type::Bool, context)
+        }
         Expr::Call(call) => builtin_is_empty_call_is_lowerable(call, context),
         Expr::Index(index) => {
             expression_is_lowerable_bool_slice_index_object(&index.object, context)
@@ -263,7 +266,10 @@ fn expressions_are_lowerable_bool_expressions(
 fn expression_is_lowerable_bool_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::BoolLiteral(_) => true,
-        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Identifier(identifier) => {
+            context.bool_location(&identifier.name).is_some()
+                || identifier_is_borrow_or_closure_scalar(identifier, Type::Bool, context)
+        }
         Expr::Call(call) => {
             builtin_is_empty_call_is_lowerable(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Bool)
@@ -313,6 +319,10 @@ fn expression_is_lowerable_bool_binary(binary: &BinaryExpr, context: &LoweringCo
 
 fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::Identifier(identifier) => {
+            context.u8_location(&identifier.name).is_some()
+                || identifier_is_borrow_or_closure_scalar(identifier, Type::U8, context)
+        }
         Expr::Binary(binary) if is_u8_binary_operator(binary.operator) => {
             expression_is_lowerable_u8_expression(&binary.left, context)
                 && expression_is_lowerable_u8_expression(&binary.right, context)
@@ -339,7 +349,10 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
 fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::ByteLiteral(_) => true,
-        Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
+        Expr::Identifier(identifier) => {
+            context.u8_location(&identifier.name).is_some()
+                || identifier_is_borrow_or_closure_scalar(identifier, Type::U8, context)
+        }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
         Expr::TypeConversion(conversion)
@@ -387,13 +400,13 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
     match expression {
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Str),
         Expr::Propagate(propagation) => {
-            expression_is_lowerable_fallible_str_expression(&propagation.expression, context)
+            expression_is_lowerable_outcome_str_expression(&propagation.expression, context)
         }
         Expr::Force(force) => {
-            expression_is_lowerable_fallible_str_expression(&force.expression, context)
+            expression_is_lowerable_outcome_str_expression(&force.expression, context)
         }
         Expr::Catch(catch) => {
-            expression_is_lowerable_fallible_str_expression(&catch.expression, context)
+            expression_is_lowerable_outcome_str_expression(&catch.expression, context)
         }
         Expr::Index(index) => {
             expression_is_lowerable_str_slice_index_object(&index.object, context)
@@ -407,17 +420,16 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
     }
 }
 
-fn expression_is_lowerable_fallible_str_expression(
+fn expression_is_lowerable_outcome_str_expression(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
     let Expr::Call(call) = unwrap_group(expression) else {
         return false;
     };
-    matches!(
-        direct_call_return_type(call, context),
-        Some(Type::Fallible(success)) if success.as_ref() == &Type::Str
-    )
+    direct_call_return_type(call, context)
+        .and_then(Type::single_outcome)
+        .is_some_and(|(_, payload)| payload == &Type::Str)
 }
 
 fn expression_is_lowerable_str_value(expression: &Expr, context: &LoweringContext) -> bool {
@@ -580,8 +592,14 @@ fn type_conversion_target_is(
 
 fn expression_is_lowerable_usize_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::Identifier(identifier) => {
+            context.usize_location(&identifier.name).is_some()
+                || identifier_is_borrow_or_closure_scalar(identifier, Type::Usize, context)
+        }
         Expr::Call(call) => {
             builtin_len_call_is_lowerable(call, context)
+                || primitive_current_allocation_state_call(call, context)
+                || primitive_current_allocation_kind_call(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Usize)
         }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
@@ -628,6 +646,27 @@ fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringCont
 
 fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
+        Expr::Identifier(identifier) => {
+            context.i32_location(&identifier.name).is_some()
+                || context
+                    .borrow_parameter(&identifier.name)
+                    .is_some_and(|borrow| borrow.inner == Type::I32)
+                || context
+                    .borrow_local(&identifier.name)
+                    .is_some_and(|(_, _, inner)| inner == &Type::I32)
+                || context
+                    .closure_capture_field(&identifier.name)
+                    .is_some_and(|field| {
+                        matches!(
+                            &field.kind,
+                            AggregateFieldKind::I32
+                                | AggregateFieldKind::Borrow {
+                                    inner: Type::I32,
+                                    ..
+                                }
+                        )
+                    })
+        }
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::I32),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression(&binary.left, context)
@@ -705,6 +744,28 @@ fn expression_is_lowerable_bool_comparison_operand(
         }
         _ => false,
     }
+}
+
+fn identifier_is_borrow_or_closure_scalar(
+    identifier: &crate::ast::IdentifierExpr,
+    expected: Type,
+    context: &LoweringContext,
+) -> bool {
+    context
+        .borrow_parameter(&identifier.name)
+        .is_some_and(|borrow| borrow.inner == expected)
+        || context
+            .borrow_local(&identifier.name)
+            .is_some_and(|(_, _, inner)| inner == &expected)
+        || context
+            .closure_capture_field(&identifier.name)
+            .is_some_and(|field| match (&field.kind, &expected) {
+                (AggregateFieldKind::U8, Type::U8)
+                | (AggregateFieldKind::Usize, Type::Usize)
+                | (AggregateFieldKind::Bool, Type::Bool) => true,
+                (AggregateFieldKind::Borrow { inner, .. }, expected) => inner == expected,
+                _ => false,
+            })
 }
 
 fn direct_call_return_type<'a>(call: &CallExpr, context: &'a LoweringContext) -> Option<&'a Type> {

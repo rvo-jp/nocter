@@ -14,7 +14,7 @@ pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 can only lower primitive `syscall{arity}` with {} `usize` arguments",
+                "native lowering can only lower primitive `syscall{arity}` with {} `usize` arguments",
                 arity + 1
             ),
         )]);
@@ -76,7 +76,10 @@ pub(in crate::ir::lower::expressions) fn primitive_exit_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
-    matches!(context.primitive_name_for_call(call), Some("exit_raw"))
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("exit_raw" | "allocation_abort_raw")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_write_text_raw_call(
@@ -167,11 +170,48 @@ pub(in crate::ir::lower::expressions) fn primitive_arg_count_raw_call(
     matches!(context.primitive_name_for_call(call), Some("arg_count_raw"))
 }
 
+pub(in crate::ir::lower::expressions) fn primitive_env_count_raw_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("env_count_raw"))
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_current_allocation_state_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("current_allocator_state")
+    )
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_current_allocation_kind_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("current_allocator_kind")
+    )
+}
+
 pub(in crate::ir::lower::expressions) fn primitive_arg_raw_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> bool {
     matches!(context.primitive_name_for_call(call), Some("arg_raw"))
+}
+
+pub(in crate::ir::lower::expressions) fn primitive_env_entry_raw_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("env_name_raw" | "env_value_raw")
+    )
 }
 
 pub(in crate::ir::lower::expressions) fn primitive_copy_str_to_ptr_call(
@@ -412,6 +452,17 @@ pub(in crate::ir::lower::expressions) fn lower_arg_count_raw_primitive_call_to_w
     Ok((Vec::new(), UsizeValue::ProcessArgCount))
 }
 
+pub(in crate::ir::lower::expressions) fn lower_env_count_raw_primitive_call_to_word(
+    call: &CallExpr,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    if !call.arguments.is_empty() {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`env_count_raw` requires no arguments",
+        ));
+    }
+    Ok((Vec::new(), UsizeValue::ProcessEnvironmentCount))
+}
+
 pub(in crate::ir::lower::expressions) fn lower_arg_raw_primitive_call_to_value(
     call: &CallExpr,
     context: &LoweringContext,
@@ -428,6 +479,33 @@ pub(in crate::ir::lower::expressions) fn lower_arg_raw_primitive_call_to_value(
         index.instructions,
         StrValue::ProcessArg { index: index.value },
     ))
+}
+
+pub(in crate::ir::lower::expressions) fn lower_env_entry_raw_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, StrValue), Vec<Diagnostic>> {
+    let primitive_name = context.primitive_name_for_call(call).ok_or_else(|| {
+        unsupported_pointer_primitive_diagnostic("expected environment primitive")
+    })?;
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(format!(
+            "`{primitive_name}` requires one `usize` index argument"
+        )));
+    }
+
+    let index = lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let value = match primitive_name {
+        "env_name_raw" => StrValue::ProcessEnvironmentName { index: index.value },
+        "env_value_raw" => StrValue::ProcessEnvironmentValue { index: index.value },
+        _ => {
+            return Err(unsupported_pointer_primitive_diagnostic(
+                "expected indexed environment primitive",
+            ));
+        }
+    };
+    Ok((index.instructions, value))
 }
 
 pub(in crate::ir::lower::expressions) fn lower_copy_str_to_ptr_primitive_call(
@@ -534,9 +612,13 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
     instructions.extend(offset.instructions);
     let stored_value = unwrap_pointer_store_move(&call.arguments[2]);
 
-    if let Some(value_type) =
-        scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
-            context.resolved_source(source)
+    if let Some(value_type) = context
+        .ir_type_for_type_expr(&pointee_type)
+        .filter(|ty| matches!(ty, Type::Borrow { .. }))
+        .or_else(|| {
+            scalar_or_view_type_from_type_expr_with_resolver(&pointee_type, resolved, |source| {
+                context.resolved_source(source)
+            })
         })
     {
         match value_type {
@@ -590,16 +672,37 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
                     value: value.value,
                 });
             }
+            Type::Borrow { .. } => {
+                let (borrow_instructions, value) = lower_borrow_argument(
+                    stored_value,
+                    &value_type,
+                    "store_value_to_ptr",
+                    context,
+                    temporaries,
+                )?;
+                instructions.extend(borrow_instructions);
+                let destination = temporaries.next_usize()?;
+                instructions.push(Instruction::SetUsizeFromBorrow {
+                    destination,
+                    source: value.source,
+                });
+                instructions.push(Instruction::StoreUsizeToPointer {
+                    pointer,
+                    offset: offset.value,
+                    value: UsizeValue::Location(destination),
+                });
+            }
             Type::Slice { .. }
             | Type::Aggregate { .. }
             | Type::DirectAggregate { .. }
-            | Type::Borrow { .. }
             | Type::Error
             | Type::Void
             | Type::Never
-            | Type::Fallible(_) => {
+            | Type::Optional(_)
+            | Type::Fallible(_)
+            | Type::ComposedOutcome { .. } => {
                 return Err(unsupported_pointer_primitive_diagnostic(
-                    "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, `bool`, and `&str` element types",
+                    "`store_value_to_ptr` supports only scalar, borrow, and `&str` element types",
                 ));
             }
         }
@@ -610,7 +713,10 @@ pub(in crate::ir::lower::expressions) fn lower_store_value_to_ptr_primitive_call
         context.resolved_source(source)
     });
     if let Ok(value) = value
-        && matches!(value.ty, AbiType::Struct(_) | AbiType::Array { .. })
+        && matches!(
+            value.ty,
+            AbiType::Struct(_) | AbiType::Array { .. } | AbiType::Enum(_) | AbiType::Outcome { .. }
+        )
         && supported_aggregate_copy_layout(value.layout)
     {
         let (value_instructions, source) = lower_aggregate_store_value_source(
@@ -660,17 +766,28 @@ fn lower_aggregate_store_value_source(
             )
         }
         Expr::Identifier(identifier) => {
-            let Some(local) = context.aggregate_local(&identifier.name) else {
+            let source = context
+                .aggregate_local(&identifier.name)
+                .map(|local| (local.layout, AggregateLocation::Slot(local.slot_index)))
+                .or_else(|| {
+                    context.outcome_local(&identifier.name).and_then(|local| {
+                        local.is_live.then_some((
+                            local.storage.layout,
+                            AggregateLocation::Slot(local.slot_index),
+                        ))
+                    })
+                });
+            let Some((source_layout, source)) = source else {
                 return Err(unsupported_pointer_primitive_diagnostic(
                     "`store_value_to_ptr` requires an aggregate source value",
                 ));
             };
-            if local.layout != layout {
+            if source_layout != layout {
                 return Err(unsupported_pointer_primitive_diagnostic(
                     "`store_value_to_ptr` aggregate source layout does not match pointer element layout",
                 ));
             }
-            Ok((Vec::new(), AggregateLocation::Slot(local.slot_index)))
+            Ok((Vec::new(), source))
         }
         Expr::StructLiteral(literal) => {
             let slot_index = temporaries.next_aggregate_slot();
@@ -783,7 +900,7 @@ pub(in crate::ir::lower::expressions) fn lower_close_fd_raw_primitive_call(
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `close_fd_raw` with argument `(i32)`",
+            "native lowering can only lower primitive `close_fd_raw` with argument `(i32)`",
         )]);
     }
 
@@ -797,10 +914,21 @@ pub(in crate::ir::lower::expressions) fn lower_exit_raw_primitive_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if context.primitive_name_for_call(call) == Some("allocation_abort_raw") {
+        if !call.arguments.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "E8006",
+                "native lowering can only lower primitive `allocation_abort_raw` without arguments",
+            )]);
+        }
+        return Ok(vec![Instruction::ProcessExit {
+            code: I32Value::Const(70),
+        }]);
+    }
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `exit_raw` with argument `(i32)`",
+            "native lowering can only lower primitive `exit_raw` with argument `(i32)`",
         )]);
     }
 
@@ -816,12 +944,12 @@ pub(in crate::ir::lower::expressions) fn lower_read_bytes_raw_primitive_call(
     destination: UsizeLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `read_bytes_raw` with arguments `(i32, &+[u8])`",
+            "native lowering can only lower primitive `read_bytes_raw` with arguments `(i32, &+[u8])`",
         )]);
     };
 
@@ -843,12 +971,12 @@ pub(in crate::ir::lower::expressions) fn lower_open_read_raw_primitive_call(
     destination: I32Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if call.arguments.len() != 1 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `open_read_raw` with argument `(*u8)`",
+            "native lowering can only lower primitive `open_read_raw` with argument `(*u8)`",
         )]);
     }
 
@@ -878,7 +1006,7 @@ fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usi
 fn unsupported_macos_syscall_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 cannot lower macOS syscall primitive: {reason}"),
+        format!("native lowering cannot lower macOS syscall primitive: {reason}"),
     )]
 }
 
@@ -935,7 +1063,7 @@ fn unsupported_pointer_primitive_diagnostic(reason: impl Into<String>) -> Vec<Di
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower pointer primitive call: {}",
+            "native lowering cannot lower pointer primitive call: {}",
             reason.into()
         ),
     )]
@@ -949,7 +1077,7 @@ pub(in crate::ir::lower::expressions) fn lower_write_text_raw_primitive_call(
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `write_text_raw` with arguments `(i32, &str)`",
+            "native lowering can only lower primitive `write_text_raw` with arguments `(i32, &str)`",
         )]);
     };
 
@@ -972,7 +1100,7 @@ pub(in crate::ir::lower::expressions) fn lower_write_bytes_raw_primitive_call(
     if call.arguments.len() != 2 {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower primitive `write_bytes_raw` with arguments `(i32, &[u8])`",
+            "native lowering can only lower primitive `write_bytes_raw` with arguments `(i32, &[u8])`",
         )]);
     };
 

@@ -1,12 +1,12 @@
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
-    builtin_name_reuse_diagnostic, unqualified_enum_variant_constructor_diagnostic,
-    unresolved_identifier_diagnostic,
+    builtin_name_reuse_diagnostic, implicit_closure_capture_diagnostic,
+    unqualified_enum_variant_constructor_diagnostic, unresolved_identifier_diagnostic,
 };
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
-    MemberExpr, Parameter, Stmt,
+    MemberExpr, Parameter, ResultProvenanceClause, ResultProvenanceOriginKind, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -16,38 +16,66 @@ impl Resolver<'_> {
         for item in &ast.items {
             match item {
                 Item::Function(function) => {
+                    self.resolve_function_body(function);
+                }
+                Item::Primitive(primitive) => {
                     let mut scope = Scope::new();
-                    self.define_parameters(&function.parameters.parameters, &mut scope);
-                    self.resolve_block(&function.body, &mut scope);
+                    self.define_declaration_parameters(
+                        &primitive.parameters.parameters,
+                        &mut scope,
+                    );
+                    self.resolve_result_provenance(primitive.result_provenance.as_ref(), &scope);
+                }
+                Item::Interface(interface) => {
+                    for method in &interface.methods {
+                        self.resolve_method(method);
+                    }
+                }
+                Item::Construct(construct) => {
+                    for (_, function) in construct.functions() {
+                        self.resolve_function_body(function);
+                    }
+                    for (_, literal) in construct.literals() {
+                        self.resolve_literal_body(literal);
+                    }
                 }
                 Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Import(_)
                 | Item::FromImport(_)
-                | Item::Primitive(_)
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
-                | Item::Enum(_)
-                | Item::Interface(_) => {}
+                | Item::Enum(_) => {}
             }
         }
+    }
+
+    fn resolve_function_body(&mut self, function: &crate::ast::FunctionDecl) {
+        let mut scope = Scope::new();
+        self.define_parameters(&function.parameters.parameters, &mut scope);
+        self.resolve_result_provenance(function.result_provenance.as_ref(), &scope);
+        self.resolve_block(&function.body, &mut scope);
+    }
+
+    fn resolve_literal_body(&mut self, literal: &crate::ast::LiteralDecl) {
+        let mut scope = Scope::new();
+        self.define_parameters(&literal.parameters.parameters, &mut scope);
+        if let Some(capture) = &literal.capture {
+            self.define_local_name(
+                capture.name.clone(),
+                capture.name_span,
+                LocalSymbolKind::LiteralCapture,
+                &mut scope,
+            );
+        }
+        self.resolve_result_provenance(literal.result_provenance.as_ref(), &scope);
+        self.resolve_block(&literal.body, &mut scope);
     }
 
     fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {
         for member in &impl_.members {
             match member {
                 ImplMember::Method(method) => {
-                    let Some(body) = &method.body else {
-                        continue;
-                    };
-                    let mut scope = Scope::new();
-                    self.define_local_name(
-                        method.receiver.name.clone(),
-                        method.receiver.name_span,
-                        LocalSymbolKind::Parameter,
-                        &mut scope,
-                    );
-                    self.define_parameters(&method.parameters.parameters, &mut scope);
-                    self.resolve_block(body, &mut scope);
+                    self.resolve_method(method);
                 }
                 ImplMember::Drop(drop_) => {
                     let mut scope = Scope::new();
@@ -63,13 +91,85 @@ impl Resolver<'_> {
         }
     }
 
+    fn resolve_method(&mut self, method: &crate::ast::MethodDecl) {
+        let mut scope = Scope::new();
+        if method.body.is_some() {
+            self.define_local_name(
+                method.receiver.name.clone(),
+                method.receiver.name_span,
+                LocalSymbolKind::Parameter,
+                &mut scope,
+            );
+            self.define_parameters(&method.parameters.parameters, &mut scope);
+        } else {
+            self.define_declaration_parameter_name(
+                method.receiver.name.clone(),
+                method.receiver.name_span,
+                &mut scope,
+            );
+            self.define_declaration_parameters(&method.parameters.parameters, &mut scope);
+        }
+        self.resolve_result_provenance(method.result_provenance.as_ref(), &scope);
+        if let Some(body) = &method.body {
+            self.resolve_block(body, &mut scope);
+        }
+    }
+
     fn define_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
         for parameter in parameters {
             self.define_parameter_name(parameter.name.clone(), parameter.name_span, scope);
         }
     }
 
-    fn resolve_block(&mut self, block: &Block, scope: &mut Scope) {
+    fn define_declaration_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
+        for parameter in parameters {
+            self.define_declaration_parameter_name(
+                parameter.name.clone(),
+                parameter.name_span,
+                scope,
+            );
+        }
+    }
+
+    /// Declaration-only callables have no executable local scope. Their parameter
+    /// names still need symbols for editor navigation, but cannot conflict with
+    /// module names because neither name is visible from the other's scope.
+    fn define_declaration_parameter_name(
+        &mut self,
+        name: String,
+        span: ByteSpan,
+        scope: &mut Scope,
+    ) {
+        let id = self
+            .output
+            .define_local_symbol(name.clone(), span, LocalSymbolKind::Parameter);
+        scope.define(name, span, id);
+    }
+
+    fn resolve_result_provenance(
+        &mut self,
+        clause: Option<&ResultProvenanceClause>,
+        scope: &Scope,
+    ) {
+        let Some(clause) = clause else {
+            return;
+        };
+        for origin in &clause.origins {
+            let name = match &origin.kind {
+                ResultProvenanceOriginKind::Receiver => "self",
+                ResultProvenanceOriginKind::Parameter(name) => name,
+                ResultProvenanceOriginKind::Static
+                | ResultProvenanceOriginKind::CurrentAllocationContext => continue,
+            };
+            if let Some(local_id) = scope.resolve(name) {
+                self.output
+                    .local_identifier_targets
+                    .insert(origin.span, local_id);
+            }
+        }
+    }
+
+    pub(super) fn resolve_block(&mut self, block: &Block, scope: &mut Scope) {
         for statement in &block.statements {
             self.resolve_statement(statement, scope);
         }
@@ -170,10 +270,45 @@ impl Resolver<'_> {
                 );
                 self.resolve_block(&statement.body, &mut body_scope);
             }
+            Stmt::CollectionFor(statement) => {
+                self.resolve_expression(&statement.source, scope);
+                let mut body_scope = scope.clone();
+                self.define_local_name(
+                    statement.name.clone(),
+                    statement.name_span,
+                    LocalSymbolKind::CollectionFor,
+                    &mut body_scope,
+                );
+                self.resolve_block(&statement.body, &mut body_scope);
+            }
+            Stmt::LiteralPackFor(statement) => {
+                if let Some(local_id) = scope.resolve(&statement.pack_name) {
+                    self.output
+                        .local_identifier_targets
+                        .insert(statement.pack_span, local_id);
+                } else {
+                    self.output
+                        .diagnostics
+                        .push(unresolved_identifier_diagnostic(
+                            self.sources,
+                            &statement.pack_name,
+                            statement.pack_span,
+                        ));
+                }
+                let mut body_scope = scope.clone();
+                self.define_local_name(
+                    statement.name.clone(),
+                    statement.name_span,
+                    LocalSymbolKind::LiteralPackFor,
+                    &mut body_scope,
+                );
+                self.resolve_block(&statement.body, &mut body_scope);
+            }
             Stmt::Loop(statement) => {
                 let mut body_scope = scope.clone();
                 self.resolve_block(&statement.body, &mut body_scope);
             }
+            Stmt::Region(statement) => self.resolve_region_statement(statement, scope),
             Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Drop(statement) => {
                 if let Some(local_id) = scope.resolve(&statement.name) {
@@ -194,8 +329,9 @@ impl Resolver<'_> {
         }
     }
 
-    fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
+    pub(super) fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
         match expression {
+            Expr::Closure(expression) => self.resolve_closure(expression, scope),
             Expr::Identifier(expression) => self.resolve_identifier(expression, scope),
             Expr::Propagate(expression) => self.resolve_expression(&expression.expression, scope),
             Expr::Force(expression) => self.resolve_expression(&expression.expression, scope),
@@ -242,6 +378,29 @@ impl Resolver<'_> {
             Expr::ArrayLiteral(expression) => {
                 for element in &expression.elements {
                     self.resolve_expression(element, scope);
+                }
+            }
+            Expr::TypedSequenceLiteral(expression) => {
+                self.resolve_typed_literal(
+                    &expression.target,
+                    crate::ast::LiteralShape::Sequence,
+                    expression.span,
+                );
+                for element in &expression.elements {
+                    self.resolve_expression(element, scope);
+                }
+                if let Some(using) = &expression.using {
+                    self.resolve_expression(&using.allocator, scope);
+                }
+            }
+            Expr::TypedStringLiteral(expression) => {
+                self.resolve_typed_literal(
+                    &expression.target,
+                    crate::ast::LiteralShape::String,
+                    expression.span,
+                );
+                if let Some(using) = &expression.using {
+                    self.resolve_expression(&using.allocator, scope);
                 }
             }
             Expr::StructLiteral(expression) => {
@@ -326,6 +485,18 @@ impl Resolver<'_> {
             self.output
                 .local_identifier_targets
                 .insert(identifier.span, local_id);
+            return;
+        }
+
+        if let Some(declaration_span) = scope.blocked_local(&identifier.name) {
+            self.output
+                .diagnostics
+                .push(implicit_closure_capture_diagnostic(
+                    self.sources,
+                    &identifier.name,
+                    identifier.span,
+                    declaration_span,
+                ));
             return;
         }
 
@@ -416,7 +587,7 @@ impl Resolver<'_> {
             })
     }
 
-    fn define_local_name(
+    pub(super) fn define_local_name(
         &mut self,
         name: String,
         span: ByteSpan,
@@ -464,6 +635,7 @@ impl Resolver<'_> {
 pub(super) struct Scope {
     locals: HashMap<String, LocalBinding>,
     symbols: HashMap<String, ScopedSymbolBinding>,
+    blocked_locals: HashMap<String, ByteSpan>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -496,6 +668,28 @@ impl Scope {
 
     pub(super) fn resolve_symbol(&self, name: &str) -> Option<SymbolId> {
         self.symbols.get(name).map(|symbol| symbol.id)
+    }
+
+    pub(super) fn blocked_local(&self, name: &str) -> Option<ByteSpan> {
+        self.blocked_locals.get(name).copied()
+    }
+
+    pub(super) fn without_locals(&self) -> Self {
+        let mut blocked_locals = self.blocked_locals.clone();
+        blocked_locals.extend(
+            self.locals
+                .iter()
+                .map(|(name, binding)| (name.clone(), binding.span)),
+        );
+        Self {
+            locals: HashMap::new(),
+            symbols: self.symbols.clone(),
+            blocked_locals,
+        }
+    }
+
+    pub(super) fn unblock_local(&mut self, name: &str) {
+        self.blocked_locals.remove(name);
     }
 
     pub(super) fn define(&mut self, name: String, span: ByteSpan, id: LocalSymbolId) {

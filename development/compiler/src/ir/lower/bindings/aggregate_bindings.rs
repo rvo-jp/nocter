@@ -1,5 +1,57 @@
 use super::*;
 
+pub(super) fn lower_closure_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Closure(closure) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some(ty @ TypeExpr::Closure(_)) = context.binding_type_expr(statement.name_span) else {
+        return Err(unsupported_binding_diagnostic(
+            "closure binding is missing its inferred environment type",
+        ));
+    };
+    let Some((root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "closure binding requires resolved source information",
+        ));
+    };
+    let value = context.abi_value_for_type_expr(&ty).ok_or_else(|| {
+        unsupported_binding_diagnostic("closure binding has no concrete ABI layout")
+    })?;
+    validate_aggregate_binding_layout(value.layout)?;
+
+    let is_copy = type_expr_is_copy_aggregate_value_with_resolver(&ty, resolved, |source| {
+        context.resolved_source(source)
+    });
+    let drop_kind = context.aggregate_drop_for_type_expr(&ty);
+    let fields =
+        aggregate_fields_from_type_expr_with_resolver(&ty, root_source, resolved, |source| {
+            context.resolved_source(source)
+        })
+        .ok_or_else(|| {
+            unsupported_binding_diagnostic("closure capture fields have no concrete ABI layout")
+        })?;
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        value.layout,
+        is_copy,
+        drop_kind,
+        fields,
+    );
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let instructions = crate::ir::lower::closures::lower_closure_to_slot(
+        closure,
+        &ty,
+        slot_index,
+        context,
+        &mut temporaries,
+    )?;
+    context.mark_aggregate_local_initialized(statement.name.as_str());
+    Ok(Some(instructions))
+}
+
 pub(super) fn lower_aggregate_struct_literal_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
@@ -9,7 +61,7 @@ pub(super) fn lower_aggregate_struct_literal_binding(
     };
     let Some((root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower aggregate struct literal bindings without resolved type information",
+            "native lowering cannot lower aggregate struct literal bindings without resolved type information",
         ));
     };
 
@@ -19,7 +71,7 @@ pub(super) fn lower_aggregate_struct_literal_binding(
         .unwrap_or_else(|| literal.ty.clone());
     let value = context.abi_value_for_type_expr(&ty).ok_or_else(|| {
         unsupported_binding_diagnostic(
-            "IR v0 can only lower local aggregate bindings whose initializer has an ABI layout",
+            "native lowering can only lower local aggregate bindings whose initializer has an ABI layout",
         )
     })?;
     validate_aggregate_binding_layout(value.layout)?;
@@ -55,7 +107,7 @@ pub(super) fn lower_aggregate_struct_literal_binding(
             .mark_aggregate_local_struct_fields(statement.name.as_str(), progress.drop_states())
         {
             return Err(unsupported_binding_diagnostic(
-                "IR v0 cannot establish struct field initialization state",
+                "native lowering cannot establish struct field initialization state",
             ));
         }
         instructions.extend(progress.initialize());
@@ -93,7 +145,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
     };
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower fixed array literal bindings without resolved type information",
+            "native lowering cannot lower fixed array literal bindings without resolved type information",
         ));
     };
     let Some(ty) = context
@@ -108,7 +160,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
     })
     .map_err(|_error| {
         unsupported_binding_diagnostic(
-            "IR v0 can only lower fixed array literal bindings whose type has an ABI layout",
+            "native lowering can only lower fixed array literal bindings whose type has an ABI layout",
         )
     })?;
     if !matches!(&value.ty, AbiType::Array { .. }) {
@@ -153,7 +205,7 @@ pub(super) fn lower_aggregate_array_literal_binding(
             progress.element_states(),
         ) {
             return Err(unsupported_binding_diagnostic(
-                "IR v0 cannot establish fixed array initialization state",
+                "native lowering cannot establish fixed array initialization state",
             ));
         }
         instructions.extend(progress.initialize());
@@ -188,7 +240,7 @@ pub(super) fn lower_payload_enum_constructor_binding(
     }
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower payload enum bindings without resolved type information",
+            "native lowering cannot lower payload enum bindings without resolved type information",
         ));
     };
     let Some(ty) = context
@@ -237,7 +289,7 @@ pub(super) fn lower_payload_enum_constructor_binding(
             progress.drop_states(),
         ) {
             return Err(unsupported_binding_diagnostic(
-                "IR v0 cannot establish payload field initialization state",
+                "native lowering cannot establish payload field initialization state",
             ));
         }
         instructions.extend(progress.initialize());
@@ -286,7 +338,7 @@ pub(super) fn lower_aggregate_call_binding(
             lower_aggregate_fallible_call_binding(
                 statement,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }
@@ -297,7 +349,7 @@ pub(super) fn lower_aggregate_call_binding(
             lower_aggregate_fallible_call_binding(
                 statement,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -384,17 +436,21 @@ pub(super) fn lower_aggregate_normal_call_binding(
 pub(super) fn lower_aggregate_fallible_call_binding(
     statement: &BindingStmt,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
 
-    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
+    let Some(success) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+        .map(|(_, success)| success.clone())
+    else {
         return Ok(None);
     };
-    let Some(layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(&success) else {
         return Ok(None);
     };
 
@@ -408,7 +464,7 @@ pub(super) fn lower_aggregate_fallible_call_binding(
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        &success,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,
@@ -430,12 +486,12 @@ pub(super) fn lower_aggregate_copy_binding(
     };
     if !source.is_copy {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate copy bindings from copy aggregate locals",
+            "native lowering can only lower aggregate copy bindings from copy aggregate locals",
         ));
     }
     let Some(fields) = context.aggregate_local_fields(&identifier.name) else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower aggregate copy bindings without aggregate field metadata",
+            "native lowering cannot lower aggregate copy bindings without aggregate field metadata",
         ));
     };
 
@@ -471,20 +527,25 @@ pub(super) fn lower_aggregate_move_binding(
     }
     let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate move bindings from `move name` initializers",
+            "native lowering can only lower aggregate move bindings from `move name` initializers",
         ));
     };
     let Some(source) = context.aggregate_local(&identifier.name) else {
         return Ok(None);
     };
-    if !supported_aggregate_copy_layout(source.layout) {
+    let is_zero_sized_closure = source.layout.size == 0
+        && matches!(
+            context.local_binding_type_expr_for_identifier(identifier),
+            Some(TypeExpr::Closure(_))
+        );
+    if !supported_aggregate_copy_layout(source.layout) && !is_zero_sized_closure {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate move bindings for supported aggregate layouts",
+            "native lowering can only lower aggregate move bindings for supported aggregate layouts",
         ));
     }
     let Some(fields) = context.aggregate_local_fields(&identifier.name) else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower aggregate move bindings without aggregate field metadata",
+            "native lowering cannot lower aggregate move bindings without aggregate field metadata",
         ));
     };
 
@@ -561,7 +622,7 @@ pub(super) fn lower_aggregate_local_member_binding(
     };
     if !is_copy || !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from copy aggregate fields",
+            "native lowering can only lower aggregate member bindings from copy aggregate fields",
         ));
     }
 
@@ -607,7 +668,7 @@ pub(super) fn lower_aggregate_call_member_binding(
         || !supported_aggregate_copy_layout(source_layout)
     {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from copy aggregate fields",
+            "native lowering can only lower aggregate member bindings from copy aggregate fields",
         ));
     }
 
@@ -653,16 +714,20 @@ pub(super) fn lower_aggregate_fallible_call_member_binding(
     statement: &BindingStmt,
     call: &CallExpr,
     field_path: &str,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some(success_type) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+        .map(|(_, success)| success.clone())
+    else {
         return Ok(None);
     };
-    let Some(source_layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(source_layout) = aggregate_type_layout(&success_type) else {
         return Ok(None);
     };
     let Some(field) = aggregate_call_field(call, field_path, context) else {
@@ -678,7 +743,7 @@ pub(super) fn lower_aggregate_fallible_call_member_binding(
         || !supported_aggregate_copy_layout(source_layout)
     {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from copy fallible aggregate fields",
+            "native lowering can only lower aggregate member bindings from copy fallible aggregate fields",
         ));
     }
 
@@ -704,7 +769,7 @@ pub(super) fn lower_aggregate_fallible_call_member_binding(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        &success_type,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,
@@ -758,7 +823,7 @@ pub(super) fn lower_aggregate_optional_otherwise_member_binding(
     };
     if !is_copy || !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from copy optional aggregate fields",
+            "native lowering can only lower aggregate member bindings from copy optional aggregate fields",
         ));
     }
 
@@ -782,7 +847,7 @@ pub(super) fn lower_aggregate_optional_otherwise_member_binding(
         context,
         || {
             unsupported_binding_diagnostic(
-                "IR v0 can only lower aggregate member bindings from copy optional aggregate fields",
+                "native lowering can only lower aggregate member bindings from copy optional aggregate fields",
             )
         },
     )?);
@@ -819,7 +884,7 @@ pub(super) fn lower_aggregate_slice_index_binding(
     let lowered_slice = lower_slice_expression_to_value(&index.object, context, &mut temporaries)?;
     let SliceValue::Location(source) = lowered_slice.value else {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate slice index bindings from slice locations",
+            "native lowering can only lower aggregate slice index bindings from slice locations",
         ));
     };
     let (index_instructions, element_index) =
@@ -845,7 +910,7 @@ pub(super) fn lower_aggregate_slice_index_binding(
 pub(super) enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
-    FallibleCall(&'a CallExpr, FallibleFailureMode),
+    FallibleCall(&'a CallExpr, OutcomeFailureMode),
     OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
@@ -914,7 +979,10 @@ pub(super) fn aggregate_member_binding_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberBindingRoot::FallibleCall(call, propagating_failure_mode(context)?),
+                AggregateMemberBindingRoot::FallibleCall(
+                    call,
+                    propagating_outcome_mode(&propagation.expression, context)?,
+                ),
                 Vec::new(),
             )))
         }
@@ -923,7 +991,7 @@ pub(super) fn aggregate_member_binding_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Trap),
+                AggregateMemberBindingRoot::FallibleCall(call, OutcomeFailureMode::Trap),
                 Vec::new(),
             )))
         }
@@ -961,7 +1029,7 @@ pub(super) fn validate_aggregate_binding_layout(
 ) -> Result<(), Vec<Diagnostic>> {
     if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower this aggregate binding with a non-empty ABI layout",
+            "native lowering can only lower this aggregate binding with a non-empty ABI layout",
         ));
     }
     Ok(())

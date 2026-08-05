@@ -234,6 +234,6 @@ fn payload_fields_and_offsets(
 fn invalid_payload_initialization_state_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 cannot establish payload field initialization state",
+        "native lowering cannot establish payload field initialization state",
     )]
 }

@@ -209,7 +209,10 @@ pub(super) fn lower_u8_index_expression_to_value(
                     source,
                     index: index.value,
                 },
-                value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }) => {
+                value @ (StrValue::ProcessArg { .. }
+                | StrValue::ProcessEnvironmentName { .. }
+                | StrValue::ProcessEnvironmentValue { .. }
+                | StrValue::SliceIndex { .. }) => {
                     let source = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: source,
@@ -242,7 +245,10 @@ pub(super) fn lower_u8_index_expression_to_value(
                     index: index.value,
                 },
                 SliceValue::StrBytes(
-                    value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }),
+                    value @ (StrValue::ProcessArg { .. }
+                    | StrValue::ProcessEnvironmentName { .. }
+                    | StrValue::ProcessEnvironmentValue { .. }
+                    | StrValue::SliceIndex { .. }),
                 ) => {
                     let source = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {

@@ -1,6 +1,48 @@
 use super::*;
 
 #[test]
+fn specializes_propagated_generic_optional_call_from_payload_context() {
+    let ir = lower_text(
+        r#"func maybe<T>(value: T): T? {
+    return value
+}
+
+func forward<T>(value: T): T? {
+    return maybe(value)?
+}
+
+func main(): i32 {
+    return forward(42) otherwise { return 0 }
+}
+"#,
+    );
+
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("forward<i32>"))
+        .expect("expected specialized forwarding function");
+
+    assert_eq!(forward.return_type, Type::Optional(Box::new(Type::I32)));
+    assert!(
+        forward.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallOutcomeI32 {
+                target,
+                failure_mode: OutcomeFailureMode::Propagate,
+                ..
+            } if target == &CallTarget::same_file("maybe<i32>")
+        )),
+        "{forward:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .all(|function| function.target != CallTarget::same_file("maybe<i32?>"))
+    );
+}
+
+#[test]
 fn lowers_fixed_array_optional_otherwise_binding_and_return() {
     let source = r#"func main(): i32 {
     let fallback: [i32; 2] = [1, 2]
@@ -24,22 +66,22 @@ func maybe_pair(): [i32; 2]? {
         "main",
         function_signatures(vec![(
             "maybe_pair",
-            Type::Fallible(Box::new(pair_type.clone())),
+            Type::Optional(Box::new(pair_type.clone())),
             vec![],
         )]),
     )
     .unwrap();
 
-    let Some(Instruction::CallFallibleDirectAggregate {
+    let Some(Instruction::CallOutcomeDirectAggregate {
         destination,
         target,
         arguments,
         layout: call_layout,
-        failure_mode: FallibleFailureMode::Recover { instructions },
+        failure_mode: OutcomeFailureMode::Recover { instructions },
     }) = main
         .instructions
         .iter()
-        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+        .find(|instruction| matches!(instruction, Instruction::CallOutcomeDirectAggregate { .. }))
     else {
         panic!("{main:?}");
     };
@@ -60,7 +102,7 @@ func maybe_pair(): [i32; 2]? {
         "choose",
         function_signatures(vec![(
             "maybe_pair",
-            Type::Fallible(Box::new(pair_type)),
+            Type::Optional(Box::new(pair_type)),
             vec![],
         )]),
     )
@@ -69,12 +111,12 @@ func maybe_pair(): [i32; 2]? {
     assert!(
         choose.instructions.iter().any(|instruction| matches!(
             instruction,
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination: AggregateLocation::DirectReturn,
                 target,
                 arguments,
                 layout: call_layout,
-                failure_mode: FallibleFailureMode::Handle { instructions },
+                failure_mode: OutcomeFailureMode::Handle { instructions },
             } if *target == CallTarget::same_file("maybe_pair")
                 && arguments.is_empty()
                 && *call_layout == layout
@@ -103,7 +145,7 @@ func maybe_answer(): i32? {
         Function {
             name: "maybe_answer".to_string(),
             target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
-            return_type: Type::Fallible(Box::new(Type::I32)),
+            return_type: Type::Optional(Box::new(Type::I32)),
             instructions: vec![Instruction::ReturnOptionalNone],
         }
     );
@@ -130,7 +172,7 @@ func maybe_answer(): MaybeI32 {
         Function {
             name: "maybe_answer".to_string(),
             target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
-            return_type: Type::Fallible(Box::new(Type::I32)),
+            return_type: Type::Optional(Box::new(Type::I32)),
             instructions: vec![Instruction::ReturnOptionalNone],
         }
     );
@@ -155,8 +197,8 @@ func maybe_answer(): i32? {
         Function {
             name: "maybe_answer".to_string(),
             target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
-            return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+            return_type: Type::Optional(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(42), Instruction::ReturnOutcomeSuccess],
         }
     );
 }
@@ -184,10 +226,10 @@ func maybe_answer(flag: bool): i32? {
         Function {
             name: "maybe_answer".to_string(),
             target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
-            return_type: Type::Fallible(Box::new(Type::I32)),
+            return_type: Type::Optional(Box::new(Type::I32)),
             instructions: vec![Instruction::If {
                 condition: BoolValue::Location(BoolLocation::Parameter(0)),
-                then_instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+                then_instructions: vec![set_return_i32(42), Instruction::ReturnOutcomeSuccess],
                 else_instructions: vec![Instruction::ReturnOptionalNone],
             }],
         }
@@ -221,15 +263,15 @@ func maybe_answer(): i32? {
         &Function {
             name: "value".to_string(),
             target: crate::ir::CallTarget::same_file("value".to_string()),
-            return_type: Type::Fallible(Box::new(Type::I32)),
+            return_type: Type::Optional(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Return,
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Propagate,
+                    failure_mode: OutcomeFailureMode::Propagate,
                 },
-                Instruction::ReturnFallibleSuccess,
+                Instruction::ReturnOutcomeSuccess,
             ],
         }
     );
@@ -257,11 +299,11 @@ func maybe_answer(): i32? {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Handle {
+                    failure_mode: OutcomeFailureMode::Handle {
                         instructions: vec![set_return_i32(1), Instruction::Return],
                     },
                 },
@@ -310,11 +352,11 @@ func maybe_answer(total: i32): i32? {
                 condition_instructions: vec![],
                 condition: BoolValue::Const(true),
                 body_instructions: vec![
-                    Instruction::CallFallibleI32 {
+                    Instruction::CallOutcomeI32 {
                         destination: I32Location::Local(1),
                         target: CallTarget::same_file("maybe_answer"),
                         arguments: vec![ScalarArgument::I32(i32_local(0))],
-                        failure_mode: FallibleFailureMode::Handle {
+                        failure_mode: OutcomeFailureMode::Handle {
                             instructions: vec![Instruction::Break],
                         },
                     },
@@ -381,11 +423,11 @@ func only_even(index: i32): i32? {
                     right: i32_local(2),
                 },
                 body_instructions: vec![
-                    Instruction::CallFallibleI32 {
+                    Instruction::CallOutcomeI32 {
                         destination: I32Location::Local(3),
                         target: CallTarget::same_file("only_even"),
                         arguments: vec![ScalarArgument::I32(i32_local(1))],
-                        failure_mode: FallibleFailureMode::Handle {
+                        failure_mode: OutcomeFailureMode::Handle {
                             instructions: vec![
                                 Instruction::AddI32 {
                                     destination: I32Location::Local(1),
@@ -443,11 +485,11 @@ func abort(): never {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Handle {
+                    failure_mode: OutcomeFailureMode::Handle {
                         instructions: vec![Instruction::TailCall {
                             target: CallTarget::same_file("abort"),
                             arguments: vec![],
@@ -465,7 +507,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_optional_i32_otherwise_never_call_binding_with_scope_cleanup() {
+fn lowers_optional_i32_otherwise_never_call_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -516,18 +558,15 @@ func abort(): never {
                     offset: 0,
                     value: i32_const(3),
                 },
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Handle {
-                        instructions: vec![
-                            drop_call.clone(),
-                            Instruction::TailCall {
-                                target: CallTarget::same_file("abort"),
-                                arguments: vec![],
-                            },
-                        ],
+                    failure_mode: OutcomeFailureMode::Handle {
+                        instructions: vec![Instruction::TailCall {
+                            target: CallTarget::same_file("abort"),
+                            arguments: vec![],
+                        }],
                     },
                 },
                 Instruction::SetI32 {
@@ -565,11 +604,11 @@ func maybe_answer(): i32? {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Return,
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Handle {
+                    failure_mode: OutcomeFailureMode::Handle {
                         instructions: vec![set_return_i32(7), Instruction::Return],
                     },
                 },
@@ -630,11 +669,11 @@ func maybe_answer(): i32? {
                 offset: 0,
                 value: i32_const(3),
             },
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 destination: I32Location::Local(0),
                 target: CallTarget::same_file("maybe_answer"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetI32 {
                             destination: I32Location::Local(0),
@@ -706,13 +745,13 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 "#;
     let signatures = function_signatures(vec![
-        ("maybe_byte", Type::Fallible(Box::new(Type::U8)), vec![]),
-        ("maybe_size", Type::Fallible(Box::new(Type::Usize)), vec![]),
-        ("maybe_flag", Type::Fallible(Box::new(Type::Bool)), vec![]),
-        ("maybe_text", Type::Fallible(Box::new(Type::Str)), vec![]),
+        ("maybe_byte", Type::Optional(Box::new(Type::U8)), vec![]),
+        ("maybe_size", Type::Optional(Box::new(Type::Usize)), vec![]),
+        ("maybe_flag", Type::Optional(Box::new(Type::Bool)), vec![]),
+        ("maybe_text", Type::Optional(Box::new(Type::Str)), vec![]),
         (
             "maybe_bytes",
-            Type::Fallible(Box::new(Type::Slice {
+            Type::Optional(Box::new(Type::Slice {
                 is_readwrite: false,
             })),
             vec![Type::Slice {
@@ -726,11 +765,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     assert_eq!(
         use_byte.instructions,
         vec![
-            Instruction::CallFallibleU8 {
+            Instruction::CallOutcomeU8 {
                 destination: U8Location::Return,
                 target: CallTarget::same_file("maybe_byte"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetU8 {
                             destination: U8Location::Return,
@@ -749,11 +788,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     assert_eq!(
         use_size.instructions,
         vec![
-            Instruction::CallFallibleUsize {
+            Instruction::CallOutcomeUsize {
                 destination: UsizeLocation::Return,
                 target: CallTarget::same_file("maybe_size"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetUsize {
                             destination: UsizeLocation::Return,
@@ -772,11 +811,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     assert_eq!(
         use_flag.instructions,
         vec![
-            Instruction::CallFallibleBool {
+            Instruction::CallOutcomeBool {
                 destination: BoolLocation::Return,
                 target: CallTarget::same_file("maybe_flag"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetBool {
                             destination: BoolLocation::Return,
@@ -795,11 +834,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     assert_eq!(
         use_text.instructions,
         vec![
-            Instruction::CallFallibleStr {
+            Instruction::CallOutcomeStr {
                 destination: StrLocation::Return,
                 target: CallTarget::same_file("maybe_text"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetStr {
                             destination: StrLocation::Return,
@@ -817,13 +856,13 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     assert_eq!(
         use_bytes.instructions,
         vec![
-            Instruction::CallFallibleSlice {
+            Instruction::CallOutcomeSlice {
                 destination: SliceLocation::Return,
                 target: CallTarget::same_file("maybe_bytes"),
                 arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                     SliceLocation::Parameter(0),
                 ))],
-                failure_mode: FallibleFailureMode::Handle {
+                failure_mode: OutcomeFailureMode::Handle {
                     instructions: vec![
                         Instruction::SetSlice {
                             destination: SliceLocation::Return,
@@ -859,11 +898,11 @@ func maybe_answer(): i32? {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::CallFallibleI32 {
+                Instruction::CallOutcomeI32 {
                     destination: I32Location::Local(0),
                     target: CallTarget::same_file("maybe_answer"),
                     arguments: vec![],
-                    failure_mode: FallibleFailureMode::Recover {
+                    failure_mode: OutcomeFailureMode::Recover {
                         instructions: vec![Instruction::SetI32 {
                             destination: I32Location::Local(0),
                             value: I32Value::Const(7),
@@ -936,13 +975,13 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 "#;
     let signatures = function_signatures(vec![
-        ("maybe_byte", Type::Fallible(Box::new(Type::U8)), vec![]),
-        ("maybe_size", Type::Fallible(Box::new(Type::Usize)), vec![]),
-        ("maybe_flag", Type::Fallible(Box::new(Type::Bool)), vec![]),
-        ("maybe_text", Type::Fallible(Box::new(Type::Str)), vec![]),
+        ("maybe_byte", Type::Optional(Box::new(Type::U8)), vec![]),
+        ("maybe_size", Type::Optional(Box::new(Type::Usize)), vec![]),
+        ("maybe_flag", Type::Optional(Box::new(Type::Bool)), vec![]),
+        ("maybe_text", Type::Optional(Box::new(Type::Str)), vec![]),
         (
             "maybe_bytes",
-            Type::Fallible(Box::new(Type::Slice {
+            Type::Optional(Box::new(Type::Slice {
                 is_readwrite: false,
             })),
             vec![Type::Slice {
@@ -955,11 +994,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
         lower_named_function_with_signatures(source, "use_byte", signatures.clone()).unwrap();
     assert_eq!(
         use_byte.instructions[0],
-        Instruction::CallFallibleU8 {
+        Instruction::CallOutcomeU8 {
             destination: U8Location::Local(0),
             target: CallTarget::same_file("maybe_byte"),
             arguments: vec![],
-            failure_mode: FallibleFailureMode::Recover {
+            failure_mode: OutcomeFailureMode::Recover {
                 instructions: vec![Instruction::SetU8 {
                     destination: U8Location::Local(0),
                     value: U8Value::Const(7),
@@ -972,11 +1011,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
         lower_named_function_with_signatures(source, "use_size", signatures.clone()).unwrap();
     assert_eq!(
         use_size.instructions[0],
-        Instruction::CallFallibleUsize {
+        Instruction::CallOutcomeUsize {
             destination: UsizeLocation::Local(0),
             target: CallTarget::same_file("maybe_size"),
             arguments: vec![],
-            failure_mode: FallibleFailureMode::Recover {
+            failure_mode: OutcomeFailureMode::Recover {
                 instructions: vec![Instruction::SetUsize {
                     destination: UsizeLocation::Local(0),
                     value: UsizeValue::Const(7),
@@ -989,11 +1028,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
         lower_named_function_with_signatures(source, "use_flag", signatures.clone()).unwrap();
     assert_eq!(
         use_flag.instructions[0],
-        Instruction::CallFallibleBool {
+        Instruction::CallOutcomeBool {
             destination: BoolLocation::Local(0),
             target: CallTarget::same_file("maybe_flag"),
             arguments: vec![],
-            failure_mode: FallibleFailureMode::Recover {
+            failure_mode: OutcomeFailureMode::Recover {
                 instructions: vec![Instruction::SetBool {
                     destination: BoolLocation::Local(0),
                     value: BoolValue::Const(true),
@@ -1006,11 +1045,11 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
         lower_named_function_with_signatures(source, "use_text", signatures.clone()).unwrap();
     assert_eq!(
         use_text.instructions[0],
-        Instruction::CallFallibleStr {
+        Instruction::CallOutcomeStr {
             destination: StrLocation::Local(0),
             target: CallTarget::same_file("maybe_text"),
             arguments: vec![],
-            failure_mode: FallibleFailureMode::Recover {
+            failure_mode: OutcomeFailureMode::Recover {
                 instructions: vec![Instruction::SetStr {
                     destination: StrLocation::Local(0),
                     value: str_static_value(b"fallback"),
@@ -1022,13 +1061,13 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
     let use_bytes = lower_named_function_with_signatures(source, "use_bytes", signatures).unwrap();
     assert_eq!(
         use_bytes.instructions[0],
-        Instruction::CallFallibleSlice {
+        Instruction::CallOutcomeSlice {
             destination: SliceLocation::Local(0),
             target: CallTarget::same_file("maybe_bytes"),
             arguments: vec![ScalarArgument::Slice(SliceValue::Location(
                 SliceLocation::Parameter(0),
             ))],
-            failure_mode: FallibleFailureMode::Recover {
+            failure_mode: OutcomeFailureMode::Recover {
                 instructions: vec![Instruction::SetSlice {
                     destination: SliceLocation::Local(0),
                     value: SliceValue::Location(SliceLocation::Parameter(0)),
@@ -1039,8 +1078,8 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 
 #[test]
-fn diagnoses_nested_optional_success_none_return_without_panic() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_parenthesized_fallible_optional_none_return() {
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
     return 0
 }
@@ -1051,9 +1090,16 @@ func value(): (i32?)! {
 "#,
         "value",
         context::FunctionSignatures::new(HashMap::new()),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert!(diagnostics[0].message.contains("nested fallible"));
+    assert_eq!(
+        function.return_type,
+        Type::ComposedOutcome {
+            outer: crate::outcomes::OutcomeLayer::Fallible,
+            inner: crate::outcomes::OutcomeLayer::Optional,
+            payload: Box::new(Type::I32),
+        }
+    );
+    assert_eq!(function.instructions, vec![Instruction::ReturnOptionalNone]);
 }

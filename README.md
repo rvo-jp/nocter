@@ -8,9 +8,11 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.2.0 provides a complete Allocator and ownership foundation for
-practical `String` and `Vec<T>` programs, together with richer compiler-backed
-LSP support. The implementation target is `arm64-darwin`.
+Nocter v0.3.0 builds typed construction, lexical regions, composable iterators,
+callable values, and interface default methods on the Allocator and ownership
+foundation. Its compiler-backed language server presents the same resolved
+types, declarations, capabilities, provenance, and allocation effects as the
+compiler. The implementation target is `arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -57,8 +59,8 @@ resource handling.
 
 - `struct`, `enum`, `func`, `impl`, and `method` form the value-oriented core.
 - Declarations are private unless marked `pub`.
-- `interface` is contract-only: it describes public capability without reusable
-  code.
+- `interface` describes public capability; v0.3.0 adds reusable default methods
+  derived from that capability without adding state or implicit conformance.
 - Future `embedding` is composition-only: it will own contained values and
   promote only their public contracts without exposing private internals.
 - `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
@@ -69,7 +71,7 @@ resource handling.
 - `if` and `match` are value-producing expressions.
 - `drop` provides deterministic cleanup instead of a runtime GC.
 
-Nocter deliberately avoids class inheritance, trait-based code reuse, implicit
+Nocter deliberately avoids class inheritance, implicit
 interface conformance, and hidden runtime machinery in its core direction.
 
 The normative language definition lives in
@@ -94,7 +96,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.2.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.3.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -116,21 +118,6 @@ Uninstalling a `.nocter/` installation is intentionally plain:
 ```sh
 rm /usr/local/bin/nocter
 rm -rf "$HOME/.nocter"
-```
-
-Release archives use the `.nocter/` layout above. During repository-local
-development, source builds and the local release image remain the way to test
-changes before cutting an archive. Development setup lives in
-[development/](development/README.md).
-
-For repository-local release testing, the canonical standard-library source is
-tracked in `development/std/` and release metadata lives in
-`development/packaging/`. Generate a local installation image under
-`dist/.nocter/` plus the archive
-`dist/nocter-v<version>-arm64-darwin.tar.gz` with:
-
-```sh
-./development/compiler/scripts/package-local-release.sh
 ```
 
 ## First Program
@@ -176,13 +163,13 @@ nocter fmt main.nct
 
 ## Current Status
 
-The v0.2.0 compiler parses, checks, builds, and runs the supported language on
+The v0.3.0 compiler parses, checks, builds, and runs the supported language on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The exact v0.2.0 completion boundary is defined in
-[development/docs/v0.2.0.md](development/docs/v0.2.0.md).
+machine code is emitted. The released language boundary is defined throughout
+the [language specification](spec/README.md).
 
 ## Learn More
 
@@ -192,11 +179,12 @@ machine code is emitted. The exact v0.2.0 completion boundary is defined in
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [Language Contract](spec/00-v0-contract.md): the current normative language
-  boundary inherited by v0.2.0 development.
-- [Development](development/README.md): Rust bootstrap compiler, tracked
-  standard library, release packaging inputs, implementation status, tests, and
-  maintenance notes.
+- [v0.3.0 Release Notes](development/packaging/v0.3.0-release-notes.md): the
+  release highlights, distribution shape, verification, and explicit limits.
+- [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the preserved
+  historical boundary of the previous release.
+- [Contributor Documentation](development/README.md): development setup,
+  compiler architecture, milestone plans, tests, and maintenance policy.
 
 ## License
 

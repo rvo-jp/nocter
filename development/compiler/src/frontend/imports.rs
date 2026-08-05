@@ -37,11 +37,22 @@ fn collect_item_import_paths<'a>(item: &'a Item, paths: &mut Vec<&'a ModulePath>
                 }
             }
         }
-        Item::Primitive(_)
-        | Item::TypeAlias(_)
-        | Item::Struct(_)
-        | Item::Enum(_)
-        | Item::Interface(_) => {}
+        Item::Interface(interface) => {
+            for method in &interface.methods {
+                if let Some(body) = &method.body {
+                    collect_block_import_paths(body, paths);
+                }
+            }
+        }
+        Item::Construct(construct) => {
+            for (_, function) in construct.functions() {
+                collect_block_import_paths(&function.body, paths);
+            }
+            for (_, literal) in construct.literals() {
+                collect_block_import_paths(&literal.body, paths);
+            }
+        }
+        Item::Primitive(_) | Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) => {}
     }
 }
 
@@ -90,11 +101,22 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
                 collect_expression_import_paths(&statement.end, paths);
                 collect_block_import_paths(&statement.body, paths);
             }
+            Stmt::CollectionFor(statement) => {
+                collect_expression_import_paths(&statement.source, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
+            Stmt::LiteralPackFor(statement) => {
+                collect_block_import_paths(&statement.body, paths);
+            }
             Stmt::While(statement) => {
                 collect_expression_import_paths(&statement.condition, paths);
                 collect_block_import_paths(&statement.body, paths);
             }
             Stmt::Loop(statement) => collect_block_import_paths(&statement.body, paths),
+            Stmt::Region(statement) => {
+                collect_expression_import_paths(&statement.allocator, paths);
+                collect_block_import_paths(&statement.body, paths);
+            }
             Stmt::Expression(statement) => {
                 collect_expression_import_paths(&statement.expression, paths);
             }
@@ -109,6 +131,7 @@ fn collect_block_import_paths<'a>(block: &'a Block, paths: &mut Vec<&'a ModulePa
 
 fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a ModulePath>) {
     match expression {
+        Expr::Closure(expression) => collect_block_import_paths(&expression.body, paths),
         Expr::Catch(expression) => {
             collect_expression_import_paths(&expression.expression, paths);
             collect_block_import_paths(&expression.catch_block, paths);
@@ -167,6 +190,19 @@ fn collect_expression_import_paths<'a>(expression: &'a Expr, paths: &mut Vec<&'a
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_import_paths(element, paths);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_import_paths(element, paths);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_import_paths(&using.allocator, paths);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_import_paths(&using.allocator, paths);
             }
         }
         Expr::StructLiteral(expression) => {

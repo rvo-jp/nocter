@@ -15,15 +15,17 @@ pub(super) fn lower_catch_block(
     match last {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression
-                && let Some(return_instructions) =
-                    lower_never_expression_with_scope_drops(expression, context)?
+                && let Some(return_instructions) = lower_never_expression(expression, context)?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
             }
 
             if let Some(expression) = &statement.expression
-                && matches!(function_return_type, Type::Fallible(_))
+                && matches!(
+                    function_return_type,
+                    Type::Fallible(_) | Type::ComposedOutcome { .. }
+                )
                 && let Some((root_source, resolved)) = context.resolved_calls()
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(context))?
@@ -117,10 +119,12 @@ pub(super) fn lower_catch_block(
                 | (Type::Borrow { .. }, _)
                 | (Type::Error, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
-                (Type::Fallible(_), _) => Err(unsupported_catch_block_diagnostic()),
+                (Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. }, _) => {
+                    Err(unsupported_catch_block_diagnostic())
+                }
             }?;
             let return_instructions =
-                mark_fallible_success_returns(&function_return_type, return_instructions);
+                mark_outcome_success_returns(&function_return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
                 return_instructions,
                 context,
@@ -129,7 +133,7 @@ pub(super) fn lower_catch_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 if success_type == Type::Void
                     && let Some(void_instructions) =
@@ -227,8 +231,16 @@ pub(super) fn lower_i32_fallible_expression_to_location(
     expression: &Expr,
     destination: I32Location,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::I32(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -254,8 +266,16 @@ pub(super) fn lower_u8_fallible_expression_to_location(
     expression: &Expr,
     destination: U8Location,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::U8(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -281,8 +301,16 @@ pub(super) fn lower_usize_fallible_expression_to_location(
     expression: &Expr,
     destination: UsizeLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Usize(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -308,8 +336,16 @@ pub(super) fn lower_str_fallible_expression_to_location(
     expression: &Expr,
     destination: StrLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Str(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -335,8 +371,16 @@ pub(super) fn lower_slice_fallible_expression_to_location(
     expression: &Expr,
     destination: SliceLocation,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Slice(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -363,8 +407,16 @@ pub(super) fn lower_bool_fallible_expression_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
     diagnostic_code: &'static str,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_stored_outcome_expression(
+        expression,
+        crate::ir::ComposedOutcomeDestination::Bool(destination),
+        context,
+        failure_mode.clone(),
+    )? {
+        return Ok(instructions);
+    }
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;

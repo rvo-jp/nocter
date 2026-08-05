@@ -1,4 +1,5 @@
 use super::*;
+use crate::resolve::ConstructionEntryKind;
 
 pub(super) fn filter_importable_symbol_for_access(
     mut imported: ImportableSymbol,
@@ -19,9 +20,36 @@ pub(super) fn filter_importable_symbol_for_access(
             method.is_accessible =
                 method.is_accessible && visibility_is_visible_to(method.visibility, access);
         }
+        for literal in &mut symbol.literals {
+            literal.is_accessible =
+                literal.is_accessible && visibility_is_visible_to(literal.visibility, access);
+        }
+        refresh_construction_access(symbol);
     }
 
     imported
+}
+
+fn refresh_construction_access(symbol: &mut TypeSymbol) {
+    let structural_accessible = symbol.fields.iter().all(|field| field.is_accessible);
+    for entry in &mut symbol.construction.entries {
+        entry.is_accessible = match &entry.kind {
+            ConstructionEntryKind::Structural => entry.is_accessible && structural_accessible,
+            ConstructionEntryKind::Function(name) => symbol
+                .associated_functions
+                .iter()
+                .find(|function| function.name == *name)
+                .is_some_and(|function| function.is_accessible),
+            ConstructionEntryKind::Literal(shape) => symbol
+                .literals
+                .iter()
+                .find(|literal| literal.shape == *shape)
+                .is_some_and(|literal| literal.is_accessible),
+            ConstructionEntryKind::Variant(name) => {
+                symbol.variants.iter().any(|variant| variant.name == *name)
+            }
+        };
+    }
 }
 
 fn visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {
@@ -107,14 +135,67 @@ fn qualify_type_symbol(
                 imported_type_names,
             );
         }
-        qualify_parameter_signature(
-            &mut method.receiver,
+        qualify_function_signature(
+            &mut method.signature,
             import_path,
             local_type_names,
             imported_type_names,
         );
-        qualify_function_signature(
-            &mut method.signature,
+    }
+    for conformance in &mut symbol.interface_conformances {
+        qualify_type_expr(
+            &mut conformance.interface_ty,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+        qualify_type_expr(
+            &mut conformance.target_ty,
+            import_path,
+            local_type_names,
+            imported_type_names,
+        );
+        for bounds in &mut conformance.generic_parameter_bounds {
+            for bound in bounds {
+                qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+            }
+        }
+        for method in &mut conformance.methods {
+            if let Some(impl_target_ty) = &mut method.impl_target_ty {
+                qualify_type_expr(
+                    impl_target_ty,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            qualify_function_signature(
+                &mut method.signature,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+    }
+    for literal in &mut symbol.literals {
+        if let Some(capture) = &mut literal.capture {
+            qualify_type_expr(
+                &mut capture.element_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        for parameter in &mut literal.parameters {
+            qualify_parameter_signature(
+                parameter,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        qualify_type_expr(
+            &mut literal.return_type,
             import_path,
             local_type_names,
             imported_type_names,
@@ -136,6 +217,11 @@ fn qualify_function_signature(
     local_type_names: &[String],
     imported_type_names: &[ImportedTypeName],
 ) {
+    for bounds in &mut signature.generic_parameter_bounds {
+        for bound in bounds {
+            qualify_type_expr(bound, import_path, local_type_names, imported_type_names);
+        }
+    }
     for parameter in &mut signature.parameters {
         qualify_parameter_signature(
             parameter,
@@ -173,6 +259,46 @@ fn qualify_type_expr(
     imported_type_names: &[ImportedTypeName],
 ) {
     match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &mut callable.parameters {
+                qualify_type_expr(
+                    &mut parameter.ty,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            qualify_type_expr(
+                &mut callable.return_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
+        TypeExpr::Closure(closure) => {
+            for capture in &mut closure.captures {
+                qualify_type_expr(
+                    &mut capture.ty,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            for parameter in &mut closure.parameters {
+                qualify_type_expr(
+                    parameter,
+                    import_path,
+                    local_type_names,
+                    imported_type_names,
+                );
+            }
+            qualify_type_expr(
+                &mut closure.return_type,
+                import_path,
+                local_type_names,
+                imported_type_names,
+            );
+        }
         TypeExpr::Reference(reference) => {
             if local_type_names.iter().any(|name| name == &reference.name) {
                 reference.name = format!("{import_path}.{}", reference.name);

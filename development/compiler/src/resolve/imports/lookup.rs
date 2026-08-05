@@ -66,6 +66,7 @@ impl Resolver<'_> {
             Item::Function(function) if function.owner.is_none() && function.name == name => {
                 Some(ImportableSymbol {
                     declaration_span: function.name_span,
+                    declaration_name_span: function.name_span,
                     visibility: function.visibility,
                     kind: SymbolKind::Function(function_signature(function)),
                     local_type_names: type_decl_names(ast),
@@ -74,6 +75,7 @@ impl Resolver<'_> {
             }
             Item::Primitive(primitive) if primitive.name == name => Some(ImportableSymbol {
                 declaration_span: primitive.name_span,
+                declaration_name_span: primitive.name_span,
                 visibility: primitive.visibility,
                 kind: SymbolKind::Primitive(primitive_signature(primitive)),
                 local_type_names: type_decl_names(ast),
@@ -83,6 +85,7 @@ impl Resolver<'_> {
                 let symbol = type_alias_symbol_with_impl_members(ast, alias);
                 Some(type_importable_symbol(
                     alias.span,
+                    alias.name_span,
                     alias.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -92,8 +95,15 @@ impl Resolver<'_> {
             Item::Struct(struct_) if struct_.name == name => {
                 let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
                 attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
+                attach_literal_definitions_to_symbol(&mut symbol, ast, &struct_.name);
+                super::super::constructions::attach_construction_surfaces_to_symbol(
+                    &mut symbol,
+                    ast,
+                    &struct_.name,
+                );
                 Some(type_importable_symbol(
                     struct_.span,
+                    struct_.name_span,
                     struct_.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -103,8 +113,15 @@ impl Resolver<'_> {
             Item::Enum(enum_) if enum_.name == name => {
                 let mut symbol = enum_type_symbol(enum_);
                 attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
+                attach_literal_definitions_to_symbol(&mut symbol, ast, &enum_.name);
+                super::super::constructions::attach_construction_surfaces_to_symbol(
+                    &mut symbol,
+                    ast,
+                    &enum_.name,
+                );
                 Some(type_importable_symbol(
                     enum_.span,
+                    enum_.name_span,
                     enum_.visibility,
                     symbol,
                     type_decl_names(ast),
@@ -113,6 +130,7 @@ impl Resolver<'_> {
             }
             Item::Interface(interface) if interface.name == name => Some(type_importable_symbol(
                 interface.span,
+                interface.name_span,
                 interface.visibility,
                 interface_type_symbol(interface),
                 type_decl_names(ast),
@@ -123,6 +141,13 @@ impl Resolver<'_> {
     }
 
     pub(super) fn imported_type_names(&self, ast: &AstFile) -> Vec<ImportedTypeName> {
+        if !self
+            .collecting_imported_type_names
+            .borrow_mut()
+            .insert(ast.span.source)
+        {
+            return Vec::new();
+        }
         let mut imported_type_names = Vec::new();
         for item in &ast.items {
             let Item::FromImport(import) = item else {
@@ -140,17 +165,26 @@ impl Resolver<'_> {
                 if !imported.is_visible_to(import_source.access) {
                     continue;
                 }
-                if !matches!(imported.kind, SymbolKind::Type(_)) {
+                let SymbolKind::Type(symbol) = &imported.kind else {
                     continue;
-                }
+                };
+                let canonical_name = if symbol.canonical_name.contains('.') {
+                    symbol.canonical_name.clone()
+                } else {
+                    format!("{}.{}", import.path.value, name.name)
+                };
                 imported_type_names.push(ImportedTypeName {
                     local_name: name.local_name().to_string(),
                     import_path: import.path.value.clone(),
                     imported_name: name.name.clone(),
+                    canonical_name,
                     path_span: import.path.span,
                 });
             }
         }
+        self.collecting_imported_type_names
+            .borrow_mut()
+            .remove(&ast.span.source);
         imported_type_names
     }
 }

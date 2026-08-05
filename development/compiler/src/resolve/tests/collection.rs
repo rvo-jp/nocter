@@ -87,8 +87,10 @@ fn collects_associated_function_symbols() {
     x: i32
 }
 
-pub func Point.origin(): Point {
-    return Point { x: 0 }
+construct Point {
+    pub default func origin(): Self {
+        return Point { x: 0 }
+    }
 }
 
 impl Point {
@@ -122,6 +124,44 @@ func main(): i32 {
     assert_eq!(methods[0].name, "x_value");
     assert_eq!(methods[0].receiver.name, "self");
     assert_eq!(methods[0].signature.parameters.len(), 0);
+}
+
+#[test]
+fn collects_interface_implementation_member_identities() {
+    let output = resolve_text(
+        r#"interface Measure {
+    pub method &self.measure(): i32
+}
+
+struct Count {
+    value: i32
+}
+
+impl Measure for Count {
+    method &self.measure(): i32 {
+        return self.value
+    }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let count = output.type_symbol_by_name("Count").unwrap();
+    let [conformance] = count.interface_conformances.as_slice() else {
+        panic!("expected one conformance: {count:?}");
+    };
+    let [method] = conformance.methods.as_slice() else {
+        panic!("expected one implementation member: {conformance:?}");
+    };
+    assert_eq!(method.name, "measure");
+    assert!(!method.has_default_body);
+    assert_eq!(method.impl_target_ty.as_ref(), Some(&conformance.target_ty));
+    assert_eq!(
+        output
+            .method_signature_by_name_span(method.name_span)
+            .map(|resolved| resolved.name.as_str()),
+        Some("measure")
+    );
 }
 
 #[test]

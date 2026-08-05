@@ -1,3 +1,4 @@
+use super::allocation::type_is_aborting_allocator_capability;
 use super::arrays::{check_array_literal_elements, check_index_expression};
 use super::bindings::{
     check_binding_annotation, check_binding_initializer_copyability, continuing_binding_type,
@@ -12,18 +13,24 @@ use super::diagnostics::{
     assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
     immutable_assignment_diagnostic, loop_control_outside_loop_diagnostic,
     non_copy_struct_assignment_diagnostic, non_writable_assignment_target_diagnostic,
-    readwrite_borrow_requires_writable_place_diagnostic, self_move_assignment_diagnostic,
+    readwrite_borrow_requires_writable_place_diagnostic, region_allocator_capability_diagnostic,
+    self_move_assignment_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_switch_arm,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_interface_method, environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::{
     check_error_member_expression, collection_builtin_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
-use super::model::{TypeEnvironment, binding_kind_is_mutable};
+use super::literals::{
+    check_literal_pack_for_statement, check_typed_sequence_literal, check_typed_string_literal,
+    check_unconstrained_literal_initializer, literal_expression_type_with_expected,
+};
+use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_otherwise_expression, check_type_conversion_expression,
     check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
@@ -65,15 +72,64 @@ pub(super) fn check_body_expressions(
             Item::Impl(impl_) => {
                 check_impl_member_expressions(sources, impl_, resolved, diagnostics);
             }
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut environment =
+                        environment_for_interface_method(method, resolved, interface);
+                    check_block_expressions(
+                        sources,
+                        body,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        0,
+                    );
+                }
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    let mut environment = environment_for_function(function, resolved);
+                    check_block_expressions(
+                        sources,
+                        &function.body,
+                        resolved,
+                        diagnostics,
+                        &mut environment,
+                        0,
+                    );
+                }
+                for (_, literal) in construct.literals() {
+                    check_literal_body_expressions(sources, literal, resolved, diagnostics);
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
+}
+
+fn check_literal_body_expressions(
+    sources: &SourceMap,
+    literal: &crate::ast::LiteralDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut environment = super::environments::environment_for_literal(literal, resolved);
+    check_block_expressions(
+        sources,
+        &literal.body,
+        resolved,
+        diagnostics,
+        &mut environment,
+        0,
+    );
 }
 
 fn check_impl_member_expressions(
@@ -171,7 +227,22 @@ fn check_statement_expressions(
                 environment,
                 loop_depth,
             );
-            let initializer_type = expression_type(&statement.initializer, resolved, environment);
+            let expected = statement.ty.as_ref().map(|ty| {
+                super::type_expr::type_expr_to_type_in_environment(ty, resolved, environment)
+            });
+            check_unconstrained_literal_initializer(
+                sources,
+                &statement.initializer,
+                expected.is_some(),
+                resolved,
+                diagnostics,
+            );
+            let initializer_type = literal_expression_type_with_expected(
+                &statement.initializer,
+                expected.as_ref(),
+                resolved,
+                environment,
+            );
             check_binding_annotation(
                 sources,
                 statement,
@@ -366,6 +437,51 @@ fn check_statement_expressions(
                 loop_depth + 1,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression_tree(
+                sources,
+                &statement.source,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            let item_type = match super::iteration::resolve_collection_iteration(
+                statement,
+                resolved,
+                environment,
+            ) {
+                Ok(plan) => plan.item_type,
+                Err(error) => {
+                    diagnostics.push(super::iteration::collection_iteration_diagnostic(
+                        sources, statement, error,
+                    ));
+                    Type::Unknown
+                }
+            };
+            let mut body_environment =
+                environment_for_collection_for_binding(statement, item_type, environment);
+            check_block_expressions(
+                sources,
+                &statement.body,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                loop_depth + 1,
+            );
+        }
+        Stmt::LiteralPackFor(statement) => {
+            check_literal_pack_for_statement(sources, statement, environment, diagnostics);
+            let mut body_environment = environment_for_literal_pack_binding(statement, environment);
+            check_block_expressions(
+                sources,
+                &statement.body,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                loop_depth + 1,
+            );
+        }
         Stmt::Loop(statement) => {
             let mut body_environment = environment.clone();
             check_block_expressions(
@@ -375,6 +491,36 @@ fn check_statement_expressions(
                 diagnostics,
                 &mut body_environment,
                 loop_depth + 1,
+            );
+        }
+        Stmt::Region(statement) => {
+            check_expression_tree(
+                sources,
+                &statement.allocator,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            let allocator_type = expression_type(&statement.allocator, resolved, environment);
+            if !allocator_type.is_unknown_or_unresolved()
+                && !type_is_aborting_allocator_capability(&allocator_type, resolved)
+            {
+                diagnostics.push(region_allocator_capability_diagnostic(
+                    sources,
+                    statement.allocator.span(),
+                    &allocator_type,
+                ));
+            }
+            let mut body_environment = environment.clone();
+            body_environment.define(statement.name.clone(), allocator_type);
+            check_block_expressions(
+                sources,
+                &statement.body,
+                resolved,
+                diagnostics,
+                &mut body_environment,
+                loop_depth,
             );
         }
         Stmt::Break(statement) => {
@@ -536,6 +682,18 @@ fn check_expression_tree(
     loop_depth: usize,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            let mut closure_environment =
+                super::closures::environment_for_closure(closure, resolved, environment);
+            check_block_expressions(
+                sources,
+                &closure.body,
+                resolved,
+                diagnostics,
+                &mut closure_environment,
+                0,
+            );
+        }
         Expr::Propagate(expression) => {
             check_expression_tree(
                 sources,
@@ -684,7 +842,20 @@ fn check_expression_tree(
             }
             check_enum_variant_call(sources, expression, resolved, diagnostics, environment);
 
-            if let Some(signature) = resolved_call_signature(resolved, expression, environment) {
+            if let Some(contract) =
+                super::callables::callable_contract_for_call(expression, resolved, environment)
+            {
+                super::callables::check_callable_call(
+                    sources,
+                    expression,
+                    &contract,
+                    resolved,
+                    diagnostics,
+                    environment,
+                );
+            } else if let Some(signature) =
+                resolved_call_signature(resolved, expression, environment)
+            {
                 check_known_function_call(
                     sources,
                     expression,
@@ -697,6 +868,8 @@ fn check_expression_tree(
             check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
             if collection_builtin_call_type(expression, resolved, environment).is_none()
                 && !is_enum_variant_call(expression, resolved)
+                && super::callables::callable_contract_for_call(expression, resolved, environment)
+                    .is_none()
             {
                 check_unresolved_member_call(
                     sources,
@@ -751,6 +924,42 @@ fn check_expression_tree(
                 );
             }
             check_array_literal_elements(sources, expression, resolved, diagnostics, environment);
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                check_expression_tree(
+                    sources,
+                    element,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            if let Some(using) = &expression.using {
+                check_expression_tree(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            check_typed_sequence_literal(sources, expression, resolved, environment, diagnostics);
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                check_expression_tree(
+                    sources,
+                    &using.allocator,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            check_typed_string_literal(sources, expression, resolved, environment, diagnostics);
         }
         Expr::StructLiteral(expression) => {
             for field in &expression.fields {

@@ -73,6 +73,16 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             Ok(())
         }
         Instruction::CopyAggregateRange { .. } => Ok(()),
+        Instruction::CallStoredOutcome {
+            destination,
+            storage,
+            ..
+        } => {
+            if let AggregateLocation::Slot(slot_index) = destination {
+                record_aggregate_slot_request(*slot_index, storage.layout, requests)?;
+            }
+            Ok(())
+        }
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -80,6 +90,22 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         } => {
             record_instruction_list_aggregate_slot_requests(then_instructions, requests)?;
             record_instruction_list_aggregate_slot_requests(else_instructions, requests)
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(success_instructions, requests)?;
+            record_instruction_list_aggregate_slot_requests(outcome_instructions, requests)
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(success_instructions, requests)?;
+            record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
         Instruction::While {
             condition_instructions,
@@ -89,28 +115,38 @@ pub(super) fn record_instruction_aggregate_slot_requests(
             record_instruction_list_aggregate_slot_requests(condition_instructions, requests)?;
             record_instruction_list_aggregate_slot_requests(body_instructions, requests)
         }
-        Instruction::CallFallibleI32 { failure_mode, .. }
-        | Instruction::CallFallibleU8 { failure_mode, .. }
-        | Instruction::CallFallibleUsize { failure_mode, .. }
-        | Instruction::CallFallibleBool { failure_mode, .. }
-        | Instruction::CallFallibleStr { failure_mode, .. }
-        | Instruction::CallFallibleSlice { failure_mode, .. }
-        | Instruction::CallFallibleDirectAggregate { failure_mode, .. }
-        | Instruction::CallFallibleAggregate { failure_mode, .. }
-        | Instruction::CallFallibleVoid { failure_mode, .. }
+        Instruction::CallOutcomeI32 { failure_mode, .. }
+        | Instruction::CallOutcomeU8 { failure_mode, .. }
+        | Instruction::CallOutcomeUsize { failure_mode, .. }
+        | Instruction::CallOutcomeBorrow { failure_mode, .. }
+        | Instruction::CallOutcomeBool { failure_mode, .. }
+        | Instruction::CallOutcomeStr { failure_mode, .. }
+        | Instruction::CallOutcomeSlice { failure_mode, .. }
+        | Instruction::CallOutcomeDirectAggregate { failure_mode, .. }
+        | Instruction::CallOutcomeAggregate { failure_mode, .. }
+        | Instruction::CallOutcomeVoid { failure_mode, .. }
         | Instruction::ReadSlice { failure_mode, .. }
         | Instruction::OpenRead { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
+        Instruction::CallComposedOutcome {
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            record_failure_mode_aggregate_slot_requests(outer_mode, requests)?;
+            record_failure_mode_aggregate_slot_requests(inner_mode, requests)
+        }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CallBorrow { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
@@ -151,8 +187,13 @@ pub(super) fn record_instruction_aggregate_slot_requests(
         | Instruction::LoadAggregateI32Indexed { .. }
         | Instruction::LoadAggregateU8Indexed { .. }
         | Instruction::LoadAggregateBoolIndexed { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
+        | Instruction::RegionEnter { .. }
+        | Instruction::SetCurrentAllocationContext { .. }
+        | Instruction::RegionRelease { .. }
         | Instruction::SetUsizeFromBorrow { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
@@ -196,15 +237,15 @@ pub(super) fn record_instruction_aggregate_slot_requests(
 }
 
 pub(super) fn record_failure_mode_aggregate_slot_requests(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     requests: &mut Vec<AggregateSlotRequest>,
 ) -> Result<(), Vec<Diagnostic>> {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => Ok(()),
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => Ok(()),
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             record_instruction_list_aggregate_slot_requests(instructions, requests)
         }
     }
@@ -249,7 +290,7 @@ pub(super) fn aggregate_slots(
         })?;
         if align == 0 || !align.is_power_of_two() || align > STACK_ALIGNMENT {
             return Err(frame_too_large_diagnostic(
-                "aggregate slot alignment is not supported by backend v0",
+                "aggregate slot alignment is not supported by the native backend",
             ));
         }
 

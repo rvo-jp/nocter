@@ -2,6 +2,26 @@ use super::*;
 
 impl TypecheckFactCollector<'_> {
     pub(in crate::typecheck::facts::collector) fn collect_item_body_facts(&mut self, item: &Item) {
+        let generics = match item {
+            Item::Function(item) => Some(&item.generics),
+            Item::Primitive(item) => Some(&item.generics),
+            Item::TypeAlias(item) => Some(&item.generics),
+            Item::Struct(item) => Some(&item.generics),
+            Item::Enum(item) => Some(&item.generics),
+            Item::Interface(item) => Some(&item.generics),
+            Item::Impl(item) => Some(&item.generics),
+            Item::Import(_) | Item::FromImport(_) | Item::Construct(_) => None,
+        };
+        if let Some(generics) = generics {
+            self.with_generic_scope(generics, |collector| {
+                collector.collect_item_body_facts_in_scope(item)
+            });
+        } else {
+            self.collect_item_body_facts_in_scope(item);
+        }
+    }
+
+    fn collect_item_body_facts_in_scope(&mut self, item: &Item) {
         match item {
             Item::Function(function) => {
                 let mut environment = environment_for_function(function, self.resolved);
@@ -19,13 +39,75 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
+            Item::Interface(interface) => {
+                for method in &interface.methods {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    self.with_generic_scope(&method.generics, |collector| {
+                        let mut environment =
+                            environment_for_interface_method(method, collector.resolved, interface);
+                        let receiver = method.receiver.implicit_parameter();
+                        collector.record_parameter_bindings(
+                            std::slice::from_ref(&receiver),
+                            &environment,
+                        );
+                        collector
+                            .record_parameter_bindings(&method.parameters.parameters, &environment);
+                        let return_type = type_expr_to_type_in_environment(
+                            &method.return_type,
+                            collector.resolved,
+                            &environment,
+                        );
+                        collector.collect_block_facts(
+                            body,
+                            &mut environment,
+                            Some(return_type.success_type()),
+                        );
+                    });
+                }
+            }
+            Item::Construct(construct) => {
+                for (_, function) in construct.functions() {
+                    self.with_generic_scope(&function.generics, |collector| {
+                        let mut environment =
+                            environment_for_function(function, collector.resolved);
+                        collector.record_parameter_bindings(
+                            &function.parameters.parameters,
+                            &environment,
+                        );
+                        let return_type = type_expr_to_type_in_environment(
+                            &function.return_type,
+                            collector.resolved,
+                            &environment,
+                        );
+                        collector.collect_block_facts(
+                            &function.body,
+                            &mut environment,
+                            Some(return_type.success_type()),
+                        );
+                    });
+                }
+                for (_, literal) in construct.literals() {
+                    let mut environment = environment_for_literal(literal, self.resolved);
+                    let return_type = type_expr_to_type_in_environment(
+                        &literal.return_type,
+                        self.resolved,
+                        &environment,
+                    );
+                    self.collect_block_facts(
+                        &literal.body,
+                        &mut environment,
+                        Some(return_type.success_type()),
+                    );
+                }
+            }
             Item::Import(_)
             | Item::FromImport(_)
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Interface(_) => {}
+            | Item::Enum(_) => {}
         }
     }
 
@@ -39,19 +121,28 @@ impl TypecheckFactCollector<'_> {
                     let Some(body) = &method.body else {
                         continue;
                     };
-                    let mut environment = environment_for_method(method, self.resolved, impl_);
-                    self.record_parameter_bindings(
-                        std::slice::from_ref(&method.receiver),
-                        &environment,
-                    );
-                    self.record_parameter_bindings(&method.parameters.parameters, &environment);
-                    let return_type = type_expr_to_type_in_environment(
-                        &method.return_type,
-                        self.resolved,
-                        &environment,
-                    );
-                    let return_success_type = return_type.success_type().clone();
-                    self.collect_block_facts(body, &mut environment, Some(&return_success_type));
+                    self.with_generic_scope(&method.generics, |collector| {
+                        let mut environment =
+                            environment_for_method(method, collector.resolved, impl_);
+                        let receiver = method.receiver.implicit_parameter();
+                        collector.record_parameter_bindings(
+                            std::slice::from_ref(&receiver),
+                            &environment,
+                        );
+                        collector
+                            .record_parameter_bindings(&method.parameters.parameters, &environment);
+                        let return_type = type_expr_to_type_in_environment(
+                            &method.return_type,
+                            collector.resolved,
+                            &environment,
+                        );
+                        let return_success_type = return_type.success_type().clone();
+                        collector.collect_block_facts(
+                            body,
+                            &mut environment,
+                            Some(&return_success_type),
+                        );
+                    });
                 }
                 ImplMember::Drop(drop_) => {
                     let mut environment = environment_for_parameters_in_impl(

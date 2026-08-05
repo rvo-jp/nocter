@@ -89,11 +89,22 @@ fn collect_scoped_import_name_spans_in_statement(statement: &Stmt, spans: &mut H
             collect_scoped_import_name_spans_in_expression(&statement.end, spans);
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_scoped_import_name_spans_in_expression(&statement.source, spans);
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
         Stmt::While(statement) => {
             collect_scoped_import_name_spans_in_expression(&statement.condition, spans);
             collect_scoped_import_name_spans_in_block(&statement.body, spans);
         }
         Stmt::Loop(statement) => collect_scoped_import_name_spans_in_block(&statement.body, spans),
+        Stmt::Region(statement) => {
+            collect_scoped_import_name_spans_in_expression(&statement.allocator, spans);
+            collect_scoped_import_name_spans_in_block(&statement.body, spans);
+        }
         Stmt::Expression(statement) => {
             collect_scoped_import_name_spans_in_expression(&statement.expression, spans);
         }
@@ -110,6 +121,9 @@ fn collect_scoped_import_name_spans_in_expression(
     spans: &mut HashSet<ByteSpan>,
 ) {
     match expression {
+        Expr::Closure(expression) => {
+            collect_scoped_import_name_spans_in_block(&expression.body, spans)
+        }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 let InterpolatedStringPart::Expression(part) = part else {
@@ -121,6 +135,19 @@ fn collect_scoped_import_name_spans_in_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_scoped_import_name_spans_in_expression(element, spans);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_scoped_import_name_spans_in_expression(element, spans);
+            }
+            if let Some(using) = &expression.using {
+                collect_scoped_import_name_spans_in_expression(&using.allocator, spans);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_scoped_import_name_spans_in_expression(&using.allocator, spans);
             }
         }
         Expr::StructLiteral(expression) => {
@@ -312,6 +339,14 @@ fn scoped_import_spans_in_statement_at_offset(
                     scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
                 })
         }
+        Stmt::CollectionFor(statement) => {
+            scoped_import_spans_in_expression_at_offset(&statement.source, offset, visible).or_else(
+                || scoped_import_spans_in_block_at_offset(&statement.body, offset, visible),
+            )
+        }
+        Stmt::LiteralPackFor(statement) => {
+            scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+        }
         Stmt::While(statement) => {
             scoped_import_spans_in_expression_at_offset(&statement.condition, offset, visible)
                 .or_else(|| {
@@ -320,6 +355,12 @@ fn scoped_import_spans_in_statement_at_offset(
         }
         Stmt::Loop(statement) => {
             scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+        }
+        Stmt::Region(statement) => {
+            scoped_import_spans_in_expression_at_offset(&statement.allocator, offset, visible)
+                .or_else(|| {
+                    scoped_import_spans_in_block_at_offset(&statement.body, offset, visible)
+                })
         }
         Stmt::Expression(statement) => {
             scoped_import_spans_in_expression_at_offset(&statement.expression, offset, visible)
@@ -342,6 +383,10 @@ fn scoped_import_spans_in_expression_at_offset(
     }
 
     match expression {
+        Expr::Closure(expression) => {
+            scoped_import_spans_in_block_at_offset(&expression.body, offset, visible)
+                .or_else(|| Some(visible.clone()))
+        }
         Expr::InterpolatedString(expression) => expression.parts.iter().find_map(|part| {
             let InterpolatedStringPart::Expression(part) = part else {
                 return None;
@@ -351,6 +396,24 @@ fn scoped_import_spans_in_expression_at_offset(
         Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
             scoped_import_spans_in_expression_at_offset(element, offset, visible)
         }),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| {
+                scoped_import_spans_in_expression_at_offset(element, offset, visible)
+            })
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    scoped_import_spans_in_expression_at_offset(&using.allocator, offset, visible)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression
+            .using
+            .as_ref()
+            .and_then(|using| {
+                scoped_import_spans_in_expression_at_offset(&using.allocator, offset, visible)
+            })
+            .or_else(|| Some(visible.clone())),
         Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
             scoped_import_spans_in_expression_at_offset(&field.value, offset, visible)
         }),

@@ -210,7 +210,7 @@ fn fmt_rejects_comments_without_rewriting() {
     let stderr = text(&output.stderr);
     assert!(stderr.contains("error[E0601]"), "stderr:\n{stderr}");
     assert!(
-        stderr.contains("formatter v0 cannot safely preserve comments yet"),
+        stderr.contains("the formatter cannot safely preserve comments yet"),
         "stderr:\n{stderr}"
     );
     assert_eq!(fs::read_to_string(source).unwrap(), original);

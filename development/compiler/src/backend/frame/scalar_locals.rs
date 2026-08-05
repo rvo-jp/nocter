@@ -22,7 +22,7 @@ pub(super) fn record_instruction_scalar_locals(
     match instruction {
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
@@ -338,6 +338,22 @@ pub(super) fn record_instruction_scalar_locals(
             record_usize_location(*destination, highest_local_index);
             record_usize_value(value, highest_local_index);
         }
+        Instruction::RegionEnter { destination } => {
+            record_usize_location(*destination, highest_local_index);
+        }
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            record_usize_value(state, highest_local_index);
+            record_usize_value(kind, highest_local_index);
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            record_usize_value(state, highest_local_index);
+            record_usize_value(parent_state, highest_local_index);
+            record_usize_value(parent_kind, highest_local_index);
+        }
         Instruction::SetUsizeFromBorrow {
             destination,
             source,
@@ -502,7 +518,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             destination,
             arguments,
             failure_mode,
@@ -524,7 +540,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleU8 {
+        Instruction::CallOutcomeU8 {
             destination,
             arguments,
             failure_mode,
@@ -546,7 +562,29 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleUsize {
+        Instruction::CallBorrow {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
+        Instruction::CallOutcomeUsize {
+            destination,
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::CallOutcomeBorrow {
             destination,
             arguments,
             failure_mode,
@@ -568,7 +606,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleBool {
+        Instruction::CallOutcomeBool {
             destination,
             arguments,
             failure_mode,
@@ -590,7 +628,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleStr {
+        Instruction::CallOutcomeStr {
             destination,
             arguments,
             failure_mode,
@@ -612,7 +650,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleSlice {
+        Instruction::CallOutcomeSlice {
             destination,
             arguments,
             failure_mode,
@@ -630,7 +668,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleDirectAggregate {
+        Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
@@ -640,7 +678,7 @@ pub(super) fn record_instruction_scalar_locals(
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        Instruction::CallFallibleAggregate {
+        Instruction::CallOutcomeAggregate {
             arguments,
             failure_mode,
             ..
@@ -655,7 +693,7 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallFallibleVoid {
+        Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -664,6 +702,45 @@ pub(super) fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::CallComposedOutcome {
+            destination,
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            match destination {
+                crate::ir::ComposedOutcomeDestination::I32(location) => {
+                    record_i32_location(*location, highest_local_index)
+                }
+                crate::ir::ComposedOutcomeDestination::U8(location) => {
+                    record_u8_location(*location, highest_local_index)
+                }
+                crate::ir::ComposedOutcomeDestination::Usize(location)
+                | crate::ir::ComposedOutcomeDestination::Borrow(location) => {
+                    record_usize_location(*location, highest_local_index)
+                }
+                crate::ir::ComposedOutcomeDestination::Bool(location) => {
+                    record_bool_location(*location, highest_local_index)
+                }
+                crate::ir::ComposedOutcomeDestination::Str(location) => {
+                    record_str_location(*location, highest_local_index)
+                }
+                crate::ir::ComposedOutcomeDestination::Slice(location) => {
+                    record_slice_location(*location, highest_local_index)
+                }
+            }
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(outer_mode, highest_local_index);
+            record_failure_mode_scalar_locals(inner_mode, highest_local_index);
+        }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
         }
         Instruction::If {
             condition,
@@ -674,6 +751,44 @@ pub(super) fn record_instruction_scalar_locals(
             record_instruction_list_scalar_locals(then_instructions, highest_local_index);
             record_instruction_list_scalar_locals(else_instructions, highest_local_index);
         }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_scalar_locals(success_instructions, highest_local_index);
+            record_instruction_list_scalar_locals(outcome_instructions, highest_local_index);
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_scalar_locals(success_instructions, highest_local_index);
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::LoadStoredOutcomePayload { destination, .. } => match destination {
+            crate::ir::ComposedOutcomeDestination::I32(location) => {
+                record_i32_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::U8(location) => {
+                record_u8_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Usize(location)
+            | crate::ir::ComposedOutcomeDestination::Borrow(location) => {
+                record_usize_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Bool(location) => {
+                record_bool_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Str(location) => {
+                record_str_location(*location, highest_local_index)
+            }
+            crate::ir::ComposedOutcomeDestination::Slice(location) => {
+                record_slice_location(*location, highest_local_index)
+            }
+        },
+        Instruction::ReturnStoredOutcome { .. } => {}
         Instruction::While {
             condition_instructions,
             condition,
@@ -687,12 +802,12 @@ pub(super) fn record_instruction_scalar_locals(
 }
 
 pub(super) fn record_failure_mode_scalar_locals(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     highest_local_index: &mut Option<usize>,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup {
             code,
             message,
             instructions,
@@ -701,13 +816,13 @@ pub(super) fn record_failure_mode_scalar_locals(
             record_str_location(*message, highest_local_index);
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Handle { instructions } => {
+        OutcomeFailureMode::Handle { instructions } => {
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Recover { instructions } => {
+        OutcomeFailureMode::Recover { instructions } => {
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
-        FallibleFailureMode::Catch {
+        OutcomeFailureMode::Catch {
             code,
             message,
             instructions,
@@ -756,6 +871,7 @@ pub(super) fn record_borrow_source(source: BorrowSource, highest_local_index: &m
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
         BorrowSource::BorrowParameter(_) => {}
+        BorrowSource::BorrowLocal(location) => record_usize_location(location, highest_local_index),
         BorrowSource::SliceIndex { source, index, .. } => {
             record_slice_location(source, highest_local_index);
             record_slice_element_index(index, highest_local_index);
@@ -814,7 +930,11 @@ pub(super) fn record_u8_location(location: U8Location, highest_local_index: &mut
 
 pub(super) fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize>) {
     match value {
-        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
+        UsizeValue::Const(_)
+        | UsizeValue::ProcessArgCount
+        | UsizeValue::ProcessEnvironmentCount
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
@@ -884,7 +1004,11 @@ pub(super) fn record_str_value(value: &StrValue, highest_local_index: &mut Optio
             record_slice_location(*source, highest_local_index);
             record_usize_value(index, highest_local_index);
         }
-        StrValue::ProcessArg { index } => record_usize_value(index, highest_local_index),
+        StrValue::ProcessArg { index }
+        | StrValue::ProcessEnvironmentName { index }
+        | StrValue::ProcessEnvironmentValue { index } => {
+            record_usize_value(index, highest_local_index);
+        }
     }
 }
 

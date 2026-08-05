@@ -1,9 +1,9 @@
 use crate::abi::{ReturnPassing, ValueLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceElementIndex, SliceLocation,
-    SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, BorrowSource, Function, I32Location, I32Value,
+    Instruction, OutcomeFailureMode, ScalarArgument, SliceElementIndex, SliceLocation, SliceValue,
+    StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use std::collections::BTreeSet;
 
@@ -399,7 +399,7 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 fn frame_too_large_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
-        format!("function stack frame is too large for backend v0: {reason}"),
+        format!("function stack frame is too large for the native backend: {reason}"),
     )]
 }
 

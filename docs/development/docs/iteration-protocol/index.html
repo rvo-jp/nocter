@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protocol-Driven Collection Iteration - Nocter</title>
+    <meta name="description" content="This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming collection iteration. Public control-flow semantics belong to the">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/iteration-protocol/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Protocol-Driven Collection Iteration - Nocter">
+    <meta property="og:description" content="This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming collection iteration. Public control-flow semantics belong to the">
+    <meta property="og:url" content="https://nocter.dev/development/docs/iteration-protocol/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-05">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Protocol-Driven Collection Iteration - Nocter">
+    <meta name="twitter:description" content="This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming collection iteration. Public control-flow semantics belong to the">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Protocol-Driven Collection Iteration - Nocter","description":"This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming collection iteration. Public control-flow semantics belong to the","url":"https://nocter.dev/development/docs/iteration-protocol/","mainEntityOfPage":"https://nocter.dev/development/docs/iteration-protocol/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Iteration Protocol","item":"https://nocter.dev/development/docs/iteration-protocol/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
+                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
+                <li><a href="./index.html#content" aria-current="page">Protocol-Driven Collection Iteration</a></li>
+                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
+                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/iteration-protocol.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="protocol-driven-collection-iteration">Protocol-Driven Collection Iteration</h1><p>This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming collection iteration. Public control-flow semantics belong to the specification. The completed gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a>.</p><p>Phase 7 completed on 2026-08-03. The compiler, standard library, native backend, and LSP implement the boundaries and acceptance observations recorded below.</p><h2 id="boundary">Boundary</h2><p>Phase 2 supplied concrete readonly and consuming iterator values. Phase 4 supplied explicit generic interface conformance and static bound dispatch. Phase 6 made optional step results ordinary stored values. Phase 7 composes those foundations without introducing method-name lowering.</p><p>The adopted forms are:</p><pre><code class="language-nct"><span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-operator">&amp;</span>values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> iterator <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+</code></pre><p>The first form borrows a collection, the second transfers it, and the third accepts only a value that already satisfies the iterator role. <code>for item in values</code> does not guess whether a collection should be borrowed or moved.</p><h2 id="trusted-protocol-roles">Trusted Protocol Roles</h2><p>The trusted Nocter home supplies ordinary generic interfaces for iterator step, readonly conversion, owned conversion, and exact remaining length. Frontend validation checks each complete interface shape and records the interface and required method declaration identities in <code>TrustedDeclarationFacts</code>.</p><p>Later phases consume a role enum and declaration spans. They do not search source names or module paths. A missing or malformed trusted bundle produces a source-backed availability diagnostic before lowering. Explicit user conformance remains the only way a nominal type participates.</p><p>The generic interface parameters carry the yielded item and concrete iterator types. Phase 7 does not require associated types or broaden the one-bound generic model. A conversion is usable only when its concrete iterator type also has exactly one matching iterator-role conformance.</p><p>Phase 8 validates <code>ExactSizeIterator&lt;T&gt;</code> beside <code>Iterator&lt;T&gt;</code> for sequence spread. Its readonly <code>remaining_len(): usize</code> method is an ordinary statically specialized call. The compiler records the method identity in the same iteration runtime plan; it does not recognize the spelling or a standard-library nominal type.</p><h2 id="semantic-plan">Semantic Plan</h2><p>Typecheck records one immutable plan per collection-for statement:</p><ul><li>source mode: direct iterator, readonly conversion, or owned conversion</li><li>source and iterator concrete types</li><li>conversion interface, conformance, method declaration, and concrete call target when applicable</li><li>iterator interface, conformance, step declaration, and concrete call target</li><li>yielded item type and optional outcome shape</li><li>binding and source spans used by editor queries</li><li>whether source evaluation transfers ownership</li></ul><p>Resolver and typecheck produce the plan. Ownership, regions, buildability, IR, analysis, and LSP consume it without repeating protocol lookup. The selected declaration identities connect implicit conversion and step calls to the ordinary result-provenance and allocation-effect summaries; those summaries are not duplicated inside the plan.</p><p>Collection loops use conversion and step fields from this plan. Sequence spread additionally uses its exact-count target and an explicit copy, readonly-reference, or move projection. Hidden literal entry calls every count target once, checks and caches the total pack length, then reuses the same optional-step lowering as collection loops to stream items.</p><h2 id="ownership-and-cleanup">Ownership and Cleanup</h2><p>The source expression evaluates once into a compiler-owned iterator local. Each step consumes one optional layer. Success initializes the loop binding; absence exits without touching item storage.</p><p>An owned item has a per-iteration obligation. Normal body completion and <code>continue</code> drop it unless the body moved it. <code>break</code>, <code>return</code>, propagation, and other exiting edges clean the item before the iterator. Iterator drop then destroys only its still-initialized state. Readonly item provenance retains the original collection loan through its last use.</p><p>The loop does not maintain a parallel ownership state in IR. Hidden locals use the same move, drop-kind, partial-initialization, scope-mark, and region cleanup machinery as source bindings.</p><h2 id="compiler-ownership">Compiler Ownership</h2><table><thead><tr><th>Responsibility</th><th>Owner</th></tr></thead><tbody><tr><td>trusted interface-shape validation and role identities</td><td><code>target/trusted_iteration</code> and <code>semantics</code></td></tr><tr><td>collection-for AST and recovery</td><td><code>parser/collection_for</code> and <code>analysis/collection_for_recovery</code></td></tr><tr><td>conformance resolution and semantic plan</td><td><code>typecheck/iteration</code> and typecheck facts</td></tr><tr><td>source loan, item move, and loop state</td><td><code>typecheck/ownership</code> consuming the plan</td></tr><tr><td>provenance and region constraints</td><td>existing provenance/region analyses consuming the plan</td></tr><tr><td>iterator, step, branch, and cleanup lowering</td><td><code>ir/lower/collection_for</code></td></tr><tr><td>standard interfaces and concrete conformances</td><td><code>std/iter</code>, <code>std/vec</code>, and <code>std/vec_into_iter</code></td></tr><tr><td>hover, completion, and semantic presentation</td><td><code>analysis/iteration</code>; protocol conversion in <code>driver/lsp</code></td></tr></tbody></table><p>New responsibilities use focused modules. Existing exhaustive AST visitors gain collection-for edges but do not acquire protocol lookup.</p><h2 id="verification">Verification</h2><p>Tests observe item order, source moves and loans, active item drop, remaining suffix drop, storage release, nested cleanup, region escape, generic specialization, diagnostics, incomplete editor input, and packaged execution. Instruction snapshots alone do not satisfy the runtime gate.</p><p>The completed Phase 7 gate covers empty, readonly, consuming, direct, nested, user-conformance, <code>continue</code>, <code>break</code>, <code>return</code>, and propagation paths. LSP protocol tests cover all three source modes, exact element completion, semantic-token range remapping, parser diagnostics, and implicit allocation-effect presentation.</p><p>Phase 8 tests add exact-size role validation, unknown-size rejection, repeated and direct-iterator spread, cached pack length, copy constraints, readonly provenance, owned suffix cleanup, implicit effect presentation, and incomplete spread recovery against the packaged standard library.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

@@ -1,11 +1,30 @@
 //! Source-level abstract syntax tree definitions.
 
+mod callables;
+mod closures;
+mod collection_for;
+mod constructs;
 mod documentation;
 mod json;
+mod literals;
+mod provenance;
+mod receivers;
 mod types;
+mod visit;
 
+pub use callables::*;
+pub use closures::*;
+pub use collection_for::*;
+pub use constructs::*;
 pub use json::{AstEnvelope, JsonAstNode};
+pub use literals::*;
+pub use provenance::*;
+pub use receivers::*;
 pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
+pub(crate) use visit::{
+    closure_expression_by_span, visit_block_expressions_without_nested_closures, visit_expression,
+    visit_file_expressions,
+};
 
 use crate::source::ByteSpan;
 
@@ -26,6 +45,7 @@ pub enum Item {
     Enum(EnumDecl),
     Interface(InterfaceDecl),
     Impl(ImplDecl),
+    Construct(ConstructDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +106,7 @@ pub struct FunctionDecl {
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
     pub body: Block,
 }
 
@@ -105,6 +126,7 @@ pub struct PrimitiveDecl {
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,6 +216,7 @@ pub enum ImplMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropDecl {
     pub span: ByteSpan,
+    pub name_span: ByteSpan,
     pub binding: Parameter,
     pub body: Block,
 }
@@ -202,11 +225,13 @@ pub struct DropDecl {
 pub struct MethodDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
-    pub receiver: Parameter,
+    pub receiver: MethodReceiver,
     pub name: String,
     pub name_span: ByteSpan,
+    pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
     pub body: Option<Block>,
 }
 
@@ -220,7 +245,8 @@ pub struct GenericParamList {
 pub struct GenericParam {
     pub span: ByteSpan,
     pub name: String,
-    pub bound: Option<TypeExpr>,
+    pub name_span: ByteSpan,
+    pub bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,6 +265,8 @@ pub struct Parameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
+    Callable(CallableTypeExpr),
+    Closure(ClosureTypeExpr),
     Reference(TypeReference),
     Generic(GenericType),
     Pointer(PointerType),
@@ -327,8 +355,11 @@ pub enum Stmt {
     IfIs(IfIsStmt),
     Switch(SwitchStmt),
     ForRange(ForRangeStmt),
+    CollectionFor(CollectionForStmt),
+    LiteralPackFor(LiteralPackForStmt),
     While(WhileStmt),
     Loop(LoopStmt),
+    Region(RegionStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
     Drop(DropStmt),
@@ -485,6 +516,17 @@ pub struct LoopStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionStmt {
+    pub span: ByteSpan,
+    pub keyword_span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub using_span: ByteSpan,
+    pub allocator: Expr,
+    pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BreakStmt {
     pub span: ByteSpan,
 }
@@ -509,6 +551,7 @@ pub struct ExpressionStmt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
+    Closure(ClosureExpr),
     Identifier(IdentifierExpr),
     IntegerLiteral(LiteralExpr),
     ByteLiteral(LiteralExpr),
@@ -517,6 +560,8 @@ pub enum Expr {
     BoolLiteral(LiteralExpr),
     NoneLiteral(LiteralExpr),
     ArrayLiteral(ArrayLiteralExpr),
+    TypedSequenceLiteral(TypedSequenceLiteralExpr),
+    TypedStringLiteral(TypedStringLiteralExpr),
     StructLiteral(StructLiteralExpr),
     Propagate(PropagationExpr),
     Force(ForceExpr),
@@ -653,6 +698,7 @@ pub enum UnaryOperator {
     LogicalNot,
     Negate,
     Move,
+    Spread,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -741,6 +787,7 @@ impl Item {
             Item::Enum(item) => item.span,
             Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
+            Item::Construct(item) => item.span,
         }
     }
 }
@@ -773,6 +820,8 @@ impl GenericParamList {
 impl TypeExpr {
     pub fn span(&self) -> ByteSpan {
         match self {
+            TypeExpr::Callable(ty) => ty.span,
+            TypeExpr::Closure(ty) => ty.span,
             TypeExpr::Reference(ty) => ty.span,
             TypeExpr::Generic(ty) => ty.span,
             TypeExpr::Pointer(ty) => ty.span,
@@ -797,8 +846,11 @@ impl Stmt {
             Stmt::IfIs(statement) => statement.span,
             Stmt::Switch(statement) => statement.span,
             Stmt::ForRange(statement) => statement.span,
+            Stmt::CollectionFor(statement) => statement.span,
+            Stmt::LiteralPackFor(statement) => statement.span,
             Stmt::While(statement) => statement.span,
             Stmt::Loop(statement) => statement.span,
+            Stmt::Region(statement) => statement.span,
             Stmt::Break(statement) => statement.span,
             Stmt::Continue(statement) => statement.span,
             Stmt::Drop(statement) => statement.span,
@@ -810,6 +862,7 @@ impl Stmt {
 impl Expr {
     pub fn span(&self) -> ByteSpan {
         match self {
+            Expr::Closure(expression) => expression.span,
             Expr::Identifier(expression) => expression.span,
             Expr::IntegerLiteral(expression) => expression.span,
             Expr::ByteLiteral(expression) => expression.span,
@@ -818,6 +871,8 @@ impl Expr {
             Expr::BoolLiteral(expression) => expression.span,
             Expr::NoneLiteral(expression) => expression.span,
             Expr::ArrayLiteral(expression) => expression.span,
+            Expr::TypedSequenceLiteral(expression) => expression.span,
+            Expr::TypedStringLiteral(expression) => expression.span,
             Expr::StructLiteral(expression) => expression.span,
             Expr::Propagate(expression) => expression.span,
             Expr::Force(expression) => expression.span,
@@ -894,6 +949,7 @@ impl UnaryOperator {
             UnaryOperator::LogicalNot => "!",
             UnaryOperator::Negate => "-",
             UnaryOperator::Move => "move",
+            UnaryOperator::Spread => "...",
         }
     }
 }

@@ -20,6 +20,48 @@ impl TypecheckFactCollector<'_> {
             &expression_type(expression, self.resolved, environment),
         );
         match expression {
+            Expr::Closure(closure) => {
+                for parameter in &closure.parameters {
+                    if let Some(ty) = &parameter.ty {
+                        self.collect_type_expr_references(ty);
+                    }
+                }
+                if let Some(return_type) = &closure.return_type {
+                    self.collect_type_expr_references(return_type);
+                }
+                let closure_type = expression_type(expression, self.resolved, environment);
+                if let Type::Closure(ty) = &closure_type {
+                    self.record_closure_plan(closure, ty);
+                    self.record_expression_type(expression.span(), &closure_type);
+                }
+                let mut closure_environment = crate::typecheck::closures::environment_for_closure(
+                    closure,
+                    self.resolved,
+                    environment,
+                );
+                for capture in &closure.captures {
+                    self.record_environment_binding(
+                        capture.name_span,
+                        &capture.name,
+                        &closure_environment,
+                    );
+                }
+                for parameter in &closure.parameters {
+                    self.record_environment_binding(
+                        parameter.name_span,
+                        &parameter.name,
+                        &closure_environment,
+                    );
+                }
+                let return_type = closure.return_type.as_ref().map(|ty| {
+                    type_expr_to_type_in_environment(ty, self.resolved, &closure_environment)
+                });
+                self.collect_block_facts(
+                    &closure.body,
+                    &mut closure_environment,
+                    return_type.as_ref(),
+                );
+            }
             Expr::Propagate(expression) => {
                 self.collect_expression_facts_in_context(
                     &expression.expression,
@@ -99,12 +141,29 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
-                    if let Some(kind) = method_receiver_kind(&resolved_method.receiver.ty) {
-                        self.facts
-                            .method_call_receiver_kinds
-                            .insert(method.member_span, kind);
-                    }
-                    if !resolved_method.signature.generic_parameters.is_empty() {
+                    let kind = match resolved_method.receiver.mode {
+                        MethodReceiverMode::Owned => TypecheckMethodReceiverKind::Owned,
+                        MethodReceiverMode::ReadonlyBorrow => {
+                            TypecheckMethodReceiverKind::ReadonlyBorrow
+                        }
+                        MethodReceiverMode::ReadwriteBorrow => {
+                            TypecheckMethodReceiverKind::ReadwriteBorrow
+                        }
+                    };
+                    self.facts
+                        .method_call_receiver_kinds
+                        .insert(method.member_span, kind);
+                    let receiver_is_bounded_parameter = matches!(
+                        method_self_type_for_receiver_in_environment(
+                            &expression_type(&method.object, self.resolved, environment),
+                            environment,
+                        ),
+                        Type::Parameter(_)
+                    );
+                    if owner.kind == crate::resolve::TypeSymbolKind::Interface
+                        || !resolved_method.signature.generic_parameters.is_empty()
+                        || receiver_is_bounded_parameter
+                    {
                         self.facts
                             .generic_method_call_spans
                             .insert(method.member_span, resolved_method.name_span);
@@ -120,17 +179,13 @@ impl TypecheckFactCollector<'_> {
                                 .insert(method.member_span, specialization);
                         }
                     }
-                    self.facts.call_hover_labels.insert(
-                        method.member_span,
-                        method_signature_hover_label(resolved_method, owner, self.resolved),
-                    );
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
                         return_type,
                     );
                 } else if let Some(method) = method_member_for_call(expression)
-                    && let Some((owner, resolved_function)) =
+                    && let Some((_, resolved_function)) =
                         self.resolved.associated_function_for_call(expression)
                 {
                     self.facts
@@ -145,39 +200,35 @@ impl TypecheckFactCollector<'_> {
                         environment,
                         true,
                     );
-                    self.facts.call_hover_labels.insert(
-                        method.member_span,
-                        associated_function_signature_hover_label(
-                            owner,
-                            resolved_function,
-                            self.resolved,
-                        ),
-                    );
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
                         return_type,
                     );
                 } else if let Some(method) = method_member_for_call(expression)
-                    && let Some((owner, variant)) =
+                    && let Some((_, variant)) =
                         resolved_enum_variant_for_member(method, self.resolved)
                 {
-                    self.record_enum_variant_reference(method.member_span, owner, variant);
+                    self.record_enum_variant_reference(method.member_span, variant);
                     self.collect_expression_facts_in_context(
                         &method.object,
                         environment,
                         return_type,
                     );
                 } else {
-                    if let Some(symbol) = self.resolved.symbol_for_call(expression) {
+                    if let Some(contract) = crate::typecheck::callables::callable_contract_for_call(
+                        expression,
+                        self.resolved,
+                        environment,
+                    ) && let Some(fact) = callable_call_fact(expression, &contract)
+                    {
+                        self.facts.callable_calls.insert(expression.span, fact);
+                    } else if let Some(symbol) = self.resolved.symbol_for_call(expression) {
                         match &symbol.kind {
                             SymbolKind::Function(signature) => {
                                 self.record_function_call_reference(
                                     expression,
                                     symbol.declaration_span,
-                                    &symbol.name,
-                                    "func",
-                                    signature,
                                 );
                                 self.record_generic_function_call_specialization(
                                     expression,
@@ -193,9 +244,6 @@ impl TypecheckFactCollector<'_> {
                                 self.record_function_call_reference(
                                     expression,
                                     symbol.declaration_span,
-                                    &symbol.name,
-                                    "primitive",
-                                    signature,
                                 );
                                 self.record_generic_function_call_specialization(
                                     expression,
@@ -226,10 +274,10 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
                 self.record_struct_field_member_reference(expression, environment);
-                if let Some((owner, variant)) =
+                if let Some((_, variant)) =
                     resolved_enum_variant_for_member(expression, self.resolved)
                 {
-                    self.record_enum_variant_reference(expression.member_span, owner, variant);
+                    self.record_enum_variant_reference(expression.member_span, variant);
                 }
             }
             Expr::Index(expression) => {
@@ -247,6 +295,43 @@ impl TypecheckFactCollector<'_> {
             Expr::ArrayLiteral(expression) => {
                 for element in &expression.elements {
                     self.collect_expression_facts_in_context(element, environment, return_type);
+                }
+            }
+            Expr::TypedSequenceLiteral(expression) => {
+                self.collect_type_expr_references(&expression.target);
+                for element in &expression.elements {
+                    self.collect_expression_facts_in_context(element, environment, return_type);
+                    if let Some(spread) = crate::typecheck::literals::sequence_spread(element)
+                        && let Ok(resolution) = crate::typecheck::iteration::resolve_sequence_spread(
+                            spread,
+                            self.resolved,
+                            environment,
+                        )
+                        && let Some(plan) = sequence_spread_fact(spread, &resolution)
+                    {
+                        self.facts.sequence_spread_plans.insert(spread.span, plan);
+                        self.record_drop_type_specialization(
+                            spread.span,
+                            &resolution.iteration.iterator_type,
+                        );
+                    }
+                }
+                if let Some(using) = &expression.using {
+                    self.collect_expression_facts_in_context(
+                        &using.allocator,
+                        environment,
+                        return_type,
+                    );
+                }
+            }
+            Expr::TypedStringLiteral(expression) => {
+                self.collect_type_expr_references(&expression.target);
+                if let Some(using) = &expression.using {
+                    self.collect_expression_facts_in_context(
+                        &using.allocator,
+                        environment,
+                        return_type,
+                    );
                 }
             }
             Expr::StructLiteral(expression) => {
@@ -268,6 +353,7 @@ impl TypecheckFactCollector<'_> {
                 );
             }
             Expr::InterpolatedString(expression) => {
+                self.record_interpolation_plan(expression, environment);
                 for part in &expression.parts {
                     if let InterpolatedStringPart::Expression(part) = part {
                         self.collect_expression_facts_in_context(
@@ -439,4 +525,94 @@ impl TypecheckFactCollector<'_> {
             }
         }
     }
+
+    pub(in crate::typecheck::facts::collector) fn record_closure_plan(
+        &mut self,
+        expression: &crate::ast::ClosureExpr,
+        ty: &crate::ast::ClosureTypeExpr,
+    ) {
+        self.facts.closure_plans.insert(
+            expression.span,
+            TypecheckClosurePlan {
+                expression_span: expression.span,
+                ty: ty.clone(),
+                target_name: format!("{}.call", ty.identity_name()),
+            },
+        );
+    }
+}
+
+fn sequence_spread_fact(
+    spread: &crate::ast::UnaryExpr,
+    resolution: &crate::typecheck::iteration::SequenceSpreadResolution,
+) -> Option<TypecheckSequenceSpreadPlan> {
+    let mut free_type_parameters = std::collections::HashSet::new();
+    let source_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.source_type,
+        spread.operand.span(),
+        &mut free_type_parameters,
+    )?;
+    let iterator_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.iterator_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    let iterator_item_type = type_to_type_expr_allowing_parameters(
+        &resolution.iteration.item_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    let pack_item_type = type_to_type_expr_allowing_parameters(
+        &resolution.pack_item_type,
+        spread.span,
+        &mut free_type_parameters,
+    )?;
+    Some(TypecheckSequenceSpreadPlan {
+        spread_span: spread.span,
+        operator_span: spread.operator_span,
+        source_span: spread.operand.span(),
+        mode: match resolution.mode {
+            crate::typecheck::iteration::SequenceSpreadMode::Copy => {
+                TypecheckSequenceSpreadMode::Copy
+            }
+            crate::typecheck::iteration::SequenceSpreadMode::Readonly => {
+                TypecheckSequenceSpreadMode::Readonly
+            }
+            crate::typecheck::iteration::SequenceSpreadMode::Move => {
+                TypecheckSequenceSpreadMode::Move
+            }
+        },
+        source_mode: match resolution.iteration.source_mode {
+            crate::typecheck::iteration::CollectionIterationSourceMode::Direct => {
+                TypecheckCollectionForSourceMode::Direct
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::ReadonlyConversion => {
+                TypecheckCollectionForSourceMode::ReadonlyConversion
+            }
+            crate::typecheck::iteration::CollectionIterationSourceMode::OwnedConversion => {
+                TypecheckCollectionForSourceMode::OwnedConversion
+            }
+        },
+        source_type: source_type.clone(),
+        iterator_type: iterator_type.clone(),
+        iterator_item_type,
+        pack_item_type,
+        conversion: resolution.iteration.conversion.as_ref().map(|method| {
+            super::statements::iteration_method_fact(
+                method,
+                source_type.clone(),
+                &free_type_parameters,
+            )
+        }),
+        exact_size: super::statements::iteration_method_fact(
+            &resolution.exact_size,
+            iterator_type.clone(),
+            &free_type_parameters,
+        ),
+        step: super::statements::iteration_method_fact(
+            &resolution.iteration.step,
+            iterator_type,
+            &free_type_parameters,
+        ),
+    })
 }

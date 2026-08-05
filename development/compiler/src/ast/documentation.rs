@@ -44,12 +44,30 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
             push_target(text, interface.span, targets);
             for method in &interface.methods {
                 push_target(text, method.span, targets);
+                if let Some(body) = &method.body {
+                    collect_block_targets(text, body, targets);
+                }
             }
         }
         Item::Impl(impl_) => {
             push_target(text, impl_.span, targets);
             for member in &impl_.members {
                 collect_impl_member_targets(text, member, targets);
+            }
+        }
+        Item::Construct(construct) => {
+            push_target(text, construct.span, targets);
+            for member in &construct.members {
+                match &member.declaration {
+                    ConstructMemberDecl::Function(function) => {
+                        push_target(text, member.span, targets);
+                        collect_block_targets(text, &function.body, targets);
+                    }
+                    ConstructMemberDecl::Literal(literal) => {
+                        push_target(text, member.span, targets);
+                        collect_block_targets(text, &literal.body, targets);
+                    }
+                }
             }
         }
     }
@@ -127,11 +145,23 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             collect_expression_targets(text, &statement.end, targets);
             collect_block_targets(text, &statement.body, targets);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_targets(text, &statement.source, targets);
+            collect_block_targets(text, &statement.body, targets);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            collect_block_targets(text, &statement.body, targets);
+        }
         Stmt::While(statement) => {
             collect_expression_targets(text, &statement.condition, targets);
             collect_block_targets(text, &statement.body, targets);
         }
         Stmt::Loop(statement) => collect_block_targets(text, &statement.body, targets),
+        Stmt::Region(statement) => {
+            push_target(text, statement.span, targets);
+            collect_expression_targets(text, &statement.allocator, targets);
+            collect_block_targets(text, &statement.body, targets);
+        }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_targets(text, &statement.expression, targets);
@@ -145,6 +175,7 @@ fn collect_expression_targets(
     targets: &mut Vec<DocumentationTarget>,
 ) {
     match expression {
+        Expr::Closure(expression) => collect_block_targets(text, &expression.body, targets),
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::ByteLiteral(_)
@@ -161,6 +192,19 @@ fn collect_expression_targets(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_targets(text, element, targets);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_targets(text, element, targets);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_targets(text, &using.allocator, targets);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_targets(text, &using.allocator, targets);
             }
         }
         Expr::StructLiteral(expression) => {

@@ -15,6 +15,15 @@ pub(super) fn check_statement_borrow_conflicts(
         environment,
         &mut new_borrows,
     );
+    if diagnose_statement_sequence_spread_borrows(
+        sources,
+        statement,
+        resolved,
+        environment,
+        diagnostics,
+    ) {
+        return;
+    }
 
     for borrow in active_borrows {
         if let Some(action) =
@@ -85,6 +94,15 @@ pub(super) fn check_expression_borrow_conflicts(
 ) {
     let mut new_borrows = Vec::new();
     collect_direct_borrow_expressions(expression, resolved, environment, &mut new_borrows);
+    if diagnose_sequence_spread_borrow_conflicts(
+        sources,
+        expression,
+        resolved,
+        environment,
+        diagnostics,
+    ) {
+        return;
+    }
 
     for borrow in active_borrows {
         if let Some(action) =
@@ -145,20 +163,147 @@ pub(super) fn check_expression_borrow_conflicts(
     }
 }
 
+fn diagnose_sequence_spread_borrow_conflicts(
+    sources: &SourceMap,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut reported = false;
+    crate::ast::visit_expression(expression, &mut |candidate| {
+        if reported {
+            return;
+        }
+        let Expr::TypedSequenceLiteral(literal) = candidate else {
+            return;
+        };
+        for (index, element) in literal.elements.iter().enumerate() {
+            let Some(earlier) = sequence_spread_borrow_source(element) else {
+                continue;
+            };
+            for later in &literal.elements[index + 1..] {
+                let mut later_borrows = Vec::new();
+                collect_direct_borrow_expressions(later, resolved, environment, &mut later_borrows);
+                if let Some(later_borrow) = later_borrows.iter().find(|later_borrow| {
+                    later_borrow.source.conflicts_with(&earlier.source)
+                        && (earlier.is_readwrite || later_borrow.is_readwrite)
+                }) {
+                    diagnostics.push(overlapping_expression_borrow_diagnostic(
+                        sources,
+                        &later_borrow.source.display(),
+                        if later_borrow.is_readwrite {
+                            "create readwrite borrow of"
+                        } else {
+                            "create readonly borrow of"
+                        },
+                        later_borrow.source_span,
+                        earlier.source_span,
+                        earlier.is_readwrite,
+                    ));
+                    reported = true;
+                    return;
+                }
+                if let Some(action) =
+                    expression_move_action(later, &earlier.source, resolved, environment)
+                {
+                    diagnostics.push(overlapping_expression_borrow_diagnostic(
+                        sources,
+                        &action.place.display(),
+                        action.description,
+                        action.span,
+                        earlier.source_span,
+                        earlier.is_readwrite,
+                    ));
+                    reported = true;
+                    return;
+                }
+            }
+        }
+    });
+    reported
+}
+
+fn sequence_spread_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
+    let spread = crate::typecheck::sequence_spread(expression)?;
+    match spread.operand.without_groups() {
+        Expr::Unary(crate::ast::UnaryExpr {
+            operator: UnaryOperator::Move,
+            ..
+        }) => None,
+        Expr::Borrow(borrow) => Some(DirectBorrowSource {
+            source: expression_place(&borrow.expression)?,
+            source_span: borrow.expression.span(),
+            is_readwrite: borrow.is_readwrite,
+        }),
+        operand => Some(DirectBorrowSource {
+            source: expression_place(operand)?,
+            source_span: operand.span(),
+            is_readwrite: false,
+        }),
+    }
+}
+
+fn diagnose_statement_sequence_spread_borrows(
+    sources: &SourceMap,
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let expressions = match statement {
+        Stmt::Return(statement) => statement.expression.iter().collect::<Vec<_>>(),
+        Stmt::Binding(statement) => vec![&statement.initializer],
+        Stmt::Assignment(statement) => vec![&statement.target, &statement.value],
+        Stmt::If(statement) => vec![&statement.condition],
+        Stmt::IfIs(statement) => vec![&statement.expression],
+        Stmt::Switch(statement) => vec![&statement.expression],
+        Stmt::ForRange(statement) => vec![&statement.start, &statement.end],
+        Stmt::CollectionFor(statement) => vec![&statement.source],
+        Stmt::While(statement) => vec![&statement.condition],
+        Stmt::Region(statement) => vec![&statement.allocator],
+        Stmt::Expression(statement) => vec![&statement.expression],
+        Stmt::Import(_)
+        | Stmt::FromImport(_)
+        | Stmt::LiteralPackFor(_)
+        | Stmt::Loop(_)
+        | Stmt::Drop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => Vec::new(),
+    };
+    expressions.into_iter().any(|expression| {
+        diagnose_sequence_spread_borrow_conflicts(
+            sources,
+            expression,
+            resolved,
+            environment,
+            diagnostics,
+        )
+    })
+}
+
 pub(super) fn record_statement_borrow(
     statement: &Stmt,
     later_statements: &[Stmt],
     later_result: Option<&Expr>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
+    summaries: &CallableProvenanceSummaries,
     active_borrows: &mut Vec<ActiveBorrow>,
 ) {
     let Stmt::Binding(binding) = statement else {
         return;
     };
-    let Some(source) = direct_borrow_source(&binding.initializer) else {
+    let sources = returned_borrow_sources(
+        &binding.initializer,
+        resolved,
+        environment,
+        summaries,
+        active_borrows,
+    );
+    if sources.is_empty() {
         return;
-    };
+    }
     if !statements_or_result_use_identifier_before_terminal(
         later_statements,
         later_result,
@@ -169,12 +314,13 @@ pub(super) fn record_statement_borrow(
         return;
     }
 
-    active_borrows.push(ActiveBorrow {
+    active_borrows.extend(sources.into_iter().map(|source| ActiveBorrow {
         source: source.source,
         borrow_name: binding.name.clone(),
         borrow_span: binding.name_span,
         is_readwrite: source.is_readwrite,
-    });
+        scope_bound: false,
+    }));
 }
 
 fn statement_conflicting_action(
@@ -254,11 +400,22 @@ fn statement_conflicting_action(
                 .or_else(|| expression_move_action(&statement.end, source, resolved, environment))
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
+        Stmt::CollectionFor(statement) => {
+            expression_move_action(&statement.source, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
+        }
+        Stmt::LiteralPackFor(statement) => {
+            block_move_action(&statement.body, source, resolved, environment)
+        }
         Stmt::While(statement) => {
             expression_move_action(&statement.condition, source, resolved, environment)
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_move_action(&statement.body, source, resolved, environment),
+        Stmt::Region(statement) => {
+            expression_move_action(&statement.allocator, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
+        }
         Stmt::Expression(statement) => {
             expression_move_action(&statement.expression, source, resolved, environment)
         }
@@ -344,11 +501,22 @@ fn statement_read_action(
                 .or_else(|| expression_read_action(&statement.end, source, resolved, environment))
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
+        Stmt::CollectionFor(statement) => {
+            expression_read_action(&statement.source, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
+        }
+        Stmt::LiteralPackFor(statement) => {
+            block_read_action(&statement.body, source, resolved, environment)
+        }
         Stmt::While(statement) => {
             expression_read_action(&statement.condition, source, resolved, environment)
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_read_action(&statement.body, source, resolved, environment),
+        Stmt::Region(statement) => {
+            expression_read_action(&statement.allocator, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
+        }
         Stmt::Expression(statement) => {
             expression_read_action(&statement.expression, source, resolved, environment)
         }
@@ -381,6 +549,28 @@ fn expression_move_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            (capture.mode == crate::ast::ClosureCaptureMode::Move)
+                .then(|| BorrowPlace::whole(capture.name.clone()))
+                .filter(|place| place.conflicts_with(source))
+                .map(|place| BorrowAction {
+                    place,
+                    span: capture.name_span,
+                    description: "move capture",
+                })
+        }),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_move_action(element, source, resolved, environment))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    expression_move_action(&using.allocator, source, resolved, environment)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression.using.as_ref().and_then(|using| {
+            expression_move_action(&using.allocator, source, resolved, environment)
+        }),
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             match expression.operand.as_ref() {
                 Expr::Identifier(identifier)
@@ -421,6 +611,16 @@ fn expression_move_action(
             expression_move_action(&expression.expression, source, resolved, environment)
         }
         Expr::Call(expression) => {
+            if let Some(identifier) =
+                consuming_callable_identifier(expression, resolved, environment)
+                && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
+            {
+                return Some(BorrowAction {
+                    place: BorrowPlace::whole(identifier.name.clone()),
+                    span: identifier.span,
+                    description: "move",
+                });
+            }
             if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
                 && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
@@ -525,6 +725,26 @@ fn expression_read_action(
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().find_map(|capture| {
+            let place = BorrowPlace::whole(capture.name.clone());
+            place.conflicts_with(source).then_some(BorrowAction {
+                place,
+                span: capture.name_span,
+                description: "closure capture",
+            })
+        }),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_read_action(element, source, resolved, environment))
+            .or_else(|| {
+                expression.using.as_ref().and_then(|using| {
+                    expression_read_action(&using.allocator, source, resolved, environment)
+                })
+            }),
+        Expr::TypedStringLiteral(expression) => expression.using.as_ref().and_then(|using| {
+            expression_read_action(&using.allocator, source, resolved, environment)
+        }),
         Expr::Identifier(identifier) => {
             let place = BorrowPlace::whole(identifier.name.clone());
             place.conflicts_with(source).then_some(BorrowAction {

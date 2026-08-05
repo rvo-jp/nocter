@@ -206,7 +206,7 @@ pub(in crate::typecheck) fn move_operand_must_be_binding_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0370",
-        "`move` requires a local binding or parameter binding name in v0",
+        "`move` requires a local binding or parameter binding name",
     );
     diagnostic.primary_span = sources
         .span_to_json(expression.operand.span())

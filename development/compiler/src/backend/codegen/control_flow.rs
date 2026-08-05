@@ -379,9 +379,10 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     match instructions.last() {
         Some(
             Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
+            | Instruction::ReturnStoredOutcome { .. }
             | Instruction::TailCall { .. }
             | Instruction::ProcessExit { .. }
             | Instruction::Trap
@@ -396,6 +397,14 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             !else_instructions.is_empty()
                 && instruction_list_ends_execution(then_instructions)
                 && instruction_list_ends_execution(else_instructions)
+        }
+        Some(Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        }) => {
+            instruction_list_ends_execution(success_instructions)
+                && instruction_list_ends_execution(outcome_instructions)
         }
         Some(Instruction::While { .. }) => false,
         Some(
@@ -453,6 +462,9 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
+            | Instruction::RegionEnter { .. }
+            | Instruction::SetCurrentAllocationContext { .. }
+            | Instruction::RegionRelease { .. }
             | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
@@ -481,23 +493,29 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ShiftLeftUsize { .. }
             | Instruction::ShiftRightUsize { .. }
             | Instruction::CallI32 { .. }
-            | Instruction::CallFallibleI32 { .. }
+            | Instruction::CallOutcomeI32 { .. }
             | Instruction::CallU8 { .. }
-            | Instruction::CallFallibleU8 { .. }
+            | Instruction::CallOutcomeU8 { .. }
             | Instruction::CallUsize { .. }
-            | Instruction::CallFallibleUsize { .. }
+            | Instruction::CallOutcomeUsize { .. }
+            | Instruction::CallBorrow { .. }
+            | Instruction::CallOutcomeBorrow { .. }
             | Instruction::CallBool { .. }
-            | Instruction::CallFallibleBool { .. }
+            | Instruction::CallOutcomeBool { .. }
             | Instruction::CallStr { .. }
-            | Instruction::CallFallibleStr { .. }
+            | Instruction::CallOutcomeStr { .. }
             | Instruction::CallSlice { .. }
-            | Instruction::CallFallibleSlice { .. }
+            | Instruction::CallOutcomeSlice { .. }
             | Instruction::CallAggregate { .. }
             | Instruction::CallDirectAggregate { .. }
-            | Instruction::CallFallibleDirectAggregate { .. }
-            | Instruction::CallFallibleAggregate { .. }
+            | Instruction::CallOutcomeDirectAggregate { .. }
+            | Instruction::CallOutcomeAggregate { .. }
             | Instruction::CallVoid { .. }
-            | Instruction::CallFallibleVoid { .. },
+            | Instruction::CallOutcomeVoid { .. }
+            | Instruction::CallComposedOutcome { .. }
+            | Instruction::CallStoredOutcome { .. }
+            | Instruction::CheckStoredFallible { .. }
+            | Instruction::LoadStoredOutcomePayload { .. },
         )
         | None => false,
     }

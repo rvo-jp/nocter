@@ -1,5 +1,9 @@
-use crate::ast::{BindingKind, CallExpr, Expr, IdentifierExpr, TypeExpr, Visibility};
+use crate::ast::{
+    BindingKind, CallExpr, ClosureCaptureMode, Expr, IdentifierExpr, LiteralShape, MethodReceiver,
+    ResultProvenanceClause, TypeExpr, Visibility,
+};
 use crate::diagnostics::Diagnostic;
+use crate::semantics::TrustedDeclarationFacts;
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
@@ -23,8 +27,10 @@ pub struct ResolveOutput {
     pub diagnostics: Vec<Diagnostic>,
     pub(super) identifier_targets: HashMap<ByteSpan, SymbolId>,
     pub(super) call_targets: HashMap<ByteSpan, SymbolId>,
+    pub(super) typed_literal_targets: HashMap<ByteSpan, LiteralResolution>,
     pub(super) local_symbols: Vec<LocalSymbol>,
     pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
+    pub(crate) trusted_declarations: TrustedDeclarationFacts,
 }
 
 impl ResolveOutput {
@@ -134,6 +140,20 @@ impl ResolveOutput {
             .or_else(|| self.associated_function_signature_for_call(call))
     }
 
+    pub fn literal_resolution(&self, span: ByteSpan) -> Option<&LiteralResolution> {
+        self.typed_literal_targets.get(&span)
+    }
+
+    pub fn literal_signature(&self, resolution: &LiteralResolution) -> Option<&LiteralSignature> {
+        let SymbolKind::Type(symbol) = &self.symbols.get(resolution.type_symbol)?.kind else {
+            return None;
+        };
+        symbol
+            .literals
+            .iter()
+            .find(|literal| literal.declaration_span == resolution.literal_declaration_span)
+    }
+
     pub fn method_signature_by_name_span(&self, name_span: ByteSpan) -> Option<&MethodSignature> {
         self.symbols
             .symbols()
@@ -141,6 +161,12 @@ impl ResolveOutput {
                 SymbolKind::Type(type_symbol) => type_symbol
                     .methods
                     .iter()
+                    .chain(
+                        type_symbol
+                            .interface_conformances
+                            .iter()
+                            .flat_map(|conformance| &conformance.methods),
+                    )
                     .find(|method| method.name_span == name_span),
                 SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_) => {
                     None
@@ -206,7 +232,7 @@ impl ResolveOutput {
             })
     }
 
-    fn type_symbol_definition_by_canonical_name(
+    pub(crate) fn type_symbol_definition_by_canonical_name(
         &self,
         canonical_name: &str,
     ) -> Option<(&Symbol, &TypeSymbol)> {
@@ -231,8 +257,10 @@ impl ResolveOutput {
             diagnostics: Vec::new(),
             identifier_targets: HashMap::new(),
             call_targets: HashMap::new(),
+            typed_literal_targets: HashMap::new(),
             local_symbols: Vec::new(),
             local_identifier_targets: HashMap::new(),
+            trusted_declarations: TrustedDeclarationFacts::default(),
         }
     }
 
@@ -278,9 +306,14 @@ pub struct LocalSymbol {
 pub enum LocalSymbolKind {
     Parameter,
     Binding(BindingKind),
+    Region,
+    LiteralCapture,
+    ClosureCapture(ClosureCaptureMode),
     PatternPayload,
     CatchError,
     ForRange,
+    CollectionFor,
+    LiteralPackFor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -309,6 +342,14 @@ impl SymbolTable {
         self.symbols.iter()
     }
 
+    pub(super) fn get_mut(&mut self, id: SymbolId) -> Option<&mut Symbol> {
+        self.symbols.get_mut(id.raw() as usize)
+    }
+
+    pub(super) fn id_by_name(&self, name: &str) -> Option<SymbolId> {
+        self.by_name.get(name).copied()
+    }
+
     pub(super) fn define(
         &mut self,
         name: String,
@@ -316,19 +357,37 @@ impl SymbolTable {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) -> Result<SymbolId, SymbolId> {
+        self.define_indexed(name, name_span, declaration_span, kind, false)
+    }
+
+    pub(super) fn ensure_hidden_resolvable(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+    ) {
+        if self.by_name.contains_key(&name) {
+            return;
+        }
+
+        let id = self.push_symbol(name.clone(), name_span, declaration_span, kind, true);
+        self.by_name.insert(name, id);
+    }
+
+    fn define_indexed(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+        is_hidden: bool,
+    ) -> Result<SymbolId, SymbolId> {
         if let Some(existing) = self.by_name.get(&name) {
             return Err(*existing);
         }
 
-        let id = SymbolId(self.symbols.len() as u32);
-        self.symbols.push(Symbol {
-            id,
-            name: name.clone(),
-            name_span,
-            declaration_span,
-            is_hidden: false,
-            kind,
-        });
+        let id = self.push_symbol(name.clone(), name_span, declaration_span, kind, is_hidden);
         self.by_name.insert(name, id);
         Ok(id)
     }
@@ -340,13 +399,24 @@ impl SymbolTable {
         declaration_span: ByteSpan,
         kind: SymbolKind,
     ) -> SymbolId {
+        self.push_symbol(name, name_span, declaration_span, kind, true)
+    }
+
+    fn push_symbol(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        declaration_span: ByteSpan,
+        kind: SymbolKind,
+        is_hidden: bool,
+    ) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
         self.symbols.push(Symbol {
             id,
             name,
             name_span,
             declaration_span,
-            is_hidden: true,
+            is_hidden,
             kind,
         });
         id
@@ -380,8 +450,10 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
     pub generic_parameters: Vec<String>,
+    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,6 +461,7 @@ pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
     pub generic_parameters: Vec<String>,
+    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
     pub generic_arity: usize,
     pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,
@@ -396,7 +469,69 @@ pub struct TypeSymbol {
     pub variants: Vec<EnumVariantSignature>,
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
+    pub interface_conformances: Vec<InterfaceConformance>,
     pub drop_member: Option<DropSignature>,
+    pub literals: Vec<LiteralSignature>,
+    pub construction: ConstructionSurface,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstructionSurface {
+    pub declaration_span: Option<ByteSpan>,
+    pub entries: Vec<ConstructionEntry>,
+    pub default_entry: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstructionEntry {
+    pub kind: ConstructionEntryKind,
+    pub declaration_span: ByteSpan,
+    pub focus_span: ByteSpan,
+    pub is_accessible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConstructionEntryKind {
+    Structural,
+    Function(String),
+    Literal(LiteralShape),
+    Variant(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterfaceConformance {
+    pub declaration_span: ByteSpan,
+    pub generic_parameters: Vec<String>,
+    pub generic_parameter_bounds: Vec<Vec<TypeExpr>>,
+    pub interface_ty: TypeExpr,
+    pub target_ty: TypeExpr,
+    pub methods: Vec<MethodSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiteralSignature {
+    pub shape: LiteralShape,
+    pub visibility: Visibility,
+    pub is_accessible: bool,
+    pub declaration_span: ByteSpan,
+    pub shape_span: ByteSpan,
+    pub capture: Option<LiteralCaptureSignature>,
+    pub parameters: Vec<ParameterSignature>,
+    pub return_type: TypeExpr,
+    pub result_provenance: Option<ResultProvenanceClause>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiteralCaptureSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub element_type: TypeExpr,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LiteralResolution {
+    pub type_symbol: SymbolId,
+    pub literal_declaration_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -440,7 +575,8 @@ pub struct MethodSignature {
     pub visibility: Visibility,
     pub is_accessible: bool,
     pub impl_target_ty: Option<TypeExpr>,
-    pub receiver: ParameterSignature,
+    pub has_default_body: bool,
+    pub receiver: MethodReceiver,
     pub signature: FunctionSignature,
 }
 

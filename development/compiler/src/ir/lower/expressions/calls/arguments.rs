@@ -7,7 +7,26 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    lower_call_arguments_with_explicit_types(call, target, callee_name, context, temporaries, None)
+}
+
+pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
+    call: &CallExpr,
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    explicit_parameter_types: Option<&[TypeExpr]>,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let Some(parameter_types) = context.call_parameter_types(target) else {
+        if explicit_parameter_types.is_some() {
+            return Err(vec![Diagnostic::error(
+                "E8006",
+                format!(
+                    "IR cannot find the specialized signature for planned call `{callee_name}`"
+                ),
+            )]);
+        }
         return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
     let mut evaluation = CallEvaluationContext::new(context, temporaries)?;
@@ -18,7 +37,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
-                "IR v0 cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
+                "native lowering cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
                 argument_count,
                 parameter_types.len(),
             ),
@@ -34,7 +53,9 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             (
                 argument,
                 false,
-                context.call_argument_parameter_type_expr(call, index),
+                explicit_parameter_types
+                    .and_then(|types| types.get(index).cloned())
+                    .or_else(|| context.call_argument_parameter_type_expr(call, index)),
             )
         }));
     for ((argument, is_method_receiver, parameter_type_expr), parameter_type) in
@@ -128,7 +149,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             }
             Type::Aggregate { .. } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_payload_argument_source(
+                    lower_tracked_closure_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -136,6 +157,33 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_spread_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_interpolation_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_payload_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else if let Some(lowered) = lower_tracked_struct_argument_source(
                     argument,
@@ -158,6 +206,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                 } else {
                     lower_aggregate_argument_source(
                         argument,
+                        is_method_receiver,
                         parameter_type,
                         parameter_type_expr.as_ref(),
                         callee_name,
@@ -179,7 +228,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
             }
             Type::DirectAggregate { layout, words } => {
                 let (argument_instructions, source) = if let Some(lowered) =
-                    lower_tracked_payload_argument_source(
+                    lower_tracked_closure_argument_source(
                         argument,
                         parameter_type,
                         parameter_type_expr.as_ref(),
@@ -187,6 +236,33 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                         &mut evaluation,
                         temporaries,
                     )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_spread_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_interpolation_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
+                    lowered
+                } else if let Some(lowered) = lower_tracked_payload_argument_source(
+                    argument,
+                    parameter_type,
+                    parameter_type_expr.as_ref(),
+                    callee_name,
+                    &mut evaluation,
+                    temporaries,
+                )? {
                     lowered
                 } else if let Some(lowered) = lower_tracked_struct_argument_source(
                     argument,
@@ -209,6 +285,7 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                 } else {
                     lower_aggregate_argument_source(
                         argument,
+                        is_method_receiver,
                         parameter_type,
                         parameter_type_expr.as_ref(),
                         callee_name,
@@ -230,11 +307,18 @@ pub(in crate::ir::lower::expressions) fn lower_call_arguments(
                     words: *words,
                 }));
             }
-            Type::Void | Type::Never | Type::Fallible(_) => {
+            Type::Optional(_) | Type::Fallible(_) | Type::ComposedOutcome { .. } => {
+                arguments.push(lower_stored_outcome_argument(
+                    argument,
+                    parameter_type_expr.as_ref(),
+                    context,
+                )?);
+            }
+            Type::Void | Type::Never => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
-                        "IR v0 can only lower scalar call arguments for function `{callee_name}`, got `{}`",
+                        "native lowering can only lower scalar call arguments for function `{callee_name}`, got `{}`",
                         describe_type(parameter_type),
                     ),
                 )]);
@@ -322,7 +406,7 @@ fn lower_error_argument(
 fn unsupported_error_argument_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 cannot lower error argument for function `{callee_name}`"),
+        format!("native lowering cannot lower error argument for function `{callee_name}`"),
     )]
 }
 
@@ -364,7 +448,9 @@ fn unwrap_copy_move_argument(expression: &Expr) -> &Expr {
 fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        format!("IR v0 call argument ABI word count overflows for function `{callee_name}`"),
+        format!(
+            "native lowering call argument ABI word count overflows for function `{callee_name}`"
+        ),
     )]
 }
 
@@ -376,7 +462,7 @@ fn call_argument_abi_word_count_mismatch_diagnostic(
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 lowered call arguments for function `{callee_name}` into {actual} ABI words, but the resolved signature expects {expected}"
+            "native lowering produced {actual} argument ABI words for function `{callee_name}`, but the resolved signature expects {expected}"
         ),
     )]
 }

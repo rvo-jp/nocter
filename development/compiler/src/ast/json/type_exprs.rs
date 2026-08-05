@@ -3,6 +3,26 @@ use super::*;
 impl TypeExpr {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
+            TypeExpr::Callable(ty) => JsonAstNode::with_value(
+                "callable_type",
+                crate::ast::type_expr_display_lossy(self),
+                json_span(sources, ty.span),
+                ty.parameters
+                    .iter()
+                    .map(|parameter| parameter.ty.to_json(sources))
+                    .chain(std::iter::once(ty.return_type.to_json(sources)))
+                    .collect(),
+            ),
+            TypeExpr::Closure(ty) => JsonAstNode::with_value(
+                "anonymous_closure_type",
+                ty.identity_name(),
+                json_span(sources, ty.span),
+                ty.parameters
+                    .iter()
+                    .chain(std::iter::once(ty.return_type.as_ref()))
+                    .map(|ty| ty.to_json(sources))
+                    .collect(),
+            ),
             TypeExpr::Reference(ty) => JsonAstNode::with_value(
                 "type_reference",
                 ty.name.clone(),

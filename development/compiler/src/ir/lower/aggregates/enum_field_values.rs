@@ -91,7 +91,7 @@ pub(super) fn lower_enum_field_value_to_location(
                 subject,
                 context,
                 temporaries,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
             )
         }
         Expr::Force(force) => {
@@ -110,7 +110,7 @@ pub(super) fn lower_enum_field_value_to_location(
                 subject,
                 context,
                 temporaries,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {

@@ -29,8 +29,11 @@ impl Item {
                     item.generics.to_json(sources),
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
-                    item.body.to_json(sources),
                 ]);
+                if let Some(provenance) = &item.result_provenance {
+                    children.push(provenance.to_json(sources));
+                }
+                children.push(item.body.to_json(sources));
                 JsonAstNode::with_value(
                     "function_decl",
                     item.name.clone(),
@@ -46,6 +49,9 @@ impl Item {
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
                 ]);
+                if let Some(provenance) = &item.result_provenance {
+                    children.push(provenance.to_json(sources));
+                }
                 JsonAstNode::with_value(
                     "primitive_decl",
                     item.name.clone(),
@@ -126,6 +132,82 @@ impl Item {
                 ));
                 children.extend(item.members.iter().map(|member| member.to_json(sources)));
                 JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
+            }
+            Item::Construct(item) => {
+                let mut children = vec![item.target.to_json(sources)];
+                children.extend(item.members.iter().map(|member| {
+                    let mut member_children = Vec::new();
+                    if member.is_default() {
+                        member_children.push(JsonAstNode::new(
+                            "default_modifier",
+                            member
+                                .default_span
+                                .and_then(|span| json_span(sources, span)),
+                            Vec::new(),
+                        ));
+                    }
+                    let (kind, value, declaration_span) = match &member.declaration {
+                        ConstructMemberDecl::Function(function) => {
+                            member_children.extend([
+                                function.generics.to_json(sources),
+                                function.parameters.to_json(sources),
+                                function.return_type.to_json(sources),
+                            ]);
+                            if let Some(provenance) = &function.result_provenance {
+                                member_children.push(provenance.to_json(sources));
+                            }
+                            member_children.push(function.body.to_json(sources));
+                            (
+                                "construct_function_member",
+                                function.member_name.clone(),
+                                function.span,
+                            )
+                        }
+                        ConstructMemberDecl::Literal(literal) => {
+                            let mut parameters = literal
+                                .parameters
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.to_json(sources))
+                                .collect::<Vec<_>>();
+                            if let Some(capture) = &literal.capture {
+                                parameters.push(JsonAstNode::with_value(
+                                    "literal_capture",
+                                    capture.name.clone(),
+                                    json_span(sources, capture.span),
+                                    vec![capture.element_type.to_json(sources)],
+                                ));
+                            }
+                            member_children.extend([
+                                JsonAstNode::new(
+                                    "literal_parameter_list",
+                                    json_span(sources, literal.parameters.span),
+                                    parameters,
+                                ),
+                                literal.return_type.to_json(sources),
+                            ]);
+                            if let Some(provenance) = &literal.result_provenance {
+                                member_children.push(provenance.to_json(sources));
+                            }
+                            member_children.push(literal.body.to_json(sources));
+                            (
+                                "construct_literal_member",
+                                match literal.shape {
+                                    LiteralShape::Sequence => "sequence".to_string(),
+                                    LiteralShape::String => "string".to_string(),
+                                },
+                                literal.span,
+                            )
+                        }
+                    };
+                    JsonAstNode::with_value(
+                        kind,
+                        value,
+                        json_span(sources, declaration_span),
+                        member_children,
+                    )
+                }));
+                JsonAstNode::new("construct_decl", json_span(sources, item.span), children)
             }
         }
     }
@@ -218,10 +300,10 @@ impl GenericParamList {
 impl GenericParam {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let children = self
-            .bound
-            .as_ref()
-            .map(|bound| vec![bound.to_json(sources)])
-            .unwrap_or_default();
+            .bounds
+            .iter()
+            .map(|bound| bound.to_json(sources))
+            .collect();
         JsonAstNode::with_value(
             "generic_param",
             self.name.clone(),
@@ -249,14 +331,24 @@ impl MethodDecl {
     pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let mut children = vec![
             visibility_json(self.visibility),
-            JsonAstNode::new(
+            JsonAstNode::with_value(
                 "method_receiver",
+                self.receiver.mode.label(),
                 json_span(sources, self.receiver.span),
-                vec![self.receiver.to_json(sources)],
+                vec![JsonAstNode::with_value(
+                    "parameter",
+                    self.receiver.name.clone(),
+                    json_span(sources, self.receiver.name_span),
+                    Vec::new(),
+                )],
             ),
+            self.generics.to_json(sources),
             self.parameters.to_json(sources),
             self.return_type.to_json(sources),
         ];
+        if let Some(provenance) = &self.result_provenance {
+            children.push(provenance.to_json(sources));
+        }
         if let Some(body) = &self.body {
             children.push(body.to_json(sources));
         }
@@ -270,6 +362,26 @@ impl MethodDecl {
             self.name.clone(),
             json_span(sources, self.span),
             children,
+        )
+    }
+}
+
+impl ResultProvenanceClause {
+    pub(super) fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::new(
+            "result_provenance",
+            json_span(sources, self.span),
+            self.origins
+                .iter()
+                .map(|origin| {
+                    JsonAstNode::with_value(
+                        "result_provenance_origin",
+                        origin.kind.source_label(),
+                        json_span(sources, origin.span),
+                        Vec::new(),
+                    )
+                })
+                .collect(),
         )
     }
 }

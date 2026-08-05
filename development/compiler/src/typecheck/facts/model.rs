@@ -5,14 +5,15 @@ pub(crate) struct TypecheckFacts {
     pub(super) binding_type_labels: HashMap<ByteSpan, String>,
     pub(super) binding_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) expression_type_exprs: HashMap<ByteSpan, TypeExpr>,
+    pub(super) interpolation_plans: HashMap<ByteSpan, TypecheckInterpolationPlan>,
+    pub(super) collection_for_plans: HashMap<ByteSpan, TypecheckCollectionForPlan>,
+    pub(super) sequence_spread_plans: HashMap<ByteSpan, TypecheckSequenceSpreadPlan>,
+    pub(super) closure_plans: HashMap<ByteSpan, TypecheckClosurePlan>,
     pub(super) binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     pub(super) binding_readonly: HashMap<ByteSpan, bool>,
     pub(super) payload_binding_modes: HashMap<ByteSpan, TypecheckPayloadBindingMode>,
-    pub(super) declaration_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) call_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) field_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) enum_variant_hover_labels: HashMap<ByteSpan, String>,
-    pub(super) type_references: Vec<TypeReferenceFact>,
+    pub(super) type_occurrences: Vec<TypeOccurrenceFact>,
+    pub(super) generic_parameter_declarations: Vec<GenericParameterFact>,
     pub(super) field_targets: HashMap<ByteSpan, ByteSpan>,
     pub(super) field_type_exprs: HashMap<ByteSpan, TypeExpr>,
     pub(super) field_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
@@ -26,6 +27,7 @@ pub(crate) struct TypecheckFacts {
     pub(super) function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     pub(super) generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
     pub(super) method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
+    pub(super) callable_calls: HashMap<ByteSpan, CallableCallFact>,
     pub(super) drop_type_specializations: Vec<DropTypeSpecialization>,
     pub(super) field_drop_type_specializations: HashMap<ByteSpan, DropTypeSpecialization>,
 }
@@ -39,8 +41,51 @@ impl TypecheckFacts {
         self.binding_type_exprs.get(&name_span)
     }
 
+    pub(crate) fn binding_type_expr_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &TypeExpr)> + '_ {
+        self.binding_type_exprs.iter().map(|(span, ty)| (*span, ty))
+    }
+
     pub(crate) fn expression_type_expr(&self, expression_span: ByteSpan) -> Option<&TypeExpr> {
         self.expression_type_exprs.get(&expression_span)
+    }
+
+    pub(crate) fn interpolation_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<&TypecheckInterpolationPlan> {
+        self.interpolation_plans.get(&expression_span)
+    }
+
+    pub(crate) fn collection_for_plan(
+        &self,
+        statement_span: ByteSpan,
+    ) -> Option<&TypecheckCollectionForPlan> {
+        self.collection_for_plans.get(&statement_span)
+    }
+
+    pub(crate) fn collection_for_plans(
+        &self,
+    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckCollectionForPlan)> {
+        self.collection_for_plans.iter()
+    }
+
+    pub(crate) fn sequence_spread_plan(
+        &self,
+        spread_span: ByteSpan,
+    ) -> Option<&TypecheckSequenceSpreadPlan> {
+        self.sequence_spread_plans.get(&spread_span)
+    }
+
+    pub(crate) fn sequence_spread_plans(
+        &self,
+    ) -> impl Iterator<Item = (&ByteSpan, &TypecheckSequenceSpreadPlan)> {
+        self.sequence_spread_plans.iter()
+    }
+
+    pub(crate) fn closure_plan(&self, expression_span: ByteSpan) -> Option<&TypecheckClosurePlan> {
+        self.closure_plans.get(&expression_span)
     }
 
     pub(crate) fn binding_scalar_view_kind(
@@ -61,49 +106,20 @@ impl TypecheckFacts {
         self.payload_binding_modes.get(&name_span).copied()
     }
 
-    pub(crate) fn declaration_hover_label(&self, name_span: ByteSpan) -> Option<&str> {
-        self.declaration_hover_labels
-            .get(&name_span)
-            .map(String::as_str)
+    pub(crate) fn type_occurrences(&self) -> impl Iterator<Item = &TypeOccurrenceFact> + '_ {
+        self.type_occurrences.iter()
     }
 
-    pub(crate) fn call_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.call_hover_labels
+    pub(crate) fn generic_parameter_declarations(
+        &self,
+    ) -> impl Iterator<Item = &GenericParameterFact> + '_ {
+        self.generic_parameter_declarations.iter()
+    }
+
+    pub(crate) fn generic_parameter(&self, span: ByteSpan) -> Option<&GenericParameterFact> {
+        self.generic_parameter_declarations
             .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn field_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.field_hover_labels
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn enum_variant_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
-        self.enum_variant_hover_labels
-            .iter()
-            .filter(|(span, _)| span_contains(**span, offset))
-            .min_by_key(|(span, _)| (span.len(), span.start))
-            .map(|(span, label)| (*span, label.as_str()))
-    }
-
-    pub(crate) fn type_reference_at_offset(&self, offset: usize) -> Option<&TypeReferenceFact> {
-        self.type_references
-            .iter()
-            .filter(|reference| span_contains(reference.span, offset))
-            .min_by_key(|reference| (reference.span.len(), reference.span.start))
-    }
-
-    pub(crate) fn type_reference_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
-        self.type_references.iter().map(|reference| reference.span)
-    }
-
-    pub(crate) fn type_references(&self) -> impl Iterator<Item = &TypeReferenceFact> + '_ {
-        self.type_references.iter()
+            .find(|parameter| parameter.span == span)
     }
 
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -210,6 +226,16 @@ impl TypecheckFacts {
             .map(|(span, specialization)| (*span, specialization))
     }
 
+    pub(crate) fn callable_call(&self, call_span: ByteSpan) -> Option<&CallableCallFact> {
+        self.callable_calls.get(&call_span)
+    }
+
+    pub(crate) fn callable_call_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &CallableCallFact)> + '_ {
+        self.callable_calls.iter().map(|(span, fact)| (*span, fact))
+    }
+
     pub(crate) fn drop_type_specializations(
         &self,
     ) -> impl Iterator<Item = &DropTypeSpecialization> + '_ {
@@ -273,6 +299,180 @@ impl TypecheckFacts {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckClosurePlan {
+    pub(crate) expression_span: ByteSpan,
+    pub(crate) ty: crate::ast::ClosureTypeExpr,
+    pub(crate) target_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckInterpolationPlan {
+    pub(crate) string_type_declaration: ByteSpan,
+    pub(crate) constructor: crate::semantics::RuntimeCallable,
+    pub(crate) parts: Vec<TypecheckInterpolationPart>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckInterpolationPart {
+    pub(crate) span: ByteSpan,
+    pub(crate) expression_span: Option<ByteSpan>,
+    pub(crate) input: crate::semantics::InterpolationInputKind,
+    pub(crate) formatter: crate::semantics::RuntimeCallable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckCollectionForSourceMode {
+    Direct,
+    ReadonlyConversion,
+    OwnedConversion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckIterationMethod {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
+    pub(crate) self_ty: TypeExpr,
+    pub(crate) receiver_mode: crate::ast::MethodReceiverMode,
+    pub(super) method_name: String,
+    pub(super) free_type_parameters: HashSet<String>,
+}
+
+impl TypecheckIterationMethod {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let self_ty = substitute_type_expr_parameters(&self.self_ty, context_substitutions);
+        if type_expr_contains_free_parameters(&self_ty, &self.free_type_parameters) {
+            return None;
+        }
+        Some(Self {
+            declaration_span: self.declaration_span,
+            target_name: method_target_name_from_self_ty(&self_ty, &self.method_name),
+            self_ty,
+            receiver_mode: self.receiver_mode,
+            method_name: self.method_name.clone(),
+            free_type_parameters: HashSet::new(),
+        })
+    }
+
+    pub(crate) fn as_method_call_specialization(
+        &self,
+        generic_parameters: Vec<String>,
+        substitutions: HashMap<String, TypeExpr>,
+    ) -> MethodCallSpecialization {
+        MethodCallSpecialization {
+            declaration_span: self.declaration_span,
+            method_name: self.method_name.clone(),
+            target_name: self.target_name.clone(),
+            self_ty: self.self_ty.clone(),
+            generic_parameters,
+            substitutions,
+            free_type_parameters: self.free_type_parameters.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckCollectionForPlan {
+    pub(crate) binding_span: ByteSpan,
+    pub(crate) source_span: ByteSpan,
+    pub(crate) source_mode: TypecheckCollectionForSourceMode,
+    pub(crate) source_type: TypeExpr,
+    pub(crate) iterator_type: TypeExpr,
+    pub(crate) item_type: TypeExpr,
+    pub(crate) conversion: Option<TypecheckIterationMethod>,
+    pub(crate) step: TypecheckIterationMethod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckSequenceSpreadMode {
+    Copy,
+    Readonly,
+    Move,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TypecheckSequenceSpreadPlan {
+    pub(crate) spread_span: ByteSpan,
+    pub(crate) operator_span: ByteSpan,
+    pub(crate) source_span: ByteSpan,
+    pub(crate) mode: TypecheckSequenceSpreadMode,
+    pub(crate) source_mode: TypecheckCollectionForSourceMode,
+    pub(crate) source_type: TypeExpr,
+    pub(crate) iterator_type: TypeExpr,
+    pub(crate) iterator_item_type: TypeExpr,
+    pub(crate) pack_item_type: TypeExpr,
+    pub(crate) conversion: Option<TypecheckIterationMethod>,
+    pub(crate) exact_size: TypecheckIterationMethod,
+    pub(crate) step: TypecheckIterationMethod,
+}
+
+impl TypecheckSequenceSpreadPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            spread_span: self.spread_span,
+            operator_span: self.operator_span,
+            source_span: self.source_span,
+            mode: self.mode,
+            source_mode: self.source_mode,
+            source_type: substitute_type_expr_parameters(&self.source_type, context_substitutions),
+            iterator_type: substitute_type_expr_parameters(
+                &self.iterator_type,
+                context_substitutions,
+            ),
+            iterator_item_type: substitute_type_expr_parameters(
+                &self.iterator_item_type,
+                context_substitutions,
+            ),
+            pack_item_type: substitute_type_expr_parameters(
+                &self.pack_item_type,
+                context_substitutions,
+            ),
+            conversion: match &self.conversion {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            exact_size: self
+                .exact_size
+                .with_context_substitutions(context_substitutions)?,
+            step: self
+                .step
+                .with_context_substitutions(context_substitutions)?,
+        })
+    }
+}
+
+impl TypecheckCollectionForPlan {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        Some(Self {
+            binding_span: self.binding_span,
+            source_span: self.source_span,
+            source_mode: self.source_mode,
+            source_type: substitute_type_expr_parameters(&self.source_type, context_substitutions),
+            iterator_type: substitute_type_expr_parameters(
+                &self.iterator_type,
+                context_substitutions,
+            ),
+            item_type: substitute_type_expr_parameters(&self.item_type, context_substitutions),
+            conversion: match &self.conversion {
+                Some(method) => Some(method.with_context_substitutions(context_substitutions)?),
+                None => None,
+            },
+            step: self
+                .step
+                .with_context_substitutions(context_substitutions)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TypecheckPayloadBindingMode {
     Copy,
@@ -307,11 +507,23 @@ pub(crate) enum TypecheckMethodReceiverKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TypeReferenceFact {
+pub(crate) struct TypeOccurrenceFact {
+    pub(crate) focus_span: ByteSpan,
+    pub(crate) contextual_type: TypeExpr,
+    pub(crate) target: Option<TypeOccurrenceTarget>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypeOccurrenceTarget {
+    Declaration(ByteSpan),
+    GenericParameter(ByteSpan),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GenericParameterFact {
     pub(crate) name: String,
     pub(crate) span: ByteSpan,
-    pub(crate) symbol_name_span: Option<ByteSpan>,
-    pub(crate) symbol_declaration_span: Option<ByteSpan>,
+    pub(crate) bounds: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -363,7 +575,7 @@ impl FunctionCallSpecialization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MethodCallSpecialization {
     pub(crate) declaration_span: ByteSpan,
-    pub(super) method_name: String,
+    pub(crate) method_name: String,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
     pub(super) generic_parameters: Vec<String>,

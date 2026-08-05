@@ -134,9 +134,13 @@ Rules:
 
 ### String and Formatting API Boundary
 
+The signatures in the first block below are the released v0.2.0 surface. v0.3.0
+Phase 0 migrates allocation-only failure to paired normal and `try_*` APIs over
+the same implementation. I/O and other recoverable errors remain fallible.
+
 Adopted: the initial owning-string and formatting boundary is split between `std/string` and `std/fmt`.
 
-Initial `std/string` public surface:
+Released v0.2.0 `std/string` public surface:
 
 ```nct
 pub struct String {
@@ -177,17 +181,23 @@ impl String {
 Initial `std/fmt` public surface:
 
 ```nct
-pub func append_str(out: &+String, value: &str): void!
-pub func append_string(out: &+String, value: &String): void!
-pub func append_i32(out: &+String, value: i32): void!
-pub func append_usize(out: &+String, value: usize): void!
-pub func append_bool(out: &+String, value: bool): void!
+pub func append_str(out: &+String, value: &str): void
+pub func append_string(out: &+String, value: &String): void
+pub func append_i32(out: &+String, value: i32): void
+pub func append_u8(out: &+String, value: u8): void
+pub func append_usize(out: &+String, value: usize): void
+pub func append_bool(out: &+String, value: bool): void
+
+pub func try_append_str(out: &+String, value: &str): void!
+pub func try_append_string(out: &+String, value: &String): void!
+// `try_append_*` also covers `i32`, `u8`, `usize`, and `bool` above.
 ```
 
 Rules:
 
 - These functions are ordinary standard-library APIs, not compiler built-ins.
-- Fallible functions fail with the built-in `error` payload. `std/string` and `std/fmt` must not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
+- `try_append_*` functions fail with the built-in `error` payload. `std/string` and `std/fmt` must
+  not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
 - `std/string.with_capacity` and `std/string.from_str` take an explicit `&+Allocator`.
 - Every `String` stores its allocator provenance in a private `RawBuffer`. `String.empty()` binds a
   canonical zero-sized buffer to the page allocator; `with_capacity(allocator, 0)` retains the
@@ -196,15 +206,34 @@ Rules:
   pointer, contents, length, and capacity unchanged.
 - `String` storage is released by recursive deterministic drop of its private `RawBuffer`; string
   code does not call target page allocation or release primitives directly.
-- The formatting append functions operate on an already-created `String`; they do not choose an allocator.
-- Future lowering for string interpolation must be expressed in terms of explicit `String` construction and `std/fmt.append_*` calls. It must not silently choose a process-global allocator.
+- The formatting append functions operate on an already-created `String`; they do not choose an
+  allocator. Normal `append_*` operations adapt the shared `try_append_*` core and terminate on
+  allocation failure.
+- v0.3.0 interpolation lowering uses ordinary `String` and `std/fmt`
+  operations with the statically propagated current allocation context. It must
+  not read a mutable process-global allocator.
 - `std/fmt` is not part of the initial prelude. User code imports it explicitly unless future prelude policy changes.
 - Module-local helpers such as formatting `unsupported` errors are not public
   API unless explicitly listed in this chapter.
 
+The v0.3.0 target pairs these policy surfaces:
+
+| Aborting current-context operation | Recoverable explicit operation |
+|---|---|
+| `String.with_capacity(capacity): String` | `String.try_with_capacity(allocator, capacity): String!` |
+| `String.copy(value): String` | `String.try_copy(allocator, value): String!` |
+| `text.reserve(additional): void` | `text.try_reserve(additional): void!` |
+| `text.push_str(value): void` | `text.try_push_str(value): void!` |
+
+Both columns preserve the same buffer and publication invariants. The normal
+column aborts without unwinding on allocation failure. The recoverable column
+returns a stable `std.mem.*` error and leaves the old value unchanged.
+
 ### Memory and Allocator API
 
-Adopted: v0.2.0 exposes a small explicit allocator surface in `std/mem`.
+v0.2.0 exposes the explicit fallible surface below. v0.3.0 retains it as the
+implementation baseline while introducing `TryAllocator` as the recoverable
+capability and `Allocator` as its aborting adapter.
 
 Initial public surface:
 
@@ -226,7 +255,9 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
-pub func Layout.new(size: usize, align: usize): Layout!
+construct Layout {
+    pub default func new(size: usize, align: usize): Self!
+}
 pub func layout(size: usize, align: usize): Layout!
 pub func layout_size(value: &Layout): usize
 pub func layout_align(value: &Layout): usize
@@ -262,7 +293,8 @@ impl RawBuffer {
 
 Rules:
 
-- Allocation failure is recoverable and returns the built-in `error` payload.
+- The released v0.2.0 operations return allocation errors. In the v0.3.0
+  target, `try_*` operations retain that behavior and normal operations abort.
 - The initial allocator is page-backed. General allocator families are deferred.
 - Layout alignment is a non-zero supported power of two; zero-sized layouts produce canonical empty buffers without an OS allocation.
 - Growth is failure-atomic and preserves the old buffer when allocation fails.
@@ -281,7 +313,7 @@ Rules:
 Adopted: `std/vec` provides the initial owned variable-length collection type.
 `Vec<T>` is an ordinary standard-library type, not a compiler built-in.
 
-Initial public surface:
+Released v0.2.0 public surface:
 
 ```nct
 pub struct Vec<T> {
@@ -340,13 +372,111 @@ Rules:
   elements may own nested values and are destroyed recursively.
 - `push` transfers a non-copy argument into the initialized prefix only after reserve succeeds.
   `pop` transfers the last initialized element to its return value before shrinking that prefix.
-- Payload-enum element storage, arbitrary-position insertion/removal, and iterator helpers are
-  deferred.
+- Payload-enum element storage is deferred. Arbitrary-position insertion/removal and iterator
+  helpers are absent from the released v0.2.0 surface and added by v0.3.0 Phase 2 below.
 - `check` may accept `Vec<T>` APIs outside the runtime-supported element subset
   when they typecheck. `build` and `run` must reject unsupported `Vec<T>` element
-  storage paths during v0 buildability validation.
+  storage paths during v0.2.0 buildability validation.
 - `clear` and vector drop destroy every initialized element exactly once in reverse order.
 - `view` and `view_mut` expose slices over initialized elements only.
+
+The v0.3.0 target pairs normal current-context construction and growth with
+explicit recoverable operations:
+
+| Aborting current-context operation | Recoverable explicit operation |
+|---|---|
+| `Vec.with_capacity<T>(capacity): Vec<T>` | `Vec.try_with_capacity<T>(allocator, capacity): Vec<T>!` |
+| `Vec.from_slice<T>(values): Vec<T>` | `Vec.try_from_slice<T>(allocator, values): Vec<T>!` |
+| `values.reserve(additional): void` | `values.try_reserve(additional): void!` |
+| `values.push(value): void` | `values.try_push(value): void!` |
+
+Normal and recoverable operations share layout calculation, relocation,
+partial-initialization, and drop-obligation code.
+
+v0.3.0 Phase 2 adds checked borrowed access and dense ownership-preserving mutation:
+
+```nct
+impl<T> Vec<T> {
+    pub method &self.get(index: usize): (&T)? from self
+    pub method &+self.get_mut(index: usize): (&+T)?
+    pub method &+self.insert(index: usize, value: T): void
+    pub method &+self.try_insert(index: usize, value: T): void!
+    pub method &+self.remove(index: usize): T?
+    pub method &self.iter(): ViewIter<T>
+    pub method self.into_iter(): VecIntoIter<T>
+}
+```
+
+`try_insert` validates bounds and completes capacity growth before shifting any element. Failure
+leaves pointer, length, capacity, content, and storage origin unchanged. After growth succeeds,
+insert and remove relocate move-only values through one transient hole with no fallible call or
+externally observable edge. `ViewIter<T>` returns `(&T)?` tied to source storage;
+`VecIntoIter<T>` owns transferred storage and returns `T?` in source order.
+
+v0.3.0 Phase 4 adds a small shared readonly contract in `std/sequence`:
+
+```nct
+pub interface Sequence<T> {
+    pub method &self.len(): usize
+    pub method &self.get(index: usize): (&T)? from self
+}
+
+pub func first<S: Sequence<T>, T>(values: &S): (&T)? from values
+```
+
+`Vec<T>` explicitly implements `Sequence<T>`. `first` allocates nothing and returns an exact borrow
+of the source sequence's storage. Calls through `Sequence<T>` are monomorphized to public inherent
+methods; the interface has no runtime representation.
+
+v0.3.0 Phase 7 adds ordinary iteration protocols in `std/iter`:
+
+```nct
+pub interface Iterator<T> {
+    pub method &+self.next(): T?
+}
+
+pub interface Iterable<T, I> {
+    pub method &self.iter(): I
+}
+
+pub interface IntoIterator<T, I> {
+    pub method self.into_iter(): I
+}
+```
+
+`ViewIter<T>` yields `&T`; `VecIntoIter<T>` owns transferred vector storage and yields `T`.
+Collection `for` and sequence spread resolve these interfaces through explicit conformance and
+static specialization. They do not recognize iterator or method names.
+
+v0.3.0 Phase 8 adds the exact-count capability required by non-materialized literal packs:
+
+```nct
+pub interface ExactSizeIterator<T> {
+    pub method &self.remaining_len(): usize
+}
+```
+
+Both standard vector iterators conform to `ExactSizeIterator<T>` with their corresponding yielded
+item type. `remaining_len()` reports the exact unconsumed suffix. Sequence spread calls it once
+before literal-body execution and caches the checked total; iteration still terminates only through
+`Iterator.next()`.
+
+v0.3.0 Phase 9 adds allocation-transparent iterator composition. Focused modules
+`std/iter/sources`, `std/iter/range`, `std/iter/chain`, `std/iter/enumerate`, and `std/iter/ops`
+provide `empty`, `once`, `take`, `skip`, `chain`, `enumerate`, `count`, and `last`. Adapters own
+their input iterator, yield in source order, and never create an implicit collection or runtime
+interface object.
+`enumerate` yields `Indexed<T>` values with public `index` and `item` fields.
+
+Exact-size conformance is conditional. `empty` and `once` are exact unconditionally; `take`, `skip`,
+and `enumerate` preserve an input's exactness; `chain` is exact only when both inputs are exact.
+Iteration still stops through `next()`, and a reported exact count is never used for unchecked
+element access.
+
+`Vec.from_iter` consumes an arbitrary `Iterator<T>` through ordinary checked vector growth.
+`Vec.from_exact_iter` additionally requires `ExactSizeIterator<T>` and performs one initial exact
+reservation. Early exhaustion yields a shorter valid vector, while excess items continue through
+checked growth. Neither API materializes an intermediate collection.
 
 ### I/O API
 
@@ -360,7 +490,9 @@ pub struct File {
 }
 
 pub func open(path: &str): File!
-pub func File.open(path: &str): File!
+construct File {
+    pub default func open(path: &str): Self!
+}
 pub func read(file: &+File, buffer: &+[u8]): usize!
 pub func write(file: &+File, bytes: &[u8]): void!
 pub func write_text(file: &+File, text: &str): void!
@@ -387,7 +519,7 @@ Rules:
 - `File` is a move-only standard-library type with private representation.
 - `open`, `read`, `write`, and `write_text` are ordinary free-function
   wrappers around the associated function or methods.
-- `File.open(path)` opens an existing file for reading in v0.
+- `File.open(path)` opens an existing file for reading in v0.2.0.
 - File creation, append, truncate, read-write modes, and open options are deferred.
 - `File.open(path)` maps path-related OS errors into `"std.io.not_found"`, `"std.io.permission_denied"`, or `"std.io.invalid_path"` when the target can classify them.
 - `read(buffer)` reads into a writable byte view and returns the number of bytes read.
@@ -424,7 +556,7 @@ std/os.syscall3
     -> error
 ```
 
-Not adopted in v0:
+Not adopted in v0.2.0:
 
 - buffered I/O
 - async I/O
@@ -440,7 +572,7 @@ Not adopted in v0:
 
 Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not entry function parameters.
 
-Initial public surface:
+Released v0.2.0 public surface:
 
 ```nct
 pub func args(): Vec<&str>!
@@ -450,19 +582,19 @@ pub func exit(code: i32): never
 pub func abort(): never
 ```
 
-V0 distribution status:
+v0.2.0 distribution status:
 
 - `exit(code)` and `abort()` are runtime-shipped.
 - `cwd(allocator)` is runtime-shipped on `arm64-darwin` through the standard-library syscall boundary and returns caller-owned `String` storage.
 - `args()` is runtime-shipped on `arm64-darwin` and returns an owned `Vec<&str>` whose string views point into process context storage.
 - `env(name)` reserves the future `&str?!` API shape, but useful runtime behavior is check-only until nested fallible/optional return lowering and process context runtime are promoted. It must not silently succeed with `none` before environment access is implemented.
 - During the check-only period, `check` accepts calls to `env(name)` for
-  source-level validation, while `build` and `run` reject them during v0
+  source-level validation, while `build` and `run` reject them during v0.2.0
   buildability validation.
 
-Rules:
+v0.2.0 rules:
 
-- Entry function type parameters and value parameters, such as `func main<T>(): i32!` and `func main(args: Vec<&str>): i32!`, are not part of v0.
+- Entry function type parameters and value parameters, such as `func main<T>(): i32!` and `func main(args: Vec<&str>): i32!`, are not part of v0.2.0.
 - The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
 - The generated low-level entry code may receive platform process entry information such as `argc`, `argv`, and `envp`.
 - That platform information is connected to a `std/process` process context inside the active target implementation.
@@ -471,7 +603,7 @@ Rules:
 - `args()` returns an owned `Vec<&str>` of borrowed string slices on success.
 - The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
 - The `env(name)` runtime behavior rules below are the contract for the future
-  promoted implementation. During the v0 check-only period, `build` and `run`
+  promoted implementation. During the v0.2.0 check-only period, `build` and `run`
   reject `env(name)` before lowering.
 - `env(name)` has type `&str?!`.
 - `env(name)` succeeds with `none` when the variable is absent.
@@ -484,10 +616,45 @@ Rules:
 - The `cwd(allocator)` result is owned by the caller and must be dropped normally.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
 - Target implementations must validate argument and environment strings before exposing them as `&str`.
-- The v0 `arm64-darwin` `cwd(allocator)` implementation treats the path returned by `F_GETPATH` as platform UTF-8 text; byte-to-UTF-8 validation for targets that expose arbitrary path bytes remains future std work.
+- The v0.2.0 `arm64-darwin` `cwd(allocator)` implementation treats the path returned by `F_GETPATH` as platform UTF-8 text; byte-to-UTF-8 validation for targets that expose arbitrary path bytes remains future std work.
 - `args()` fails with `"std.process.invalid_encoding"` if any returned argument cannot be represented as UTF-8.
 - `env(name)` fails with `"std.process.invalid_encoding"` if the matching environment value exists but cannot be represented as UTF-8.
 - Future target implementations of `cwd(allocator)` must fail with `"std.process.invalid_encoding"` if their current-working-directory source can contain non-UTF-8 bytes and validation fails.
+
+In the v0.3.0 target, allocating process functions use the current aborting
+allocation context. `cwd(): String!` remains fallible for OS and encoding
+errors, but allocation failure terminates. A recoverable-memory variant, if
+needed, takes a `TryAllocator` explicitly and preserves the same OS error
+identity.
+
+Nocter v0.3.0 implements the executable process-context surface below:
+
+```nct
+pub func args(): Vec<&str>! from current | static
+pub func env(name: &str): &str?! from static
+pub func cwd(): String! from current
+pub func try_cwd(allocator: &+TryAllocator): String! from allocator
+```
+
+v0.3.0 Phase 5 rules:
+
+- the generated Darwin entry boundary retains `argc`, `argv`, and `envp` before entering ordinary
+  Nocter code
+- `args()` allocates its `Vec` in the current aborting allocation context; its `&str` elements view
+  process-lifetime storage
+- `args()` returns `"std.process.invalid_encoding"` if any argument is not valid UTF-8
+- `env(name)` returns a process-lifetime view for an exact present name and successful `none` for an
+  absent name
+- an empty name, a name containing NUL or `=`, or invalid UTF-8 in a requested name or host entry
+  returns `"std.process.invalid_encoding"`
+- `cwd()` returns current-context-owned `String` storage; allocation failure terminates, while OS
+  and encoding failures remain recoverable
+- `try_cwd(allocator)` derives its result from `allocator`; allocator and OS failures remain
+  recoverable and do not publish a partial result
+- compiler buildability and lowering depend on resolved outcome shapes and declaration identities,
+  not the spelling `std/process.env`
+
+These v0.3.0 rules do not retroactively alter the v0.2.0 runtime contract.
 
 Example:
 
@@ -535,7 +702,7 @@ Rules:
 
 ### Pointer API
 
-Adopted: v0 exposes only a narrow raw-pointer surface.
+Adopted: v0.2.0 exposes only a narrow raw-pointer surface.
 
 Initial public surface:
 
@@ -609,7 +776,7 @@ Initial policy:
 - A primitive declaration uses normal Nocter parameter and return types.
 - Target-independent declarations do not use `#target`.
 - Target-dependent type declarations, helper functions, and primitive declarations must be preceded by `#target("target-name")`.
-- `#target` applies only to top-level function, primitive, struct, enum, interface, and type-alias declarations in v0.
+- `#target` applies only to top-level function, primitive, struct, enum, interface, and type-alias declarations in v0.2.0.
 - `target` is not a reserved keyword; it is treated as the directive name only after `#`.
 - Primitive calls follow normal visibility rules. A `pub` primitive may be called by any module that can import it. A `pub(nocter)` primitive may be called only inside the active Nocter home.
 - Primitive calls follow the Nocter ABI after visibility and trusted-boundary restrictions pass.
@@ -617,14 +784,14 @@ Initial policy:
 - The compiler validates primitives by module path, name, and exact signature.
 - An ordinary `func` with the same name as a primitive has no primitive behavior.
 - Standard-library wrappers should expose user-facing APIs such as `exit`, `write`, `write_text`, `alloc`, and `free`.
-- `print`, `exit`, `abort`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.
-- General user code cannot declare primitives in v0. The long-term default direction is that user project modules do not declare primitives.
+- `print`, `exit`, `abort`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.2.0.
+- General user code cannot declare primitives in v0.2.0. The long-term default direction is that user project modules do not declare primitives.
 - General user code can call only the small public primitive APIs intentionally exposed by the standard library, such as safe raw-pointer address conversion. Target syscall primitives are `pub(nocter)`.
 - Arbitrary inline `asm` is not part of the initial language.
 
 ### Trusted Boundary
 
-Adopted: v0 has no `unsafe` keyword, no `unsafe` block, and no `unsafe func`.
+Adopted: v0.2.0 has no `unsafe` keyword, no `unsafe` block, and no `unsafe func`.
 
 Instead, the trusted boundary is the active Nocter home:
 
@@ -634,9 +801,9 @@ Instead, the trusted boundary is the active Nocter home:
 
 Rules:
 
-- User project modules are always safe Nocter code in v0.
-- `unsafe` is not a reserved keyword in v0.
-- `trusted` is not a reserved keyword in v0.
+- User project modules are always safe Nocter code in v0.2.0.
+- `unsafe` is not a reserved keyword in v0.2.0.
+- `trusted` is not a reserved keyword in v0.2.0.
 - Modules inside the active Nocter home may contain primitive declarations when those declarations match the closed primitive set.
 - Modules inside the active Nocter home may call `pub(nocter)` primitive declarations.
 - Modules inside the active Nocter home may call restricted low-level APIs such as `std/ptr.from_addr`.
@@ -710,7 +877,7 @@ pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize)
 view construction helpers are `pub(nocter)` and therefore restricted to trusted
 modules inside the active Nocter home. User project modules must not call them.
 Calls to `from_addr` with an address expression statically known to be zero are
-rejected because v0 raw pointers are non-null.
+rejected because v0.2.0 raw pointers are non-null.
 
 Initial core string primitive set:
 
@@ -720,7 +887,7 @@ pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 `bytes_from_str` is `pub(nocter)` and is exposed to user code only through ordinary standard-library wrappers such as `std/string.bytes` and `text.bytes()`.
 
-Initial `arm64-darwin` target primitive set v0:
+Initial `arm64-darwin` target primitive set v0.2.0:
 
 ```nct
 #target("arm64-darwin")
@@ -787,7 +954,7 @@ std/process
 
 An ordinary function named `syscall3` elsewhere is not primitive.
 
-`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. The `std/io.*_raw` and `std/process.exit_raw` primitives are narrow bootstrap boundaries for shipped v0 I/O and process termination before all wrappers can be expressed through the ordinary `SyscallResult` path. Longer term, target-gated std internals may replace direct syscall exposure and these raw primitives with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
+`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. The `std/io.*_raw` and `std/process.exit_raw` primitives are narrow bootstrap boundaries for shipped v0.2.0 I/O and process termination before all wrappers can be expressed through the ordinary `SyscallResult` path. Longer term, target-gated std internals may replace direct syscall exposure and these raw primitives with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
 
 ### Typed Primitive Wrappers
 
@@ -814,7 +981,7 @@ pub method &+self.write(bytes: &[u8]): void! {
 Rules:
 
 - Adding a file API, process API, allocator API, string API, buffer API, or OS wrapper must not require adding a compiler primitive.
-- The existing `std/io.*_raw` and `std/process.exit_raw` primitives are v0 bootstrap exceptions for shipped I/O and process termination, not a precedent for adding one primitive per standard-library API.
+- The existing `std/io.*_raw` and `std/process.exit_raw` primitives are v0.2.0 bootstrap exceptions for shipped I/O and process termination, not a precedent for adding one primitive per standard-library API.
 - Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in target-gated std internals, not in the compiler's general language semantics.
 - The compiler validates the existing primitive declarations by module path, name, and exact signature.
 - An ordinary wrapper name such as `open_file_raw`, `write_fd_raw`, `mmap_raw`, or `exit_process` has no compiler-defined behavior.

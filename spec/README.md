@@ -16,7 +16,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 - [Design Principles](00-design-principles.md)
 - [Overview](00-overview.md)
-- [Nocter v0 Contract](00-v0-contract.md)
+- [Nocter v0.2.0 Language Contract](00-v0.2.0-contract.md)
 - [Modules and Use Declarations](01-modules-use.md)
 - [Values and Types](02-values-types.md)
 - [Control Flow](03-control-flow.md)
@@ -33,12 +33,22 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Tooling and Editor Integration](14-tooling-editor-integration.md)
 - [Command Line Interface](15-command-line-interface.md)
 - [Source Style and Formatting](16-source-style-formatting.md)
-- [Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+- [Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
+- [Callable Values and Interface Default Methods](18-callables-default-methods.md)
+- [Construction Surfaces](19-construction-surfaces.md)
 
 ## Supporting Material
 
 - [AI Guide](guides/ai.md)
 - [Example Corpus](examples/)
+
+## Version Status
+
+The implemented and released language baseline is v0.3.0. Its Phase 0 through Phase 10 contracts
+and release qualification are recorded in the
+[v0.3.0 Release Record](../development/docs/v0.3.0.md). The
+[v0.2.0 Language Contract](00-v0.2.0-contract.md) remains an immutable historical boundary. A
+future design is not buildable until its own stated implementation gate passes.
 
 ## Editing Policy
 

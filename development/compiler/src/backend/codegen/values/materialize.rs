@@ -54,7 +54,16 @@ impl EntryEmitter {
         match value {
             UsizeValue::Const(value) => emit_mov_u64_to_x(&mut self.encoder, destination, *value),
             UsizeValue::ProcessArgCount => {
-                self.encoder.emit_ldr_x_imm(destination, XReg::X19, 0);
+                self.encoder.emit_mov_x(destination, XReg::X23);
+            }
+            UsizeValue::ProcessEnvironmentCount => {
+                self.emit_process_environment_count_to_x(destination)?;
+            }
+            UsizeValue::CurrentAllocationState => {
+                self.encoder.emit_mov_x(destination, XReg::X20);
+            }
+            UsizeValue::CurrentAllocationKind => {
+                self.encoder.emit_mov_x(destination, XReg::X21);
             }
             UsizeValue::Location(location) => {
                 if let UsizeLocation::Parameter(index) = location {
@@ -403,7 +412,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn emit_index_in_bounds_check(
+    pub(in crate::backend::codegen) fn emit_index_in_bounds_check(
         &mut self,
         index: XReg,
         len: XReg,
@@ -567,6 +576,22 @@ impl EntryEmitter {
                 };
                 self.emit_process_arg_to_x_pair(index, destination, len_scratch)?;
             }
+            StrValue::ProcessEnvironmentName { index } => {
+                let len_scratch = if destination == XReg::X8 {
+                    XReg::X17
+                } else {
+                    XReg::X8
+                };
+                self.emit_process_environment_name_to_x_pair(index, destination, len_scratch)?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                let len_scratch = if destination == XReg::X8 {
+                    XReg::X17
+                } else {
+                    XReg::X8
+                };
+                self.emit_process_environment_value_to_x_pair(index, destination, len_scratch)?;
+            }
         }
         Ok(())
     }
@@ -603,6 +628,12 @@ impl EntryEmitter {
             }
             StrValue::ProcessArg { index } => {
                 self.emit_process_arg_to_x_pair(index, XReg::X16, destination)?;
+            }
+            StrValue::ProcessEnvironmentName { index } => {
+                self.emit_process_environment_name_to_x_pair(index, XReg::X16, destination)?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                self.emit_process_environment_value_to_x_pair(index, XReg::X16, destination)?;
             }
         }
         Ok(())
@@ -651,6 +682,20 @@ impl EntryEmitter {
             StrValue::ProcessArg { index } => {
                 self.emit_process_arg_to_x_pair(index, ptr_destination, len_destination)?;
             }
+            StrValue::ProcessEnvironmentName { index } => {
+                self.emit_process_environment_name_to_x_pair(
+                    index,
+                    ptr_destination,
+                    len_destination,
+                )?;
+            }
+            StrValue::ProcessEnvironmentValue { index } => {
+                self.emit_process_environment_value_to_x_pair(
+                    index,
+                    ptr_destination,
+                    len_destination,
+                )?;
+            }
         }
 
         Ok(())
@@ -663,16 +708,16 @@ impl EntryEmitter {
         len_destination: XReg,
     ) -> Result<(), Vec<Diagnostic>> {
         self.emit_usize_value_to_x(index, XReg::X16)?;
-        self.encoder.emit_ldr_x_imm(XReg::X17, XReg::X19, 0);
+        self.encoder.emit_mov_x(XReg::X17, XReg::X23);
         self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
         self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, 3);
-        self.encoder.emit_adds_x(XReg::X17, XReg::X19, XReg::X16);
-        self.encoder.emit_ldr_x_imm(XReg::X16, XReg::X17, 8);
+        self.encoder.emit_adds_x(XReg::X16, XReg::X19, XReg::X16);
+        self.encoder.emit_ldr_x_imm(XReg::X16, XReg::X16, 0);
 
         emit_mov_u64_to_x(&mut self.encoder, XReg::X8, 0);
         let loop_start = self.encoder.position();
-        self.encoder.emit_ldrb_w_reg(WReg::W3, XReg::X16, XReg::X8);
-        self.encoder.emit_cmp_w_zero(WReg::W3);
+        self.encoder.emit_ldrb_w_reg(WReg::W17, XReg::X16, XReg::X8);
+        self.encoder.emit_cmp_w_zero(WReg::W17);
         let done = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.encoder.emit_add_x_imm(XReg::X8, XReg::X8, 1);
         let branch_to_loop = self.emit_branch_placeholder();

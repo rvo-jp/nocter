@@ -11,7 +11,7 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower direct function calls in tail return position",
+            "native lowering can only lower direct function calls in tail return position",
         )]);
     };
 
@@ -22,6 +22,10 @@ pub(in crate::ir::lower::expressions) fn lower_direct_tail_call(
         lower_call_arguments(call, &target, &callee_name, context, &mut temporaries)?;
 
     if fallible_success_tail_call_requires_normal_call(&target, context)
+        || call
+            .arguments
+            .iter()
+            .any(|argument| context.expression_contains_borrow(argument.span()))
         || arguments
             .iter()
             .any(tail_call_argument_requires_current_frame)
@@ -52,7 +56,10 @@ fn fallible_success_tail_call_requires_normal_call(
     target: &CallTarget,
     context: &LoweringContext,
 ) -> bool {
-    if !matches!(context.function_return_type(), Type::Fallible(_)) {
+    if !matches!(
+        context.function_return_type(),
+        Type::Optional(_) | Type::Fallible(_)
+    ) {
         return false;
     }
     matches!(context.call_return_type(target), Some(return_type) if return_type == context.return_type())
@@ -109,9 +116,13 @@ fn lower_non_tail_return_call_instruction(
             arguments,
             *layout,
         )),
-        Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => {
-            Err(unsupported_non_tail_return_call_diagnostic(callee_name))
-        }
+        Type::Never
+        | Type::Void
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. }
+        | Type::Borrow { .. }
+        | Type::Error => Err(unsupported_non_tail_return_call_diagnostic(callee_name)),
     }
 }
 
@@ -119,7 +130,7 @@ fn unsupported_non_tail_return_call_diagnostic(callee_name: &str) -> Vec<Diagnos
     vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower return call to function `{callee_name}` without tail-call support for this return type"
+            "native lowering cannot lower return call to function `{callee_name}` without tail-call support for this return type"
         ),
     )]
 }

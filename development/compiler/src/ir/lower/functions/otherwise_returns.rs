@@ -68,7 +68,7 @@ pub(super) fn lower_otherwise_scalar_return_call_to_return(
     success_type: &Type,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match success_type {
         Type::I32 => lower_fallible_i32_normal_call(
@@ -119,9 +119,11 @@ pub(super) fn lower_otherwise_scalar_return_call_to_return(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower `otherwise` returns for scalar success types",
+            "native lowering can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -130,7 +132,7 @@ pub(super) fn lower_otherwise_scalar_return_call_to_temporary(
     call: &CallExpr,
     success_type: &Type,
     context: &LoweringContext,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match success_type {
         Type::I32 => {
@@ -211,9 +213,11 @@ pub(super) fn lower_otherwise_scalar_return_call_to_temporary(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only lower `otherwise` returns for scalar success types",
+            "native lowering can only lower `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -255,10 +259,12 @@ pub(super) fn append_scope_drops_then_restore_scalar_return(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => {
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => {
             return Err(vec![Diagnostic::error(
                 "E8007",
-                "IR v0 can only restore `otherwise` returns for scalar success types",
+                "native lowering can only restore `otherwise` returns for scalar success types",
             )]);
         }
     };
@@ -283,9 +289,11 @@ pub(super) fn scalar_return_temporary_abi_words(
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
-        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. } => Err(vec![Diagnostic::error(
             "E8007",
-            "IR v0 can only restore `otherwise` returns for scalar success types",
+            "native lowering can only restore `otherwise` returns for scalar success types",
         )]),
     }
 }
@@ -404,11 +412,11 @@ pub(super) fn lower_otherwise_return_failure_mode(
     fallback: &Block,
     context: &LoweringContext,
     diagnostic_code: &'static str,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+) -> Result<OutcomeFailureMode, Vec<Diagnostic>> {
     let mut fallback_context = context.clone();
     let instructions =
         lower_otherwise_return_block(fallback, &mut fallback_context, diagnostic_code)?;
-    Ok(FallibleFailureMode::Handle { instructions })
+    Ok(OutcomeFailureMode::Handle { instructions })
 }
 
 pub(super) fn lower_otherwise_return_block(
@@ -419,9 +427,7 @@ pub(super) fn lower_otherwise_return_block(
     if let Some(result) = &block.result {
         let mut instructions =
             lower_otherwise_return_leading_statements(block, context, diagnostic_code)?;
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(result, context)?
-        {
+        if let Some(terminating_instructions) = lower_never_expression(result, context)? {
             instructions.extend(terminating_instructions);
             return Ok(instructions);
         }
@@ -453,7 +459,7 @@ pub(super) fn lower_otherwise_return_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_expression_with_scope_drops(&statement.expression, context)?
+                lower_never_expression(&statement.expression, context)?
             else {
                 return Err(unsupported_otherwise_fallback_diagnostic(diagnostic_code));
             };
@@ -506,6 +512,6 @@ pub(super) fn unsupported_otherwise_fallback_diagnostic(
 ) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower `otherwise` fallback blocks with local bindings, assignments, drops, effect-only calls, and a value, `return`, or `never` tail",
+        "native lowering can only lower `otherwise` fallback blocks with local bindings, assignments, drops, effect-only calls, and a value, `return`, or `never` tail",
     )]
 }

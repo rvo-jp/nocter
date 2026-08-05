@@ -95,9 +95,9 @@ A newly created owned temporary may be used as a readwrite receiver for one meth
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
 
-## Borrow Checker v0
+## Borrow Checker v0.2.0
 
-Adopted: v0 uses source-level non-lexical borrow ranges.
+Adopted: v0.2.0 uses source-level non-lexical borrow ranges.
 
 A borrow is active from the expression that creates it through the last source-level use of the borrow-like value derived from it. The borrow may end before the lexical scope of the borrow binding ends if the binding is not used again.
 
@@ -117,7 +117,7 @@ inspect(read)
 
 Rules:
 
-- Source-level lifetime annotations are not part of v0.
+- Source-level lifetime annotations are not part of v0.2.0.
 - The compiler determines borrow live ranges from actual source uses, not only from lexical scopes.
 - A use includes passing the borrow-like value to a call, method call, field access, index access, return, assignment, initialization, storing it inside an aggregate, or deriving another borrow-like value from it.
 - Scope end of a plain borrow-like value does not by itself extend the borrow, because borrow-like values are non-owning and do not run `drop`.
@@ -134,7 +134,7 @@ Rules:
 
 ### Field-Sensitive Borrows
 
-Adopted: v0 tracks disjoint named struct fields for simple places.
+Adopted: v0.2.0 tracks disjoint named struct fields for simple places.
 
 Field-sensitive tracking applies only to direct named field paths whose base is a local binding, parameter binding, or borrow binding that the compiler can resolve statically.
 
@@ -155,7 +155,7 @@ Rules:
 - A borrow of one named field does not conflict with mutation or borrowing of a disjoint named field.
 - Moving, dropping, reinitializing, or assigning the whole parent value conflicts with any active field borrow.
 - Assigning a field conflicts with active borrows of that same field and active borrows of the whole parent value.
-- Field-sensitive tracking does not apply to array indexes, collection indexes, `&[T]` or `&+[T]` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
+- Field-sensitive tracking does not apply to array indexes, collection indexes, `&[T]` or `&+[T]` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.2.0.
 - If the compiler cannot prove two places are disjoint, it treats them as conflicting.
 
 ## Function Parameters
@@ -177,7 +177,7 @@ Rules:
 
 - Parameters are immutable bindings.
 - Parameter bindings cannot be reassigned.
-- `var` parameters are not part of v0.
+- `var` parameters are not part of v0.2.0.
 - Parameter names must be unique within the parameter list.
 - Parameter shadowing is not allowed, following the normal name-resolution rules.
 - An owned parameter is owned by the function body.
@@ -190,7 +190,7 @@ Rules:
 - A borrow parameter does not own the referenced value and does not drop it at function scope end.
 - The `&+T` parameter binding itself cannot be reassigned, but the referenced value may be mutated through it.
 - Method receivers are explicit parameters and follow the same binding, ownership, and borrow rules.
-- Default parameters and named parameters are not part of v0.
+- Default parameters and named parameters are not part of v0.2.0.
 
 Examples:
 
@@ -253,7 +253,7 @@ Rules:
 - `self` is the fixed drop receiver name and is scoped to the drop body.
 - The drop receiver type is always exactly `&+Self`.
 - A `drop` member can appear only in an inherent `impl Type` block. Interface
-  conformance declarations cannot contain `drop` members or method bodies.
+  implementation declarations contain method bodies but cannot contain `drop` members.
 - A `drop` member has no return type annotation.
 - A `drop` member always returns no value.
 - A `drop` member cannot be fallible.
@@ -292,7 +292,7 @@ file.read() // error
 Rules:
 
 - `drop name` is a statement.
-- In v0, the operand of `drop` must be a local binding name or parameter binding name.
+- In v0.2.0, the operand of `drop` must be a local binding name or parameter binding name.
 - `drop` is not a reserved keyword and is not an ordinary function call in this statement form.
 - The operand must be initialized.
 - The operand must be a move-only owned binding.
@@ -307,7 +307,7 @@ Rules:
 - After `drop name`, the binding is uninitialized on all later reachable paths.
 - A dropped `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](02-values-types.md#reinitialization-after-move-or-drop).
 - A dropped `let` binding cannot be reinitialized.
-- `drop object.field`, `drop array[index]`, and `drop make_value()` are not part of v0.
+- `drop object.field`, `drop array[index]`, and `drop make_value()` are not part of v0.2.0.
 
 Examples:
 
@@ -319,7 +319,7 @@ file = File.open(other)?
 file.read()?
 ```
 
-Invalid in v0:
+Invalid in v0.2.0:
 
 ```nct
 drop count
@@ -401,10 +401,10 @@ Rules:
 
 - `move` is a reserved keyword, not an ordinary function.
 - `move name` is an expression.
-- In v0, the operand of `move` must be a local binding name or parameter binding name.
+- In v0.2.0, the operand of `move` must be a local binding name or parameter binding name.
 - The operand binding may be immutable or mutable.
 - The operand binding must have a move-only type.
-- Using `move` on a copy type is a compile error in v0.
+- Using `move` on a copy type is a compile error in v0.2.0.
 - `move name` has the same type as `name`.
 - Evaluating `move name` transfers ownership out of that binding.
 - After `move name`, the binding enters an uninitialized state on all later reachable paths.
@@ -413,12 +413,12 @@ Rules:
 - A moved binding is not dropped through its original binding.
 - A binding cannot be moved while it is borrowed.
 - `move` describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.
-- Moving a newly constructed value is unnecessary and invalid in v0.
-- Moving from a field, index, dereference, call result, postfix `?` expression, conditional expression, or parenthesized complex expression is not part of v0.
-- Partial move from a struct field is not part of v0.
-- Index move from an array or collection is not part of v0.
+- Moving a newly constructed value is unnecessary and invalid in v0.2.0.
+- Moving from a field, index, dereference, call result, postfix `?` expression, conditional expression, or parenthesized complex expression is not part of v0.2.0.
+- Partial move from a struct field is not part of v0.2.0.
+- Index move from an array or collection is not part of v0.2.0.
 
-Valid in v0:
+Valid in v0.2.0:
 
 ```nct
 let b = move a
@@ -427,7 +427,7 @@ return move value
 user.name = move name
 ```
 
-Invalid in v0:
+Invalid in v0.2.0:
 
 ```nct
 move make_value()
@@ -441,7 +441,7 @@ move copy_value
 Assignment may replace a live move-only field when the right-hand side produces
 a complete replacement value. The replacement is evaluated first, then the old
 field is dropped, and ownership of the replacement transfers into the field.
-Moving a value out of a field remains invalid in v0 because it would require
+Moving a value out of a field remains invalid in v0.2.0 because it would require
 tracking the field as separately dead. Code that needs to transfer a field
 separately must transfer or rebuild the whole owner instead. To update a field
 in a functional style, move the whole owner into a new binding, replace the
@@ -463,7 +463,7 @@ Rules:
 
 - `return value` may return a copy value by copying it.
 - `return value` is invalid when `value` is an existing move-only binding.
-- `return move value` returns an existing move-only binding by moving it. In v0, `value` must be a binding name.
+- `return move value` returns an existing move-only binding by moving it. In v0.2.0, `value` must be a binding name.
 - After `return move value`, that binding is no longer valid on any remaining reachable path.
 - A newly constructed owned value may be returned with `return expr` without `move`.
 - Newly constructed owned values include struct literals, enum variant constructors, array literals, and function or method call results.
@@ -507,7 +507,7 @@ func invalid(user: User): User {
 
 ### Borrow-like Return Values
 
-Adopted: v0 allows borrow-like return values only when the compiler can prove the referenced storage lives after the function returns.
+Adopted: v0.2.0 allows borrow-like return values only when the compiler can prove the referenced storage lives after the function returns.
 
 Borrow-like return values include:
 
@@ -532,7 +532,7 @@ Rules:
 - Borrow-like values derived from temporary owned values cannot be returned.
 - Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.
 - Borrow-like values derived from region-allocated storage cannot escape the region.
-- v0 has no source-level lifetime parameters or lifetime annotations.
+- v0.2.0 has no source-level lifetime parameters or lifetime annotations.
 - If provenance cannot be proven by the compiler, returning the borrow-like value is a compile error.
 
 Examples:

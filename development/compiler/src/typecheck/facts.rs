@@ -3,13 +3,16 @@
 
 use super::bindings::continuing_binding_type;
 use super::calls::{
-    infer_generic_substitutions, method_member_for_call, method_self_type_for_receiver,
-    resolved_call_signature, resolved_method_for_call,
+    infer_generic_substitutions, method_member_for_call,
+    method_self_type_for_receiver_in_environment, resolved_call_signature,
+    resolved_method_for_call,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_switch_arm, function_self_type, impl_self_type,
+    environment_for_catch, environment_for_collection_for_binding,
+    environment_for_for_range_binding, environment_for_function, environment_for_if_is_binding,
+    environment_for_interface_method, environment_for_literal,
+    environment_for_literal_pack_binding, environment_for_method,
+    environment_for_parameters_in_impl, environment_for_switch_arm,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -25,20 +28,19 @@ use super::type_expr::{
 };
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
-    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, EnumDecl,
-    EnumVariant, Expr, FallibleType, GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember,
-    InterpolatedStringPart, Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType,
-    Stmt, StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchArm,
-    SwitchPayloadBinding, TypeAliasDecl, TypeExpr, TypeReference, ViewType,
-    substitute_type_expr_parameters,
+    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, CallExpr, Expr, FallibleType,
+    GenericParamList, GenericType, IfIsStmt, ImplDecl, ImplMember, InterpolatedStringPart, Item,
+    MemberExpr, MethodDecl, MethodReceiverMode, OptionalType, Parameter, PointerType, Stmt,
+    StructLiteralExpr, StructLiteralField, SwitchArm, SwitchPayloadBinding, TypeExpr,
+    TypeReference, ViewType, substitute_type_expr_parameters,
 };
 use crate::resolve::{
-    AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
-    ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind,
+    FunctionSignature, MethodSignature, ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::ByteSpan;
 use std::collections::{HashMap, HashSet};
 
+mod callables;
 mod collector;
 mod hover_labels;
 mod model;
@@ -49,18 +51,32 @@ mod utility;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use callables::{CallableCallFact, CallableCallSpecialization};
 pub(crate) use collector::collect_typecheck_facts;
 pub(crate) use model::{
-    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization,
-    TypeReferenceFact, TypecheckFacts, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
-    TypecheckScalarViewKind, TypecheckSliceElementKind,
+    DropTypeSpecialization, FunctionCallSpecialization, GenericParameterFact,
+    MethodCallSpecialization, TypeOccurrenceFact, TypeOccurrenceTarget, TypecheckClosurePlan,
+    TypecheckCollectionForPlan, TypecheckCollectionForSourceMode, TypecheckFacts,
+    TypecheckInterpolationPart, TypecheckInterpolationPlan, TypecheckIterationMethod,
+    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
+    TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan, TypecheckSliceElementKind,
 };
+pub(super) use type_exprs::type_to_type_expr_allowing_parameters;
 
+use callables::*;
 use hover_labels::*;
+pub(crate) use specializations::drop_type_specialization_from_self_ty;
 use specializations::*;
 use type_exprs::*;
 use utility::*;
 
 pub(crate) fn type_expr_presentation_label(ty: &TypeExpr, resolved: &ResolveOutput) -> String {
     type_label(ty, resolved, None)
+}
+
+pub(crate) fn type_symbol_presentation_label(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+) -> String {
+    type_owner_hover_label(symbol, resolved).to_string()
 }

@@ -109,7 +109,7 @@ Rules:
 - `tokens` exposes the compiler lexer output for one source file.
 - `ast` exposes the compiler parser output for one source file.
 - Both commands are tooling and debugging commands, not user program execution commands.
-- Both commands are JSON-only in v0.
+- Both commands are JSON-only in v0.2.0.
 - Both commands use compiler-owned source spans and token / AST node names.
 - Both commands must not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
 - The JSON shapes are versioned and may evolve while the parser and AST are still unstable.
@@ -136,7 +136,7 @@ Rules:
 - The extension may keep TextMate grammar for baseline highlighting while semantic tokens mature.
 - The LSP server is responsible for converting compiler byte spans to the client position encoding.
 
-LSP v0 feature set:
+LSP v0.2.0 feature set:
 
 1. publish diagnostics
 2. document symbols
@@ -154,6 +154,40 @@ Semantic token rules:
 - Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
+
+Nocter v0.3.0 Phase 4 editor rules:
+
+- Hover and signature help show normalized result provenance clauses such as `from self` and
+  `from left | right`.
+- Completion after `from` offers only eligible receiver and borrow-like parameter declarations,
+  plus `static` and `current`.
+- Member completion on a bounded generic receiver lists only methods from its declared interface.
+- Definition and references for a generic bound call target the interface method declaration.
+- Generic parameter names use type semantic tokens. Receiver and parameter names referenced by a
+  provenance clause use readonly parameter tokens.
+- Recovery may complete missing delimiters or insert a temporary placeholder, but a response is
+  valid only when the recovered compiler run resolves every bound and origin identity.
+
+Nocter v0.3.0 Phase 9 editor rules:
+
+- Hover and signature help preserve every normalized interface bound on a generic parameter.
+- Member completion combines the resolved capability set, removes declaration-identity duplicates,
+  and reports an ambiguity instead of choosing between distinct interfaces with the same member.
+- Conditional-conformance definition and specialization use the conformance declaration selected by
+  typecheck; protocol code does not inspect adapter or interface names.
+- Recovery for an incomplete `T: A +` edit returns semantic results only when all preceding bounds
+  retain their declaration identities.
+
+Nocter v0.3.0 stabilization editor rules for body-bearing interface implementations:
+
+- Hover, completion, signature help, definition, references, and semantic tokens retain the
+  conformance member's declaration span for a concrete receiver.
+- A generic-bound call defines to the interface contract while concrete specialization retains the
+  selected implementation member and static call target.
+- Member visibility comes from the interface contract; the implementation member does not carry a
+  separate `pub` modifier.
+- Competing inherent and conformance members produce ambiguity rather than an order-dependent
+  completion or jump target.
 
 Later editor features:
 

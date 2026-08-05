@@ -53,10 +53,10 @@ pub(super) fn byte_collection_expression_kind(
             _ => None,
         },
         Expr::Propagate(propagation) => {
-            fallible_byte_collection_expression_kind(&propagation.expression, context)
+            outcome_byte_collection_expression_kind(&propagation.expression, context)
         }
-        Expr::Force(force) => fallible_byte_collection_expression_kind(&force.expression, context),
-        Expr::Catch(catch) => fallible_byte_collection_expression_kind(&catch.expression, context),
+        Expr::Force(force) => outcome_byte_collection_expression_kind(&force.expression, context),
+        Expr::Catch(catch) => outcome_byte_collection_expression_kind(&catch.expression, context),
         Expr::Group(group) => byte_collection_expression_kind(&group.expression, context),
         _ => None,
     }
@@ -66,7 +66,7 @@ pub(super) fn byte_collection_call_kind(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
-    if primitive_arg_raw_call(call, context) {
+    if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context) {
         return Some(ByteCollectionKind::Str);
     }
     if primitive_str_from_raw_parts_call(call, context) {
@@ -82,7 +82,7 @@ pub(super) fn byte_collection_call_kind(
     byte_collection_kind_from_type(context.call_return_type(&target)?)
 }
 
-pub(super) fn fallible_byte_collection_expression_kind(
+pub(super) fn outcome_byte_collection_expression_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
@@ -90,9 +90,7 @@ pub(super) fn fallible_byte_collection_expression_kind(
         return None;
     };
     let (target, _call_name) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success) = context.call_return_type(&target)? else {
-        return None;
-    };
+    let (_, success) = context.call_return_type(&target)?.single_outcome()?;
     byte_collection_kind_from_type(success)
 }
 
@@ -114,6 +112,36 @@ pub(super) fn lower_builtin_len_call_to_value(
     };
     if member.member != "len" || !call.arguments.is_empty() {
         return None;
+    }
+    if let Expr::Identifier(identifier) = member.object.as_ref()
+        && let Some(pack) = context.literal_pack(&identifier.name)
+    {
+        let fixed = pack
+            .segments
+            .iter()
+            .filter(|segment| {
+                matches!(
+                    segment,
+                    super::super::context::LiteralPackLoweringSegment::Value { .. }
+                )
+            })
+            .count() as u64;
+        let value = match &pack.runtime_length_name {
+            Some(name) => match context.usize_location(name) {
+                Some(location) => UsizeValue::Location(location),
+                None => {
+                    return Some(Err(vec![Diagnostic::error(
+                        "E8014",
+                        "literal pack cached length is unavailable",
+                    )]));
+                }
+            },
+            None => UsizeValue::Const(fixed),
+        };
+        return Some(Ok(LoweredUsizeValue {
+            instructions: Vec::new(),
+            value,
+        }));
     }
     byte_collection_expression_kind(&member.object, context)?;
 
@@ -162,7 +190,10 @@ pub(super) fn lower_byte_collection_len_expression_to_value(
             let value = match source.value {
                 StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
                 StrValue::Location(location) => UsizeValue::StrLen(location),
-                value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }) => {
+                value @ (StrValue::ProcessArg { .. }
+                | StrValue::ProcessEnvironmentName { .. }
+                | StrValue::ProcessEnvironmentValue { .. }
+                | StrValue::SliceIndex { .. }) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: temporary,
@@ -185,7 +216,10 @@ pub(super) fn lower_byte_collection_len_expression_to_value(
                 }
                 SliceValue::StrBytes(StrValue::Location(location)) => UsizeValue::StrLen(location),
                 SliceValue::StrBytes(
-                    value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }),
+                    value @ (StrValue::ProcessArg { .. }
+                    | StrValue::ProcessEnvironmentName { .. }
+                    | StrValue::ProcessEnvironmentValue { .. }
+                    | StrValue::SliceIndex { .. }),
                 ) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {

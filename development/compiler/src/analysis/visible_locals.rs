@@ -32,12 +32,13 @@ pub(super) fn visible_local_bindings_at_offset(
             Item::Impl(impl_) => {
                 for member in &impl_.members {
                     match member {
-                        ImplMember::Method(method)
-                            if method
-                                .body
-                                .as_ref()
-                                .is_some_and(|body| contains(body.span, offset)) =>
-                        {
+                        ImplMember::Method(method) => {
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            if !contains(body.span, offset) {
+                                continue;
+                            }
                             define(
                                 &mut locals,
                                 &method.receiver.name,
@@ -52,7 +53,7 @@ pub(super) fn visible_local_bindings_at_offset(
                                     "parameter",
                                 );
                             }
-                            collect_block(method.body.as_ref().unwrap(), offset, &mut locals);
+                            collect_block(body, offset, &mut locals);
                             return locals;
                         }
                         ImplMember::Drop(drop_) if contains(drop_.body.span, offset) => {
@@ -65,7 +66,7 @@ pub(super) fn visible_local_bindings_at_offset(
                             collect_block(&drop_.body, offset, &mut locals);
                             return locals;
                         }
-                        ImplMember::Method(_) | ImplMember::Drop(_) => {}
+                        ImplMember::Drop(_) => {}
                     }
                 }
             }
@@ -137,8 +138,30 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
             define(locals, &statement.name, statement.name_span, "range");
             collect_block(&statement.body, offset, locals);
         }
+        Stmt::CollectionFor(statement) if contains(statement.body.span, offset) => {
+            define(
+                locals,
+                &statement.name,
+                statement.name_span,
+                "collection element",
+            );
+            collect_block(&statement.body, offset, locals);
+        }
+        Stmt::LiteralPackFor(statement) if contains(statement.body.span, offset) => {
+            define(
+                locals,
+                &statement.name,
+                statement.name_span,
+                "literal pack element",
+            );
+            collect_block(&statement.body, offset, locals);
+        }
         Stmt::While(statement) => collect_matching_block(&statement.body, offset, locals),
         Stmt::Loop(statement) => collect_matching_block(&statement.body, offset, locals),
+        Stmt::Region(statement) if contains(statement.body.span, offset) => {
+            define(locals, &statement.name, statement.name_span, "region");
+            collect_block(&statement.body, offset, locals);
+        }
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
                 collect_expression_scope(expression, offset, locals);
@@ -159,7 +182,10 @@ fn collect_statement_scope(statement: &Stmt, offset: usize, locals: &mut Vec<Vis
         | Stmt::Break(_)
         | Stmt::Continue(_)
         | Stmt::Drop(_)
-        | Stmt::ForRange(_) => {}
+        | Stmt::Region(_)
+        | Stmt::ForRange(_)
+        | Stmt::CollectionFor(_)
+        | Stmt::LiteralPackFor(_) => {}
     }
 }
 
@@ -172,6 +198,18 @@ fn collect_expression_scope(
         return;
     }
     match expression {
+        Expr::Closure(expression) => {
+            if contains(expression.body.span, offset) {
+                locals.clear();
+                for capture in &expression.captures {
+                    define(locals, &capture.name, capture.name_span, "capture");
+                }
+                for parameter in &expression.parameters {
+                    define(locals, &parameter.name, parameter.name_span, "parameter");
+                }
+                collect_block(&expression.body, offset, locals);
+            }
+        }
         Expr::Catch(expression) => {
             if contains(expression.catch_block.span, offset) {
                 define(
@@ -241,6 +279,19 @@ fn collect_expression_scope(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_scope(element, offset, locals);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_scope(element, offset, locals);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_scope(&using.allocator, offset, locals);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_scope(&using.allocator, offset, locals);
             }
         }
         Expr::StructLiteral(expression) => {

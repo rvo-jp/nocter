@@ -1,14 +1,30 @@
 //! Whole-compile-unit semantic analysis.
 
+pub(crate) mod allocation;
 mod call_sites;
 pub(crate) mod call_specializations;
+mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;
+pub(crate) mod constructions;
 pub(crate) mod definition;
+mod delimiter_recovery;
+mod drop_dependencies;
+pub(crate) mod editor_targets;
 mod expected_completion;
 pub(crate) mod hover;
 mod import_completion;
+pub(crate) mod interpolation;
+pub(crate) mod iteration;
+mod literal_recovery;
+pub(crate) mod literal_specializations;
+pub(crate) mod literals;
+pub(crate) mod occurrences;
+pub(crate) mod presentation;
+pub(crate) mod provenance;
 pub(crate) mod references;
+mod region_recovery;
+pub(crate) mod regions;
 mod scoped_imports;
 pub(crate) mod semantic;
 pub(crate) mod signature_help;
@@ -17,16 +33,25 @@ pub(crate) mod symbols;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub(crate) use completion_recovery::{completion_recovery_text, signature_recovery_text};
+pub(crate) use collection_for_recovery::collection_for_recovery_text;
+pub(crate) use completion_recovery::{completion_recovery_overlay, signature_recovery_texts};
+pub(crate) use delimiter_recovery::block_recovery_text;
+pub(crate) use interpolation::{
+    interpolation_completion_recovery_overlay, interpolation_recovery_text,
+    interpolation_signature_recovery_texts,
+};
+pub(crate) use literal_recovery::{literal_recovery_overlay, literal_recovery_text};
+pub(crate) use region_recovery::region_recovery_text;
 mod visible_locals;
 
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, PreludeSourceMap, ResolveOutput, resolve_compile_unit};
+use crate::semantics::TrustedDeclarationFacts;
 use crate::source::SourceMap;
 use crate::typecheck::{
-    TypecheckFacts, TypecheckSource, check_module_with_summary_sources, check_with_summary_sources,
-    collect_typecheck_facts,
+    CallableSemanticFacts, TypecheckFacts, TypecheckSource, check_module_with_summary_sources,
+    check_with_summary_sources, collect_callable_semantic_facts, collect_typecheck_facts,
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -38,6 +63,7 @@ pub(crate) struct CompileUnit {
     import_sources: ImportSourceMap,
     prelude_sources: PreludeSourceMap,
     nocter_home: Option<PathBuf>,
+    trusted_declarations: TrustedDeclarationFacts,
 }
 
 impl CompileUnit {
@@ -54,7 +80,16 @@ impl CompileUnit {
             import_sources,
             prelude_sources,
             nocter_home,
+            trusted_declarations: TrustedDeclarationFacts::default(),
         }
+    }
+
+    pub(crate) fn with_trusted_declarations(
+        mut self,
+        trusted_declarations: TrustedDeclarationFacts,
+    ) -> Self {
+        self.trusted_declarations = trusted_declarations;
+        self
     }
 }
 
@@ -63,6 +98,7 @@ pub(crate) struct CompileUnitAnalysis {
     pub(crate) files: Vec<FileAnalysis>,
     pub(crate) import_sources: ImportSourceMap,
     pub(crate) nocter_home: Option<PathBuf>,
+    pub(crate) callable_semantic_facts: CallableSemanticFacts,
 }
 
 impl CompileUnitAnalysis {
@@ -108,6 +144,7 @@ pub(crate) struct FileAnalysis {
     pub(crate) ast: AstFile,
     pub(crate) resolved: ResolveOutput,
     pub(crate) typecheck_facts: TypecheckFacts,
+    pub(crate) occurrences: occurrences::SemanticOccurrenceIndex,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -142,13 +179,15 @@ fn analyze_compile_unit_with_root_policy(
         .files
         .iter()
         .map(|file| {
-            resolve_compile_unit(
+            let mut resolved = resolve_compile_unit(
                 sources,
                 file,
                 &unit.files,
                 &unit.import_sources,
                 &unit.prelude_sources,
-            )
+            );
+            resolved.trusted_declarations = unit.trusted_declarations.clone();
+            resolved
         })
         .collect::<Vec<_>>();
     let typecheck_sources = unit
@@ -180,21 +219,27 @@ fn analyze_compile_unit_with_root_policy(
                 ));
             }
             let typecheck_facts = collect_typecheck_facts(file, resolved);
+            let occurrences =
+                occurrences::SemanticOccurrenceIndex::new(file, resolved, &typecheck_facts);
 
             FileAnalysis {
                 ast: file.clone(),
                 resolved: resolved.clone(),
                 typecheck_facts,
+                occurrences,
                 diagnostics,
                 is_root,
             }
         })
         .collect();
 
+    let callable_semantic_facts = collect_callable_semantic_facts(&typecheck_sources);
+
     CompileUnitAnalysis {
         files,
         import_sources: unit.import_sources.clone(),
         nocter_home: unit.nocter_home.clone(),
+        callable_semantic_facts,
     }
 }
 

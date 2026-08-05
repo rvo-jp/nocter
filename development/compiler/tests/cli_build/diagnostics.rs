@@ -605,7 +605,7 @@ func main(): i32 {
         "expected buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`catch` blocks outside the v0 runtime subset"),
+        stderr.contains("`catch` blocks outside supported runtime control flow"),
         "expected catch block construct, got:\n{stderr}"
     );
     assert!(
@@ -619,7 +619,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_rejects_nested_otherwise_value_expression_before_ir_lowering() {
+fn build_command_accepts_nested_otherwise_value_expression() {
     let project = TempProject::new("cli-build-nested-otherwise-value-expression");
     let source = project.write_source(
         "nested_otherwise_value_expression.nct",
@@ -639,27 +639,11 @@ func source(): i32? {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "`otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions"
-        ),
-        "expected otherwise expression construct, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "otherwise expression should be rejected before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    let run = Command::new(&executable)
+        .output()
+        .expect("built executable should run");
+    assert_eq!(run.status.code(), Some(3), "{}", text(&run.stderr));
 }
 
 #[test]
@@ -1150,7 +1134,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_imported_optional_and_fallible_locals_before_ir_lowering() {
+fn build_command_accepts_imported_optional_and_fallible_locals() {
     let project = TempProject::new("cli-build-imported-wrapper-local-boundary");
     project.write_source(
         "wrappers.nct",
@@ -1182,28 +1166,11 @@ func main(): i32 {
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
-    let stderr = text(&output.stderr);
-
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(stderr.matches("error[E0435]").count(), 4, "{stderr}");
-    assert!(
-        stderr.contains("stored optional or fallible local values"),
-        "expected wrapper local diagnostic, got:\n{stderr}"
-    );
-    for line in [4, 5, 6, 7] {
-        assert!(
-            stderr.contains(&format!("{line} |     let ")),
-            "expected source line {line}, got:\n{stderr}"
-        );
-    }
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    let run = Command::new(&executable)
+        .output()
+        .expect("built executable should run");
+    assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
 }
 
 #[test]
@@ -1235,7 +1202,7 @@ func consume(texts: [Text; 1]): void {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        stderr.contains("function or method parameters outside the supported runtime ABI"),
         "expected unsupported parameter diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -1243,7 +1210,7 @@ func consume(texts: [Text; 1]): void {
         "expected parameter source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        !stderr.contains("the native compiler cannot lower array literals yet"),
         "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
     );
     assert!(
@@ -1294,7 +1261,7 @@ func main(): i32 {
         "expected field member source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("Nocter v0 build cannot lower array literals yet"),
+        !stderr.contains("the native compiler cannot lower array literals yet"),
         "expected contextual diagnostics without generic array literal fallback, got:\n{stderr}"
     );
     assert!(
@@ -1336,11 +1303,11 @@ func value(): u16 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function or method parameters outside the v0 runtime ABI subset"),
+        stderr.contains("function or method parameters outside the supported runtime ABI"),
         "expected parameter diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -1618,19 +1585,16 @@ func identity<T>(value: T): T {
 }
 
 #[test]
-fn build_command_reports_reachable_nested_fallible_return_before_ir_lowering() {
+fn build_command_accepts_reachable_composed_outcome_return() {
     let project = TempProject::new("cli-build-nested-fallible-return-boundary");
     let source = project.write_source(
         "nested_fallible_return_boundary.nct",
-        r#"func main(): i32 {
-    return consume(make_value()!)
+        r#"func main(): i32! {
+    let value = make_value()? otherwise { return 0 }
+    return value
 }
 
-func consume(item: i32?): i32 {
-    return 0
-}
-
-func make_value(): (i32?)! {
+func make_value(): i32?! {
     return none
 }
 "#,
@@ -1639,48 +1603,21 @@ func make_value(): (i32?)! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected nested fallible return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("9 | func make_value(): (i32?)! {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8007]"),
-        "buildability preflight should reject before IR function lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_specialized_nested_fallible_return_before_ir_lowering() {
+fn build_command_accepts_specialized_composed_outcome_return() {
     let project = TempProject::new("cli-build-specialized-nested-fallible-return-boundary");
     let source = project.write_source(
         "specialized_nested_fallible_return_boundary.nct",
-        r#"func main(): i32 {
-    return consume(make(maybe_value())!)
+        r#"func main(): i32! {
+    let value = make(42)? otherwise { return 0 }
+    return value
 }
 
-func consume(item: i32?): i32 {
-    return 0
-}
-
-func maybe_value(): i32? {
-    return none
-}
-
-func make<T>(item: T): T! {
+func make<T>(item: T): T?! {
     return item
 }
 "#,
@@ -1689,49 +1626,22 @@ func make<T>(item: T): T! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected specialized nested fallible return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("13 | func make<T>(item: T): T! {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_specialized_nested_fallible_type_parameter_return_before_ir_lowering() {
+fn build_command_accepts_composed_outcome_through_specialized_identity() {
     let project =
         TempProject::new("cli-build-specialized-nested-fallible-type-parameter-return-boundary");
     let source = project.write_source(
         "specialized_nested_fallible_type_parameter_return_boundary.nct",
-        r#"func main(): i32 {
-    return consume(identity(make_value())!)
+        r#"func main(): i32! {
+    let value = identity(42)? otherwise { return 0 }
+    return value
 }
 
-func consume(item: i32?): i32 {
-    return 0
-}
-
-func make_value(): (i32?)! {
-    return none
-}
-
-func identity<T>(item: T): T {
+func identity<T>(item: T): T?! {
     return item
 }
 "#,
@@ -1740,32 +1650,12 @@ func identity<T>(item: T): T {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected specialized nested fallible return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("13 | func identity<T>(item: T): T {"),
-        "expected source line on generic return declaration, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_reachable_nested_fallible_method_return_before_ir_lowering() {
+fn build_command_accepts_reachable_composed_outcome_method_return() {
     let project = TempProject::new("cli-build-nested-fallible-method-return-boundary");
     let source = project.write_source(
         "nested_fallible_method_return_boundary.nct",
@@ -1774,18 +1664,15 @@ fn build_command_reports_reachable_nested_fallible_method_return_before_ir_lower
 }
 
 impl Holder {
-    pub method &self.make_value(): (i32?)! {
+    pub method &self.make_value(): i32?! {
         return none
     }
 }
 
-func main(): i32 {
+func main(): i32! {
     let holder = Holder { value: 0 }
-    return consume(holder.make_value()!)
-}
-
-func consume(item: i32?): i32 {
-    return 0
+    let value = holder.make_value()? otherwise { return 0 }
+    return value
 }
 "#,
     );
@@ -1793,32 +1680,12 @@ func consume(item: i32?): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected nested fallible return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     pub method &self.make_value(): (i32?)! {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8007]"),
-        "buildability preflight should reject before IR method lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_specialized_nested_fallible_method_return_before_ir_lowering() {
+fn build_command_accepts_specialized_composed_outcome_method_return() {
     let project = TempProject::new("cli-build-specialized-nested-fallible-method-return-boundary");
     let source = project.write_source(
         "specialized_nested_fallible_method_return_boundary.nct",
@@ -1827,22 +1694,15 @@ fn build_command_reports_specialized_nested_fallible_method_return_before_ir_low
 }
 
 impl<T> Holder<T> {
-    pub method &self.make(): T! {
+    pub method &self.make(): T?! {
         return self.value
     }
 }
 
-func main(): i32 {
-    let holder = Holder<i32?> { value: maybe_value() }
-    return consume(holder.make()!)
-}
-
-func consume(item: i32?): i32 {
-    return 0
-}
-
-func maybe_value(): i32? {
-    return none
+func main(): i32! {
+    let holder = Holder<i32> { value: 42 }
+    let value = holder.make()? otherwise { return 0 }
+    return value
 }
 "#,
     );
@@ -1850,32 +1710,12 @@ func maybe_value(): i32? {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected specialized nested fallible method return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     pub method &self.make(): T! {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_reachable_nested_fallible_associated_return_before_ir_lowering() {
+fn build_command_accepts_reachable_composed_outcome_associated_return() {
     let project = TempProject::new("cli-build-nested-fallible-associated-return-boundary");
     let source = project.write_source(
         "nested_fallible_associated_return_boundary.nct",
@@ -1883,16 +1723,13 @@ fn build_command_reports_reachable_nested_fallible_associated_return_before_ir_l
     pub value: i32
 }
 
-func Holder.make_value(): (i32?)! {
+func Holder.make_value(): i32?! {
     return none
 }
 
-func main(): i32 {
-    return consume(Holder.make_value()!)
-}
-
-func consume(item: i32?): i32 {
-    return 0
+func main(): i32! {
+    let value = Holder.make_value()? otherwise { return 0 }
+    return value
 }
 "#,
     );
@@ -1900,28 +1737,8 @@ func consume(item: i32?): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("nested fallible or optional return types"),
-        "expected nested fallible return diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 | func Holder.make_value(): (i32?)! {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -1975,15 +1792,15 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_std_process_env_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-env-check-only-boundary");
+fn build_command_accepts_renamed_std_process_env_composed_outcome() {
+    let project = TempProject::new("cli-build-process-env-renamed-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
         "process_env_check_only_boundary.nct",
         r#"use std/process.env as lookup
 
 func main(): i32! {
-    let value = lookup("HOME")?
+    let value = lookup("HOME")? otherwise { return 0 }
     return 0
 }
 "#,
@@ -1992,44 +1809,20 @@ func main(): i32! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("check-only `std/process.env` calls"),
-        "expected env check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let value = lookup(\"HOME\")?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("nested fallible or optional return types"),
-        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_std_process_env_namespace_use_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-env-namespace-use-check-only-boundary");
+fn build_command_accepts_namespace_std_process_env_composed_outcome() {
+    let project = TempProject::new("cli-build-process-env-namespace-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
         "process_env_namespace_use_check_only_boundary.nct",
         r#"use std/process
 
 func main(): i32! {
-    let value = process.env("HOME")?
+    let value = process.env("HOME")? otherwise { return 0 }
     return 0
 }
 "#,
@@ -2038,41 +1831,17 @@ func main(): i32! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("check-only `std/process.env` calls"),
-        "expected env check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let value = process.env(\"HOME\")?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("nested fallible or optional return types"),
-        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
+fn build_command_reports_missing_interpolation_runtime_before_ir_lowering() {
     let project = TempProject::new("cli-build-string-interpolation-boundary");
     let source = project.write_source(
         "string_interpolation_boundary.nct",
-        r#"func main(): i32! {
-    let text = "value ${1}"?
+        r#"func main(): i32 {
+    let text = "value ${1}"
     return 0
 }
 "#,
@@ -2084,15 +1853,15 @@ fn build_command_reports_bare_string_interpolation_before_ir_lowering() {
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0440]"),
+        "expected interpolation runtime diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("bare string interpolation"),
-        "expected string interpolation diagnostic, got:\n{stderr}"
+        stderr.contains("string interpolation runtime is unavailable"),
+        "expected missing runtime capability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("2 |     let text = \"value ${1}\"?"),
+        stderr.contains("2 |     let text = \"value ${1}\""),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -2545,7 +2314,7 @@ func dynamic_message(): &str {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2606,7 +2375,7 @@ func main(): i32! {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2669,7 +2438,7 @@ func main(): i32! {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("method return types outside the v0 runtime ABI subset"),
+        stderr.contains("method return types outside the supported runtime ABI"),
         "expected method return type diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -2729,7 +2498,7 @@ func dynamic_message(): &str {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("function return types outside the v0 runtime ABI subset"),
+        stderr.contains("function return types outside the supported runtime ABI"),
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(

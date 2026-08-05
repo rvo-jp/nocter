@@ -120,6 +120,7 @@ pub(super) fn lower_aggregate_field_assignment(
             });
             Ok(lowered.instructions)
         }
+        AggregateFieldKind::Borrow { .. } => Err(unsupported_assignment_diagnostic()),
         AggregateFieldKind::Str => {
             if let Some(instructions) =
                 lower_str_otherwise_aggregate_field_assignment(value, destination, offset, context)?
@@ -179,6 +180,52 @@ pub(super) fn lower_aggregate_field_assignment(
                     context,
                 )
             }
+        }
+        AggregateFieldKind::Outcome { storage, .. } => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let replacement_slot = temporaries.next_aggregate_slot();
+            let Some(mut instructions) = super::super::aggregates::lower_outcome_field_to_location(
+                &storage,
+                value,
+                AggregateLocation::Slot(replacement_slot),
+                0,
+                "E8011",
+                "field assignments",
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(unsupported_assignment_diagnostic)?,
+                context,
+                &mut temporaries,
+            )?
+            else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            instructions.insert(
+                0,
+                Instruction::ReserveAggregateSlot {
+                    slot_index: replacement_slot,
+                    layout: storage.layout,
+                },
+            );
+            if let Some(drop_kind) = &field_drop_kind {
+                instructions.extend(lower_aggregate_drop_instructions_at_location(
+                    "outcome field replacement",
+                    destination,
+                    offset,
+                    storage.layout,
+                    drop_kind,
+                    context,
+                )?);
+            }
+            instructions.push(Instruction::CopyAggregateRange {
+                destination,
+                destination_offset: offset,
+                source: AggregateLocation::Slot(replacement_slot),
+                source_offset: 0,
+                layout: storage.layout,
+            });
+            Ok(instructions)
         }
     }
 }
@@ -400,7 +447,7 @@ pub(super) fn lower_aggregate_member_value_assignment(
                 destination_offset,
                 layout,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }
@@ -413,7 +460,7 @@ pub(super) fn lower_aggregate_member_value_assignment(
                 destination_offset,
                 layout,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -569,16 +616,19 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     destination_offset: u32,
     layout: ValueLayout,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
+    let Some((_, success)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(callee_layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(callee_layout) = aggregate_type_layout(success) else {
         return Err(unsupported_assignment_diagnostic());
     };
     if callee_layout != layout {
@@ -602,7 +652,7 @@ pub(super) fn lower_aggregate_fallible_call_member_value_assignment(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        success,
         AggregateLocation::Slot(source_slot),
         target,
         arguments,

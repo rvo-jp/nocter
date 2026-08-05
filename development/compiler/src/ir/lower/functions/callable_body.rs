@@ -162,13 +162,10 @@ pub(super) fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
-                &statement.expression,
-                context,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
-            })?
+            let Some(terminating_instructions) =
+                lower_never_expression(&statement.expression, context).map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
@@ -209,6 +206,23 @@ pub(super) fn lower_callable_body(
             );
             Ok(instructions)
         }
+        Stmt::Region(statement) => {
+            instructions.extend(
+                lower_nonterminal_region_statement(
+                    statement,
+                    context,
+                    None,
+                    &[],
+                    "E8007",
+                    "functions",
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            );
+            Ok(instructions)
+        }
         _ => Err(attach_primary_span_if_absent(
             unsupported_function_body_diagnostic(function_name),
             sources,
@@ -235,8 +249,8 @@ pub(super) fn lower_callable_body_result(
     }
 
     if return_type.success_type() == &Type::Void {
-        if let Some(terminating_instructions) =
-            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+        if let Some(terminating_instructions) = lower_never_expression(expression, context)
+            .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, expression.span())
             })?
         {
@@ -348,7 +362,7 @@ pub(super) fn lower_callable_payloadless_switch_body_result(
         Ok(Some(mut branch_instructions)) => {
             let mut instructions = switch.leading_instructions;
             instructions.append(&mut branch_instructions);
-            Ok(Some(mark_fallible_success_returns(
+            Ok(Some(mark_outcome_success_returns(
                 return_type,
                 instructions,
             )))
@@ -526,7 +540,7 @@ pub(super) fn lower_terminal_if_statement_for_success_type_with_branch_prologues
         return Ok(None);
     };
 
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         branch_instructions,
     )))
@@ -628,7 +642,12 @@ pub(super) fn lower_terminal_if_statement_body_for_success_type_with_branch_prol
                 sources,
             )?
         }
-        Type::Never | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => return Ok(None),
+        Type::Never
+        | Type::Optional(_)
+        | Type::Fallible(_)
+        | Type::ComposedOutcome { .. }
+        | Type::Borrow { .. }
+        | Type::Error => return Ok(None),
     };
 
     Ok(Some(branch_instructions))
@@ -660,7 +679,7 @@ pub(super) fn lower_terminal_payloadless_switch_for_success_type(
 
     let mut instructions = switch.leading_instructions;
     instructions.extend(branch_instructions);
-    Ok(Some(mark_fallible_success_returns(
+    Ok(Some(mark_outcome_success_returns(
         return_type,
         instructions,
     )))

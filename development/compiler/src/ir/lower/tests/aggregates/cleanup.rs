@@ -661,7 +661,7 @@ func choose(): bool {
 }
 
 #[test]
-fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_never_suffix() {
+fn lowers_replacement_drop_without_scope_unwind_before_never_suffix() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -745,7 +745,6 @@ func abort(): never {
                         source: AggregateLocation::Slot(2),
                         layout: ValueLayout::new(4, 4),
                     },
-                    drop_target.clone(),
                     Instruction::TailCall {
                         target: CallTarget::same_file("abort"),
                         arguments: vec![],
@@ -769,7 +768,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_aggregate_terminal_if_never_branch_with_scope_cleanup() {
+fn lowers_aggregate_terminal_if_never_branch_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -826,12 +825,6 @@ func abort(): never {
                         destination: AggregateLocation::Slot(0),
                         offset: 0,
                         value: i32_const(2),
-                    },
-                    Instruction::CallVoid {
-                        target: CallTarget::same_file("File.drop"),
-                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                            source: BorrowSource::AggregateSlot(0),
-                        })],
                     },
                     Instruction::TailCall {
                         target: CallTarget::same_file("abort"),
@@ -1678,7 +1671,7 @@ func main(): i32! {
                 destination: I32Location::Return,
                 value: i32_local(0),
             },
-            Instruction::ReturnFallibleSuccess,
+            Instruction::ReturnOutcomeSuccess,
         ],
     );
 }

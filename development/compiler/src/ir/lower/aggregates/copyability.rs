@@ -50,6 +50,50 @@ pub(in crate::ir::lower) fn type_expr_is_copy_aggregate_value_with_resolver<'a, 
 where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
+    if matches!(ty, TypeExpr::Closure(_)) {
+        return type_expr_is_copy_value_inner(
+            ty,
+            fallback_resolved,
+            &resolver,
+            &mut HashSet::new(),
+        );
+    }
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, &resolver);
+    if !shape.layers.is_empty() {
+        let payload_is_scalar_or_view =
+            abi_value_from_type_expr_with_resolver(&shape.payload, fallback_resolved, &resolver)
+                .is_ok_and(|value| {
+                    matches!(
+                        value.ty,
+                        AbiType::I8
+                            | AbiType::I16
+                            | AbiType::I32
+                            | AbiType::I64
+                            | AbiType::Isize
+                            | AbiType::U8
+                            | AbiType::U16
+                            | AbiType::U32
+                            | AbiType::U64
+                            | AbiType::Usize
+                            | AbiType::Bool
+                            | AbiType::Pointer
+                            | AbiType::StrView
+                            | AbiType::SliceView
+                    )
+                });
+        return payload_is_scalar_or_view
+            || type_expr_is_copy_fixed_array_value_with_resolver(
+                &shape.payload,
+                fallback_resolved,
+                &resolver,
+            )
+            || type_expr_is_copy_struct_inner(
+                &shape.payload,
+                fallback_resolved,
+                &resolver,
+                &mut HashSet::new(),
+            );
+    }
     if type_expr_is_copy_fixed_array_value_with_resolver(ty, fallback_resolved, &resolver) {
         return true;
     }
@@ -219,6 +263,17 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) => false,
+        TypeExpr::Closure(closure) => closure.captures.iter().all(|capture| match capture.mode {
+            crate::ast::ClosureCaptureMode::ReadonlyBorrow => true,
+            crate::ast::ClosureCaptureMode::ReadwriteBorrow => false,
+            crate::ast::ClosureCaptureMode::Move => type_expr_is_copy_value_inner(
+                &capture.ty,
+                fallback_resolved,
+                resolver,
+                resolving_names,
+            ),
+        }),
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "error" => true,

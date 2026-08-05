@@ -1,4 +1,4 @@
-use crate::ir::{CallTarget, FallibleFailureMode, Function, Instruction};
+use crate::ir::{CallTarget, Function, Instruction, OutcomeFailureMode};
 use std::collections::VecDeque;
 
 pub(super) fn reachable_call_targets(function: &Function) -> VecDeque<CallTarget> {
@@ -16,6 +16,7 @@ fn collect_reachable_call_targets(
             Instruction::CallI32 { target, .. }
             | Instruction::CallU8 { target, .. }
             | Instruction::CallUsize { target, .. }
+            | Instruction::CallBorrow { target, .. }
             | Instruction::CallBool { target, .. }
             | Instruction::CallStr { target, .. }
             | Instruction::CallSlice { target, .. }
@@ -25,53 +26,71 @@ fn collect_reachable_call_targets(
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
             }
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleI32 {
+            | Instruction::CallOutcomeI32 {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleU8 {
+            | Instruction::CallOutcomeU8 {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleUsize {
+            | Instruction::CallOutcomeUsize {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleBool {
+            | Instruction::CallOutcomeBorrow {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleStr {
+            | Instruction::CallOutcomeBool {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleSlice {
+            | Instruction::CallOutcomeStr {
                 target,
                 failure_mode,
                 ..
             }
-            | Instruction::CallFallibleVoid {
+            | Instruction::CallOutcomeSlice {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallOutcomeVoid {
                 target,
                 failure_mode,
                 ..
             } => {
                 targets.push_back(target.clone());
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
+            }
+            Instruction::CallComposedOutcome {
+                target,
+                outer_mode,
+                inner_mode,
+                ..
+            } => {
+                targets.push_back(target.clone());
+                collect_failure_mode_reachable_call_targets(outer_mode, targets);
+                collect_failure_mode_reachable_call_targets(inner_mode, targets);
+            }
+            Instruction::CallStoredOutcome { target, .. } => {
+                targets.push_back(target.clone());
             }
             Instruction::If {
                 then_instructions,
@@ -80,6 +99,22 @@ fn collect_reachable_call_targets(
             } => {
                 collect_reachable_call_targets(then_instructions, targets);
                 collect_reachable_call_targets(else_instructions, targets);
+            }
+            Instruction::IfStoredOutcomeTag {
+                success_instructions,
+                outcome_instructions,
+                ..
+            } => {
+                collect_reachable_call_targets(success_instructions, targets);
+                collect_reachable_call_targets(outcome_instructions, targets);
+            }
+            Instruction::CheckStoredFallible {
+                success_instructions,
+                failure_mode,
+                ..
+            } => {
+                collect_reachable_call_targets(success_instructions, targets);
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
             Instruction::While {
                 condition_instructions,
@@ -147,12 +182,15 @@ fn collect_reachable_call_targets(
             | Instruction::CopyAggregateRange { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
+            | Instruction::RegionEnter { .. }
+            | Instruction::SetCurrentAllocationContext { .. }
+            | Instruction::RegionRelease { .. }
             | Instruction::SetUsizeFromBorrow { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
@@ -184,20 +222,22 @@ fn collect_reachable_call_targets(
             | Instruction::Break
             | Instruction::Continue
             | Instruction::Return => {}
+            Instruction::LoadStoredOutcomePayload { .. }
+            | Instruction::ReturnStoredOutcome { .. } => {}
         }
     }
 }
 
 fn collect_failure_mode_reachable_call_targets(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     targets: &mut VecDeque<CallTarget>,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             collect_reachable_call_targets(instructions, targets);
         }
     }
@@ -207,7 +247,7 @@ fn collect_failure_mode_reachable_call_targets(
 mod tests {
     use super::*;
     use crate::ir::{
-        BoolValue, CallTarget, FallibleFailureMode, Function, I32Location, I32Value, Instruction,
+        BoolValue, CallTarget, Function, I32Location, I32Value, Instruction, OutcomeFailureMode,
         ScalarArgument, StrLocation, Type,
     };
 
@@ -330,11 +370,11 @@ mod tests {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
-            instructions: vec![Instruction::CallFallibleI32 {
+            instructions: vec![Instruction::CallOutcomeI32 {
                 destination: I32Location::Return,
                 target: CallTarget::same_file("answer"),
                 arguments: vec![],
-                failure_mode: FallibleFailureMode::Catch {
+                failure_mode: OutcomeFailureMode::Catch {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![Instruction::CallI32 {

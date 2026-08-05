@@ -6,7 +6,10 @@ pub(in crate::ir::lower::expressions) fn materialize_computed_str_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<StrValue, Vec<Diagnostic>> {
     match value {
-        StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. } => {
+        StrValue::ProcessArg { .. }
+        | StrValue::ProcessEnvironmentName { .. }
+        | StrValue::ProcessEnvironmentValue { .. }
+        | StrValue::SliceIndex { .. } => {
             let temporary = temporaries.next_str()?;
             instructions.push(Instruction::SetStr {
                 destination: temporary,

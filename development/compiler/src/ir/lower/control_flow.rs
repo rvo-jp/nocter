@@ -15,21 +15,23 @@ use super::functions::{
     BranchPrologue, LoweredPayloadlessSwitchBody, LoweredSwitchBlock, LoweredSwitchCondition,
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
-    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_never_expression, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_terminal_return_statement_with_scope_drops,
     lowerable_switch_is_exhaustive, mark_explicit_moves_in_expression,
     mark_lowered_statement_aggregate_uses, payloadless_switch_as_control_flow,
     payloadless_switch_is_exhaustive, tag_only_if_is_as_control_flow,
     tag_only_switch_as_control_flow,
 };
+use super::regions::CleanupScopeMark;
+pub(super) use super::regions::lower_nonterminal_region_statement;
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
     ReturnStmt, Stmt, SwitchStmt, UnaryOperator, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, SliceLocation,
+    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, I32ComparisonOperator,
+    I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument, SliceLocation,
     StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
@@ -42,7 +44,7 @@ mod diagnostics;
 mod exit_analysis;
 mod loop_control;
 mod model;
-mod nonterminal;
+pub(in crate::ir::lower) mod nonterminal;
 mod return_blocks;
 mod terminal;
 mod terminal_branches;

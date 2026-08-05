@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::ir::lower::functions) fn lower_aggregate_return_expression_to_location(
+pub(in crate::ir::lower) fn lower_aggregate_return_expression_to_location(
     expression: &Expr,
     return_type: &Type,
     destination: AggregateLocation,
@@ -8,6 +8,24 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_return_expression_to_loca
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::InterpolatedString(interpolated) = expression {
+        return crate::ir::lower::interpolation::lower_interpolated_string_return_to_location(
+            interpolated,
+            destination,
+            context,
+        );
+    }
+    if matches!(
+        expression,
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        return crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+            expression,
+            destination,
+            context,
+        )?
+        .ok_or_else(|| unsupported_aggregate_return_diagnostic(function_name));
+    }
     match expression {
         Expr::StructLiteral(literal) => lower_aggregate_struct_literal_return_to_location(
             literal,
@@ -54,7 +72,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_return_expression_to_loca
                 destination,
                 function_name,
                 context,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
             )
         }
         Expr::Force(force) => {
@@ -67,7 +85,7 @@ pub(in crate::ir::lower::functions) fn lower_aggregate_return_expression_to_loca
                 destination,
                 function_name,
                 context,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
             )
         }
         Expr::Catch(catch) => {

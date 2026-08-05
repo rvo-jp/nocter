@@ -1422,8 +1422,10 @@ fn write_std_vec_with_len_method(home: &Path) {
     pub len: usize
 }
 
-pub func Vec.empty<T>(): Vec<T> {
-    return Vec<T> { len: 0 }
+construct Vec<T> {
+    pub default func empty(): Self {
+        return Vec<T> { len: 0 }
+    }
 }
 
 pub func len<T>(values: &Vec<T>): usize {

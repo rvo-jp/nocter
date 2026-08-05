@@ -1,6 +1,34 @@
 use super::*;
 
 impl<'a> LoweringContext<'a> {
+    pub(in crate::ir::lower) fn typed_literal_call_target(
+        &self,
+        expression_span: ByteSpan,
+        shape: crate::ast::LiteralShape,
+        elements: &[Expr],
+    ) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let literal = resolution.resolved.literal_resolution(expression_span)?;
+        let result_type = self.expression_type_expr(expression_span)?;
+        let key = crate::analysis::literal_specializations::literal_specialization_key(
+            shape,
+            elements,
+            resolution.typecheck_facts,
+            &self.generic_substitutions,
+        )?;
+        let name = crate::analysis::literal_specializations::literal_target_name(
+            &result_type,
+            shape,
+            &key,
+        );
+        let target = call_target_for_source(
+            literal.literal_declaration_span.source,
+            resolution.root_source,
+            name.clone(),
+        );
+        Some((target, name))
+    }
+
     pub(in crate::ir::lower) fn function_name(&self) -> &str {
         &self.function_name
     }
@@ -26,6 +54,17 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(in crate::ir::lower) fn call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        if let Some(signature) = self
+            .call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .callable_call(call.span)
+        {
+            return Some(substitute_type_expr_parameters(
+                &signature.signature.return_type,
+                &self.generic_substitutions,
+            ));
+        }
         if let Some(return_type) = self.method_call_return_type_expr(call) {
             return Some(return_type);
         }
@@ -33,14 +72,20 @@ impl<'a> LoweringContext<'a> {
         let resolution = self.call_resolution.as_ref()?;
         let signature = resolution.resolved.call_signature_for_call(call)?;
         let mut return_type = signature.return_type.clone();
+        let mut call_substitutions = HashMap::new();
         if let Some(specialization) = resolution
             .typecheck_facts
             .function_call_specialization(call.span)
         {
             let specialization =
                 specialization.with_context_substitutions(&self.generic_substitutions)?;
+            call_substitutions = specialization.substitutions.clone();
             return_type =
                 substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+        }
+        if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
+            let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
+            return_type = type_expr_with_self_type(&return_type, &self_ty);
         }
         Some(substitute_type_expr_parameters(
             &return_type,
@@ -64,6 +109,17 @@ impl<'a> LoweringContext<'a> {
         call: &CallExpr,
         index: usize,
     ) -> Option<TypeExpr> {
+        if let Some(signature) = self
+            .call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .callable_call(call.span)
+        {
+            return Some(substitute_type_expr_parameters(
+                &signature.signature.parameters.get(index)?.ty,
+                &self.generic_substitutions,
+            ));
+        }
         if let Some(ty) = self.method_call_argument_parameter_type_expr(call, index) {
             return Some(ty);
         }
@@ -72,6 +128,7 @@ impl<'a> LoweringContext<'a> {
         let signature = resolution.resolved.call_signature_for_call(call)?;
         let parameter = signature.parameters.get(index)?;
         let mut ty = parameter.ty.clone();
+        let mut call_substitutions = HashMap::new();
         if let Some(specialization) = resolution
             .typecheck_facts
             .function_call_specialization(call.span)
@@ -79,7 +136,12 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
+            call_substitutions = specialization.substitutions.clone();
             ty = substitute_type_expr_parameters(&ty, &specialization.substitutions);
+        }
+        if let Some((owner, _)) = resolution.resolved.associated_function_for_call(call) {
+            let self_ty = associated_function_self_type_expr(owner, call.span, &call_substitutions);
+            ty = type_expr_with_self_type(&ty, &self_ty);
         }
         Some(substitute_type_expr_parameters(
             &ty,
@@ -142,6 +204,69 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(in crate::ir::lower) fn interpolation_plan(
+        &self,
+        expression_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckInterpolationPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .interpolation_plan(expression_span)
+            .cloned()
+    }
+
+    pub(in crate::ir::lower) fn collection_for_plan(
+        &self,
+        statement_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckCollectionForPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .collection_for_plan(statement_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
+    pub(in crate::ir::lower) fn sequence_spread_plan(
+        &self,
+        spread_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckSequenceSpreadPlan> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .sequence_spread_plan(spread_span)?
+            .with_context_substitutions(&self.generic_substitutions)
+    }
+
+    pub(in crate::ir::lower) fn iteration_method_target(
+        &self,
+        method: &crate::typecheck::TypecheckIterationMethod,
+    ) -> Option<CallTarget> {
+        let resolution = self.call_resolution.as_ref()?;
+        if let Some(target) = self
+            .function_names
+            .unique_target_for_name(&method.target_name)
+        {
+            return Some(target.clone());
+        }
+        Some(call_target_for_source(
+            method.declaration_span.source,
+            resolution.root_source,
+            method.target_name.clone(),
+        ))
+    }
+
+    pub(in crate::ir::lower) fn runtime_callable_target(
+        &self,
+        callable: &crate::semantics::RuntimeCallable,
+    ) -> Option<CallTarget> {
+        let resolution = self.call_resolution.as_ref()?;
+        Some(call_target_for_source(
+            callable.declaration.source,
+            resolution.root_source,
+            callable.target_name.clone(),
+        ))
+    }
+
     pub(in crate::ir::lower) fn function_call_type_substitution(
         &self,
         call: &CallExpr,
@@ -182,6 +307,9 @@ impl<'a> LoweringContext<'a> {
     ) -> Option<(CallTarget, String)> {
         if let Some((target, target_name)) = self.function_call_specialization_target_and_name(call)
         {
+            return Some((target, target_name));
+        }
+        if let Some((target, target_name)) = self.callable_call_target_and_name(call) {
             return Some((target, target_name));
         }
         match call.callee.as_ref() {
@@ -300,7 +428,21 @@ impl<'a> LoweringContext<'a> {
         let symbol = resolution.resolved.symbol_for_call(call)?;
         match &symbol.kind {
             SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
-            SymbolKind::Imported(_) if std_os_imported_primitive_name(&symbol.name) => {
+            SymbolKind::Imported(_)
+                if std_os_imported_primitive_name(&symbol.name)
+                    || matches!(
+                        resolution
+                            .resolved
+                            .trusted_declarations
+                            .role(symbol.declaration_span),
+                        Some(
+                            crate::semantics::TrustedDeclarationRole::CurrentAllocationContext
+                                | crate::semantics::TrustedDeclarationRole::RegionEnter
+                                | crate::semantics::TrustedDeclarationRole::RegionRelease
+                                | crate::semantics::TrustedDeclarationRole::AllocationAbort
+                        )
+                    ) =>
+            {
                 Some(symbol.name.as_str())
             }
             SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
@@ -337,6 +479,13 @@ impl<'a> LoweringContext<'a> {
         call: &'b CallExpr,
     ) -> Option<&'b Expr> {
         let resolution = self.call_resolution.as_ref()?;
+        if resolution
+            .typecheck_facts
+            .callable_call(call.span)
+            .is_some()
+        {
+            return Some(&call.callee);
+        }
         let Expr::Member(member) = call.callee.as_ref() else {
             return None;
         };
@@ -344,6 +493,16 @@ impl<'a> LoweringContext<'a> {
             .typecheck_facts
             .method_call_target(member.member_span)?;
         Some(&member.object)
+    }
+
+    pub(in crate::ir::lower) fn method_call_receiver_kind(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<crate::typecheck::TypecheckMethodReceiverKind> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .method_call_receiver_kind(member_span)
     }
 
     fn method_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
@@ -361,11 +520,17 @@ impl<'a> LoweringContext<'a> {
                 specialization.with_context_substitutions(&self.generic_substitutions)
             })
         {
-            let target = call_target_for_source(
-                method_name_span.source,
-                resolution.root_source,
-                specialization.target_name.clone(),
-            );
+            let target = self
+                .function_names
+                .unique_target_for_name(&specialization.target_name)
+                .cloned()
+                .unwrap_or_else(|| {
+                    call_target_for_source(
+                        method_name_span.source,
+                        resolution.root_source,
+                        specialization.target_name.clone(),
+                    )
+                });
             return Some((target, specialization.target_name.clone()));
         }
         if resolution
@@ -385,6 +550,27 @@ impl<'a> LoweringContext<'a> {
             target_name.clone(),
         );
         Some((target, target_name))
+    }
+
+    fn callable_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let specialization = resolution
+            .typecheck_facts
+            .callable_call(call.span)?
+            .specialization
+            .with_context_substitutions(&self.generic_substitutions)?;
+        let target = self
+            .function_names
+            .unique_target_for_name(&specialization.target_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                call_target_for_source(
+                    specialization.callable_ty.span().source,
+                    resolution.root_source,
+                    specialization.target_name.clone(),
+                )
+            });
+        Some((target, specialization.target_name))
     }
 
     fn method_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
@@ -476,4 +662,35 @@ impl<'a> LoweringContext<'a> {
             &self.generic_substitutions,
         ))
     }
+}
+
+fn associated_function_self_type_expr(
+    owner: &crate::resolve::TypeSymbol,
+    span: ByteSpan,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> TypeExpr {
+    if owner.generic_parameters.is_empty() {
+        return TypeExpr::Reference(crate::ast::TypeReference {
+            span,
+            name: owner.canonical_name.clone(),
+        });
+    }
+
+    TypeExpr::Generic(crate::ast::GenericType {
+        span,
+        name: owner.canonical_name.clone(),
+        name_span: span,
+        arguments: owner
+            .generic_parameters
+            .iter()
+            .map(|parameter| {
+                substitutions.get(parameter).cloned().unwrap_or_else(|| {
+                    TypeExpr::Reference(crate::ast::TypeReference {
+                        span,
+                        name: parameter.clone(),
+                    })
+                })
+            })
+            .collect(),
+    })
 }

@@ -56,7 +56,7 @@ impl StructInitializationProgress {
                 .iter()
                 .map(|field| (field.offset, field.drop_kind.as_ref()))
                 .collect::<HashMap<_, _>>(),
-            AggregateDrop::Array(_) | AggregateDrop::PayloadEnum(_) => {
+            AggregateDrop::Array(_) | AggregateDrop::PayloadEnum(_) | AggregateDrop::Outcome(_) => {
                 return Err(invalid_struct_initialization_state_diagnostic());
             }
         };
@@ -194,7 +194,7 @@ impl DropStateAllocator for TemporaryAllocator {
 fn invalid_struct_initialization_state_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 cannot establish struct field initialization state",
+        "native lowering cannot establish struct field initialization state",
     )]
 }
 

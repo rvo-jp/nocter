@@ -4,6 +4,7 @@ use super::{
 };
 use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
 use crate::literals::decode_integer_literal_value;
+use crate::outcomes::{OutcomeLayer, storage::outcome_storage_layout};
 use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceId;
 use std::collections::{HashMap, HashSet};
@@ -181,6 +182,27 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) => Err(AbiTypeError::UnsupportedType(type_expr_display_lossy(ty))),
+        TypeExpr::Closure(closure) => {
+            let fields = closure
+                .captures
+                .iter()
+                .map(|capture| {
+                    let ty = sized_abi_type_kind(
+                        abi_type_kind_from_type_expr(
+                            &capture.ty,
+                            fallback_resolved,
+                            resolver,
+                            substitutions,
+                            resolving_names,
+                        )?,
+                        &capture.ty,
+                    )?;
+                    Ok(AbiField::new(capture.name.clone(), ty))
+                })
+                .collect::<Result<Vec<_>, AbiTypeError>>()?;
+            Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
+        }
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "bool" => Ok(AbiTypeKind::Value(AbiType::Bool)),
             "u8" => Ok(AbiTypeKind::Value(AbiType::U8)),
@@ -302,14 +324,49 @@ where
                 length,
             }))
         }
-        TypeExpr::Optional(optional) => Err(AbiTypeError::UnsupportedType(format!(
-            "{}?",
-            type_expr_display_lossy(&optional.inner)
-        ))),
-        TypeExpr::Fallible(fallible) => Err(AbiTypeError::UnsupportedType(format!(
-            "{}!",
-            type_expr_display_lossy(&fallible.success)
-        ))),
+        TypeExpr::Optional(optional) => {
+            let payload = sized_abi_type_kind(
+                abi_type_kind_from_type_expr(
+                    &optional.inner,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                    resolving_names,
+                )?,
+                &optional.inner,
+            )?;
+            let payload_layout = layout_of(&payload)?;
+            let storage = outcome_storage_layout(&[OutcomeLayer::Optional], payload_layout);
+            Ok(AbiTypeKind::Value(AbiType::Outcome {
+                layout: storage.layout,
+            }))
+        }
+        TypeExpr::Fallible(fallible) => {
+            let payload = sized_abi_type_kind(
+                abi_type_kind_from_type_expr(
+                    &fallible.success,
+                    fallback_resolved,
+                    resolver,
+                    substitutions,
+                    resolving_names,
+                )?,
+                &fallible.success,
+            )?;
+            let payload_layout = layout_of(&payload)?;
+            let storage = outcome_storage_layout(&[OutcomeLayer::Fallible], payload_layout);
+            Ok(AbiTypeKind::Value(AbiType::Outcome {
+                layout: storage.layout,
+            }))
+        }
+    }
+}
+
+fn sized_abi_type_kind(kind: AbiTypeKind, source: &TypeExpr) -> Result<AbiType, AbiTypeError> {
+    match kind {
+        AbiTypeKind::Value(ty) => Ok(ty),
+        AbiTypeKind::UnsizedStr | AbiTypeKind::UnsizedArray => {
+            Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(source)))
+        }
     }
 }
 

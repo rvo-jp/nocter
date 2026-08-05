@@ -49,7 +49,11 @@ pub(super) fn record_usize_value_parameter_spill_requests(
     requests: &mut BTreeSet<usize>,
 ) {
     match value {
-        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
+        UsizeValue::Const(_)
+        | UsizeValue::ProcessArgCount
+        | UsizeValue::ProcessEnvironmentCount
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => {}
         UsizeValue::Location(UsizeLocation::Parameter(index)) => {
             requests.insert(*index);
         }
@@ -121,7 +125,9 @@ pub(super) fn record_str_value_parameter_spill_requests(
             record_slice_location_parameter_pair_spill_requests(*source, requests);
             record_usize_value_parameter_spill_requests(index, requests);
         }
-        StrValue::ProcessArg { index } => {
+        StrValue::ProcessArg { index }
+        | StrValue::ProcessEnvironmentName { index }
+        | StrValue::ProcessEnvironmentValue { index } => {
             record_usize_value_parameter_spill_requests(index, requests);
         }
     }
@@ -239,6 +245,10 @@ pub(super) fn record_borrow_source_parameter_spill_request(
         | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Local(_))
         | BorrowSource::AggregateSlot(_)
         | BorrowSource::AggregateSlotField { .. } => {}
+        BorrowSource::BorrowLocal(UsizeLocation::Parameter(index)) => {
+            requests.insert(index);
+        }
+        BorrowSource::BorrowLocal(UsizeLocation::Return | UsizeLocation::Local(_)) => {}
     }
 }
 

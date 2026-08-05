@@ -203,6 +203,8 @@ fn fixed_array_owned_element_initializer_is_buildable_with_tracking(expression: 
 
 fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
     match expression {
+        // Creating a closure does not execute its body.
+        Expr::Closure(_) => true,
         Expr::Propagate(_)
         | Expr::Catch(_)
         | Expr::Otherwise(_)
@@ -214,6 +216,19 @@ fn expression_completes_without_source_control_exit(expression: &Expr) -> bool {
             .elements
             .iter()
             .all(expression_completes_without_source_control_exit),
+        Expr::TypedSequenceLiteral(literal) => {
+            literal
+                .elements
+                .iter()
+                .all(expression_completes_without_source_control_exit)
+                && literal.using.as_ref().is_none_or(|using| {
+                    expression_completes_without_source_control_exit(&using.allocator)
+                })
+        }
+        Expr::TypedStringLiteral(literal) => literal
+            .using
+            .as_ref()
+            .is_none_or(|using| expression_completes_without_source_control_exit(&using.allocator)),
         Expr::StructLiteral(literal) => literal
             .fields
             .iter()
@@ -1037,7 +1052,7 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
         typecheck_facts,
         generic_substitutions,
     ) {
-        return Some(unsupported_v0_build_diagnostic(
+        return Some(unsupported_native_build_diagnostic(
             sources,
             statement.value.span(),
             "fixed array literal assignments whose element initialization can exit early",
@@ -1046,13 +1061,13 @@ pub(super) fn unsupported_fixed_array_assignment_diagnostic(
     }
 
     Some(match unwrap_group_expr(&statement.value) {
-        Expr::ArrayLiteral(_) => unsupported_v0_build_diagnostic(
+        Expr::ArrayLiteral(_) => unsupported_native_build_diagnostic(
             sources,
             statement.value.span(),
             "fixed array assignments outside supported literal values",
             "match the target fixed array length and use `i32`, `u8`, `usize`, `bool`, or `&str` elements until broader fixed array element storage is promoted",
         ),
-        _ => unsupported_v0_build_diagnostic(
+        _ => unsupported_native_build_diagnostic(
             sources,
             statement.target.span(),
             "fixed array assignments outside supported replacement values",

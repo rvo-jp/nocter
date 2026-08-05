@@ -71,6 +71,22 @@ impl Formatter {
                 self.write(" ");
                 self.format_block(&statement.body);
             }
+            Stmt::CollectionFor(statement) => {
+                self.write("for ");
+                self.write(&statement.name);
+                self.write(" in ");
+                self.format_expression(&statement.source);
+                self.write(" ");
+                self.format_block(&statement.body);
+            }
+            Stmt::LiteralPackFor(statement) => {
+                self.write("for ");
+                self.write(&statement.name);
+                self.write(" in ");
+                self.write(&statement.pack_name);
+                self.write(" ");
+                self.format_block(&statement.body);
+            }
             Stmt::While(statement) => {
                 self.write("while ");
                 self.format_expression(&statement.condition);
@@ -79,6 +95,14 @@ impl Formatter {
             }
             Stmt::Loop(statement) => {
                 self.write("loop ");
+                self.format_block(&statement.body);
+            }
+            Stmt::Region(statement) => {
+                self.write("region ");
+                self.write(&statement.name);
+                self.write(" using ");
+                self.format_expression(&statement.allocator);
+                self.write(" ");
                 self.format_block(&statement.body);
             }
             Stmt::Break(_) => self.write("break"),
@@ -248,11 +272,21 @@ impl Formatter {
 
 fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
     match expression {
-        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) | Expr::Otherwise(_) => false,
+        Expr::Closure(_)
+        | Expr::If(_)
+        | Expr::IfIs(_)
+        | Expr::Match(_)
+        | Expr::Catch(_)
+        | Expr::Otherwise(_) => false,
         Expr::ArrayLiteral(expression) => expression
             .elements
             .iter()
             .all(expression_can_be_inline_block_result),
+        Expr::TypedSequenceLiteral(expression) => expression
+            .elements
+            .iter()
+            .all(expression_can_be_inline_block_result),
+        Expr::TypedStringLiteral(_) => true,
         Expr::StructLiteral(expression) => expression
             .fields
             .iter()

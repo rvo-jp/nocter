@@ -7,7 +7,7 @@ pub(super) const WRITE_LOOP_FD_OFFSET: u32 = 0;
 pub(super) const WRITE_LOOP_POINTER_OFFSET: u32 = 8;
 pub(super) const WRITE_LOOP_REMAINING_OFFSET: u32 = 16;
 pub(super) const WRITE_UNEXPECTED_RESULT_ERRNO: u64 = 0xffff;
-pub(super) const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
+pub(super) const OUTCOME_PAYLOAD_REGISTER_COUNT: usize = 2;
 pub(super) const DIRECT_AGGREGATE_REGISTER_WORD_COUNT: usize = 2;
 pub(super) const WRITE_FAILURE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
     code: b"std.io.write_failed",

@@ -76,6 +76,26 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(callable) => {
+            callable.parameters.iter().any(|parameter| {
+                type_expr_contains_unresolved_type_parameter_with_resolver(
+                    &parameter.ty,
+                    fallback_resolved,
+                    resolver,
+                )
+            }) || type_expr_contains_unresolved_type_parameter_with_resolver(
+                &callable.return_type,
+                fallback_resolved,
+                resolver,
+            )
+        }
+        TypeExpr::Closure(closure) => closure.captures.iter().any(|capture| {
+            type_expr_contains_unresolved_type_parameter_with_resolver(
+                &capture.ty,
+                fallback_resolved,
+                resolver,
+            )
+        }),
         TypeExpr::Reference(reference) => {
             let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
             !known_builtin_type_name(&reference.name)

@@ -3,21 +3,20 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-## v0 Scope
+## v0.2.0 Scope
 
-Nocter v0 includes generic type parameters, associated functions, inherent
+Nocter v0.2.0 includes generic type parameters, associated functions, inherent
 `impl` blocks, receiver methods, contract-only `interface` declarations,
 explicit interface conformance declarations, and `Self` type syntax inside
 inherent member and interface method contexts.
 
-Nocter v0 does not include traits.
+Nocter v0.2.0 does not include traits.
 Embedding is an adopted future composition feature, but it is not part of the
-v0 implementation contract. Generalized `...` spread, rest capture, variadic
-capture, and typed literal construction are specified as a separate future
-direction in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md).
+v0.2.0 implementation contract. Typed literal construction, literal rest capture, implemented
+sequence spread, and future variadic capture are specified separately in
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md).
 
-Not part of v0:
+Not part of v0.2.0:
 
 - `trait` declarations
 - embedding declarations such as `...Type` and `pub ...Type`
@@ -30,7 +29,7 @@ Not part of v0:
   specialization, and `where` clauses
 - code reuse through interfaces
 
-`trait` is not a reserved keyword in v0. It is lexed as an identifier. A source
+`trait` is not a reserved keyword in v0.2.0. It is lexed as an identifier. A source
 form that starts a top-level item with `trait` is diagnosed as removed syntax,
 but the spelling remains available as an ordinary identifier in
 positions such as a function name.
@@ -42,15 +41,18 @@ positions such as a function name.
 Adopted: `impl` associates receiver methods and destructor members with a
 nominal type. It is not a class declaration and does not introduce inheritance.
 
-Associated functions are declared at top level with a qualified function name.
-They have no receiver and are called through the type.
+Associated functions have no receiver and are called through the type. Functions that directly
+construct their nominal owner belong to its `construct` declaration. Other associated functions
+remain top-level qualified declarations.
 
 ```nct
-pub func WordStats.empty(): WordStats {
-    return WordStats {
-        bytes: 0,
-        lines: 0,
-        words: 0,
+construct WordStats {
+    pub default func empty(): Self {
+        return WordStats {
+            bytes: 0,
+            lines: 0,
+            words: 0,
+        }
     }
 }
 ```
@@ -112,30 +114,36 @@ impl Count {
 // error: Count is a type alias, not a nominal type
 ```
 
-`impl Interface for Type` declares explicit conformance to an interface. It is
-not an inherent impl block and cannot contain members.
+The released v0.2.0 form `impl Interface for Type` declares structural conformance and cannot
+contain members. The adopted v0.3.0 form replaces it with a body-bearing declaration whose braces
+are mandatory and whose members own the interface implementation:
 
 ```nct
-impl Printable for User
-impl Printable for User {}
-```
-
-Generic conformance declarations use the same impl generic parameter list:
-
-```nct
-impl<T> Source<T> for Box<T>
-```
-
-The implementing methods are ordinary public inherent methods on the target
-type.
-
-```nct
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 0
     }
 }
 ```
+
+Generic interface implementations use the same impl generic parameter list:
+
+```nct
+impl<T> Source<T> for Box<T> {
+    method &self.read(): T {
+        return self.value
+    }
+}
+```
+
+The interface declaration owns visibility. An implementation member therefore omits `pub` and is
+not an inherent method. Required methods must appear with bodies. A default method may be omitted
+or overridden by a same-name implementation member. An empty body is valid only when the interface
+has no unimplemented required method.
+
+An interface implementation cannot contain extra methods, associated functions, literals, or a
+`drop` member. An inherent method never establishes or overrides conformance. Brace-less
+conformance declarations are not part of the adopted v0.3.0 surface.
 
 Initial receiver forms:
 
@@ -168,16 +176,16 @@ Call rules:
 - Associated function and method arguments follow the positional argument rules
   in [Control Flow](03-control-flow.md#function-calls-and-arguments).
 - `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in
-  v0.
+  v0.2.0.
 - `value.function(args)` is invalid when `function` is only an associated
   `func`.
 - `func Type.name` and `method` share the same member namespace for a type.
-  Defining both with the same member name for the same type is an error in v0.
+  Defining both with the same member name for the same type is an error in v0.2.0.
 - Enum variants also occupy the type member namespace. An associated `func` or
-  `method` cannot reuse an enum variant member name in v0.
+  `method` cannot reuse an enum variant member name in v0.2.0.
 - If method lookup finds multiple valid inherent candidates, the call is
   ambiguous and is a compile error.
-- v0 has no qualified method-call escape hatch for ambiguity resolution.
+- v0.2.0 has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
 file.write_text("hello")?          // OK: method call
@@ -186,7 +194,7 @@ File.write_text(&+file, "hello")?  // error: methods are not UFCS functions
 
 ## Method Lookup
 
-Adopted: method lookup is deliberately small and deterministic in v0.
+Adopted: method lookup is deliberately small and deterministic in v0.2.0.
 
 For `value.method(args)`, the compiler first determines the static type of
 `value`.
@@ -194,17 +202,53 @@ For `value.method(args)`, the compiler first determines the static type of
 If the receiver has a concrete nominal type, the compiler looks only for
 inherent methods declared in `impl Type` blocks for that nominal type.
 
-If the receiver is a generic type parameter, v0 has no interface-bound method lookup.
+If the receiver is a generic type parameter, v0.2.0 has no interface-bound method lookup.
 A method call through an unconstrained generic receiver is invalid unless a
 future feature supplies a bound and lookup rule.
 
-Lookup order:
+Nocter v0.3.0 Phase 4 supplies that rule for an explicit interface bound:
 
-1. inherent method on a concrete nominal receiver type
-2. no candidate, producing a compile error
+```nct
+func read<S: Source<i32>>(source: &S): i32 {
+    return source.read()
+}
+```
+
+Lookup on `S` searches only the canonical `Source<i32>` contract. Each concrete specialization
+requires explicit conformance and statically resolves to the matching member of the body-bearing
+interface implementation.
+Phase 9 extends this to a finite capability set while retaining static dispatch:
+
+```nct
+func inspect<I: Iterator<T> + ExactSizeIterator<T>, T>(iterator: &I): usize {
+    return iterator.remaining_len()
+}
+```
+
+The set is resolved by specialized interface declaration identity. If two distinct bounds declare
+the requested method name, the call is ambiguous even when their displayed signatures match.
+Runtime interface objects and `where` clauses remain unavailable.
+
+Concrete-receiver lookup in the adopted v0.3.0 model is:
+
+1. collect the applicable inherent method and accessible conformance members or defaults
+2. select the sole candidate
+3. diagnose ambiguity across inherent and conformance categories rather than using declaration or
+   import order
+
+Bounded generic-receiver lookup in v0.3.0 Phase 9 is separate:
+
+1. resolve the generic parameter's canonical interface-bound set
+2. search only accessible methods declared by those interfaces
+3. typecheck against the specialized interface signature
+4. require explicit conformance for every reachable concrete specialization
+5. lower directly to the matching conformance member or specialized default declaration
+
+The compiler never falls back to an inherent method merely because it has the same name as a
+missing bound method.
 
 The compiler does not search visible interface conformance declarations to resolve
-`value.method(args)` in v0. This avoids import-dependent method lookup and keeps
+`value.method(args)` in v0.2.0. This avoids import-dependent method lookup and keeps
 calls readable from the receiver type.
 
 Initial implementation order:
@@ -216,7 +260,7 @@ Initial implementation order:
 5. method declarations
 6. method calls such as `value.method(...)`
 
-## Interface Contracts
+## v0.2.0 Interface Contracts
 
 An interface is a contract-only nominal declaration. It may be private,
 `pub`, or `pub(nocter)` like other top-level definitions. Every member inside
@@ -245,6 +289,9 @@ Rules:
   same name and signature for every interface method.
 - Method parameter names do not participate in conformance. Receiver type,
   parameter types, and return type do.
+- A Phase 4 result provenance clause participates in conformance. An implementation may promise a
+  narrower, longer-lived origin set, but it cannot omit the explicit relationship required by the
+  interface contract.
 - Conformance is explicit. A type with matching methods does not satisfy an
   interface unless source contains `impl Interface for Type`.
 
@@ -269,15 +316,46 @@ impl Reader for File
 ```
 
 This model prevents accidental conformance while keeping the contract check
-structural. It also keeps code reuse out of v0: interface declarations describe
+structural. It also keeps code reuse out of v0.2.0: interface declarations describe
 requirements only.
+
+## v0.3.0 Phase 10 Interface Defaults
+
+Phase 10 permits a public interface method to carry a default body. A bodyless method remains a
+conformance requirement. A body-bearing method is reusable behavior derived from the interface
+contract and does not add a conformance requirement.
+
+```nct
+pub interface Counter {
+    pub method &+self.next(): i32?
+
+    pub method self.count(): usize {
+        var source = move self
+        var total: usize = 0
+        loop {
+            source.next() otherwise { return total }
+            total += 1
+        }
+    }
+}
+```
+
+An explicit `impl Interface for Type { ... }` must implement every bodyless method in its own body.
+Default bodies are checked with `Self` constrained by their declaring interface and are statically
+specialized at use sites. A conformance member with the same name is an explicit override. An
+inherent member cannot implement or override an interface member. If inherent and conformance
+members, or two applicable conformances, supply the same call name, lookup is ambiguous. Import or
+declaration order never resolves that ambiguity.
+
+See [Callable Values and Interface Default Methods](18-callables-default-methods.md) for the Phase
+10 callable and lookup contract.
 
 ## Interface And Embedding Separation
 
-Adopted: Nocter separates contract checking from implementation reuse.
+Adopted: Nocter separates stateless interface reuse from stored composition.
 
-An `interface` describes a public capability. It does not store data, provide
-method bodies, forward calls, inject members, or reuse code.
+An `interface` describes a public capability. Phase 10 permits default method bodies derived from
+that capability. An interface still does not store data, inject fields, or establish conformance.
 
 Embedding owns another value inside a struct and promotes only that value's
 public contract through the embedding owner. It is Nocter's planned
@@ -286,12 +364,13 @@ mixin, and not implicit interface conformance.
 
 This separation is part of Nocter's core direction:
 
-- `interface` answers "what public capability does this type promise?"
+- `interface` answers "what public capability does this type promise, and what stateless behavior
+  follows from it?"
 - `embedding` answers "what contained value does this type own and expose?"
 
 The two features may work together, but neither feature includes the other.
 A type that embeds a value does not automatically conform to an interface, and
-an interface does not provide reusable implementation.
+an interface default does not own or expose embedded state.
 
 ## Generics
 
@@ -307,15 +386,56 @@ func first<T>(items: &[T]): T? {
 }
 ```
 
-Generic parameter grammar in v0:
+Generic parameter grammar in v0.2.0:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
 GenericParameter  = Name
 ```
 
-Generic bounds are deferred after v0. The parser must diagnose a generic
-parameter colon such as `T: Printable` as a deferred feature.
+Generic bounds are not part of v0.2.0. Nocter v0.3.0 Phase 4 adds one interface bound; Phase 9 adds
+a finite `+`-separated set. The v0.3.0 stabilization contract also permits one built-in callable
+contract in that set:
+
+```text
+GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
+GenericParameter  = Name [":" Bound ("+" Bound)*]
+Bound             = InterfaceBound | CallableContract
+InterfaceBound    = Type
+CallableContract  = ["&" ["+"]] "func" "(" CallableParameters ")" ":" Type
+CallableParameters = [CallableParameter ("," CallableParameter)*]
+CallableParameter = [Name ":"] Type
+```
+
+```nct
+func inspect<T: Readable<i32>>(value: &T): i32 {
+    return value.read()
+}
+```
+
+Every nominal bound must resolve to an interface with the declared type arity and visibility. Bound
+order is formatting information; semantics use a set of specialized interface declaration
+identities plus at most one structural callable contract. Duplicate interface identities and
+multiple callable contracts are invalid. `where` clauses, interface inheritance, erased callable
+values, and runtime interface values remain unavailable.
+
+Phase 9 also permits a conformance declaration's generic parameters to carry bounds. Such a
+conditional conformance exists for a concrete target only when all specialized bounds hold:
+
+```nct
+impl<T, I: Iterator<T>> Iterator<T> for TakeIter<T, I> {
+    method &+self.next(): T? {
+        if self.remaining == 0 {
+            return none
+        }
+        self.remaining -= 1
+        return self.source.next()?
+    }
+}
+```
+
+Nocter rejects identical normalized target/interface patterns rather than selecting between
+overlapping conditional conformances.
 
 Generic implementation uses monomorphization. Each concrete instantiation is
 compiled as concrete code.
@@ -335,10 +455,8 @@ Initial generic scope:
 - type parameters on `impl` blocks where needed
 - compile-time monomorphization
 
-Deferred generic features:
+Deferred generic features after v0.3.0 Phase 9:
 
-- inline bounds such as `T: Printable`
-- multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types
 - generic associated types
@@ -367,8 +485,8 @@ struct Profile {
 ```
 
 In the embedding subset, leading `...` is recognized only in struct bodies and
-struct literals. Broader future uses of `...` are defined separately in
-[Future Literal Definitions and Spread](17-future-literal-definitions-spread.md)
+struct literals. Sequence spread and other contextual uses of `...` are defined separately in
+[Literal Definitions and Sequence Spread](17-literal-definitions-sequence-spread.md)
 so embedding does not become a hidden import, macro, or general delegation
 mechanism.
 
@@ -548,8 +666,8 @@ struct User {
     id: u64
 }
 
-impl User {
-    pub method &self.print(): i32 {
+impl Printable for User {
+    method &self.print(): i32 {
         return 0
     }
 }
@@ -558,13 +676,17 @@ struct Profile {
     pub ...User
 }
 
-impl Printable for Profile // explicit conformance is still required
+impl Printable for Profile {
+    method &self.print(): i32 {
+        return self.User.print()
+    }
+}
 ```
 
-When checking an explicit `impl Interface for Owner`, public methods promoted by
-`pub ...T` may satisfy interface requirements as public `Owner` methods.
-Methods promoted by private `...T` cannot satisfy a public interface because
-they are not public on `Owner`.
+Embedding never supplies an interface implementation member. The owner must declare each required
+method in its own `impl Interface for Owner { ... }` body. That method may delegate to an
+unambiguous promoted public method, as shown above, but the delegation is explicit and owns a
+separate conformance-member identity.
 
 ### Non-Goals
 
@@ -573,11 +695,10 @@ Embedding is not:
 - class inheritance
 - subclassing
 - trait implementation reuse
-- interface default methods
 - mixins
 - extension methods
 - implicit conversion
 - automatic delegation to private implementation details
 
-Class inheritance is not part of the core language direction. Interface default
-methods and trait-style code reuse are not part of the core language direction.
+Class inheritance, mixins, extension declarations, and implicit conformance are not part of the
+core language direction.

@@ -5,6 +5,54 @@ use crate::parser::parse;
 use std::collections::HashMap;
 
 #[test]
+fn accepts_region_statements_at_the_buildability_boundary() {
+    let (sources, analysis) = analyze_text(
+        r#"struct Allocator {
+    state: usize
+    kind: usize
+}
+
+func use_region(arena: Allocator): i32 {
+    region temp using arena {
+        let value = 1
+    }
+    return 0
+}
+
+func main(): i32 {
+    return use_region(Allocator { state: 0, kind: 0 })
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn specializes_construct_self_results_before_abi_validation() {
+    let (sources, analysis) = analyze_text(
+        r#"struct Box<T> { value: T }
+
+construct Box<T> {
+    pub default func new(value: T): Self {
+        return Box<T> { value: value }
+    }
+}
+
+func main(): i32 {
+    return Box.new(42).value
+}
+"#,
+    );
+
+    let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn reports_reachable_unloaded_imported_call_before_ir_lowering() {
     let (sources, analysis) = analyze_text(
         r#"use std/io.print
@@ -22,7 +70,7 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower unloaded imported function calls yet"
+        "the native compiler cannot lower unloaded imported function calls yet"
     );
     assert_eq!(
         diagnostics[0].help.as_deref(),
@@ -1427,7 +1475,7 @@ func main(): i32 {
             diagnostics.iter().any(|diagnostic| {
                 diagnostic.code == "E0435"
                     && diagnostic.message
-                        == "Nocter v0 build cannot lower fixed array assignments outside supported replacement values yet"
+                        == "the native compiler cannot lower fixed array assignments outside supported replacement values yet"
             }),
             "{diagnostics:?}"
         );
@@ -1671,12 +1719,12 @@ func source(): i32! {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower `catch` blocks outside the v0 runtime subset yet"
+        "the native compiler cannot lower `catch` blocks outside supported runtime control flow yet"
     );
 }
 
 #[test]
-fn reports_nested_otherwise_value_expression_before_ir_lowering() {
+fn accepts_nested_otherwise_value_expression() {
     let (sources, analysis) = analyze_text(
         r#"func main(): i32 {
     return use_value((source() otherwise { 1 }) + 2)
@@ -1694,12 +1742,7 @@ func source(): i32? {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0435");
-    assert_eq!(
-        diagnostics[0].message,
-        "Nocter v0 build cannot lower `otherwise` expressions outside direct scalar/view value, aggregate member root, aggregate argument, aggregate field initializer, binding, assignment, or return positions yet"
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -1870,7 +1913,7 @@ func source(): i32? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower `otherwise` fallback blocks outside the v0 binding subset yet"
+        "the native compiler cannot lower `otherwise` fallback blocks outside supported binding control flow yet"
     );
 }
 
@@ -1954,12 +1997,12 @@ func empty<T>(): T? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        "the native compiler cannot lower generic function calls without concrete type arguments yet"
     );
 }
 
 #[test]
-fn reports_stored_optional_and_fallible_locals_before_ir_lowering() {
+fn accepts_stored_optional_and_fallible_locals() {
     let (sources, analysis) = analyze_text(
         r#"type MaybeCount = i32?
 type Attempt = i32!
@@ -1984,13 +2027,7 @@ func attempt(): Attempt {
 
     let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-    assert_eq!(diagnostics.len(), 4, "{diagnostics:?}");
-    assert!(diagnostics.iter().all(|diagnostic| {
-        diagnostic.code == "E0435"
-            && diagnostic.message
-                == "Nocter v0 build cannot lower stored optional or fallible local values yet"
-            && diagnostic.primary_span.is_some()
-    }));
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]
@@ -2013,7 +2050,7 @@ func empty<T>(): T? {
     assert_eq!(diagnostics[0].code, "E0435");
     assert_eq!(
         diagnostics[0].message,
-        "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        "the native compiler cannot lower generic function calls without concrete type arguments yet"
     );
     assert_eq!(
         diagnostics[0].help.as_deref(),
@@ -2356,7 +2393,9 @@ fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis)
         parsed.diagnostics
     );
     let ast = parsed.ast.expect("expected ast");
-    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None);
+    let trusted = crate::target::trusted::trusted_declarations_for_module("std/mem", &ast);
+    let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), HashMap::new(), None)
+        .with_trusted_declarations(trusted);
     let analysis = analyze_executable_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();
     assert!(

@@ -1,4 +1,47 @@
 use super::*;
+use crate::outcomes::outcome_shape_with_resolver;
+
+pub(in crate::ir::lower) fn outcome_drop_for_type_expr_with_resolver<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    outcome_drop_for_type_expr_with_resolver_ref(ty, root_source, fallback_resolved, &resolver)
+}
+
+pub(in crate::ir::lower) fn outcome_drop_for_type_expr_with_resolver_ref<'a, F>(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    fallback_resolved: &'a ResolveOutput,
+    resolver: &F,
+) -> Option<AggregateDrop>
+where
+    F: Fn(SourceId) -> Option<&'a ResolveOutput>,
+{
+    let shape = outcome_shape_with_resolver(ty, fallback_resolved, resolver);
+    if shape.layers.is_empty() || !shape.is_supported_callable_shape() {
+        return None;
+    }
+    let payload_layout =
+        abi_value_from_type_expr_with_resolver(&shape.payload, fallback_resolved, resolver)
+            .ok()?
+            .layout;
+    let storage = shape.storage_layout(payload_layout)?;
+    let payload = aggregate_drop_for_type_expr_with_resolver_ref(
+        &shape.payload,
+        root_source,
+        fallback_resolved,
+        resolver,
+    )?;
+    Some(AggregateDrop::Outcome(OutcomeDrop {
+        storage,
+        payload: Box::new(payload),
+    }))
+}
 
 pub(in crate::ir::lower) fn aggregate_drop_for_type_expr_with_resolver<'a, F>(
     ty: &TypeExpr,
@@ -100,6 +143,7 @@ where
     F: Fn(SourceId) -> Option<&'a ResolveOutput>,
 {
     match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Array(array) => Some(array.element.as_ref().clone()),
         TypeExpr::Reference(reference) => {
             let resolved = crate::ir::lower::aggregates::resolved_for_type_expr(
@@ -351,6 +395,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = type_symbol_by_reference_name(resolved, &reference.name)?;
             match symbol.kind {
@@ -468,6 +513,7 @@ where
 
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;
@@ -593,6 +639,7 @@ where
 {
     let resolved = resolved_for_type_expr(ty, fallback_resolved, resolver);
     let (type_name, substitutions) = match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => return None,
         TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
         TypeExpr::Generic(generic) => {
             let type_symbol = type_symbol_by_reference_name(resolved, &generic.name)?;

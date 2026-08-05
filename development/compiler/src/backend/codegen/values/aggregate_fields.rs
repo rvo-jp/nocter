@@ -668,7 +668,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn aggregate_slot_load_offset(
+    pub(in crate::backend::codegen) fn aggregate_slot_load_offset(
         &self,
         source: AggregateLocation,
         offset: u32,
@@ -677,7 +677,7 @@ impl EntryEmitter {
     ) -> Result<u32, Vec<Diagnostic>> {
         let AggregateLocation::Slot(slot_index) = source else {
             return Err(aggregate_load_diagnostic(
-                "backend v0 can only load aggregate fields from slots",
+                "the native backend can only load aggregate fields from slots",
             ));
         };
         self.aggregate_slot_field_offset(slot_index, offset, load_bytes, frame)
@@ -706,7 +706,7 @@ impl EntryEmitter {
         Ok(())
     }
 
-    pub(in crate::backend::codegen::values) fn aggregate_slot_field_offset(
+    pub(in crate::backend::codegen) fn aggregate_slot_field_offset(
         &self,
         slot_index: usize,
         offset: u32,

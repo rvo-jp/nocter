@@ -14,6 +14,7 @@ mod locations;
 mod protocol;
 mod recovery;
 mod references;
+mod request_validation;
 mod semantic;
 mod signature_help;
 mod symbols;
@@ -26,13 +27,14 @@ use analysis::{
 use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{
-    LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER, LSP_COMPLETION_ITEM_KIND_FIELD,
-    LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_METHOD,
-    LSP_COMPLETION_ITEM_KIND_MODULE, LSP_COMPLETION_ITEM_KIND_STRUCT,
+    LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR, LSP_COMPLETION_ITEM_KIND_ENUM_MEMBER,
+    LSP_COMPLETION_ITEM_KIND_FIELD, LSP_COMPLETION_ITEM_KIND_FUNCTION,
+    LSP_COMPLETION_ITEM_KIND_METHOD, LSP_COMPLETION_ITEM_KIND_MODULE,
+    LSP_COMPLETION_ITEM_KIND_STRUCT,
 };
 use completion::{
     completion_items_for_document_at_offset, completion_items_for_file_analysis_at_offset,
-    keyword_completion_items,
+    keyword_completion_items, literal_shape_completion_items_for_file_analysis_at_offset,
 };
 use definition::{definition_for_document, definition_for_file_analysis};
 use diagnostics::publish_diagnostics;
@@ -159,6 +161,23 @@ impl LspServer {
             return Ok(None);
         }
 
+        if request_validation::supported_text_document_params_are_valid(method, params)
+            == Some(false)
+        {
+            write_message(
+                writer,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": format!("invalid params for `{method}`")
+                    }
+                }),
+            )?;
+            return Ok(None);
+        }
+
         match method {
             "initialize" => {
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
@@ -206,7 +225,10 @@ impl LspServer {
                         "id": id,
                         "error": {
                             "code": -32601,
-                        "message": format!("method `{method}` is not supported by Nocter LSP v0.2.0")
+                        "message": format!(
+                            "method `{method}` is not supported by Nocter LSP v{}",
+                            crate::driver::VERSION
+                        )
                         }
                     }),
                 )?;
@@ -314,11 +336,13 @@ impl LspServer {
 
     fn hover_response(&self, id: Value, params: Option<&Value>) -> Value {
         let hover = document_uri_from_params(params).and_then(|uri| {
-            self.workspace_hover_for_uri(&uri, params).or_else(|| {
-                self.documents
-                    .get(&uri)
-                    .and_then(|document| hover_for_document(document, params))
-            })
+            self.workspace_hover_for_uri(&uri, params)
+                .or_else(|| self.workspace_hover_for_recovered_uri(&uri, params))
+                .or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .and_then(|document| hover_for_document(document, params))
+                })
         });
         response(id, hover.unwrap_or(Value::Null))
     }
@@ -363,8 +387,11 @@ impl LspServer {
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
                 module_completion_items(document, &self.workspace_roots, offset)
-                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
+                    .or_else(|| {
+                        self.workspace_literal_completion_for_recovered_uri(&uri, &position)
+                    })
                     .or_else(|| self.workspace_completion_for_recovered_uri(&uri, &position))
+                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
                     .or_else(|| completion_items_for_document_at_offset(document, offset))
             })
             .unwrap_or_else(keyword_completion_items);
@@ -407,6 +434,45 @@ impl LspServer {
         })
     }
 
+    fn workspace_hover_for_recovered_uri(
+        &self,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Value> {
+        let position = position_from_params(params)?;
+        let document = self.documents.get(uri)?;
+        let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        for recovered in [
+            crate::analysis::interpolation_recovery_text(&document.text, offset),
+            crate::analysis::literal_recovery_text(&document.text, offset),
+            crate::analysis::region_recovery_text(&document.text, offset),
+            crate::analysis::collection_for_recovery_text(&document.text, offset),
+            crate::analysis::block_recovery_text(&document.text, offset),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let Some(workspace) = workspace_analysis_with_recovered_document(
+                uri,
+                &self.documents,
+                recovered,
+                source_root,
+            ) else {
+                continue;
+            };
+            let Some(file) = workspace.root_file() else {
+                continue;
+            };
+            if let Some(hover) =
+                hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, offset)
+            {
+                return Some(hover);
+            }
+        }
+        None
+    }
+
     fn workspace_semantic_tokens_for_uri(&self, uri: &str) -> Option<Vec<usize>> {
         self.with_workspace_file_for_uri(uri, |document, _workspace, file| {
             Some(semantic_tokens_for_file_analysis(document, file))
@@ -422,6 +488,7 @@ impl LspServer {
                 &workspace.sources,
                 &workspace.analysis,
                 file,
+                document,
                 &self.documents,
                 root_offset,
             )
@@ -472,7 +539,8 @@ impl LspServer {
     ) -> Option<Vec<Value>> {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let recovered = crate::analysis::completion_recovery_text(&document.text, offset)?;
+        let (recovered, recovered_offset) =
+            crate::analysis::completion_recovery_overlay(&document.text, offset)?;
         let source_root = source_root_for_document(document, &self.workspace_roots);
         let workspace = workspace_analysis_with_recovered_document(
             uri,
@@ -485,8 +553,56 @@ impl LspServer {
             &workspace.sources,
             &workspace.analysis,
             file,
-            offset,
+            recovered_offset,
         ))
+    }
+
+    fn workspace_literal_completion_for_recovered_uri(
+        &self,
+        uri: &str,
+        position: &LspPosition,
+    ) -> Option<Vec<Value>> {
+        let document = self.documents.get(uri)?;
+        let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let (recovered, recovered_offset) =
+            crate::analysis::literal_recovery_overlay(&document.text, offset)?;
+        let source_root = source_root_for_document(document, &self.workspace_roots);
+        let workspace = workspace_analysis_with_recovered_document(
+            uri,
+            &self.documents,
+            recovered,
+            source_root,
+        )?;
+        let file = workspace.root_file()?;
+        literal_shape_completion_items_for_file_analysis_at_offset(
+            &workspace.sources,
+            &workspace.analysis,
+            file,
+            recovered_offset,
+        )
+        .or_else(|| {
+            let has_semantic_literal = crate::analysis::literals::literal_editor_info_at_offset(
+                &workspace.analysis,
+                file,
+                recovered_offset,
+                crate::analysis::literals::LiteralCursorRegion::Arguments,
+            )
+            .is_some();
+            if !has_semantic_literal
+                && !crate::analysis::literals::literal_arguments_contain_offset(
+                    file,
+                    recovered_offset,
+                )
+            {
+                return None;
+            }
+            Some(completion_items_for_file_analysis_at_offset(
+                &workspace.sources,
+                &workspace.analysis,
+                file,
+                recovered_offset,
+            ))
+        })
     }
 
     fn workspace_signature_help_for_recovered_uri(
@@ -496,21 +612,41 @@ impl LspServer {
     ) -> Option<crate::analysis::signature_help::SignatureHelpInfo> {
         let document = self.documents.get(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let recovered = crate::analysis::signature_recovery_text(&document.text, offset)?;
         let source_root = source_root_for_document(document, &self.workspace_roots);
-        let workspace = workspace_analysis_with_recovered_document(
-            uri,
-            &self.documents,
-            recovered,
-            source_root,
-        )?;
-        let file = workspace.root_file()?;
-        crate::analysis::signature_help::signature_help_for_file_analysis(
-            &workspace.sources,
-            &workspace.analysis,
-            file,
-            offset,
-        )
+        let recoveries = crate::analysis::literal_recovery_text(&document.text, offset)
+            .into_iter()
+            .chain(crate::analysis::interpolation_signature_recovery_texts(
+                &document.text,
+                offset,
+            ))
+            .chain(crate::analysis::signature_recovery_texts(
+                &document.text,
+                offset,
+            ));
+        for recovered in recoveries {
+            let Some(workspace) = workspace_analysis_with_recovered_document(
+                uri,
+                &self.documents,
+                recovered,
+                source_root,
+            ) else {
+                continue;
+            };
+            let Some(file) = workspace.root_file() else {
+                continue;
+            };
+            if let Some(signature) =
+                crate::analysis::signature_help::signature_help_for_file_analysis(
+                    &workspace.sources,
+                    &workspace.analysis,
+                    file,
+                    offset,
+                )
+            {
+                return Some(signature);
+            }
+        }
+        None
     }
 
     fn with_workspace_file_for_uri<T>(

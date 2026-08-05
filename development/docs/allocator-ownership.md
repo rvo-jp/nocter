@@ -1,7 +1,9 @@
 # Allocator and Ownership
 
-This document defines the shared design that makes v0.2.0 owning runtime values possible. Public
-syntax and type rules follow the [specification](../../spec/README.md).
+This document defines the stable buffer, ownership, and recursive-drop invariants established by
+v0.2.0 and retained by v0.3.0. Public syntax and type rules follow the
+[specification](../../spec/README.md). Storage-origin inference, allocation contexts, and lexical
+regions are owned by [Region, Provenance, and Allocation Context](region-provenance.md).
 
 ## Separation of Responsibilities
 
@@ -14,6 +16,9 @@ syntax and type rules follow the [specification](../../spec/README.md).
 | backend | execution of IR state transitions according to ABI layout |
 | `std/mem` | allocation layout, growth, deallocation, allocator provenance |
 | `std/string`, `std/vec` | type-specific buffer and initialized-length invariants |
+
+Phase 0 added storage provenance and allocation failure policy as separate axes. Neither replaces
+source-place state, drop obligations, or runtime allocator-backend identity.
 
 Do not collapse source-place state and runtime cleanup state into one bitset or ad hoc flag. The
 former rejects invalid source operations; the latter drops only resources acquired on a failure
@@ -36,6 +41,11 @@ path.
 
 OS syscalls stay inside allocator implementations. `String` and `Vec<T>` use a private `RawBuffer`
 and do not call page primitives directly.
+
+v0.3.0 preserves one fallible implementation core. `TryAllocator` returns allocation errors;
+`Allocator` adapts the same backend and aborts without unwinding on failure. Failure-atomic
+publication remains mandatory for both surfaces. `RawBuffer` stores the backend and storage origin
+needed for release, not a duplicated implementation for each policy.
 
 ## Recursive Drop Model
 
@@ -71,6 +81,12 @@ This represents nested partial initialization that a completed-element count alo
 - reserve transfers element ownership to new storage without duplicating elements
 - push increments `len` only after publishing a complete destination-element obligation
 - pop transfers the last element to tracked return storage and decrements vector `len`
+- insert completes every fallible operation first, shifts through one transient hole, fills it, and
+  publishes the new `len` last
+- remove takes the selected owner, shifts the remaining suffix through one transient hole, and
+  publishes the shorter initialized prefix before returning the removed owner
+- consuming iteration transfers the raw buffer and `[0, len)` obligation to `VecIntoIter<T>`;
+  extraction shortens its remaining range and destruction drops only that range in reverse order
 
 Even when non-copy `T` storage moves through raw bytes, the semantic operation is relocation rather
 than copying. Invalidate obligations in the old storage before freeing it so drop glue cannot run
@@ -98,6 +114,5 @@ twice.
 - freeing by logical length instead of allocation size
 - leaving a half-updated state with an old pointer and new capacity after failure
 - letting the backend inspect AST to guess what to drop
-- implementing arbitrary-position removal as an exception to the prefix model
-
-If arbitrary-position removal becomes necessary, design sparse ownership state as a separate model.
+- exposing a transient insertion/removal hole across a function, fallible call, or cleanup edge
+- representing dense arbitrary-position removal as persistent sparse ownership state

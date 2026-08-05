@@ -1,5 +1,8 @@
 mod aggregates;
+mod allocation_contexts;
 mod bindings;
+mod closures;
+mod collection_for;
 mod context;
 mod control_flow;
 mod entry;
@@ -7,8 +10,15 @@ mod errors;
 mod expressions;
 mod functions;
 mod imported_calls;
+mod interpolation;
+mod literal_pack_lengths;
+mod literal_packs;
 mod literals;
+mod outcome_propagation;
+mod outcome_values;
 mod reachability;
+mod regions;
+mod typed_literals;
 mod types;
 
 #[cfg(test)]
@@ -20,11 +30,14 @@ use crate::abi::{
     function_success_return_passing_from_signature_with_resolver,
 };
 use crate::analysis::{
-    CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
+    CompileUnitAnalysis, FileAnalysis,
+    call_specializations::collect_call_specializations,
+    literal_specializations::{LiteralSpecialization, literal_element_parameter_name},
 };
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    DropDecl, FunctionDecl, GenericType, ImplMember, Item, LiteralDecl, LiteralShape, MethodDecl,
+    Parameter, Stmt, TypeExpr, TypeReference, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -150,7 +163,7 @@ fn lower_reachable_functions(
             return Err(vec![Diagnostic::error(
                 "E8006",
                 format!(
-                    "IR v0 cannot find reachable function target `{}`",
+                    "native lowering cannot find reachable function target `{}`",
                     describe_call_target(&target)
                 ),
             )]);
@@ -205,6 +218,16 @@ enum IndexedDeclaration<'a> {
         substitutions: HashMap<String, TypeExpr>,
         name: String,
     },
+    Literal {
+        declaration: &'a LiteralDecl,
+        specialization: LiteralSpecialization,
+    },
+    Closure {
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        name: String,
+    },
 }
 
 impl<'a> FunctionIndex<'a> {
@@ -255,7 +278,7 @@ impl<'a> FunctionIndex<'a> {
                             );
                         }
                     }
-                    Item::Impl(impl_) if impl_.interface_ty.is_none() => {
+                    Item::Impl(impl_) => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
                         };
@@ -282,7 +305,7 @@ impl<'a> FunctionIndex<'a> {
                                 ImplMember::Drop(drop_) => {
                                     for specialization in call_specializations
                                         .drops
-                                        .get(&drop_name_span(drop_.span))
+                                        .get(&drop_.name_span)
                                         .into_iter()
                                         .flatten()
                                     {
@@ -355,9 +378,135 @@ impl<'a> FunctionIndex<'a> {
                             }
                         }
                     }
+                    Item::Interface(interface) => {
+                        for method in &interface.methods {
+                            if method.body.is_none() {
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .methods
+                                .get(&method.name_span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                let mut substitutions = specialization.substitutions.clone();
+                                substitutions
+                                    .insert("Self".to_string(), specialization.self_ty.clone());
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        specialization.self_ty.clone(),
+                                        substitutions,
+                                        specialization.target_name.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    Item::Construct(construct) => {
+                        for (_, function) in construct.functions() {
+                            if function.generics.parameters.is_empty() {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    function.name.clone(),
+                                );
+                                definitions
+                                    .insert(target, IndexedCallable::new_function(function, file));
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .functions
+                                .get(&function.name_span)
+                                .or_else(|| {
+                                    call_specializations
+                                        .functions
+                                        .get(&function.member_name_span)
+                                })
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function_specialization(
+                                        function,
+                                        specialization.substitutions.clone(),
+                                        specialization.target_name.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                        for (_, literal) in construct.literals() {
+                            for specialization in call_specializations
+                                .literals
+                                .get(&literal.span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_literal(
+                                        literal,
+                                        specialization.clone(),
+                                        file,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
+        }
+        for specialization in call_specializations.callables.values().flatten() {
+            let TypeExpr::Closure(closure_ty) = &specialization.callable_ty else {
+                continue;
+            };
+            let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
+                continue;
+            };
+            let Some(expression) =
+                crate::ast::closure_expression_by_span(&file.ast, closure_ty.span)
+            else {
+                continue;
+            };
+            let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
+                continue;
+            };
+            let receiver_mode = specialization.receiver_mode();
+            let target = call_target_for_source(
+                closure_ty.span.source,
+                root_source,
+                specialization.target_name.clone(),
+            );
+            definitions.insert(
+                target,
+                IndexedCallable::new_closure(
+                    expression,
+                    plan,
+                    receiver_mode,
+                    specialization.target_name.clone(),
+                    file,
+                ),
+            );
         }
         Self {
             definitions,
@@ -387,10 +536,14 @@ impl<'a> FunctionIndex<'a> {
     }
 
     fn names(&self) -> FunctionNames {
-        FunctionNames::from_declarations(
+        FunctionNames::from_index(
             self.definitions
                 .values()
                 .filter_map(|function| function.name_declaration())
+                .collect(),
+            self.definitions
+                .keys()
+                .map(|target| (call_target_name(target).to_string(), target.clone()))
                 .collect(),
         )
     }
@@ -409,10 +562,12 @@ impl<'a> FunctionIndex<'a> {
 
 impl<'a> IndexedCallable<'a> {
     fn new_function(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+        let mut substitutions = HashMap::new();
+        insert_function_self_substitution(declaration, &file.resolved, &mut substitutions);
         Self {
             declaration: IndexedDeclaration::Function {
                 declaration,
-                substitutions: HashMap::new(),
+                substitutions,
                 name: declaration.name.clone(),
             },
             resolved: &file.resolved,
@@ -422,10 +577,11 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_function_specialization(
         declaration: &'a FunctionDecl,
-        substitutions: HashMap<String, TypeExpr>,
+        mut substitutions: HashMap<String, TypeExpr>,
         name: String,
         file: &'a FileAnalysis,
     ) -> Self {
+        insert_function_self_substitution(declaration, &file.resolved, &mut substitutions);
         Self {
             declaration: IndexedDeclaration::Function {
                 declaration,
@@ -475,6 +631,40 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
+    fn new_literal(
+        declaration: &'a LiteralDecl,
+        specialization: LiteralSpecialization,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
+    fn new_closure(
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                name,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
     fn imported_call_diagnostics(
         &self,
         sources: &SourceMap,
@@ -504,6 +694,22 @@ impl<'a> IndexedCallable<'a> {
                     )
                 })
                 .unwrap_or_default(),
+            IndexedDeclaration::Literal { declaration, .. } => {
+                imported_calls::imported_call_diagnostics_for_block(
+                    sources,
+                    &declaration.body,
+                    root_source,
+                    self.resolved,
+                )
+            }
+            IndexedDeclaration::Closure { expression, .. } => {
+                imported_calls::imported_call_diagnostics_for_block(
+                    sources,
+                    &expression.body,
+                    root_source,
+                    self.resolved,
+                )
+            }
         }
     }
 
@@ -594,6 +800,42 @@ impl<'a> IndexedCallable<'a> {
                 declaration,
                 self_ty,
                 substitutions,
+                name.clone(),
+                sources,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+                self.typecheck_facts,
+                resolved_sources,
+                error_payloads,
+            ),
+            IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            } => functions::lower_literal_function(
+                declaration,
+                specialization,
+                sources,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+                self.typecheck_facts,
+                resolved_sources,
+                error_payloads,
+            ),
+            IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                name,
+            } => closures::lower_closure_function(
+                expression,
+                plan,
+                *receiver_mode,
                 name.clone(),
                 sources,
                 target,
@@ -730,6 +972,57 @@ impl<'a> IndexedCallable<'a> {
                     },
                 )
             }
+            IndexedDeclaration::Literal {
+                declaration,
+                specialization,
+            } => {
+                let parameters = literal_parameters(declaration, specialization);
+                let resolved_signature =
+                    resolved_function_signature(&parameters, specialization.result_type.clone());
+                lower_signature_return_type(
+                    &specialization.result_type,
+                    self.resolved,
+                    resolved_sources,
+                )
+                .map(|return_type| {
+                    let parameter_types = parameters
+                        .iter()
+                        .map(|parameter| {
+                            lower_signature_parameter_type(
+                                &parameter.ty,
+                                self.resolved,
+                                resolved_sources,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>();
+                    FunctionSignature {
+                        return_type,
+                        parameter_types,
+                        parameter_abi_word_count: parameter_abi_word_count(
+                            &resolved_signature,
+                            self.resolved,
+                            resolved_sources,
+                        ),
+                        success_return_passing: success_return_passing(
+                            &resolved_signature,
+                            self.resolved,
+                            resolved_sources,
+                        ),
+                    }
+                })
+            }
+            IndexedDeclaration::Closure {
+                expression,
+                plan,
+                receiver_mode,
+                ..
+            } => closures::closure_function_signature(
+                expression,
+                plan,
+                *receiver_mode,
+                self.resolved,
+                resolved_sources,
+            ),
         }
     }
 
@@ -746,7 +1039,7 @@ impl<'a> IndexedCallable<'a> {
                 substitutions,
                 name,
                 ..
-            } if substitutions.is_empty() => Some((drop_name_span(declaration.span), name.clone())),
+            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Drop { .. } => None,
             IndexedDeclaration::Method {
                 declaration,
@@ -755,7 +1048,84 @@ impl<'a> IndexedCallable<'a> {
                 ..
             } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Method { .. } => None,
+            IndexedDeclaration::Literal { .. } => None,
+            IndexedDeclaration::Closure { .. } => None,
         }
+    }
+}
+
+fn insert_function_self_substitution(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+    substitutions: &mut HashMap<String, TypeExpr>,
+) {
+    let Some(owner) = &function.owner else {
+        return;
+    };
+    let Some(symbol) = resolved.type_symbol_by_name(&owner.name) else {
+        return;
+    };
+    let self_ty = if symbol.generic_parameters.is_empty() {
+        TypeExpr::Reference(TypeReference {
+            span: owner.name_span,
+            name: owner.name.clone(),
+        })
+    } else {
+        TypeExpr::Generic(GenericType {
+            span: owner.name_span,
+            name: owner.name.clone(),
+            name_span: owner.name_span,
+            arguments: symbol
+                .generic_parameters
+                .iter()
+                .map(|parameter| {
+                    substitutions.get(parameter).cloned().unwrap_or_else(|| {
+                        TypeExpr::Reference(TypeReference {
+                            span: owner.name_span,
+                            name: parameter.clone(),
+                        })
+                    })
+                })
+                .collect(),
+        })
+    };
+    substitutions.insert("Self".to_string(), self_ty);
+}
+
+fn literal_parameters(
+    declaration: &LiteralDecl,
+    specialization: &LiteralSpecialization,
+) -> Vec<Parameter> {
+    match specialization.shape {
+        LiteralShape::Sequence => specialization
+            .argument_types
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| Parameter {
+                span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.span),
+                name: literal_element_parameter_name(index),
+                name_span: declaration
+                    .capture
+                    .as_ref()
+                    .map_or(declaration.shape_span, |capture| capture.name_span),
+                ty: ty.clone(),
+            })
+            .collect(),
+        LiteralShape::String => declaration
+            .parameters
+            .parameters
+            .iter()
+            .zip(&specialization.argument_types)
+            .map(|(parameter, ty)| Parameter {
+                span: parameter.span,
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: ty.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -770,7 +1140,7 @@ fn method_parameters(
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
         ty: substitute_type_expr_parameters(
-            &type_expr_with_self_type(&method.receiver.ty, self_ty),
+            &type_expr_with_self_type(&method.receiver.implicit_parameter().ty, self_ty),
             substitutions,
         ),
     });
@@ -812,6 +1182,7 @@ fn resolved_function_signature(
 ) -> ResolvedFunctionSignature {
     ResolvedFunctionSignature {
         generic_parameters: Vec::new(),
+        generic_parameter_bounds: Vec::new(),
         parameters: parameters
             .iter()
             .map(|parameter| ParameterSignature {
@@ -821,6 +1192,7 @@ fn resolved_function_signature(
             })
             .collect(),
         return_type,
+        result_provenance: None,
     }
 }
 
@@ -859,6 +1231,8 @@ impl IndexedDeclaration<'_> {
             IndexedDeclaration::Function { declaration, .. } => declaration.span,
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
             IndexedDeclaration::Method { declaration, .. } => declaration.span,
+            IndexedDeclaration::Literal { declaration, .. } => declaration.span,
+            IndexedDeclaration::Closure { expression, .. } => expression.span,
         }
     }
 }
@@ -868,6 +1242,12 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
         CallTarget::same_file(name)
     } else {
         CallTarget::imported(source, name)
+    }
+}
+
+fn call_target_name(target: &CallTarget) -> &str {
+    match target {
+        CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => name,
     }
 }
 
@@ -885,10 +1265,6 @@ fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
         TypeExpr::Generic(generic) => Some(&generic.name),
         _ => None,
     }
-}
-
-fn drop_name_span(span: ByteSpan) -> ByteSpan {
-    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }
 
 fn attach_primary_span_if_absent(

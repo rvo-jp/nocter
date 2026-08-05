@@ -16,6 +16,7 @@ use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
 use crate::literals::decode_integer_literal_value;
+use crate::outcomes::outcome_shape_with_resolver;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{
@@ -131,7 +132,7 @@ impl<'a> CallableIndex<'a> {
                             );
                         }
                     }
-                    Item::Impl(impl_) if impl_.interface_ty.is_none() => {
+                    Item::Impl(impl_) => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
                         };
@@ -204,7 +205,7 @@ impl<'a> CallableIndex<'a> {
                                         root_source,
                                         name.clone(),
                                     );
-                                    names.insert(drop_name_span(drop_.span), name.clone());
+                                    names.insert(drop_.name_span, name.clone());
                                     definitions.insert(
                                         target,
                                         IndexedCallable::new_drop(
@@ -219,7 +220,7 @@ impl<'a> CallableIndex<'a> {
                                 ImplMember::Drop(drop_) => {
                                     for specialization in call_specializations
                                         .drops
-                                        .get(&drop_name_span(drop_.span))
+                                        .get(&drop_.name_span)
                                         .into_iter()
                                         .flatten()
                                     {
@@ -243,9 +244,130 @@ impl<'a> CallableIndex<'a> {
                             }
                         }
                     }
+                    Item::Interface(interface) => {
+                        for method in &interface.methods {
+                            let Some(body) = &method.body else {
+                                continue;
+                            };
+                            for specialization in call_specializations
+                                .methods
+                                .get(&method.name_span)
+                                .into_iter()
+                                .flatten()
+                            {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_method(
+                                        method,
+                                        body,
+                                        &specialization.self_ty,
+                                        specialization.substitutions.clone(),
+                                        file,
+                                        &resolved_sources,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    Item::Construct(construct) => {
+                        for (_, function) in construct.functions() {
+                            if function.generics.parameters.is_empty() {
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    function.name.clone(),
+                                );
+                                names.insert(function.member_name_span, function.name.clone());
+                                let substitutions =
+                                    HashMap::from([("Self".to_string(), construct.target.clone())]);
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function_specialization(
+                                        function,
+                                        substitutions,
+                                        file,
+                                        &resolved_sources,
+                                        root_source,
+                                    ),
+                                );
+                                continue;
+                            }
+                            for specialization in call_specializations
+                                .functions
+                                .get(&function.name_span)
+                                .or_else(|| {
+                                    call_specializations
+                                        .functions
+                                        .get(&function.member_name_span)
+                                })
+                                .into_iter()
+                                .flatten()
+                            {
+                                let mut substitutions = specialization.substitutions.clone();
+                                let self_ty = substitute_type_expr_parameters(
+                                    &construct.target,
+                                    &substitutions,
+                                );
+                                substitutions.insert("Self".to_string(), self_ty);
+                                let target = call_target_for_source(
+                                    file.ast.span.source,
+                                    root_source,
+                                    specialization.target_name.clone(),
+                                );
+                                definitions.insert(
+                                    target,
+                                    IndexedCallable::new_function_specialization(
+                                        function,
+                                        substitutions,
+                                        file,
+                                        &resolved_sources,
+                                        root_source,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
+        }
+
+        for specialization in call_specializations.callables.values().flatten() {
+            let TypeExpr::Closure(closure_ty) = &specialization.callable_ty else {
+                continue;
+            };
+            let Some(file) = analysis.file_by_source(closure_ty.span.source) else {
+                continue;
+            };
+            let Some(expression) =
+                crate::ast::closure_expression_by_span(&file.ast, closure_ty.span)
+            else {
+                continue;
+            };
+            let Some(plan) = file.typecheck_facts.closure_plan(closure_ty.span).cloned() else {
+                continue;
+            };
+            let receiver_mode = specialization.receiver_mode();
+            let target = call_target_for_source(
+                closure_ty.span.source,
+                root_source,
+                specialization.target_name.clone(),
+            );
+            definitions.insert(
+                target,
+                IndexedCallable::new_closure(
+                    expression,
+                    plan,
+                    receiver_mode,
+                    file,
+                    &resolved_sources,
+                ),
+            );
         }
 
         Self {
@@ -291,7 +413,7 @@ impl<'a> IndexedCallable<'a> {
             resolved_sources,
             root_source,
         ));
-        issues.extend(nested_fallible_return_issue(
+        issues.extend(unsupported_outcome_return_issue(
             function,
             &HashMap::new(),
             &file.resolved,
@@ -324,7 +446,7 @@ impl<'a> IndexedCallable<'a> {
             resolved_sources,
             root_source,
         ));
-        issues.extend(nested_fallible_return_issue(
+        issues.extend(unsupported_outcome_return_issue(
             function,
             &substitutions,
             &file.resolved,
@@ -361,7 +483,7 @@ impl<'a> IndexedCallable<'a> {
         ));
         let return_type =
             substitute_type_expr_parameters(&method.return_type, &contextual_substitutions);
-        issues.extend(nested_fallible_return_type_issue(
+        issues.extend(unsupported_outcome_return_type_issue(
             &return_type,
             method.return_type.span(),
             &file.resolved,
@@ -405,8 +527,34 @@ impl<'a> IndexedCallable<'a> {
             issues,
         }
     }
+
+    fn new_closure(
+        expression: &'a crate::ast::ClosureExpr,
+        plan: crate::typecheck::TypecheckClosurePlan,
+        receiver_mode: crate::ast::MethodReceiverMode,
+        file: &'a FileAnalysis,
+        resolved_sources: &ResolvedSources<'a>,
+    ) -> Self {
+        let issues = closures::closure_signature_issues(
+            expression,
+            &plan,
+            receiver_mode,
+            &file.resolved,
+            resolved_sources,
+        );
+        Self {
+            span: expression.span,
+            body: &expression.body,
+            return_type: Some((*plan.ty.return_type).clone()),
+            substitutions: HashMap::new(),
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+            issues,
+        }
+    }
 }
 
+mod closures;
 mod diagnostics;
 mod fixed_arrays;
 mod runtime_support;

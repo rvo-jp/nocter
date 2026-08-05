@@ -2,7 +2,7 @@ use super::support::{
     assert_rejects_discard_name, assert_rejects_self_name, find_json_node, parse_text,
     parse_text_with_sources,
 };
-use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
+use crate::ast::{ImplMember, Item, MethodReceiverMode, TypeExpr, Visibility};
 
 #[test]
 fn parses_hello_entry_function() {
@@ -335,7 +335,7 @@ fn diagnoses_wildcard_imports_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("wildcard imports are not part of v0"),
+                .contains("wildcard imports are not supported"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -351,7 +351,7 @@ fn diagnoses_textual_include_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("textual include is not part of v0"),
+                .contains("textual include is not supported"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -371,7 +371,7 @@ fn diagnoses_dotted_import_paths_as_removed() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("dotted module paths are not part of v0"),
+                .contains("module paths use `/`"),
             "{source}: {:?}",
             output.diagnostics
         );
@@ -380,8 +380,7 @@ fn diagnoses_dotted_import_paths_as_removed() {
 
 #[test]
 fn parses_qualified_associated_functions_inherent_methods_and_generic_params() {
-    let output = parse_text(
-        r#"pub struct Counter {
+    let source = r#"pub struct Counter {
     value: i32
 }
 
@@ -406,8 +405,8 @@ func print<W>(writer: &+W): void! {
 func main(): i32 {
     return 0
 }
-"#,
-    );
+"#;
+    let output = parse_text(source);
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
@@ -434,10 +433,11 @@ func main(): i32 {
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert_eq!(method.receiver.name, "self");
-    assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
+    assert_eq!(method.receiver.mode, MethodReceiverMode::ReadwriteBorrow);
     let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
         panic!("expected drop member");
     };
+    assert_eq!(&source[drop_.name_span.start..drop_.name_span.end], "drop");
     assert_eq!(drop_.binding.name, "self");
     assert!(matches!(
         &drop_.binding.ty,
@@ -449,7 +449,7 @@ func main(): i32 {
     };
     assert_eq!(function.generics.parameters.len(), 1);
     assert_eq!(function.generics.parameters[0].name, "W");
-    assert!(function.generics.parameters[0].bound.is_none());
+    assert!(function.generics.parameters[0].bounds.is_empty());
 }
 
 #[test]
@@ -466,7 +466,7 @@ fn diagnoses_var_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("`var` parameters are not part of v0")
+            .contains("parameters cannot use `var`")
     );
 }
 
@@ -484,7 +484,7 @@ fn diagnoses_default_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("default parameters are not part of v0")
+            .contains("parameters cannot declare default values")
     );
 }
 
@@ -501,7 +501,7 @@ fn diagnoses_variadic_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("variadic parameters are not part of v0")
+            .contains("ordinary parameters cannot use variadic syntax")
     );
 }
 
@@ -518,7 +518,7 @@ fn diagnoses_prefix_variadic_parameters_as_deferred() {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("variadic parameters are not part of v0")
+            .contains("ordinary parameters cannot use variadic syntax")
     );
 }
 
@@ -588,6 +588,36 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_method_generic_parameters_after_the_method_name() {
+    let source = r#"struct Factory {}
+
+impl Factory {
+    method &self.identity<T: Copyable>(value: T): T {
+        return value
+    }
+}
+"#;
+    let output = parse_text(source);
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Impl(impl_) = &ast.items[1] else {
+        panic!("expected impl");
+    };
+    let ImplMember::Method(method) = &impl_.members[0] else {
+        panic!("expected method");
+    };
+    assert_eq!(method.generics.parameters.len(), 1);
+    assert_eq!(method.generics.parameters[0].name, "T");
+    assert_eq!(
+        &source[method.generics.parameters[0].name_span.start
+            ..method.generics.parameters[0].name_span.end],
+        "T"
+    );
+    assert_eq!(method.generics.parameters[0].bounds.len(), 1);
+}
+
+#[test]
 fn parses_interface_declarations() {
     let output = parse_text(
         r#"pub interface Writer {
@@ -631,6 +661,83 @@ impl File {
             .message
             .contains("receiver name must be `self`")
     );
+}
+
+#[test]
+fn parses_result_provenance_contracts_on_callable_signatures() {
+    let (sources, output) = parse_text_with_sources(
+        r#"interface Lookup<T> {
+    pub method &self.get(fallback: &T): &T from self | fallback
+}
+
+func greeting(): &str from static {
+    return "hello"
+}
+
+primitive allocated_text(): &str from current
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface");
+    };
+    let method = &interface.methods[0];
+    let method_contract = method
+        .result_provenance
+        .as_ref()
+        .expect("expected method contract");
+    assert!(matches!(
+        method_contract.origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::Receiver
+    ));
+    assert!(matches!(
+        &method_contract.origins[1].kind,
+        crate::ast::ResultProvenanceOriginKind::Parameter(name) if name == "fallback"
+    ));
+
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function");
+    };
+    assert!(matches!(
+        function.result_provenance.as_ref().unwrap().origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::Static
+    ));
+    let Item::Primitive(primitive) = &ast.items[2] else {
+        panic!("expected primitive");
+    };
+    assert!(matches!(
+        primitive.result_provenance.as_ref().unwrap().origins[0].kind,
+        crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext
+    ));
+
+    let json = ast.to_json(&sources);
+    let provenance =
+        find_json_node(&json, "result_provenance").expect("expected result provenance JSON node");
+    assert_eq!(provenance.items.len(), 2);
+    assert_eq!(provenance.items[0].value.as_deref(), Some("self"));
+    assert_eq!(provenance.items[1].value.as_deref(), Some("fallback"));
+}
+
+#[test]
+fn ast_json_preserves_method_receiver_mode_without_a_synthetic_type() {
+    let (sources, output) = parse_text_with_sources(
+        r#"interface Writer {
+    pub method &+self.write(text: &str): void!
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap().to_json(&sources);
+    let receiver = find_json_node(&ast, "method_receiver").expect("expected method receiver");
+
+    assert_eq!(receiver.value.as_deref(), Some("readwrite_borrow"));
+    assert_eq!(receiver.items.len(), 1);
+    assert_eq!(receiver.items[0].kind, "parameter");
+    assert_eq!(receiver.items[0].value.as_deref(), Some("self"));
+    assert!(receiver.items[0].items.is_empty());
 }
 
 #[test]
@@ -704,7 +811,7 @@ fn rejects_private_interface_methods() {
 }
 
 #[test]
-fn rejects_interface_method_bodies() {
+fn parses_interface_default_method_bodies() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void! {
@@ -714,13 +821,17 @@ fn rejects_interface_method_bodies() {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(output.diagnostics[0].message.contains("cannot have bodies"));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("expected AST");
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface");
+    };
+    assert!(interface.methods[0].body.is_some());
 }
 
 #[test]
 fn parses_interface_conformance_impls() {
-    let output = parse_text(
+    let (sources, output) = parse_text_with_sources(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
 }
@@ -729,7 +840,11 @@ struct Counter {
     value: i32
 }
 
-impl Writer for Counter
+impl Writer for Counter {
+    method &+self.write(text: &str): void! {
+        return
+    }
+}
 "#,
     );
 
@@ -745,11 +860,51 @@ impl Writer for Counter
         &interface_impl.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    assert!(interface_impl.members.is_empty());
+    assert!(matches!(
+        interface_impl.members.as_slice(),
+        [ImplMember::Method(method)] if method.name == "write" && method.body.is_some()
+    ));
+    let json = ast.to_json(&sources);
+    let impl_node = find_json_node(&json, "impl_decl").expect("expected impl JSON node");
+    assert!(
+        impl_node
+            .items
+            .iter()
+            .any(|node| node.kind == "interface_type")
+    );
+    assert!(
+        impl_node
+            .items
+            .iter()
+            .any(|node| { node.kind == "method_decl" && node.value.as_deref() == Some("write") })
+    );
 }
 
 #[test]
-fn rejects_members_in_interface_conformance_impls() {
+fn rejects_braceless_interface_implementations() {
+    let output = parse_text(
+        r#"interface Writer {
+    pub method &+self.write(text: &str): void!
+}
+
+struct Counter {
+    value: i32
+}
+
+impl Writer for Counter
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected `{` after interface implementation target")
+    );
+}
+
+#[test]
+fn rejects_visibility_on_interface_implementation_members() {
     let output = parse_text(
         r#"interface Writer {
     pub method &+self.write(text: &str): void!
@@ -768,15 +923,11 @@ impl Writer for Counter {
     );
 
     assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(
-        output.diagnostics[0]
-            .message
-            .contains("cannot contain members")
-    );
+    assert!(output.diagnostics[0].message.contains("inherit visibility"));
 }
 
 #[test]
-fn rejects_generic_bounds_in_v0() {
+fn parses_single_generic_interface_bounds() {
     let output = parse_text(
         r#"func print<W: Writer>(writer: &+W): void! {
     return
@@ -784,8 +935,44 @@ fn rejects_generic_bounds_in_v0() {
 "#,
     );
 
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(output.diagnostics[0].message.contains("generic bounds"));
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let parameter = &function.generics.parameters[0];
+    assert_eq!(parameter.name, "W");
+    assert!(matches!(
+        parameter.bounds.first(),
+        Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
+    ));
+}
+
+#[test]
+fn parses_multiple_generic_interface_bounds() {
+    let output = parse_text(
+        r#"func inspect<I: Iterator<T> + ExactSizeIterator<T>, T>(iterator: &I): usize {
+    return iterator.remaining_len()
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.expect("ast");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    let parameter = &function.generics.parameters[0];
+    assert_eq!(parameter.name, "I");
+    assert_eq!(parameter.bounds.len(), 2);
+    assert!(matches!(
+        &parameter.bounds[0],
+        TypeExpr::Generic(generic) if generic.name == "Iterator"
+    ));
+    assert!(matches!(
+        &parameter.bounds[1],
+        TypeExpr::Generic(generic) if generic.name == "ExactSizeIterator"
+    ));
 }
 
 #[test]
@@ -859,7 +1046,7 @@ fn parses_trait_as_ordinary_function_name() {
 }
 
 #[test]
-fn parses_literal_as_ordinary_function_name() {
+fn reserves_literal_for_literal_definitions() {
     let output = parse_text(
         r#"func literal(): void {
     return
@@ -867,29 +1054,31 @@ fn parses_literal_as_ordinary_function_name() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function");
-    };
-    assert_eq!(function.name, "literal");
+    assert!(output.ast.is_none());
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("expected function name")
+    );
 }
 
 #[test]
-fn diagnoses_literal_definitions_as_deferred() {
+fn rejects_the_obsolete_capture_inside_shape_marker() {
     let output = parse_text(
-        r#"literal Vec<T> [...items: [T]]: Self {
+        r#"construct Vec<T> {
+    pub default literal [...items: [T]]: Self {
     return Self.empty()
+    }
 }
 "#,
     );
 
     assert!(output.ast.is_none());
-    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(!output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     assert!(
         output.diagnostics[0]
             .message
-            .contains("literal definitions are not part of v0")
+            .contains("sequence shape marker")
     );
 }
 
@@ -1034,7 +1223,7 @@ fn diagnoses_embedding_declarations_as_deferred() {
         assert!(
             output.diagnostics[0]
                 .message
-                .contains("embedding declarations are not part of v0"),
+                .contains("embedding declarations are not supported"),
             "{source}: {:?}",
             output.diagnostics
         );

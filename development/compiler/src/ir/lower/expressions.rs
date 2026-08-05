@@ -18,14 +18,16 @@ use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_aggregate_drop_instructions,
     lower_aggregate_return_expression, lower_direct_aggregate_return_with_scope_drops,
-    lower_never_expression_with_scope_drops, lower_scope_end_drops_for_locals_since,
+    lower_never_expression, lower_scope_end_drops_for_locals_since,
     lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses, propagating_failure_mode,
-    tag_only_if_is_as_control_flow, tag_only_switch_as_control_flow,
+    mark_lowered_statement_aggregate_uses, tag_only_if_is_as_control_flow,
+    tag_only_switch_as_control_flow,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
+use super::outcome_propagation::propagating_outcome_mode;
+use super::outcome_values::lower_stored_outcome_expression;
 use super::types::{
     return_type_expr_is_top_level_optional_with_resolver, scalar_or_view_type_from_type_expr,
     scalar_or_view_type_from_type_expr_with_resolver,
@@ -34,10 +36,12 @@ use super::types::{
 mod aggregate_fields;
 mod aggregate_members;
 mod bool_values;
+mod borrow_values;
 mod byte_collections;
 mod byte_view_values;
 mod call_arguments;
 mod calls;
+mod closure_captures;
 mod control_flow_values;
 mod diagnostics;
 mod fallible;
@@ -46,6 +50,7 @@ mod fixed_arrays;
 mod integer_values;
 mod predicates;
 mod returns;
+mod scalar_borrows;
 mod scalar_values;
 mod statement_effects;
 mod temporaries;
@@ -55,9 +60,11 @@ mod void_effects;
 pub(super) use aggregate_fields::*;
 use aggregate_members::*;
 pub(super) use bool_values::*;
+pub(in crate::ir::lower) use borrow_values::*;
 use byte_collections::*;
 pub(super) use byte_view_values::*;
 pub(super) use call_arguments::*;
+pub(super) use closure_captures::*;
 use control_flow_values::*;
 use diagnostics::*;
 use fallible::*;
@@ -65,6 +72,7 @@ pub(super) use fixed_array_accesses::*;
 use fixed_arrays::*;
 pub(super) use integer_values::*;
 pub(super) use returns::*;
+use scalar_borrows::*;
 use scalar_values::*;
 use statement_effects::*;
 use utility::*;
@@ -75,17 +83,19 @@ use crate::abi::{
     array_element_stride,
 };
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IfIsStmt, IfStmt, IndexExpr,
-    Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
+    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IdentifierExpr, IfIsStmt, IfStmt,
+    IndexExpr, Stmt, SwitchStmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
-    FallibleFailureMode, I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, OutcomeFailureMode, ScalarArgument,
     SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
     UsizeValue,
 };
 use crate::literals::decode_integer_literal_value;
+pub(in crate::ir::lower) use calls::lower_call_arguments_with_explicit_types;
+pub(in crate::ir::lower) use calls::lower_fallible_borrow_normal_call;
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;
@@ -97,9 +107,11 @@ use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
     lower_addr_primitive_call_to_location, lower_addr_primitive_call_to_word,
     lower_arg_count_raw_primitive_call_to_word, lower_arg_raw_primitive_call_to_value,
-    lower_bool_normal_call, lower_call_arguments, lower_close_fd_raw_primitive_call,
-    lower_copy_ptr_to_ptr_primitive_call, lower_copy_str_to_ptr_primitive_call,
-    lower_direct_tail_call, lower_drop_value_at_ptr_primitive_call, lower_exit_raw_primitive_call,
+    lower_bool_normal_call, lower_borrow_normal_call, lower_borrow_source_from_expression,
+    lower_call_arguments, lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
+    lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call,
+    lower_drop_value_at_ptr_primitive_call, lower_env_count_raw_primitive_call_to_word,
+    lower_env_entry_raw_primitive_call_to_value, lower_exit_raw_primitive_call,
     lower_fallible_void_normal_call, lower_from_ref_primitive_call_to_location,
     lower_from_ref_primitive_call_to_word, lower_i32_normal_call,
     lower_pointee_layout_primitive_call_to_word,
@@ -110,14 +122,15 @@ use calls::{
     lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
     primitive_arg_count_raw_call, primitive_arg_raw_call, primitive_bytes_from_str_call,
     primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call, primitive_copy_str_to_ptr_call,
-    primitive_drop_value_at_ptr_call, primitive_exit_raw_call, primitive_from_ref_call,
-    primitive_pointee_layout_call, primitive_slice_from_raw_parts_call,
-    primitive_store_u8_to_ptr_call, primitive_store_value_to_ptr_call,
-    primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
-    primitive_write_text_raw_call,
+    primitive_current_allocation_kind_call, primitive_current_allocation_state_call,
+    primitive_drop_value_at_ptr_call, primitive_env_count_raw_call, primitive_env_entry_raw_call,
+    primitive_exit_raw_call, primitive_from_ref_call, primitive_pointee_layout_call,
+    primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
+    primitive_store_value_to_ptr_call, primitive_str_from_raw_parts_call,
+    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
 };
 pub(super) use calls::{
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_composed_outcome_call, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
 };
@@ -129,8 +142,7 @@ use predicates::{
     str_comparison_is_lowerable, u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
-    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    short_circuit_bool_expression_needs_branch,
+    expression_is_lowerable_bool_binding, short_circuit_bool_expression_needs_branch,
 };
 pub(super) use temporaries::TemporaryAllocator;
 use temporaries::{

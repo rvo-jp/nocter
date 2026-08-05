@@ -32,9 +32,9 @@ func main(): i32! {
 
     assert!(main.instructions.iter().any(|instruction| matches!(
         instruction,
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             target,
-            failure_mode: FallibleFailureMode::Propagate,
+            failure_mode: OutcomeFailureMode::Propagate,
             ..
         } if target == &CallTarget::same_file("code")
     )));
@@ -94,9 +94,9 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,
@@ -180,9 +180,9 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,
@@ -256,14 +256,14 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("make_file") => Some(instructions),
             _ => None,
@@ -332,14 +332,14 @@ func main(): i32! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("make_file") => Some(instructions),
             _ => None,
@@ -413,10 +413,10 @@ func main(): i32! {
     assert!(main.instructions.iter().any(|instruction| {
         matches!(
             instruction,
-            Instruction::CallFallibleVoid {
+            Instruction::CallOutcomeVoid {
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode: OutcomeFailureMode::Propagate,
             } if target == &CallTarget::same_file("File.touch")
                 && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
@@ -1344,7 +1344,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_return_never_expression_with_scope_cleanup() {
+fn lowers_return_never_expression_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -1388,12 +1388,6 @@ func abort(): never {
                     offset: 0,
                     value: i32_const(1),
                 },
-                Instruction::CallVoid {
-                    target: CallTarget::same_file("File.drop"),
-                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                        source: BorrowSource::AggregateSlot(0),
-                    })],
-                },
                 Instruction::TailCall {
                     target: CallTarget::same_file("abort"),
                     arguments: vec![],
@@ -1404,7 +1398,7 @@ func abort(): never {
 }
 
 #[test]
-fn lowers_terminal_if_never_branch_with_scope_cleanup() {
+fn lowers_terminal_if_never_branch_without_scope_cleanup() {
     let ir = lower_text(
         r#"struct File {
     fd: i32
@@ -1453,12 +1447,6 @@ func abort(): never {
                         destination: AggregateLocation::Slot(0),
                         offset: 0,
                         value: i32_const(1),
-                    },
-                    Instruction::CallVoid {
-                        target: CallTarget::same_file("File.drop"),
-                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
-                            source: BorrowSource::AggregateSlot(0),
-                        })],
                     },
                     Instruction::TailCall {
                         target: CallTarget::same_file("abort"),
@@ -2877,4 +2865,45 @@ func main(): void {
             Instruction::Return,
         ]
     );
+}
+
+#[test]
+fn consuming_method_receiver_transfers_its_drop_obligation() {
+    let ir = lower_text(
+        r#"struct Resource {
+    fd: i32
+}
+
+impl Resource {
+    drop &+self {
+        return
+    }
+
+    method self.consume(): i32 {
+        return self.fd
+    }
+}
+
+func main(): i32 {
+    let resource = Resource { fd: 42 }
+    return resource.consume()
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+    assert!(main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallI32 { target, .. } | Instruction::TailCall { target, .. }
+            if target == &CallTarget::same_file("Resource.consume")
+    )));
+    assert!(!main.instructions.iter().any(|instruction| matches!(
+        instruction,
+        Instruction::CallVoid { target, .. }
+            if target == &CallTarget::same_file("Resource.drop")
+    )));
 }

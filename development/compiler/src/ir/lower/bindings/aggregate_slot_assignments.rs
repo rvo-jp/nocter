@@ -22,6 +22,40 @@ pub(super) fn lower_aggregate_assignment(
         );
     }
 
+    if let Expr::InterpolatedString(interpolated) = unwrap_group(expression)
+        && let Some(target) = context.aggregate_local_by_slot(slot_index)
+        && let Some(drop_kind) = target.drop_kind
+    {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let replacement_slot = temporaries.next_aggregate_slot();
+        let mut interpolation_context = context.clone();
+        if !interpolation_context.register_or_complete_temporary_aggregate_drop(
+            replacement_slot,
+            layout,
+            drop_kind,
+        ) {
+            return Err(unsupported_assignment_diagnostic());
+        }
+        let mut instructions = vec![Instruction::ReserveAggregateSlot {
+            slot_index: replacement_slot,
+            layout,
+        }];
+        instructions.extend(
+            crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+                interpolated,
+                replacement_slot,
+                &interpolation_context,
+            )?,
+        );
+        instructions.extend(replacement_drop);
+        instructions.push(Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(slot_index),
+            source: AggregateLocation::Slot(replacement_slot),
+            layout,
+        });
+        return Ok(instructions);
+    }
+
     if payload_enum_constructor_member_and_arguments(expression).is_some()
         && let Some(target) = context.aggregate_local_by_slot(slot_index)
         && let Some(drop_kind @ AggregateDrop::PayloadEnum(_)) = target.drop_kind
@@ -315,6 +349,24 @@ pub(super) fn lower_aggregate_assignment_to_slot(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::InterpolatedString(interpolated) = unwrap_group(expression) {
+        return crate::ir::lower::interpolation::lower_interpolated_string_to_slot(
+            interpolated,
+            slot_index,
+            context,
+        );
+    }
+    if matches!(
+        unwrap_group(expression),
+        Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_)
+    ) {
+        return crate::ir::lower::typed_literals::lower_typed_literal_to_location(
+            expression,
+            AggregateLocation::Slot(slot_index),
+            context,
+        )?
+        .ok_or_else(unsupported_assignment_diagnostic);
+    }
     if let Some(instructions) = lower_payload_enum_constructor_assignment(
         slot_index,
         layout,
@@ -361,7 +413,7 @@ pub(super) fn lower_aggregate_assignment_to_slot(
                 slot_index,
                 layout,
                 call,
-                propagating_failure_mode(context)?,
+                propagating_outcome_mode(&propagation.expression, context)?,
                 context,
             )
         }
@@ -373,7 +425,7 @@ pub(super) fn lower_aggregate_assignment_to_slot(
                 slot_index,
                 layout,
                 call,
-                FallibleFailureMode::Trap,
+                OutcomeFailureMode::Trap,
                 context,
             )
         }
@@ -646,17 +698,20 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
     slot_index: usize,
     layout: ValueLayout,
     call: &CallExpr,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
 
-    let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
+    let Some((_, success)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(callee_layout) = aggregate_type_layout(success.as_ref()) else {
+    let Some(callee_layout) = aggregate_type_layout(success) else {
         return Err(unsupported_assignment_diagnostic());
     };
     if callee_layout != layout {
@@ -667,7 +722,7 @@ pub(super) fn lower_aggregate_fallible_call_assignment(
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success.as_ref(),
+        success,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,

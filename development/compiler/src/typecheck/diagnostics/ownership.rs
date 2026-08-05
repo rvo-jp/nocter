@@ -55,7 +55,7 @@ pub(in crate::typecheck) fn invalid_drop_target_diagnostic(
     let mut diagnostic = Diagnostic::error("E0386", message);
     diagnostic.primary_span = sources.span_to_json(name_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "`drop name` accepts initialized move-only owned bindings; copy values and plain borrow bindings are not explicitly dropped in v0"
+        "`drop name` accepts initialized move-only owned bindings; copy values and plain borrow bindings are not explicitly dropped"
             .to_string(),
     );
     diagnostic
@@ -89,5 +89,38 @@ pub(in crate::typecheck) fn active_borrow_conflict_diagnostic(
     diagnostic.help = Some(format!(
         "use `{borrow_name}` before this operation, or move this operation after the borrow's last use"
     ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn overlapping_expression_borrow_diagnostic(
+    sources: &SourceMap,
+    source_name: &str,
+    later: &str,
+    later_span: ByteSpan,
+    earlier_span: ByteSpan,
+    earlier_is_readwrite: bool,
+) -> Diagnostic {
+    let earlier_kind = if earlier_is_readwrite {
+        "readwrite"
+    } else {
+        "readonly"
+    };
+    let mut diagnostic = Diagnostic::error(
+        "E0434",
+        format!(
+            "cannot {later} `{source_name}` while an earlier operand in the same expression holds a borrow"
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(later_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(earlier_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("{earlier_kind} borrow is created by this earlier operand"),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(
+        "finish the earlier borrow before this operand, or use compatible readonly borrows"
+            .to_string(),
+    );
     diagnostic
 }

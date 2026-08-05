@@ -1,7 +1,7 @@
 use super::*;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BorrowArgument, CallTarget,
-    DirectAggregateArgument, FallibleFailureMode, ScalarArgument, SliceLocation, SliceValue,
+    DirectAggregateArgument, OutcomeFailureMode, ScalarArgument, SliceLocation, SliceValue,
     StrValue, Type,
 };
 
@@ -252,7 +252,7 @@ fn deduplicates_aggregate_slot_requests_from_nested_control_flow() {
                 }],
             },
             Instruction::CheckFailure {
-                failure_mode: FallibleFailureMode::Catch {
+                failure_mode: OutcomeFailureMode::Catch {
                     code: StrLocation::Local(0),
                     message: StrLocation::Local(2),
                     instructions: vec![Instruction::ReserveAggregateSlot {
@@ -890,13 +890,13 @@ fn call_fallible_i32_requires_frame_and_counts_destination_and_argument_locals()
         name: "main".to_string(),
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Fallible(Box::new(Type::I32)),
-        instructions: vec![Instruction::CallFallibleI32 {
+        instructions: vec![Instruction::CallOutcomeI32 {
             destination: I32Location::Local(2),
             target: CallTarget::same_file("answer"),
             arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                 1,
             )))],
-            failure_mode: FallibleFailureMode::Propagate,
+            failure_mode: OutcomeFailureMode::Propagate,
         }],
     };
 
@@ -936,12 +936,12 @@ fn call_fallible_void_requires_frame_and_counts_argument_locals() {
         name: "main".to_string(),
         target: crate::ir::CallTarget::same_file("main".to_string()),
         return_type: Type::Fallible(Box::new(Type::Void)),
-        instructions: vec![Instruction::CallFallibleVoid {
+        instructions: vec![Instruction::CallOutcomeVoid {
             target: CallTarget::same_file("effect"),
             arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                 1,
             )))],
-            failure_mode: FallibleFailureMode::Propagate,
+            failure_mode: OutcomeFailureMode::Propagate,
         }],
     };
 

@@ -51,8 +51,7 @@ pub(super) fn owned_method_receiver_identifier<'a>(
 ) -> Option<&'a IdentifierExpr> {
     let method = method_member_for_call(call)?;
     let (_, signature) = resolved_method_for_call(resolved, call, environment)?;
-    if !matches!(signature.receiver.ty, TypeExpr::Reference(ref reference) if reference.name == "Self")
-    {
+    if signature.receiver.mode != MethodReceiverMode::Owned {
         return None;
     }
 

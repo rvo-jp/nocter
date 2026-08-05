@@ -177,7 +177,7 @@ pub(super) fn lower_leading_bindings(
                     return Err(attach_primary_span_if_absent(
                         vec![Diagnostic::error(
                             "E8007",
-                            "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or effect-only call statements before `return`",
+                            "native lowering can only lower leading scalar local bindings, scalar assignments, drop statements, or effect-only call statements before `return`",
                         )],
                         sources,
                         statement.span,
@@ -266,6 +266,34 @@ pub(super) fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::CollectionFor(statement) => {
+                instructions.extend(
+                    crate::ir::lower::collection_for::lower_collection_for_statement(
+                        statement,
+                        context,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::LiteralPackFor(statement) => {
+                instructions.extend(
+                    crate::ir::lower::literal_packs::lower_literal_pack_for_statement(
+                        statement,
+                        context,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             Stmt::While(statement) => {
                 instructions.extend(
                     lower_nonterminal_while_statement(
@@ -294,11 +322,27 @@ pub(super) fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::Region(statement) => {
+                instructions.extend(
+                    lower_nonterminal_region_statement(
+                        statement,
+                        context,
+                        None,
+                        &[],
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             _ => {
                 return Err(attach_primary_span_if_absent(
                     vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
+                        "native lowering can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
                     )],
                     sources,
                     statement.span(),

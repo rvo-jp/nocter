@@ -4,5 +4,7 @@
 //! This module must remain small: core aliases and ubiquitous standard-library
 //! types only.
 
+use std/fmt
+
 pub use std/error.{Error, ErrorCode}
 pub use std/string.String

@@ -11,8 +11,9 @@ Before compiler changes, read:
 - `README.md`
 - `TODO.md`
 - `docs/README.md`
-- `docs/v0.2.0.md`
+- `docs/v0.3.0.md`
 - `docs/architecture.md`
+- `docs/region-provenance.md`
 - the focused design document for the area being changed
 - `docs/maintenance.md`
 
@@ -21,9 +22,10 @@ rewrite them.
 
 ## Recorded Milestone
 
-v0.2.0 is complete. Do not use `v0` as shorthand for a release scope. Use
-[docs/v0.2.0.md](docs/v0.2.0.md) for its completion record. Define a new version contract and
-non-goals before beginning the next milestone.
+v0.3.0 is complete through Phase 10, stabilization, body-bearing interface implementations, and
+type-owned construction surfaces. No later milestone is active. Do not use `v0` as shorthand for a
+release scope. Use [docs/v0.3.0.md](docs/v0.3.0.md) for the current release record and
+[docs/v0.2.0.md](docs/v0.2.0.md) only for the previous released baseline.
 
 ## Engineering Priority
 
@@ -63,8 +65,21 @@ Keep structural changes and behavior changes in separate commits when practical.
 Update only the owner of the changed fact:
 
 - `TODO.md`: next concrete task, blockers, uncommitted handoff state
-- `docs/v0.2.0.md`: completion gate, scope, non-goal, or work order
+- `docs/v0.3.0.md`: current release status, completion gate, scope, non-goal, or qualification
+- `docs/v0.2.0.md`: released v0.2.0 completion record
 - `docs/architecture.md`: phase/module responsibility or data flow
+- `docs/region-provenance.md`: region, storage-origin, allocation-effect, or callable-summary design
+- `docs/typed-literals.md`: literal shape, definition, element-pack, or per-literal context design
+- `docs/iteration.md`: readonly/owned iteration, element access, transient shift, or iterator LSP
+  design
+- `docs/iterator-composition.md`: capability sets, conditional conformance, adapters, or collection
+  builder design
+- `docs/callable-default-methods.md`: method generics, interface default methods, closure ownership,
+  callable specialization, or chainable iterator design
+- `docs/interpolation.md`: interpolation runtime binding, formatting, evaluation, cleanup, or LSP
+  design
+- `docs/provenance-contracts.md`: explicit result-origin contracts, interface bounds, static bound
+  dispatch, or their editor integration
 - `docs/allocator-ownership.md`: allocator, ownership, drop, String/Vec invariants
 - `docs/standard-library.md`: distributed std runtime behavior
 - `docs/lsp.md`: editor capability or compiler-analysis contract

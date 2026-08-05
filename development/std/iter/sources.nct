@@ -1,0 +1,65 @@
+//! Zero- and one-element owning iterators.
+
+use std/iter.{ExactSizeIterator, Iterator}
+use std/ptr.{from_ref_mut, store_value_to_ptr, take_value_at_ptr}
+
+/// An iterator that never yields an item.
+pub struct EmptyIter<T> {
+    exhausted: bool
+}
+
+/// Constructs an empty iterator.
+pub func empty<T>(): EmptyIter<T> {
+    return EmptyIter<T> { exhausted: true }
+}
+
+impl<T> ExactSizeIterator<T> for EmptyIter<T> {
+    /// Returns zero because no item can be yielded.
+    method &self.remaining_len(): usize {
+        return 0
+    }
+}
+
+impl<T> Iterator<T> for EmptyIter<T> {
+    /// Returns `none` for every call.
+    method &+self.next(): T? {
+        return none
+    }
+}
+
+/// An iterator that owns at most one unconsumed item.
+pub struct OnceIter<T> {
+    item: T?
+    remaining: usize
+}
+
+/// Constructs an iterator that yields `item` once.
+pub func once<T>(item: T): OnceIter<T> {
+    return OnceIter<T> {
+        item: move item,
+        remaining: 1,
+    }
+}
+
+impl<T> ExactSizeIterator<T> for OnceIter<T> {
+    /// Returns one while the item remains and zero after it is yielded.
+    method &self.remaining_len(): usize {
+        return self.remaining
+    }
+}
+
+impl<T> Iterator<T> for OnceIter<T> {
+    /// Transfers the owned item once, then returns `none`.
+    method &+self.next(): T? {
+        if self.remaining == 0 {
+            return none
+        }
+        let empty_value: T? = none
+        let pointer = from_ref_mut(&+self.item)
+        let previous: T? = take_value_at_ptr(pointer, 0)
+        store_value_to_ptr(pointer, 0, move empty_value)
+        self.remaining = 0
+        let item = previous?
+        return move item
+    }
+}

@@ -26,7 +26,10 @@ pub(crate) struct DocumentSymbolInfo {
 }
 
 pub(crate) fn document_symbols_for_text(text: &str) -> Option<Vec<DocumentSymbolInfo>> {
-    let parsed = parse_single_file_text("document-symbols.nct", text)?;
+    let parsed = parse_single_file_text("document-symbols.nct", text).or_else(|| {
+        let recovered = super::delimiter_recovery::block_recovery_text(text, text.len())?;
+        parse_single_file_text("document-symbols.nct", &recovered)
+    })?;
 
     Some(document_symbols_for_ast(text, &parsed.ast))
 }
@@ -122,6 +125,38 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 .map(impl_member_document_symbol)
                 .collect(),
         )),
+        Item::Construct(construct) => Some(document_symbol(
+            format!(
+                "construct {}",
+                source_fragment(text, construct.target.span())
+            ),
+            DocumentSymbolKind::Class,
+            construct.span,
+            construct.target.span(),
+            construct
+                .members
+                .iter()
+                .map(|member| match &member.declaration {
+                    crate::ast::ConstructMemberDecl::Function(function) => document_symbol(
+                        function.member_name.clone(),
+                        DocumentSymbolKind::Function,
+                        member.span,
+                        function.member_name_span,
+                        Vec::new(),
+                    ),
+                    crate::ast::ConstructMemberDecl::Literal(literal) => document_symbol(
+                        match literal.shape {
+                            crate::ast::LiteralShape::Sequence => "literal []".to_string(),
+                            crate::ast::LiteralShape::String => "literal \"\"".to_string(),
+                        },
+                        DocumentSymbolKind::Function,
+                        member.span,
+                        literal.shape_span,
+                        Vec::new(),
+                    ),
+                })
+                .collect(),
+        )),
     }
 }
 
@@ -132,7 +167,7 @@ fn impl_member_document_symbol(member: &ImplMember) -> DocumentSymbolInfo {
             "drop".to_string(),
             DocumentSymbolKind::Method,
             drop_.span,
-            drop_.binding.name_span,
+            drop_.name_span,
             Vec::new(),
         ),
     }
@@ -204,5 +239,45 @@ mod tests {
         assert_eq!(symbols[0].children[0].kind, DocumentSymbolKind::Field);
         assert_eq!(symbols[1].name, "main");
         assert_eq!(symbols[1].kind, DocumentSymbolKind::Function);
+    }
+
+    #[test]
+    fn drop_document_symbol_selects_the_declaration_keyword() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+    }
+}
+"#;
+        let symbols = document_symbols_for_text(text).expect("expected document symbols");
+        let drop_symbol = &symbols[1].children[0];
+
+        assert_eq!(drop_symbol.name, "drop");
+        assert_eq!(drop_symbol.kind, DocumentSymbolKind::Method);
+        assert_eq!(
+            &text[drop_symbol.selection_span.start..drop_symbol.selection_span.end],
+            "drop"
+        );
+    }
+
+    #[test]
+    fn document_symbols_survive_an_unclosed_member_body() {
+        let text = r#"struct Token { value: i32 }
+
+impl Token {
+    drop &+self {
+        return
+"#;
+        let symbols = document_symbols_for_text(text).expect("expected recovered document symbols");
+
+        assert_eq!(symbols[0].name, "Token");
+        assert_eq!(symbols[1].children[0].name, "drop");
+        assert_eq!(
+            &text[symbols[1].children[0].selection_span.start
+                ..symbols[1].children[0].selection_span.end],
+            "drop"
+        );
     }
 }

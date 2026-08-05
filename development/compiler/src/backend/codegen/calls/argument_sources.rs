@@ -63,6 +63,10 @@ impl EntryEmitter {
                 self.emit_parameter_word_to_x(index, register)?;
                 return Ok(());
             }
+            BorrowSource::BorrowLocal(location) => {
+                self.emit_usize_value_to_x(&UsizeValue::Location(location), register)?;
+                return Ok(());
+            }
             BorrowSource::AggregateParameterField {
                 parameter_index,
                 offset,

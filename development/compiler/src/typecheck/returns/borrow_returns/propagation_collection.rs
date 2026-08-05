@@ -5,9 +5,9 @@ pub(in crate::typecheck::returns) fn collect_return_expression_provenance(
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     collect_expression_fallible_propagation_provenance(
         expression,
@@ -46,9 +46,9 @@ pub(in crate::typecheck::returns) fn collect_block_result_provenance(
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     let Some(result) = &block.result else {
         return;
@@ -78,9 +78,9 @@ pub(in crate::typecheck::returns) fn collect_statement_fallible_propagation_prov
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     match statement {
         Stmt::Import(_)
@@ -196,7 +196,30 @@ pub(in crate::typecheck::returns) fn collect_statement_fallible_propagation_prov
                 flow,
             );
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.source,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
+        Stmt::LiteralPackFor(_) => {}
         Stmt::Loop(_) => {}
+        Stmt::Region(statement) => {
+            collect_expression_fallible_propagation_provenance(
+                &statement.allocator,
+                return_type,
+                resolved,
+                environment,
+                borrow_provenance,
+                summaries,
+                flow,
+            );
+        }
         Stmt::Expression(statement) => {
             collect_expression_fallible_propagation_provenance(
                 &statement.expression,
@@ -216,11 +239,51 @@ pub(in crate::typecheck::returns) fn collect_expression_fallible_propagation_pro
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     match expression {
+        // A closure body propagates through its generated call target, not the
+        // enclosing callable being summarized here.
+        Expr::Closure(_) => {}
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_fallible_propagation_provenance(
+                    element,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            if let Some(using) = &expression.using {
+                collect_expression_fallible_propagation_provenance(
+                    &using.allocator,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression_fallible_propagation_provenance(
+                    &using.allocator,
+                    return_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+        }
         Expr::Propagate(propagation) => {
             if propagated_fallible_error_can_escape(
                 &propagation.expression,
@@ -574,9 +637,9 @@ pub(in crate::typecheck::returns) fn collect_block_fallible_propagation_provenan
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     let mut block_environment = environment.clone();
     let mut block_borrow_provenance = borrow_provenance.clone();
@@ -619,9 +682,9 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
     return_type: &Type,
     resolved: &ResolveOutput,
     environment: &mut TypeEnvironment,
-    borrow_provenance: &mut BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
-    flow: &mut BorrowReturnFlow,
+    borrow_provenance: &mut ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
+    flow: &mut ProvenanceFlow,
 ) {
     for statement in &block.statements {
         collect_statement_fallible_propagation_provenance(
@@ -798,6 +861,40 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     flow,
                 );
             }
+            Stmt::CollectionFor(statement) => {
+                let item_type = super::super::super::iteration::resolve_collection_iteration(
+                    statement,
+                    resolved,
+                    environment,
+                )
+                .map_or(Type::Unknown, |plan| plan.item_type);
+                let mut body_environment =
+                    environment_for_collection_for_binding(statement, item_type, environment);
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    return_type,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
+            Stmt::LiteralPackFor(statement) => {
+                let mut body_environment =
+                    environment_for_literal_pack_binding(statement, environment);
+                let mut body_borrow_provenance = borrow_provenance.clone();
+                collect_return_statement_provenance(
+                    &statement.body,
+                    return_type,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_borrow_provenance,
+                    summaries,
+                    flow,
+                );
+            }
             Stmt::Loop(statement) => {
                 let mut body_environment = environment.clone();
                 let mut body_borrow_provenance = borrow_provenance.clone();
@@ -810,6 +907,40 @@ pub(in crate::typecheck::returns) fn collect_return_statement_provenance(
                     summaries,
                     flow,
                 );
+            }
+            Stmt::Region(statement) => {
+                let mut body_environment = environment.clone();
+                body_environment.define(
+                    statement.name.clone(),
+                    crate::typecheck::regions::region_binding_type(
+                        statement,
+                        resolved,
+                        environment,
+                    ),
+                );
+                let mut body_provenance = borrow_provenance.clone();
+                body_provenance.enter_region(
+                    crate::typecheck::regions::region_id(statement),
+                    format!("region `{}`", statement.name),
+                );
+                body_provenance.define_binding(
+                    statement.name_span,
+                    true,
+                    Some(ValueProvenance::region(
+                        crate::typecheck::regions::region_id(statement),
+                        format!("region `{}`", statement.name),
+                    )),
+                );
+                collect_return_statement_provenance(
+                    &statement.body,
+                    return_type,
+                    resolved,
+                    &mut body_environment,
+                    &mut body_provenance,
+                    summaries,
+                    flow,
+                );
+                borrow_provenance.update_existing_from(&body_provenance);
             }
             _ => {
                 apply_borrow_return_statement_effect(

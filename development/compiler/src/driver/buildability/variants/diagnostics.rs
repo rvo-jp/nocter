@@ -100,7 +100,7 @@ pub(in crate::driver::buildability) fn unsupported_payload_enum_value_diagnostic
         return None;
     }
 
-    Some(unsupported_v0_build_diagnostic(
+    Some(unsupported_native_build_diagnostic(
         sources,
         member.span,
         "payload enum values",

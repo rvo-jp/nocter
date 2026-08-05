@@ -153,7 +153,7 @@ pub(super) struct AggregateMemberAccess<'a> {
 pub(super) enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
-    FallibleCall(&'a CallExpr, FallibleFailureMode),
+    FallibleCall(&'a CallExpr, OutcomeFailureMode),
     OptionalCall(&'a crate::ast::OtherwiseExpr),
 }
 
@@ -189,7 +189,10 @@ pub(super) fn aggregate_member_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberRoot::FallibleCall(call, propagating_failure_mode(context)?),
+                AggregateMemberRoot::FallibleCall(
+                    call,
+                    propagating_outcome_mode(&propagation.expression, context)?,
+                ),
                 Vec::new(),
             )))
         }
@@ -198,7 +201,7 @@ pub(super) fn aggregate_member_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Trap),
+                AggregateMemberRoot::FallibleCall(call, OutcomeFailureMode::Trap),
                 Vec::new(),
             )))
         }
@@ -262,16 +265,14 @@ pub(super) fn aggregate_call_member_field_kind(
     aggregate_call_field(call, member_name, context).map(|field| field.kind)
 }
 
-pub(super) fn aggregate_fallible_call_member_field_kind(
+pub(super) fn aggregate_outcome_call_member_field_kind(
     call: &CallExpr,
     member_name: &str,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
     let (target, _) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success_type) = context.call_return_type(&target)? else {
-        return None;
-    };
-    let layout = aggregate_type_layout(success_type.as_ref())?;
+    let (_, success_type) = context.call_return_type(&target)?.single_outcome()?;
+    let layout = aggregate_type_layout(success_type)?;
     if !supported_aggregate_copy_layout(layout) {
         return None;
     }
@@ -294,7 +295,7 @@ pub(super) fn aggregate_optional_otherwise_member_field_kind(
         return None;
     }
     let (target, _) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success_type) = context.call_return_type(&target)? else {
+    let Type::Optional(success_type) = context.call_return_type(&target)? else {
         return None;
     };
     let layout = aggregate_type_layout(success_type.as_ref())?;
@@ -460,15 +461,18 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
     member_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
-    failure_mode: FallibleFailureMode,
+    failure_mode: OutcomeFailureMode,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+    let Some((_, success_type)) = context
+        .call_return_type(&target)
+        .and_then(Type::single_outcome)
+    else {
         return Ok(None);
     };
-    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+    let Some(layout) = aggregate_type_layout(success_type) else {
         return Ok(None);
     };
     if !supported_aggregate_copy_layout(layout) {
@@ -485,7 +489,7 @@ pub(super) fn lower_aggregate_fallible_call_member_field_access(
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
-        success_type.as_ref(),
+        success_type,
         AggregateLocation::Slot(slot_index),
         target,
         arguments,

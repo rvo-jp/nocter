@@ -7,7 +7,7 @@ use crate::ast::{
     TypeReference, UnaryExpr,
 };
 use crate::lexer::{Keyword, Token, TokenKind, lex_span};
-use crate::literals::{StringLiteralPartSpan, string_literal_parts};
+use crate::literals::{StringLiteralPartSpan, decode_interpolated_text_part, string_literal_parts};
 use crate::source::ByteSpan;
 
 impl Parser<'_> {
@@ -162,7 +162,7 @@ impl Parser<'_> {
         Ok(expression)
     }
 
-    fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {
+    pub(super) fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {
         if let Some(operator) = self.match_punctuation("&+") {
             let expression = self.parse_prefix_expression()?;
             return Ok(Expr::Borrow(BorrowExpr {
@@ -288,11 +288,16 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             if self.current().kind == TokenKind::Identifier && self.next_is_punctuation(":") {
-                self.error_current("named arguments are not part of v0");
+                self.error_current(
+                    "calls use positional arguments; named arguments are not supported",
+                );
                 return Err(());
             }
             arguments.push(self.parse_expression()?);
@@ -303,7 +308,7 @@ impl Parser<'_> {
             if self.at_punctuation(")") {
                 self.error_at(
                     comma.span,
-                    "trailing commas in single-line argument lists are not part of v0",
+                    "single-line argument lists cannot have a trailing comma",
                 );
                 return Err(());
             }
@@ -347,7 +352,10 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             let name = self.expect_identifier("expected struct literal field name")?;
@@ -379,6 +387,14 @@ impl Parser<'_> {
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
         match self.current().kind {
             TokenKind::Identifier => {
+                if self.looks_like_typed_sequence_literal_start() {
+                    let target = self.parse_type()?;
+                    return self.finish_typed_sequence_literal(target);
+                }
+                if self.looks_like_typed_string_literal_start() {
+                    let target = self.parse_type()?;
+                    return self.finish_typed_string_literal(target);
+                }
                 let token = self.bump();
                 let name = self.lexeme(&token);
                 if self.looks_like_struct_literal_body() {
@@ -440,6 +456,9 @@ impl Parser<'_> {
             TokenKind::Keyword(Keyword::Match) => self.parse_match_expression(),
             TokenKind::Punctuation("[") => self.parse_array_literal_expression(),
             TokenKind::Punctuation("(") => {
+                if self.looks_like_closure_expression() {
+                    return self.parse_closure_expression();
+                }
                 let start = self.bump();
                 let expression = self.parse_expression()?;
                 let end = self.expect_punctuation(")", "`)`")?;
@@ -449,7 +468,10 @@ impl Parser<'_> {
                 }))
             }
             TokenKind::Punctuation(".") if self.at_ellipsis() => {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 Err(())
             }
             TokenKind::Punctuation(".") if self.at_relative_module_path_expression() => {
@@ -484,7 +506,7 @@ impl Parser<'_> {
         self.at_punctuation("/") && self.current_touches_next_identifier()
     }
 
-    fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
+    pub(super) fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
         let value = self.lexeme(&token);
         let parts = match string_literal_parts(&value) {
             Ok(parts) => parts,
@@ -511,9 +533,19 @@ impl Parser<'_> {
         for part in parts {
             match part {
                 StringLiteralPartSpan::Text { start, end } => {
+                    let decoded = match decode_interpolated_text_part(&value, start, end) {
+                        Ok(decoded) => decoded,
+                        Err(message) => {
+                            self.error_at(
+                                self.span(token.span.start + start, token.span.start + end),
+                                message,
+                            );
+                            return Err(());
+                        }
+                    };
                     ast_parts.push(InterpolatedStringPart::Text(InterpolatedStringText {
                         span: self.span(token.span.start + start, token.span.start + end),
-                        value: value.get(start..end).unwrap_or("").to_string(),
+                        value: decoded,
                     }));
                 }
                 StringLiteralPartSpan::Interpolation {
@@ -559,6 +591,7 @@ impl Parser<'_> {
             index: 0,
             pending_token: None,
             diagnostics: Vec::new(),
+            literal_pack_capture: None,
         };
         parser.skip_newlines();
         let expression = match parser.parse_expression() {
@@ -591,7 +624,10 @@ impl Parser<'_> {
             }
 
             if self.at_ellipsis() {
-                self.error_at(self.ellipsis_span(), "`...` spread is not part of v0");
+                self.error_at(
+                    self.ellipsis_span(),
+                    "`...` spread is not valid in this v0.3.0 Phase 8 context",
+                );
                 return Err(());
             }
             elements.push(self.parse_expression()?);

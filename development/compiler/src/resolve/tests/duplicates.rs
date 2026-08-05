@@ -476,8 +476,10 @@ fn diagnoses_duplicate_associated_function_parameter_names() {
     value: i32
 }
 
-func Counter.new(value: i32, value: i32): Counter {
-    return Counter { value: value }
+construct Counter {
+    pub default func new(value: i32, value: i32): Self {
+        return Counter { value: value }
+    }
 }
 
 func main(): i32 {

@@ -41,6 +41,19 @@ impl EntryEmitter {
             Instruction::SetUsize { destination, value } => {
                 self.emit_set_usize(*destination, value)?;
             }
+            Instruction::RegionEnter { destination } => {
+                self.emit_region_enter(*destination, frame)?;
+            }
+            Instruction::SetCurrentAllocationContext { state, kind } => {
+                self.emit_set_current_allocation_context(state, kind)?;
+            }
+            Instruction::RegionRelease {
+                state,
+                parent_state,
+                parent_kind,
+            } => {
+                self.emit_region_release(state, parent_state, parent_kind, frame)?;
+            }
             Instruction::SetUsizeFromBorrow {
                 destination,
                 source,
@@ -628,7 +641,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 destination,
                 target,
                 arguments,
@@ -655,7 +668,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleU8 {
+            Instruction::CallOutcomeU8 {
                 destination,
                 target,
                 arguments,
@@ -682,7 +695,34 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleUsize {
+            Instruction::CallOutcomeUsize {
+                destination,
+                target,
+                arguments,
+                failure_mode,
+            } => {
+                self.emit_call_fallible_usize(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                    failure_mode,
+                    return_type,
+                )?;
+            }
+            Instruction::CallBorrow {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_usize(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallOutcomeBorrow {
                 destination,
                 target,
                 arguments,
@@ -709,7 +749,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleBool {
+            Instruction::CallOutcomeBool {
                 destination,
                 target,
                 arguments,
@@ -736,7 +776,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleStr {
+            Instruction::CallOutcomeStr {
                 destination,
                 target,
                 arguments,
@@ -763,7 +803,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleSlice {
+            Instruction::CallOutcomeSlice {
                 destination,
                 target,
                 arguments,
@@ -804,7 +844,7 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
-            Instruction::CallFallibleDirectAggregate {
+            Instruction::CallOutcomeDirectAggregate {
                 destination,
                 target,
                 arguments,
@@ -812,7 +852,7 @@ impl EntryEmitter {
                 failure_mode,
             } => {
                 self.emit_call_fallible_direct_aggregate(
-                    calls::FallibleDirectAggregateCall {
+                    calls::OutcomeDirectAggregateCall {
                         destination: *destination,
                         function: FunctionSymbol::from_call_target(target),
                         arguments,
@@ -823,7 +863,7 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 destination,
                 target,
                 arguments,
@@ -841,7 +881,7 @@ impl EntryEmitter {
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
-            Instruction::CallFallibleVoid {
+            Instruction::CallOutcomeVoid {
                 target,
                 arguments,
                 failure_mode,
@@ -853,6 +893,89 @@ impl EntryEmitter {
                     failure_mode,
                     return_type,
                 )?;
+            }
+            Instruction::CallComposedOutcome {
+                destination,
+                target,
+                arguments,
+                outer,
+                inner,
+                outer_mode,
+                inner_mode,
+            } => {
+                self.emit_call_composed_outcome(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    *outer,
+                    *inner,
+                    outer_mode,
+                    inner_mode,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::CallStoredOutcome {
+                destination,
+                target,
+                arguments,
+                storage,
+                payload_type,
+            } => {
+                self.emit_call_stored_outcome(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    storage,
+                    payload_type,
+                    frame,
+                )?;
+            }
+            Instruction::IfStoredOutcomeTag {
+                source,
+                tag_offset,
+                success_instructions,
+                outcome_instructions,
+            } => {
+                self.emit_if_stored_outcome_tag(
+                    *source,
+                    *tag_offset,
+                    success_instructions,
+                    outcome_instructions,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::CheckStoredFallible {
+                source,
+                tag_offset,
+                error_offset,
+                success_instructions,
+                failure_mode,
+            } => {
+                self.emit_check_stored_fallible(
+                    *source,
+                    *tag_offset,
+                    *error_offset,
+                    success_instructions,
+                    failure_mode,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::LoadStoredOutcomePayload {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_stored_outcome_payload(*destination, *source, *offset, frame)?;
+            }
+            Instruction::ReturnStoredOutcome {
+                source,
+                storage,
+                payload_type,
+            } => {
+                self.emit_return_stored_outcome(*source, storage, payload_type, frame)?;
             }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
@@ -904,14 +1027,14 @@ impl EntryEmitter {
             Instruction::CheckFailure { failure_mode } => {
                 self.emit_check_failure(failure_mode, frame, return_type)?;
             }
-            Instruction::ReturnFallibleSuccess => {
-                self.emit_return_fallible_success(return_type, frame)?;
+            Instruction::ReturnOutcomeSuccess => {
+                self.emit_return_outcome_success(return_type, frame)?;
             }
             Instruction::ReturnOptionalNone => {
-                self.emit_return_optional_none(frame);
+                self.emit_return_optional_none(frame, return_type)?;
             }
             Instruction::ReturnFallibleFailure { code, message } => {
-                self.emit_return_fallible_failure(code, message, frame)?;
+                self.emit_return_fallible_failure(code, message, frame, return_type)?;
             }
             Instruction::Return => {
                 self.emit_return(frame);

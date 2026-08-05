@@ -116,6 +116,9 @@ fn lower_pointer_drop_kind(
         AggregateDrop::PayloadEnum(_) => Err(pointer_drop_diagnostic(
             "`drop_value_at_ptr` does not yet support payload enum elements",
         )),
+        AggregateDrop::Outcome(_) => Err(pointer_drop_diagnostic(
+            "`drop_value_at_ptr` does not support outcome elements",
+        )),
     }
 }
 

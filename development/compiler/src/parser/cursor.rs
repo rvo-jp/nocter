@@ -348,6 +348,152 @@ impl Parser<'_> {
         self.looks_like_struct_literal_body_at(index)
     }
 
+    pub(super) fn looks_like_typed_sequence_literal_start(&self) -> bool {
+        self.typed_literal_shape_token().is_some_and(|token| {
+            matches!(token.kind, TokenKind::Punctuation("["))
+                && self
+                    .typed_literal_target_end()
+                    .is_some_and(|end| end < token.span.start)
+        })
+    }
+
+    pub(super) fn looks_like_typed_string_literal_start(&self) -> bool {
+        self.typed_literal_shape_token().is_some_and(|token| {
+            token.kind == TokenKind::StringLiteral
+                && self
+                    .typed_literal_target_end()
+                    .is_some_and(|end| end < token.span.start)
+        })
+    }
+
+    pub(super) fn looks_like_closure_expression(&self) -> bool {
+        if !self.at_punctuation("(") || self.pending_token.is_some() {
+            return false;
+        }
+        let mut first = self.index + 1;
+        while matches!(
+            self.tokens.get(first).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            first += 1;
+        }
+        match self.tokens.get(first).map(|token| token.kind) {
+            Some(TokenKind::Punctuation(")")) => {}
+            Some(TokenKind::Identifier) => {
+                let mut after_name = first + 1;
+                while matches!(
+                    self.tokens.get(after_name).map(|token| token.kind),
+                    Some(TokenKind::Newline)
+                ) {
+                    after_name += 1;
+                }
+                if !matches!(
+                    self.tokens.get(after_name).map(|token| token.kind),
+                    Some(
+                        TokenKind::Punctuation(",")
+                            | TokenKind::Punctuation(":")
+                            | TokenKind::Punctuation(")")
+                    )
+                ) {
+                    return false;
+                }
+            }
+            Some(
+                TokenKind::Punctuation("&")
+                | TokenKind::Punctuation("&+")
+                | TokenKind::Keyword(crate::lexer::Keyword::Move),
+            ) => {}
+            _ => return false,
+        }
+        let mut depth = 0usize;
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index).map(|token| token.kind) {
+                Some(TokenKind::Punctuation("(")) => depth += 1,
+                Some(TokenKind::Punctuation(")")) => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        index += 1;
+                        break;
+                    }
+                }
+                Some(TokenKind::Eof) | None => return false,
+                _ => {}
+            }
+            index += 1;
+        }
+        while matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            index += 1;
+        }
+        matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Punctuation("{") | TokenKind::Punctuation(":"))
+        )
+    }
+
+    pub(super) fn closure_header_has_capture_separator(&self) -> bool {
+        if self.pending_token.is_some() {
+            return false;
+        }
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index).map(|token| token.kind) {
+                Some(TokenKind::Punctuation(";")) => return true,
+                Some(TokenKind::Punctuation(")")) | Some(TokenKind::Eof) | None => return false,
+                _ => index += 1,
+            }
+        }
+    }
+
+    fn typed_literal_shape_token(&self) -> Option<&Token> {
+        let index = self.typed_literal_shape_index()?;
+        self.tokens.get(index)
+    }
+
+    fn typed_literal_target_end(&self) -> Option<usize> {
+        let shape_index = self.typed_literal_shape_index()?;
+        shape_index
+            .checked_sub(1)
+            .and_then(|index| self.tokens.get(index))
+            .map(|token| token.span.end)
+    }
+
+    fn typed_literal_shape_index(&self) -> Option<usize> {
+        if self.current().kind != TokenKind::Identifier {
+            return None;
+        }
+        let mut index = self.index + 1;
+        if !matches!(self.tokens.get(index)?.kind, TokenKind::Punctuation("<")) {
+            return Some(index);
+        }
+
+        let mut depth = 0usize;
+        while let Some(token) = self.tokens.get(index) {
+            match token.kind {
+                TokenKind::Punctuation("<") => depth += 1,
+                TokenKind::Punctuation(">") => {
+                    depth = depth.checked_sub(1)?;
+                    if depth == 0 {
+                        return Some(index + 1);
+                    }
+                }
+                TokenKind::Punctuation(">>") => {
+                    if depth <= 2 {
+                        return Some(index + 1);
+                    }
+                    depth -= 2;
+                }
+                TokenKind::Eof => return None,
+                _ => {}
+            }
+            index += 1;
+        }
+        None
+    }
+
     fn looks_like_struct_literal_body_at(&self, start: usize) -> bool {
         if !matches!(
             self.tokens.get(start).map(|token| token.kind),
@@ -488,12 +634,10 @@ impl Parser<'_> {
 
 fn reserved_name_diagnostic(name: &str) -> Option<&'static str> {
     match name {
-        "_" => Some(
-            "`_` is reserved for discard or wildcard patterns and cannot be used as a name in v0",
-        ),
-        "Self" => {
-            Some("`Self` is reserved as contextual type syntax and cannot be used as a name in v0")
+        "_" => {
+            Some("`_` is reserved for discard or wildcard patterns and cannot be used as a name")
         }
+        "Self" => Some("`Self` is reserved as contextual type syntax and cannot be used as a name"),
         _ => None,
     }
 }

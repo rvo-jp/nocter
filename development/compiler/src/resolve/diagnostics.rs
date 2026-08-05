@@ -2,6 +2,29 @@ use crate::ast::Visibility;
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::{ByteSpan, SourceMap};
 
+pub(super) fn implicit_closure_capture_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    use_span: ByteSpan,
+    declaration_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0452",
+        format!("outer binding `{name}` is not captured by this closure"),
+    );
+    diagnostic.primary_span = sources.span_to_json(use_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(declaration_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "outer binding is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "add `&{name}`, `&+{name}`, or `move {name}` before the closure parameter separator"
+    ));
+    diagnostic
+}
+
 pub(super) fn duplicate_visible_name_diagnostic(
     sources: &SourceMap,
     name: &str,
@@ -16,8 +39,7 @@ pub(super) fn duplicate_visible_name_diagnostic(
             span: Some(span),
         });
     }
-    diagnostic.help =
-        Some("choose a distinct name; Nocter v0 does not allow shadowing".to_string());
+    diagnostic.help = Some("choose a distinct name; shadowing is not supported".to_string());
     diagnostic
 }
 
@@ -38,9 +60,8 @@ pub(super) fn prelude_name_collision_diagnostic(
             span: Some(span),
         });
     }
-    diagnostic.help = Some(
-        "choose a distinct name; Nocter v0 does not allow shadowing prelude names".to_string(),
-    );
+    diagnostic.help =
+        Some("choose a distinct name; shadowing prelude names is not supported".to_string());
     diagnostic
 }
 
@@ -108,7 +129,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
         });
     }
     diagnostic.help =
-        Some("choose a distinct member name; Nocter v0 does not support overloads".to_string());
+        Some("choose a distinct member name; overloads are not supported".to_string());
     diagnostic
 }
 
@@ -131,7 +152,7 @@ pub(super) fn duplicate_interface_method_name_diagnostic(
         });
     }
     diagnostic.help =
-        Some("choose a distinct method name; Nocter v0 does not support overloads".to_string());
+        Some("choose a distinct method name; overloads are not supported".to_string());
     diagnostic
 }
 
@@ -257,7 +278,7 @@ pub(super) fn unqualified_enum_variant_constructor_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0431",
-        format!("enum variant `{variant_name}` cannot be used unqualified in v0"),
+        format!("enum variant `{variant_name}` cannot be used unqualified"),
     );
     diagnostic.primary_span = sources.span_to_json(reference_span).ok().map(Box::new);
     if let Ok(span) = sources.span_to_json(variant_span) {
@@ -317,7 +338,7 @@ pub(super) fn missing_import_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0411",
-        format!("import `{import_path}` does not export `{name}` in v0"),
+        format!("import `{import_path}` does not export `{name}`"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(

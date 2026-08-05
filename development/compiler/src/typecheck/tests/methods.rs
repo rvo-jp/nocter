@@ -148,6 +148,56 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_method_local_generic_inferred_from_an_argument() {
+    let diagnostics = check_text(
+        r#"struct Factory {
+    marker: i32
+}
+
+impl Factory {
+    method &self.identity<T>(value: T): T {
+        return value
+    }
+}
+
+func main(): i32 {
+    let factory = Factory { marker: 0 }
+    return factory.identity(7)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_method_generic_reusing_an_impl_parameter() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<T> Box<T> {
+    method &self.identity<T>(value: T): T {
+        return value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0420"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn diagnoses_generic_impl_method_return_type_mismatch() {
     let diagnostics = check_text(
         r#"struct Box<T> {

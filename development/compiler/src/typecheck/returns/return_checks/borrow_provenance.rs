@@ -7,8 +7,8 @@ pub(in crate::typecheck::returns) fn check_borrow_return_provenance(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(provenance) = borrow_return_provenance_for_expression(
@@ -21,6 +21,26 @@ pub(in crate::typecheck::returns) fn check_borrow_return_provenance(
     ) else {
         return;
     };
+    if let Some((region, description)) = provenance.first_region_origin(|_| true) {
+        diagnostics.push(region_return_escape_diagnostic(
+            sources,
+            expression,
+            description,
+            region.declaration_span(),
+            context,
+        ));
+        return;
+    }
+    let has_tracked_element_storage = matches!(
+        &provenance,
+        ValueProvenance::Aggregate { elements, .. }
+            if elements
+                .values()
+                .any(ValueProvenance::has_storage_dependency)
+    );
+    if !type_contains_borrow_like(ty, resolved) && !has_tracked_element_storage {
+        return;
+    }
     let Some(source) = provenance.escaping_source() else {
         return;
     };
@@ -37,8 +57,8 @@ pub(in crate::typecheck::returns) fn check_propagated_fallible_error_borrow_retu
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
-    borrow_provenance: &BorrowReturnEnvironment,
-    summaries: &BorrowReturnSummaries,
+    borrow_provenance: &ProvenanceEnvironment,
+    summaries: &CallableProvenanceSummaries,
 ) {
     if !propagated_fallible_error_can_escape(
         &expression.expression,
@@ -58,6 +78,16 @@ pub(in crate::typecheck::returns) fn check_propagated_fallible_error_borrow_retu
     ) else {
         return;
     };
+    if let Some((region, description)) = provenance.first_region_origin(|_| true) {
+        diagnostics.push(region_return_escape_diagnostic(
+            sources,
+            &expression.expression,
+            description,
+            region.declaration_span(),
+            context,
+        ));
+        return;
+    }
     let Some(source) = provenance.escaping_source() else {
         return;
     };

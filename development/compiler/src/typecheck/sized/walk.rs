@@ -117,6 +117,13 @@ fn check_statement(
             check_expression(sources, &statement.end, resolved, self_type, diagnostics);
             check_block(sources, &statement.body, resolved, self_type, diagnostics);
         }
+        Stmt::CollectionFor(statement) => {
+            check_expression(sources, &statement.source, resolved, self_type, diagnostics);
+            check_block(sources, &statement.body, resolved, self_type, diagnostics);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            check_block(sources, &statement.body, resolved, self_type, diagnostics);
+        }
         Stmt::While(statement) => {
             check_expression(
                 sources,
@@ -128,6 +135,16 @@ fn check_statement(
             check_block(sources, &statement.body, resolved, self_type, diagnostics);
         }
         Stmt::Loop(statement) => {
+            check_block(sources, &statement.body, resolved, self_type, diagnostics);
+        }
+        Stmt::Region(statement) => {
+            check_expression(
+                sources,
+                &statement.allocator,
+                resolved,
+                self_type,
+                diagnostics,
+            );
             check_block(sources, &statement.body, resolved, self_type, diagnostics);
         }
         Stmt::Return(statement) => {
@@ -156,6 +173,60 @@ fn check_expression(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for parameter in &closure.parameters {
+                if let Some(ty) = &parameter.ty {
+                    check_value_type(
+                        sources,
+                        ty,
+                        "closure parameter",
+                        resolved,
+                        self_type,
+                        diagnostics,
+                    );
+                }
+            }
+            if let Some(ty) = &closure.return_type {
+                check_value_type(
+                    sources,
+                    ty,
+                    "closure return",
+                    resolved,
+                    self_type,
+                    diagnostics,
+                );
+            }
+            check_block(sources, &closure.body, resolved, self_type, diagnostics);
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            check_value_type(
+                sources,
+                &expression.target,
+                "typed sequence literal target",
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            for element in &expression.elements {
+                check_expression(sources, element, resolved, self_type, diagnostics);
+            }
+            if let Some(using) = &expression.using {
+                check_expression(sources, &using.allocator, resolved, self_type, diagnostics);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            check_value_type(
+                sources,
+                &expression.target,
+                "typed string literal target",
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            if let Some(using) = &expression.using {
+                check_expression(sources, &using.allocator, resolved, self_type, diagnostics);
+            }
+        }
         Expr::InterpolatedString(expression) => {
             for part in &expression.parts {
                 if let InterpolatedStringPart::Expression(part) = part {

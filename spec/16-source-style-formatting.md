@@ -10,7 +10,7 @@ Adopted: Nocter syntax should be tolerant where whitespace is not semantically m
 Rules:
 
 - Formatting must not change program semantics.
-- Style violations are not compile errors in v0.
+- Style violations are not compile errors in v0.2.0.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
 - Specification examples, `README.md` examples, `spec/guides/ai.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
@@ -29,7 +29,7 @@ nocter fmt --check app.nct
 
 Rules:
 
-- `fmt` takes one `.nct` source file in v0.
+- `fmt` takes one `.nct` source file in v0.2.0.
 - `fmt` formats only the file named on the command line.
 - `fmt` does not follow imports.
 - `fmt` does not treat the input as a compile-unit root.
@@ -105,19 +105,31 @@ Rules:
 - Commas have no preceding space and one following space on a single line.
 - Multi-line parameter lists put one parameter per line and keep a trailing comma.
 - The closing `)` of a multi-line parameter list is aligned with the start of the declaration.
+- A v0.3.0 Phase 4 generic bound uses no space before `:` and one space after it:
+  `T: Interface<U>`.
+- Multiple v0.3.0 Phase 9 bounds use one space around `+`:
+  `T: Iterator<U> + ExactSizeIterator<U>`.
+- A result provenance clause follows the return type on the same line with one space before
+  `from`. Union origins use one space around `|`.
 
 Examples:
 
 ```nct
 let count: u64 = 0
 
-let home = maybe_home otherwise { return none }
+let home = maybe_home?
 
 func read_all(
     allocator: &+Allocator,
     path: &str,
 ): String! {
     ...
+}
+
+pub method &self.get(index: usize): (&T)? from self
+func choose<T>(left: &T, right: &T): &T from left | right
+construct String {
+    pub default literal ""(text: &str): Self from current { ... }
 }
 ```
 
@@ -192,17 +204,17 @@ for i in 0..<bytes.len() {
 Rules:
 
 - Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.
-- Current formatter v0 rejects files that contain comments with a diagnostic instead of rewriting them.
+- Current formatter v0.2.0 rejects files that contain comments with a diagnostic instead of rewriting them.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
-- Block comments keep their internal text unchanged in v0.
+- Block comments keep their internal text unchanged in v0.2.0.
 - Doc comments keep their doc marker spelling: `///`, `/**`, `//!`, or `/*!`.
 
-Comment paragraph reflow is not part of v0.
+Comment paragraph reflow is not part of v0.2.0.
 
-## Non-Goals in v0
+## Non-Goals in v0.2.0
 
-The following are not part of formatter v0:
+The following are not part of formatter v0.2.0:
 
 - project-wide formatting
 - import sorting

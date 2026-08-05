@@ -2,7 +2,7 @@
 
 This document defines stable responsibility boundaries in the Rust bootstrap compiler. See the
 [specification](../../spec/README.md) for public language rules and the
-[v0.2.0 contract](v0.2.0.md) for the completed release criteria.
+[v0.3.0 release record](v0.3.0.md) for the completed stabilization and qualification gates.
 
 ## Pipeline
 
@@ -20,7 +20,7 @@ This document defines stable responsibility boundaries in the Rust bootstrap com
 ```
 
 Normal user builds do not require LLVM, `clang`, `as`, `ld`, the Xcode Command Line Tools, or an
-external runtime library. The v0.2.0 native target is `arm64-darwin`.
+external runtime library. The released and active-development native target is `arm64-darwin`.
 
 ## Phase Ownership
 
@@ -32,7 +32,7 @@ external runtime library. The v0.2.0 native target is `arm64-darwin`.
 | `ast` | syntax data, AST JSON, documentation extraction |
 | `frontend` | compile-unit loading, prelude, frontend orchestration |
 | `resolve` | imports, visibility, scopes, symbols, declaration identity |
-| `typecheck` | types, generic specialization, places, ownership, borrows, drop semantics |
+| `typecheck` | types, generic specialization, places, ownership, storage provenance, regions, allocation effects, drop semantics |
 | `analysis` | owned editor/query results derived from compiler facts |
 | `driver/buildability` | preflight rejection of checked forms not supported by the runtime |
 | `ir` | conversion from typed facts to explicit lower-level operations |
@@ -77,7 +77,10 @@ phase-specific facts such as symbol identity and type compatibility remain separ
 
 ## IR, ABI, and Backend
 
-- IR represents ownership transfer, drop obligations, and fallible exits as explicit operations.
+- IR represents ownership transfer, drop obligations, and outcome exits as explicit operations.
+- Optional and fallible layers retain distinct IR type identities even when they share a callable
+  ABI shape. Shared operations use outcome terminology; error payload operations remain
+  fallible-only.
 - ABI classification is centralized in `abi` and shared by lowering and backend validation.
 - Unsupported user source stops at buildability; backend validation remains a guard against drifted
   or hand-built IR.
@@ -94,11 +97,56 @@ provenance separate. See [Allocator and Ownership](allocator-ownership.md).
 The compiler does not special-case public names such as `Allocator`, `String`, or `Vec`. Required
 primitives are confined to the `pub(nocter)` trust boundary and explicit IR operations.
 
+Phase 0 established a compiler-owned provenance boundary between typecheck and ownership. Callable
+provenance summaries, lexical outlives constraints, and allocation-effect facts are derived by the
+same typecheck implementation. Return checking, NLL, region escape validation, analysis, and IR
+consume those facts instead of maintaining separate origin models. See
+[Region, Provenance, and Allocation Context](region-provenance.md).
+
+Phase 3 interpolation uses a validated runtime-capability bundle. Typecheck produces a semantic
+plan containing declaration identities, result type, allocation effect, provenance, and per-part
+evaluation mode. Dedicated IR lowering consumes that plan; it does not resolve standard-library
+names or repeat type dispatch. See [Owned String Interpolation and Formatting](interpolation.md).
+
+Phase 4 keeps public result-origin contracts and generic dispatch in separate layers. Resolver
+preserves origin, bound, conformance, and source-module identities; typecheck validates contracts
+and records bound calls; analysis expands only reachable concrete specializations; IR selects a
+target from that callable index without searching interface or method spellings. See
+[Public Provenance Contracts and Generic Interface Bounds](provenance-contracts.md).
+
+Phase 5 normalizes callable optional/fallible layers in the shared `outcomes` model. Buildability,
+IR type conversion, backend ABI validation, and analysis consume that structure instead of module
+or declaration spellings. The Darwin entry shim owns the process-context registers; narrow IR
+values expose argument and environment views, while ordinary `std/process` source owns UTF-8,
+matching, allocation policy, and public errors. See
+[Nested Outcomes and Executable Process Context](outcomes-process-context.md).
+
+Phase 10 keeps interface capability/default behavior and closure storage separate. Resolver
+preserves required/default method and anonymous closure identities. Typecheck produces specialized
+default-method calls, closure plans, and dedicated structural callable-call facts. Ownership and
+provenance consume capture fields as ordinary aggregate state, while IR materializes anonymous
+environments and invokes generated static targets. Built-in callable invocation never enters
+interface or method lookup, and no later phase reconstructs its capability from a standard-library
+declaration. See
+[Callable Values and Interface Default Methods](callable-default-methods.md).
+
 ## LSP Boundary
 
 `driver/lsp` owns transport, document state, and protocol conversion. `analysis` derives semantic
 data for hover, completion, definition, references, and signature help from resolver/typechecker
 facts. See [LSP](lsp.md).
+
+Editor analysis has two shared internal boundaries. `SemanticOccurrenceIndex` maps source focus
+spans to resolver/typechecker identities, roles, kinds, readonly state, and contextual type
+applications. `analysis/presentation` maps those semantic values to normalized user-facing
+declarations. Navigation and semantic tokens consume the former; hover, completion detail, and
+signature help share the latter. A feature must not add its own name-resolution pass or render a
+canonical signature by slicing source text.
+
+Recovery overlays are temporary source inputs, not an alternate analysis system. A recovered file
+must pass through the ordinary compile-unit frontend and the same occurrence/presentation
+boundaries. Syntax-only fallback may attach documentation or provide a degraded result when no
+semantic identity exists, but it cannot override an established semantic result.
 
 ## Diagnostics
 

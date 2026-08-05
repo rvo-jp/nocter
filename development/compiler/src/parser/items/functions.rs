@@ -10,7 +10,7 @@ impl Parser<'_> {
             .map(Item::Function)
     }
 
-    pub(super) fn parse_function_decl_data(
+    pub(in crate::parser) fn parse_function_decl_data(
         &mut self,
         visibility: Visibility,
         target: Option<TargetDirective>,
@@ -44,6 +44,7 @@ impl Parser<'_> {
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
+        let result_provenance = self.parse_result_provenance_clause()?;
         let body = self.parse_block()?;
         let end = body.span.end;
 
@@ -64,6 +65,7 @@ impl Parser<'_> {
             generics,
             parameters,
             return_type,
+            result_provenance,
             body,
         })
     }
@@ -79,7 +81,10 @@ impl Parser<'_> {
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
-        let end = return_type.span().end;
+        let result_provenance = self.parse_result_provenance_clause()?;
+        let end = result_provenance
+            .as_ref()
+            .map_or(return_type.span().end, |clause| clause.span.end);
 
         Ok(Item::Primitive(PrimitiveDecl {
             span: self.span(
@@ -95,6 +100,7 @@ impl Parser<'_> {
             generics,
             parameters,
             return_type,
+            result_provenance,
         }))
     }
 }

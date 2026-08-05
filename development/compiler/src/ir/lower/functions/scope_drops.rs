@@ -4,10 +4,14 @@ pub(in crate::ir::lower) fn lower_scope_end_drop_instructions(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let pending = context.pending_aggregate_drops();
-    let mut instructions = Vec::new();
+    // Expression-local allocator overrides must end before destructors for outer lexical values
+    // run. A destructor with an allocation effect observes the surrounding allocation context,
+    // not the allocator selected only for the expression that is propagating a failure.
+    let mut instructions = context.allocation_context_restore_instructions();
     for drop_ in &pending {
         instructions.extend(lower_pending_aggregate_drop(drop_, context)?);
     }
+    instructions.extend(context.all_region_cleanup_instructions());
     Ok(instructions)
 }
 
@@ -15,7 +19,7 @@ pub(in crate::ir::lower) fn is_scope_exit_instruction(instruction: &Instruction)
     matches!(
         instruction,
         Instruction::Return
-            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOutcomeSuccess
             | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }
@@ -92,6 +96,10 @@ pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_matching
     matches_move: &impl Fn(&str, &LoweringContext) -> bool,
 ) -> bool {
     match expression {
+        Expr::Closure(closure) => closure.captures.iter().any(|capture| {
+            capture.mode == crate::ast::ClosureCaptureMode::Move
+                && matches_move(&capture.name, context)
+        }),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
                 matches_move(&identifier.name, context)
@@ -105,6 +113,24 @@ pub(in crate::ir::lower) fn expression_contains_explicit_aggregate_move_matching
         }
         Expr::ArrayLiteral(literal) => literal.elements.iter().any(|element| {
             expression_contains_explicit_aggregate_move_matching(element, context, matches_move)
+        }),
+        Expr::TypedSequenceLiteral(literal) => {
+            literal.elements.iter().any(|element| {
+                expression_contains_explicit_aggregate_move_matching(element, context, matches_move)
+            }) || literal.using.as_ref().is_some_and(|using| {
+                expression_contains_explicit_aggregate_move_matching(
+                    &using.allocator,
+                    context,
+                    matches_move,
+                )
+            })
+        }
+        Expr::TypedStringLiteral(literal) => literal.using.as_ref().is_some_and(|using| {
+            expression_contains_explicit_aggregate_move_matching(
+                &using.allocator,
+                context,
+                matches_move,
+            )
         }),
         Expr::StructLiteral(literal) => literal.fields.iter().any(|field| {
             expression_contains_explicit_aggregate_move_matching(
@@ -346,6 +372,20 @@ pub(in crate::ir::lower) fn statement_contains_explicit_aggregate_move_matching(
                 matches_move,
             )
         }
+        Stmt::CollectionFor(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.source,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.body,
+                context,
+                matches_move,
+            )
+        }
+        Stmt::LiteralPackFor(statement) => {
+            block_contains_explicit_aggregate_move_matching(&statement.body, context, matches_move)
+        }
         Stmt::While(statement) => {
             expression_contains_explicit_aggregate_move_matching(
                 &statement.condition,
@@ -359,6 +399,17 @@ pub(in crate::ir::lower) fn statement_contains_explicit_aggregate_move_matching(
         }
         Stmt::Loop(statement) => {
             block_contains_explicit_aggregate_move_matching(&statement.body, context, matches_move)
+        }
+        Stmt::Region(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.allocator,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.body,
+                context,
+                matches_move,
+            )
         }
         Stmt::Expression(statement) => expression_contains_explicit_aggregate_move_matching(
             &statement.expression,
@@ -396,7 +447,7 @@ pub(in crate::ir::lower) fn drop_parameter_matches_local(
 pub(in crate::ir::lower) fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        format!("IR v0 cannot lower drop statement for binding `{name}`"),
+        format!("native lowering cannot lower drop statement for binding `{name}`"),
     )]
 }
 
@@ -422,7 +473,7 @@ pub(in crate::ir::lower) fn lower_drop_statement(
     )
 }
 
-pub(in crate::ir::lower) fn lower_never_expression_with_scope_drops(
+pub(in crate::ir::lower) fn lower_never_expression(
     expression: &Expr,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
@@ -430,7 +481,9 @@ pub(in crate::ir::lower) fn lower_never_expression_with_scope_drops(
         return Ok(None);
     };
     mark_explicit_moves_in_expression(expression, context);
-    append_scope_end_drops_before_exit(instructions, context).map(Some)
+    // `never` is immediate termination, not a normal scope exit. In particular, whether the call
+    // can use tail-call lowering must not decide if caller-owned values are destroyed.
+    Ok(Some(instructions))
 }
 
 pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(
@@ -444,22 +497,6 @@ pub(in crate::ir::lower) fn append_scope_end_drops_before_exit(
     instructions.splice(return_index..return_index, drops);
     mark_pending_aggregate_drops(context);
     Ok(instructions)
-}
-
-pub(in crate::ir::lower) fn propagating_failure_mode(
-    context: &LoweringContext,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let cleanup_context = context.with_reserved_error_local_abi_words();
-    let instructions = lower_scope_end_drop_instructions(&cleanup_context)?;
-    if instructions.is_empty() {
-        return Ok(FallibleFailureMode::Propagate);
-    }
-    let (code, message) = context.next_error_local_locations()?;
-    Ok(FallibleFailureMode::PropagateWithCleanup {
-        code,
-        message,
-        instructions,
-    })
 }
 
 pub(in crate::ir::lower) fn replacement_drop_for_aggregate_slot(
@@ -525,14 +562,19 @@ pub(in crate::ir::lower) fn mark_lowered_statement_aggregate_uses(
                 mark_explicit_moves_in_expression(expression, context);
             }
         }
+        Stmt::CollectionFor(statement) => {
+            mark_explicit_moves_in_expression(&statement.source, context);
+        }
         Stmt::Import(_) | Stmt::FromImport(_) => {}
         Stmt::Drop(_)
         | Stmt::If(_)
         | Stmt::IfIs(_)
         | Stmt::Switch(_)
         | Stmt::ForRange(_)
+        | Stmt::LiteralPackFor(_)
         | Stmt::While(_)
         | Stmt::Loop(_)
+        | Stmt::Region(_)
         | Stmt::Break(_)
         | Stmt::Continue(_) => {}
     }
@@ -543,6 +585,13 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
     context: &mut LoweringContext,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            for capture in &closure.captures {
+                if capture.mode == crate::ast::ClosureCaptureMode::Move {
+                    context.mark_aggregate_local_moved(&capture.name);
+                }
+            }
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
                 context.mark_aggregate_local_moved(&identifier.name);
@@ -553,6 +602,19 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
         Expr::ArrayLiteral(literal) => {
             for element in &literal.elements {
                 mark_explicit_moves_in_expression(element, context);
+            }
+        }
+        Expr::TypedSequenceLiteral(literal) => {
+            for element in &literal.elements {
+                mark_explicit_moves_in_expression(element, context);
+            }
+            if let Some(using) = &literal.using {
+                mark_explicit_moves_in_expression(&using.allocator, context);
+            }
+        }
+        Expr::TypedStringLiteral(literal) => {
+            if let Some(using) = &literal.using {
+                mark_explicit_moves_in_expression(&using.allocator, context);
             }
         }
         Expr::StructLiteral(literal) => {
@@ -583,6 +645,13 @@ pub(in crate::ir::lower) fn mark_explicit_moves_in_expression(
             mark_explicit_moves_in_expression(&conversion.expression, context);
         }
         Expr::Call(call) => {
+            if let Expr::Member(member) = unwrap_group(&call.callee)
+                && context.method_call_receiver_kind(member.member_span)
+                    == Some(crate::typecheck::TypecheckMethodReceiverKind::Owned)
+                && let Expr::Identifier(identifier) = unwrap_group(&member.object)
+            {
+                context.mark_aggregate_local_moved(&identifier.name);
+            }
             mark_explicit_moves_in_expression(&call.callee, context);
             for argument in &call.arguments {
                 mark_explicit_moves_in_expression(argument, context);

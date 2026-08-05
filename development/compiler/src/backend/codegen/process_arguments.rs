@@ -41,6 +41,19 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         Instruction::SetI32 { value, .. } => i32_value_uses_process_arguments(value),
         Instruction::SetU8 { value, .. } => u8_value_uses_process_arguments(value),
         Instruction::SetUsize { value, .. } => usize_value_uses_process_arguments(value),
+        Instruction::RegionEnter { .. } => false,
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            usize_value_uses_process_arguments(state) || usize_value_uses_process_arguments(kind)
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            usize_value_uses_process_arguments(state)
+                || usize_value_uses_process_arguments(parent_state)
+                || usize_value_uses_process_arguments(parent_kind)
+        }
         Instruction::SetUsizeFromBorrow { .. } => false,
         Instruction::SetBool { value, .. } => bool_value_uses_process_arguments(value),
         Instruction::SetStr { value, .. } => str_value_uses_process_arguments(value),
@@ -219,6 +232,7 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBorrow { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
@@ -228,53 +242,71 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::TailCall { arguments, .. } => {
             scalar_arguments_use_process_arguments(arguments)
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeAggregate {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
         } => {
             scalar_arguments_use_process_arguments(arguments)
                 || failure_mode_uses_process_arguments(failure_mode)
+        }
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            scalar_arguments_use_process_arguments(arguments)
+                || failure_mode_uses_process_arguments(outer_mode)
+                || failure_mode_uses_process_arguments(inner_mode)
+        }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            scalar_arguments_use_process_arguments(arguments)
         }
         Instruction::If {
             condition,
@@ -284,6 +316,22 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
             bool_value_uses_process_arguments(condition)
                 || instructions_use_process_arguments(then_instructions)
                 || instructions_use_process_arguments(else_instructions)
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            instructions_use_process_arguments(success_instructions)
+                || instructions_use_process_arguments(outcome_instructions)
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            instructions_use_process_arguments(success_instructions)
+                || failure_mode_uses_process_arguments(failure_mode)
         }
         Instruction::While {
             condition_instructions,
@@ -305,19 +353,21 @@ pub(super) fn instruction_uses_process_arguments(instruction: &Instruction) -> b
         | Instruction::Continue
         | Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
+        | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Return => false,
     }
 }
 
-pub(super) fn failure_mode_uses_process_arguments(failure_mode: &FallibleFailureMode) -> bool {
+pub(super) fn failure_mode_uses_process_arguments(failure_mode: &OutcomeFailureMode) -> bool {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => false,
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             instructions_use_process_arguments(instructions)
         }
     }
@@ -360,8 +410,11 @@ pub(super) fn u8_value_uses_process_arguments(value: &crate::ir::U8Value) -> boo
 
 pub(super) fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
     match value {
-        UsizeValue::ProcessArgCount => true,
-        UsizeValue::Const(_) | UsizeValue::Location(_) => false,
+        UsizeValue::ProcessArgCount | UsizeValue::ProcessEnvironmentCount => true,
+        UsizeValue::Const(_)
+        | UsizeValue::Location(_)
+        | UsizeValue::CurrentAllocationState
+        | UsizeValue::CurrentAllocationKind => false,
         UsizeValue::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
         UsizeValue::StrLen(_) | UsizeValue::SliceLen(_) => false,
         UsizeValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
@@ -391,7 +444,9 @@ pub(super) fn bool_value_uses_process_arguments(value: &crate::ir::BoolValue) ->
 
 pub(super) fn str_value_uses_process_arguments(value: &StrValue) -> bool {
     match value {
-        StrValue::ProcessArg { .. } => true,
+        StrValue::ProcessArg { .. }
+        | StrValue::ProcessEnvironmentName { .. }
+        | StrValue::ProcessEnvironmentValue { .. } => true,
         StrValue::StaticBytes(_) | StrValue::Location(_) => false,
         StrValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }

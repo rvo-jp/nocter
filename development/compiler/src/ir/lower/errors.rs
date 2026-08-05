@@ -164,7 +164,7 @@ fn lower_error_string_value(
             .map_err(|message| {
                 vec![Diagnostic::error(
                     "E8005",
-                    format!("IR v0 cannot decode failure {field} literal: {message}"),
+                    format!("native lowering cannot decode failure {field} literal: {message}"),
                 )]
             }),
         Expr::Identifier(identifier) => context

@@ -16,6 +16,24 @@ fn assert_formats_stably(input: &str, expected: &str) {
 }
 
 #[test]
+fn formats_closures_and_explicit_captures_stably() {
+    assert_formats_stably(
+        r#"func main(source: i32, count: i32): void {
+let callback=(&source,&+count;value:i32):bool {
+value>source
+}
+return
+}
+"#,
+        r#"func main(source: i32, count: i32): void {
+    let callback = (&source, &+count; value: i32): bool { value > source }
+    return
+}
+"#,
+    );
+}
+
+#[test]
 fn formats_top_level_items_and_blocks() {
     assert_formats_stably(
         r#"pub   func   main(  ):i32{
@@ -33,6 +51,115 @@ if x>3{return x}else{return 0}
             "    }\n",
             "}\n",
         ),
+    );
+}
+
+#[test]
+fn formats_lexical_regions_stably() {
+    assert_formats_stably(
+        r#"func main(arena:usize):void{region temp using arena{let value=temp}return}
+"#,
+        concat!(
+            "func main(arena: usize): void {\n",
+            "    region temp using arena {\n",
+            "        let value = temp\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_result_provenance_contracts_stably() {
+    assert_formats_stably(
+        r#"interface Lookup<T>{pub method &self.get(fallback:&T):&T from self|fallback}
+func greeting():&str from static{return "hello"}
+primitive allocated_text():&str from current
+"#,
+        concat!(
+            "interface Lookup<T> {\n",
+            "    pub method &self.get(fallback: &T): &T from self | fallback\n",
+            "}\n",
+            "\n",
+            "func greeting(): &str from static {\n",
+            "    return \"hello\"\n",
+            "}\n",
+            "\n",
+            "primitive allocated_text(): &str from current\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_interface_default_methods_stably() {
+    assert_formats_stably(
+        r#"interface Value{pub method &self.value():i32{let result:i32=self.required() return result}pub method &self.required():i32}
+"#,
+        concat!(
+            "interface Value {\n",
+            "    pub method &self.value(): i32 {\n",
+            "        let result: i32 = self.required()\n",
+            "        return result\n",
+            "    }\n",
+            "    pub method &self.required(): i32\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_generic_interface_bounds_stably() {
+    assert_formats_stably(
+        r#"func measure<T:Measure+Display>(value:&T):i32{return value.measure()}
+"#,
+        "func measure<T: Measure + Display>(value: &T): i32 {\n    return value.measure()\n}\n",
+    );
+}
+
+#[test]
+fn formats_typed_literal_definitions_and_expressions_stably() {
+    assert_formats_stably(
+        r#"construct Vec<T>{pub default literal [](...items:T):Self from current{for item in items{return move item}}}
+func build(arena:Arena,other:Vec<i32>):Vec<i32>{return Vec<i32> [1,...other,...&other,...move other,3] using arena}
+"#,
+        concat!(
+            "construct Vec<T> {\n",
+            "    pub default literal [](...items: T): Self from current {\n",
+            "        for item in items {\n",
+            "            return move item\n",
+            "        }\n",
+            "    }\n",
+            "}\n",
+            "\n",
+            "func build(arena: Arena, other: Vec<i32>): Vec<i32> {\n",
+            "    return Vec<i32> [1, ...other, ...&other, ...move other, 3] using arena\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_construct_declarations_stably() {
+    assert_formats_stably(
+        r#"construct Vec<T>{pub default literal [](...items:T):Self{return Self.empty()}
+pub func new():Self{return make()}
+pub func from_iter<I:Iterator<T>>(iterator:I):Self{return Self.new()}}
+"#,
+        r#"construct Vec<T> {
+    pub default literal [](...items: T): Self {
+        return Self.empty()
+    }
+
+    pub func new(): Self {
+        return make()
+    }
+
+    pub func from_iter<I: Iterator<T>>(iterator: I): Self {
+        return Self.new()
+    }
+}
+"#,
     );
 }
 
@@ -196,6 +323,14 @@ func maybe_open(path:&str):File?{return none}
 }
 
 #[test]
+fn formats_builtin_callable_contracts_stably() {
+    assert_formats_stably(
+        "func apply<F:&+func(value:i32):i32>(callback:F):void {\nreturn\n}\n",
+        "func apply<F: &+func(value: i32): i32>(callback: F): void {\n    return\n}\n",
+    );
+}
+
+#[test]
 fn formats_imports_impls_and_literals_stably() {
     assert_formats_stably(
         r#"use std/io
@@ -229,6 +364,34 @@ impl File {drop &+self{drop self}}
             "impl File {\n",
             "    drop &+self {\n",
             "        drop self\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_method_generic_parameters_stably() {
+    assert_formats_stably(
+        "impl Factory {pub method &self.convert<T:Readable+Measured,U>(value:T):U{return make(value)}}\n",
+        concat!(
+            "impl Factory {\n",
+            "    pub method &self.convert<T: Readable + Measured, U>(value: T): U {\n",
+            "        return make(value)\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_generic_interface_implementations_with_members_stably() {
+    assert_formats_stably(
+        "impl<T:Readable> Source<T> for Box<T>{method &self.read():T{return self.value}}\n",
+        concat!(
+            "impl<T: Readable> Source<T> for Box<T> {\n",
+            "    method &self.read(): T {\n",
+            "        return self.value\n",
             "    }\n",
             "}\n",
         ),

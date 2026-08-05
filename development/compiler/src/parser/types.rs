@@ -1,8 +1,9 @@
 use super::support::with_type_span;
 use super::{ParseResult, Parser};
 use crate::ast::{
-    ArrayLength, ArrayType, BorrowType, FallibleType, GenericParam, GenericParamList, GenericType,
-    OptionalType, PointerType, TypeExpr, TypeReference, ViewType,
+    ArrayLength, ArrayType, BorrowType, CallableCapability, CallableTypeExpr,
+    CallableTypeParameter, FallibleType, GenericParam, GenericParamList, GenericType, OptionalType,
+    PointerType, TypeExpr, TypeReference, ViewType,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -40,6 +41,20 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_type_atom(&mut self) -> ParseResult<TypeExpr> {
+        if self.at_keyword(Keyword::Func) {
+            return self.parse_callable_type(None, CallableCapability::Consuming);
+        }
+
+        if self.at_punctuation("&+") && self.next_is_keyword(Keyword::Func) {
+            let prefix = self.bump();
+            return self.parse_callable_type(Some(prefix.span), CallableCapability::Readwrite);
+        }
+
+        if self.at_punctuation("&") && self.next_is_keyword(Keyword::Func) {
+            let prefix = self.bump();
+            return self.parse_callable_type(Some(prefix.span), CallableCapability::Readonly);
+        }
+
         if let Some(star) = self.match_punctuation("*") {
             let inner = self.parse_type_atom()?;
             return Ok(TypeExpr::Pointer(PointerType {
@@ -145,6 +160,62 @@ impl Parser<'_> {
         }))
     }
 
+    fn parse_callable_type(
+        &mut self,
+        prefix_span: Option<ByteSpan>,
+        capability: CallableCapability,
+    ) -> ParseResult<TypeExpr> {
+        let func = self.expect_keyword(Keyword::Func, "`func`")?;
+        let open = self.expect_punctuation("(", "`(`")?;
+        let mut parameters = Vec::new();
+        self.skip_newlines();
+        while !self.at_punctuation(")") {
+            if self.at_eof() {
+                self.error_current("expected `)` to close callable parameter list");
+                return Err(());
+            }
+            let start = self.current().span.start;
+            let (name, name_span) = if self.current().kind == crate::lexer::TokenKind::Identifier
+                && self.next_is_punctuation(":")
+            {
+                let name = self.bump();
+                self.expect_punctuation(":", "`:`")?;
+                (Some(self.lexeme(&name)), Some(name.span))
+            } else {
+                (None, None)
+            };
+            let ty = self.parse_type()?;
+            parameters.push(CallableTypeParameter {
+                span: self.span(start, ty.span().end),
+                name,
+                name_span,
+                ty,
+            });
+            self.skip_newlines();
+            if self.match_punctuation(",").is_none() {
+                break;
+            }
+            self.skip_newlines();
+        }
+        let close = self.expect_punctuation(")", "`)`")?;
+        self.expect_punctuation(":", "`:`")?;
+        let return_type = self.parse_type()?;
+        let result_provenance = self.parse_result_provenance_clause()?;
+        let start = prefix_span.map_or(func.span.start, |span| span.start);
+        let end = result_provenance
+            .as_ref()
+            .map_or(return_type.span().end, |clause| clause.span.end);
+        Ok(TypeExpr::Callable(CallableTypeExpr {
+            span: self.span(start, end),
+            func_span: func.span,
+            capability,
+            parameters_span: self.span(open.span.start, close.span.end),
+            parameters,
+            return_type: Box::new(return_type),
+            result_provenance,
+        }))
+    }
+
     pub(super) fn parse_type_argument_list(&mut self) -> ParseResult<(Vec<TypeExpr>, ByteSpan)> {
         let start = self.expect_punctuation("<", "`<`")?;
         let mut arguments = Vec::new();
@@ -182,18 +253,23 @@ impl Parser<'_> {
             }
 
             let parameter = self.expect_name_identifier("expected generic parameter name")?;
+            let mut bounds = Vec::new();
             if self.match_punctuation(":").is_some() {
-                self.error_current(
-                    "generic bounds are deferred after v0; use an unbounded type parameter",
-                );
-                return Err(());
+                loop {
+                    bounds.push(self.parse_type()?);
+                    if self.match_punctuation("+").is_none() {
+                        break;
+                    }
+                }
             }
-            let bound = None;
-            let end = parameter.span.end;
+            let end = bounds
+                .last()
+                .map_or(parameter.span.end, |bound| bound.span().end);
             parameters.push(GenericParam {
                 span: self.span(parameter.span.start, end),
                 name: parameter.value,
-                bound,
+                name_span: parameter.span,
+                bounds,
             });
 
             self.skip_newlines();

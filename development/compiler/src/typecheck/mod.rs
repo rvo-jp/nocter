@@ -1,9 +1,13 @@
 //! Type checking, ownership, borrowing, move, and drop checks.
 
+mod allocation;
 mod arrays;
 mod bindings;
 mod body;
+mod callables;
 mod calls;
+mod closures;
+mod conformance;
 mod controls;
 mod copyability;
 mod diagnostics;
@@ -14,13 +18,23 @@ mod expressions;
 mod facts;
 mod fallible;
 mod generics;
+mod interface_bounds;
+mod interface_impl_members;
+mod interface_methods;
 mod interfaces;
+mod iteration;
+mod literals;
+mod member_presentation;
 mod model;
 mod numeric;
 mod operations;
 mod ownership;
 mod places;
+mod provenance;
+mod provenance_contracts;
+mod regions;
 mod returns;
+mod semantic_facts;
 mod sized;
 mod strings;
 mod structs;
@@ -38,13 +52,28 @@ use entry::*;
 use generics::*;
 use interfaces::*;
 use ownership::*;
+use regions::*;
 use returns::*;
 use sized::*;
 
 pub(crate) use facts::{
-    DropTypeSpecialization, FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts,
-    TypecheckMethodReceiverKind, TypecheckPayloadBindingMode, TypecheckScalarViewKind,
-    TypecheckSliceElementKind, collect_typecheck_facts, type_expr_presentation_label,
+    CallableCallFact, CallableCallSpecialization, DropTypeSpecialization,
+    FunctionCallSpecialization, GenericParameterFact, MethodCallSpecialization,
+    TypeOccurrenceTarget, TypecheckClosurePlan, TypecheckCollectionForPlan,
+    TypecheckCollectionForSourceMode, TypecheckFacts, TypecheckInterpolationPlan,
+    TypecheckIterationMethod, TypecheckMethodReceiverKind, TypecheckPayloadBindingMode,
+    TypecheckScalarViewKind, TypecheckSequenceSpreadMode, TypecheckSequenceSpreadPlan,
+    TypecheckSliceElementKind, collect_typecheck_facts, drop_type_specialization_from_self_ty,
+    type_expr_presentation_label, type_symbol_presentation_label,
+};
+pub(crate) use interface_methods::completion_candidates_for_type_expr as interface_method_completion_candidates;
+pub(crate) use interface_methods::implementation_for_interface_type_expr;
+pub(crate) use literals::sequence_spread;
+pub(crate) use member_presentation::{
+    enum_variant_member_label, field_member_label, generic_type_owner_name,
+};
+pub(crate) use semantic_facts::{
+    CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,
 };
 
 pub(crate) fn type_expr_is_assignable(
@@ -55,6 +84,16 @@ pub(crate) fn type_expr_is_assignable(
     operations::is_assignable(
         &type_expr::type_expr_to_type(expected, resolved),
         &type_expr::type_expr_to_type(actual, resolved),
+    )
+}
+
+pub(crate) fn type_expr_is_aborting_allocator_capability(
+    ty: &crate::ast::TypeExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    allocation::type_is_aborting_allocator_capability(
+        &type_expr::type_expr_to_type(ty, resolved),
+        resolved,
     )
 }
 
@@ -115,9 +154,31 @@ pub(crate) fn check_module_with_summary_sources(
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);
+    literals::check_literal_declarations(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
-    check_ownership_states(sources, ast, resolved, &mut diagnostics);
-    check_return_types(sources, ast, resolved, summary_sources, &mut diagnostics);
+    check_region_statements(sources, ast, &mut diagnostics);
+    let provenance_summaries = callable_provenance_summaries(summary_sources);
+    provenance_contracts::check_result_provenance_contracts(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
+    check_ownership_states(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
+    check_return_types(
+        sources,
+        ast,
+        resolved,
+        &provenance_summaries,
+        &mut diagnostics,
+    );
 
     diagnostics
 }

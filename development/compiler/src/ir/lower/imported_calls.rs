@@ -105,8 +105,19 @@ fn collect_statement(
             collect_expression(&statement.end, root_source, resolved, targets);
             collect_block(&statement.body, root_source, resolved, targets);
         }
+        Stmt::CollectionFor(statement) => {
+            collect_expression(&statement.source, root_source, resolved, targets);
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
+        Stmt::LiteralPackFor(statement) => {
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
         Stmt::While(statement) => collect_while(statement, root_source, resolved, targets),
         Stmt::Loop(statement) => collect_block(&statement.body, root_source, resolved, targets),
+        Stmt::Region(statement) => {
+            collect_expression(&statement.allocator, root_source, resolved, targets);
+            collect_block(&statement.body, root_source, resolved, targets);
+        }
         Stmt::Expression(statement) => {
             collect_expression(&statement.expression, root_source, resolved, targets);
         }
@@ -172,6 +183,9 @@ fn collect_expression(
     targets: &mut Vec<ImportedCallTarget>,
 ) {
     match expression {
+        Expr::Closure(closure) => {
+            collect_block(&closure.body, root_source, resolved, targets);
+        }
         Expr::Call(call) => {
             if let Some(symbol) = resolved.symbol_for_call(call)
                 && let Some(target) = imported_call_target_for_symbol(
@@ -224,6 +238,19 @@ fn collect_expression(
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression(element, root_source, resolved, targets);
+            }
+        }
+        Expr::TypedSequenceLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression(element, root_source, resolved, targets);
+            }
+            if let Some(using) = &expression.using {
+                collect_expression(&using.allocator, root_source, resolved, targets);
+            }
+        }
+        Expr::TypedStringLiteral(expression) => {
+            if let Some(using) = &expression.using {
+                collect_expression(&using.allocator, root_source, resolved, targets);
             }
         }
         Expr::StructLiteral(expression) => {
@@ -303,7 +330,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
     Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower unresolved imported function call `{call_name}`; the imported declaration must be loaded before backend call-target lowering"
+            "native lowering cannot lower unresolved imported function call `{call_name}`; the imported declaration must be loaded before backend call-target lowering"
         ),
     )
 }

@@ -40,6 +40,43 @@ pub(crate) fn decode_string_literal_bytes(text: &str) -> Result<Vec<u8>, &'stati
     }
 }
 
+pub(crate) fn decode_interpolated_text_part(
+    text: &str,
+    start: usize,
+    end: usize,
+) -> Result<String, &'static str> {
+    let bounds = string_literal_bounds(text).map_err(|error| error.message)?;
+    validate_multi_line_indentation(text, &bounds).map_err(|error| error.message)?;
+    let raw = text
+        .get(start..end)
+        .ok_or("interpolated string text span is invalid")?;
+
+    let decoded = if let Some(indent) = bounds.closing_indent {
+        let mut dedented = String::with_capacity(raw.len());
+        let mut index = start;
+        while index < end {
+            let at_line_start = index == bounds.content_start
+                || text.as_bytes().get(index.wrapping_sub(1)) == Some(&b'\n');
+            if at_line_start && text[index..end].starts_with(indent) {
+                index += indent.len();
+                continue;
+            }
+
+            let character = text[index..end]
+                .chars()
+                .next()
+                .ok_or("invalid interpolated string text")?;
+            dedented.push(character);
+            index += character.len_utf8();
+        }
+        decode_escaped_text(&dedented, true)?
+    } else {
+        decode_escaped_text(raw, false)?
+    };
+
+    String::from_utf8(decoded).map_err(|_| "string literal escapes must decode to valid UTF-8")
+}
+
 pub(crate) fn decode_byte_literal(text: &str) -> Result<u8, &'static str> {
     let Some(content) = text
         .strip_prefix("b'")
@@ -535,8 +572,8 @@ fn hex_digit(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        StringLiteralPartSpan, decode_byte_literal, decode_string_literal_bytes,
-        string_literal_parts,
+        StringLiteralPartSpan, decode_byte_literal, decode_interpolated_text_part,
+        decode_string_literal_bytes, string_literal_parts,
     };
 
     #[test]
@@ -616,6 +653,33 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn decodes_interpolated_text_escapes() {
+        let source = "\"line\\n${value}\\$\"";
+        assert_eq!(
+            decode_interpolated_text_part(source, 1, 7).unwrap(),
+            "line\n"
+        );
+        assert_eq!(decode_interpolated_text_part(source, 15, 17).unwrap(), "$");
+    }
+
+    #[test]
+    fn dedents_each_multi_line_interpolated_text_part() {
+        let source = "\"\"\"\n    ${first}\n    middle ${second}\n    tail\n    \"\"\"";
+        let parts = string_literal_parts(source).unwrap();
+        let decoded = parts
+            .into_iter()
+            .filter_map(|part| match part {
+                StringLiteralPartSpan::Text { start, end } => {
+                    Some(decode_interpolated_text_part(source, start, end).unwrap())
+                }
+                StringLiteralPartSpan::Interpolation { .. } => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(decoded, vec!["", "\nmiddle ", "\ntail"]);
     }
 
     #[test]

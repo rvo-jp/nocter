@@ -88,7 +88,7 @@ pub(in crate::typecheck) fn interface_method_missing_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0425",
         format!(
-            "`{}` does not provide public method `{}` required by interface `{}`",
+            "interface implementation for `{}` does not define required method `{}` from `{}`",
             target_symbol.canonical_name, required.name, interface_symbol.canonical_name
         ),
     );
@@ -103,34 +103,56 @@ pub(in crate::typecheck) fn interface_method_missing_diagnostic(
         });
     }
     diagnostic.help = Some(format!(
-        "define `pub method self.{}(...)` in an inherent `impl {}` block",
-        required.name, target_symbol.canonical_name
+        "define `method self.{}(...)` inside this interface implementation block",
+        required.name
     ));
     diagnostic
 }
 
-pub(in crate::typecheck) fn interface_method_not_public_diagnostic(
+pub(in crate::typecheck) fn interface_impl_extra_method_diagnostic(
     sources: &SourceMap,
     interface_symbol: &TypeSymbol,
     target_symbol: &TypeSymbol,
-    required: &MethodSignature,
     actual: &MethodSignature,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0425",
         format!(
-            "`{}.{}` must be public to satisfy interface `{}`",
+            "method `{}.{}` is not declared by interface `{}`",
             target_symbol.canonical_name, actual.name, interface_symbol.canonical_name
         ),
     );
     diagnostic.primary_span = sources.span_to_json(actual.name_span).ok().map(Box::new);
-    if let Ok(span) = sources.span_to_json(required.name_span) {
+    diagnostic.help =
+        Some("move unrelated methods to an inherent `impl Type { ... }` block".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn duplicate_interface_impl_method_diagnostic(
+    sources: &SourceMap,
+    interface_symbol: &TypeSymbol,
+    target_symbol: &TypeSymbol,
+    actual: &MethodSignature,
+    first_span: crate::source::ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0425",
+        format!(
+            "interface implementation for `{}` defines method `{}` more than once",
+            target_symbol.canonical_name, actual.name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(actual.name_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
         diagnostic.notes.push(DiagnosticNote {
-            message: "interface method is public here".to_string(),
+            message: format!(
+                "first implementation of `{}.{}` is here",
+                interface_symbol.canonical_name, actual.name
+            ),
             span: Some(span),
         });
     }
-    diagnostic.help = Some("mark the implementing method `pub`".to_string());
+    diagnostic.help = Some("keep exactly one implementation for each interface method".to_string());
     diagnostic
 }
 
@@ -164,6 +186,6 @@ pub(in crate::typecheck) fn interface_method_signature_mismatch_diagnostic(
         });
     }
     diagnostic.help =
-        Some("make the public inherent method signature match the interface".to_string());
+        Some("make the interface implementation member signature match the contract".to_string());
     diagnostic
 }

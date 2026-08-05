@@ -8,9 +8,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            if primitive_arg_raw_call(call, context) {
-                let (mut instructions, value) =
-                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
+            if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
+            {
+                let (mut instructions, value) = if primitive_arg_raw_call(call, context) {
+                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                } else {
+                    lower_env_entry_raw_primitive_call_to_value(call, context, &mut temporaries)?
+                };
                 instructions.push(Instruction::SetStr { destination, value });
                 return Ok(instructions);
             }
@@ -28,13 +32,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_str_fallible_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_str_fallible_expression_to_location(
             &catch.expression,
@@ -106,13 +110,13 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            propagating_failure_mode(context)?,
+            propagating_outcome_mode(&propagation.expression, context)?,
         ),
         Expr::Force(force) => lower_slice_fallible_expression_to_location(
             &force.expression,
             destination,
             context,
-            FallibleFailureMode::Trap,
+            OutcomeFailureMode::Trap,
         ),
         Expr::Catch(catch) => lower_slice_fallible_expression_to_location(
             &catch.expression,
@@ -163,9 +167,13 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            if primitive_arg_raw_call(call, context) {
-                let (instructions, value) =
-                    lower_arg_raw_primitive_call_to_value(call, context, temporaries)?;
+            if primitive_arg_raw_call(call, context) || primitive_env_entry_raw_call(call, context)
+            {
+                let (instructions, value) = if primitive_arg_raw_call(call, context) {
+                    lower_arg_raw_primitive_call_to_value(call, context, temporaries)?
+                } else {
+                    lower_env_entry_raw_primitive_call_to_value(call, context, temporaries)?
+                };
                 return Ok(LoweredStrValue {
                     instructions,
                     value,
@@ -195,7 +203,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -207,7 +215,7 @@ pub(in crate::ir::lower) fn lower_str_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -302,7 +310,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    propagating_failure_mode(context)?,
+                    propagating_outcome_mode(&propagation.expression, context)?,
                 )?,
                 value: SliceValue::Location(temporary),
             })
@@ -314,7 +322,7 @@ pub(in crate::ir::lower) fn lower_slice_expression_to_value(
                     &force.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Trap,
+                    OutcomeFailureMode::Trap,
                 )?,
                 value: SliceValue::Location(temporary),
             })

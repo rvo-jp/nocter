@@ -8,10 +8,16 @@ pub(super) fn expected_attempt_type(
 ) -> Type {
     match expression_type(expression, resolved, environment) {
         Type::Fallible { error, .. } => Type::Fallible {
-            success: Box::new(expected_success.clone()),
+            success: Box::new(match expected_success {
+                Type::Fallible { success, .. } => success.as_ref().clone(),
+                _ => expected_success.clone(),
+            }),
             error,
         },
-        Type::Optional(_) => Type::Optional(Box::new(expected_success.clone())),
+        Type::Optional(_) => Type::Optional(Box::new(match expected_success {
+            Type::Optional(inner) => inner.as_ref().clone(),
+            _ => expected_success.clone(),
+        })),
         _ => expected_success.clone(),
     }
 }
@@ -81,7 +87,7 @@ pub(super) fn method_call_specialization(
     environment: &TypeEnvironment,
 ) -> Option<MethodCallSpecialization> {
     let receiver_type = expression_type(&member.object, resolved, environment);
-    let self_type = method_self_type_for_receiver(&receiver_type);
+    let self_type = method_self_type_for_receiver_in_environment(&receiver_type, environment);
     let mut free_type_parameters = HashSet::new();
     let self_ty = type_to_type_expr_allowing_parameters(
         &self_type,
@@ -155,7 +161,7 @@ pub(super) fn drop_target_name_from_base_and_self_ty(
     format!("{base_type_name}<{arguments}>.drop")
 }
 
-pub(super) fn drop_type_specialization_from_self_ty(
+pub(crate) fn drop_type_specialization_from_self_ty(
     self_ty: &TypeExpr,
     resolved: &ResolveOutput,
     free_type_parameters: HashSet<String>,
@@ -251,6 +257,7 @@ pub(super) fn payload_enum_symbol_and_substitutions_for_type_expr_inner<'a>(
     resolving_names: &mut HashSet<String>,
 ) -> Option<(&'a TypeSymbol, HashMap<String, TypeExpr>)> {
     match ty {
+        TypeExpr::Callable(_) | TypeExpr::Closure(_) => None,
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             match symbol.kind {
@@ -325,6 +332,21 @@ pub(super) fn collect_free_type_parameters_in_type_expr(
     parameters: &mut HashSet<String>,
 ) {
     match ty {
+        TypeExpr::Callable(callable) => {
+            for parameter in &callable.parameters {
+                collect_free_type_parameters_in_type_expr(&parameter.ty, resolved, parameters);
+            }
+            collect_free_type_parameters_in_type_expr(&callable.return_type, resolved, parameters);
+        }
+        TypeExpr::Closure(closure) => {
+            for capture in &closure.captures {
+                collect_free_type_parameters_in_type_expr(&capture.ty, resolved, parameters);
+            }
+            for parameter in &closure.parameters {
+                collect_free_type_parameters_in_type_expr(parameter, resolved, parameters);
+            }
+            collect_free_type_parameters_in_type_expr(&closure.return_type, resolved, parameters);
+        }
         TypeExpr::Reference(reference) => {
             if resolved
                 .type_symbol_by_reference_name(&reference.name)
@@ -388,6 +410,18 @@ pub(super) fn type_expr_contains_free_parameters(
     free_type_parameters: &HashSet<String>,
 ) -> bool {
     match ty {
+        TypeExpr::Callable(callable) => {
+            callable.parameters.iter().any(|parameter| {
+                type_expr_contains_free_parameters(&parameter.ty, free_type_parameters)
+            }) || type_expr_contains_free_parameters(&callable.return_type, free_type_parameters)
+        }
+        TypeExpr::Closure(closure) => {
+            closure.captures.iter().any(|capture| {
+                type_expr_contains_free_parameters(&capture.ty, free_type_parameters)
+            }) || closure.parameters.iter().any(|parameter| {
+                type_expr_contains_free_parameters(parameter, free_type_parameters)
+            }) || type_expr_contains_free_parameters(&closure.return_type, free_type_parameters)
+        }
         TypeExpr::Reference(reference) => free_type_parameters.contains(&reference.name),
         TypeExpr::Generic(generic) => generic
             .arguments

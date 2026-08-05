@@ -788,6 +788,37 @@ func load(text: Text, view: &str): i32! {
     );
 }
 
+#[test]
+fn classifies_stored_outcome_parameters_by_recursive_layout() {
+    let (_ast, resolved) = parse_and_resolve(
+        r#"func inspect(optional: i32?, fallible: i32!, nested: i32?!): i32 {
+    return 0
+}
+"#,
+    );
+    let parameters = function_parameters_abi_from_signature(
+        resolved_function_signature(&resolved, "inspect"),
+        &resolved,
+    )
+    .unwrap();
+
+    assert_eq!(parameters[0].value.layout, ValueLayout::new(16, 8));
+    assert_eq!(
+        parameters[0].value.classification,
+        ValueClassification::Direct { words: 2 }
+    );
+    assert_eq!(parameters[1].value.layout, ValueLayout::new(40, 8));
+    assert_eq!(
+        parameters[1].value.classification,
+        ValueClassification::Indirect
+    );
+    assert_eq!(parameters[2].value.layout, ValueLayout::new(40, 8));
+    assert_eq!(
+        parameters[2].value.classification,
+        ValueClassification::Indirect
+    );
+}
+
 fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
     let mut sources = SourceMap::new();
     let ast = parse_source(&mut sources, "app.nct", text);

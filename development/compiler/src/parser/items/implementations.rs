@@ -7,25 +7,14 @@ impl Parser<'_> {
         let first_ty = self.parse_type()?;
         if self.match_keyword(Keyword::For).is_some() {
             let target_ty = self.parse_type()?;
-            let mut end = target_ty.span().end;
-            if self.match_punctuation("{").is_some() {
-                self.skip_newlines();
-                if !self.at_punctuation("}") {
-                    self.error_current(
-                        "interface conformance impl cannot contain members; define methods in an inherent `impl Type` block",
-                    );
-                    return Err(());
-                }
-                let close = self.expect_punctuation("}", "`}`")?;
-                end = close.span.end;
-            }
+            let (members, end) = self.parse_interface_impl_members()?;
 
             return Ok(Item::Impl(ImplDecl {
                 span: self.span(start.span.start, end),
                 generics,
                 interface_ty: Some(first_ty),
                 target_ty,
-                members: Vec::new(),
+                members,
             }));
         }
         let target_ty = first_ty;
@@ -43,7 +32,7 @@ impl Parser<'_> {
             let visibility = self.parse_visibility()?;
             if self.at_keyword(Keyword::Func) {
                 self.error_current(
-                    "`func` declarations are written at top level as `func Type.name(...)` in v0",
+                    "associated `func` declarations are written at top level as `func Type.name(...)`",
                 );
                 return Err(());
             } else if self.at_keyword(Keyword::Method) {
@@ -77,6 +66,41 @@ impl Parser<'_> {
             target_ty,
             members,
         }))
+    }
+
+    fn parse_interface_impl_members(&mut self) -> ParseResult<(Vec<ImplMember>, usize)> {
+        let open = self.expect_punctuation("{", "`{` after interface implementation target")?;
+        let mut members = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_at(
+                    open.span,
+                    "expected `}` to close interface implementation block",
+                );
+                return Err(());
+            }
+
+            let visibility = self.parse_visibility()?;
+            if visibility != Visibility::Private {
+                self.error_current(
+                    "interface implementation methods inherit visibility and cannot be marked `pub`",
+                );
+                return Err(());
+            }
+            if !self.at_keyword(Keyword::Method) {
+                self.error_current("expected `method` in interface implementation block");
+                return Err(());
+            }
+            members.push(ImplMember::Method(
+                self.parse_method_decl(Visibility::Private, true)?,
+            ));
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok((members, close.span.end))
     }
 
     pub(super) fn parse_interface_decl(
@@ -135,6 +159,7 @@ impl Parser<'_> {
 
         Ok(DropDecl {
             span: self.span(start.span.start, body.span.end),
+            name_span: start.span,
             binding,
             body,
         })
@@ -149,20 +174,24 @@ impl Parser<'_> {
         let receiver = self.parse_method_receiver()?;
         self.expect_punctuation(".", "`.`")?;
         let name = self.expect_name_identifier("expected method name after `.`")?;
+        let generics = self.parse_generic_param_list()?;
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
         let return_type = self.parse_type()?;
-        let body = if require_body {
+        let result_provenance = self.parse_result_provenance_clause()?;
+        let body = if require_body || self.at_punctuation("{") {
             Some(self.parse_block()?)
-        } else if self.at_punctuation("{") {
-            self.error_current("interface method signatures cannot have bodies");
-            return Err(());
         } else {
             None
         };
-        let end = body
-            .as_ref()
-            .map_or(return_type.span().end, |body| body.span.end);
+        let end = body.as_ref().map_or_else(
+            || {
+                result_provenance
+                    .as_ref()
+                    .map_or(return_type.span().end, |clause| clause.span.end)
+            },
+            |body| body.span.end,
+        );
 
         Ok(MethodDecl {
             span: self.span(start.span.start, end),
@@ -170,13 +199,15 @@ impl Parser<'_> {
             receiver,
             name: name.value,
             name_span: name.span,
+            generics,
             parameters,
             return_type,
+            result_provenance,
             body,
         })
     }
 
-    pub(super) fn parse_method_receiver(&mut self) -> ParseResult<Parameter> {
+    pub(super) fn parse_method_receiver(&mut self) -> ParseResult<MethodReceiver> {
         self.parse_self_receiver("expected `self`, `&self`, or `&+self` receiver after `method`")
     }
 
@@ -193,27 +224,30 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<Parameter> {
+    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<MethodReceiver> {
         let borrow = self
             .match_punctuation("&+")
             .map(|token| (token, true))
             .or_else(|| self.match_punctuation("&").map(|token| (token, false)));
         let self_span = self.expect_self_identifier(message)?;
-        let ty = if let Some((borrow, is_readwrite)) = borrow {
-            TypeExpr::Borrow(BorrowType {
-                span: self.span(borrow.span.start, self_span.end),
-                is_readwrite,
-                inner: Box::new(self_type(self_span)),
-            })
+        let (span, mode) = if let Some((borrow, is_readwrite)) = borrow {
+            (
+                self.span(borrow.span.start, self_span.end),
+                if is_readwrite {
+                    MethodReceiverMode::ReadwriteBorrow
+                } else {
+                    MethodReceiverMode::ReadonlyBorrow
+                },
+            )
         } else {
-            self_type(self_span)
+            (self_span, MethodReceiverMode::Owned)
         };
 
-        Ok(Parameter {
-            span: ty.span(),
+        Ok(MethodReceiver {
+            span,
             name: "self".to_string(),
             name_span: self_span,
-            ty,
+            mode,
         })
     }
 

@@ -20,6 +20,66 @@ impl TypecheckFactCollector<'_> {
         return_type: Option<&Type>,
     ) {
         match expression {
+            Expr::Closure(closure) => {
+                let Type::Closure(closure_type) = expected else {
+                    return;
+                };
+                self.record_expression_type(expression.span(), expected);
+                self.record_closure_plan(closure, closure_type);
+                let parameter_types = closure_type
+                    .parameters
+                    .iter()
+                    .map(|ty| {
+                        type_expr_to_type_with_substitutions(
+                            ty,
+                            self.resolved,
+                            None,
+                            &HashMap::new(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let mut closure_environment =
+                    crate::typecheck::closures::environment_for_closure_with_parameters(
+                        closure,
+                        self.resolved,
+                        environment,
+                        &parameter_types,
+                    );
+                for capture in &closure.captures {
+                    self.record_environment_binding(
+                        capture.name_span,
+                        &capture.name,
+                        &closure_environment,
+                    );
+                }
+                for parameter in &closure.parameters {
+                    self.record_environment_binding(
+                        parameter.name_span,
+                        &parameter.name,
+                        &closure_environment,
+                    );
+                }
+                let result_type = type_expr_to_type_with_substitutions(
+                    &closure_type.return_type,
+                    self.resolved,
+                    None,
+                    &HashMap::new(),
+                );
+                self.collect_block_facts(
+                    &closure.body,
+                    &mut closure_environment,
+                    Some(&result_type),
+                );
+            }
+            Expr::TypedSequenceLiteral(_) | Expr::TypedStringLiteral(_) => {
+                let ty = crate::typecheck::literals::literal_expression_type_with_expected(
+                    expression,
+                    Some(expected),
+                    self.resolved,
+                    environment,
+                );
+                self.record_expression_type(expression.span(), &ty);
+            }
             Expr::Group(expression) => {
                 self.collect_expected_expression_facts(
                     &expression.expression,

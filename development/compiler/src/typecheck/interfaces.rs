@@ -1,13 +1,11 @@
-use super::calls::method_applies_to_receiver;
 use super::diagnostics::{
     duplicate_interface_impl_diagnostic, interface_impl_contract_not_interface_diagnostic,
-    interface_impl_target_not_nominal_diagnostic, interface_method_missing_diagnostic,
-    interface_method_not_public_diagnostic, interface_method_signature_mismatch_diagnostic,
+    interface_impl_target_not_nominal_diagnostic,
 };
 use super::environments::generic_parameter_substitutions;
 use super::model::Type;
 use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
-use crate::ast::{AstFile, ImplDecl, Item, TypeExpr, Visibility};
+use crate::ast::{AstFile, ImplDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
@@ -73,52 +71,16 @@ fn check_interface_impl(
         }
     }
 
-    let self_type = target_type;
-    let interface_substitutions =
-        type_symbol_generic_substitutions(interface_symbol, &interface_type);
-    for required in &interface_symbol.methods {
-        let Some(actual) = target_symbol.methods.iter().find(|method| {
-            method.name == required.name && method_applies_to_receiver(method, &self_type, resolved)
-        }) else {
-            diagnostics.push(interface_method_missing_diagnostic(
-                sources,
-                impl_,
-                interface_symbol,
-                target_symbol,
-                required,
-            ));
-            continue;
-        };
-
-        if actual.visibility != Visibility::Public {
-            diagnostics.push(interface_method_not_public_diagnostic(
-                sources,
-                interface_symbol,
-                target_symbol,
-                required,
-                actual,
-            ));
-            continue;
-        }
-
-        let actual_substitutions = method_impl_target_substitutions(actual, &self_type, resolved);
-        let expected = method_shape(required, resolved, &self_type, &interface_substitutions);
-        let found = method_shape(actual, resolved, &self_type, &actual_substitutions);
-        if expected.has_unknown_or_unresolved() || found.has_unknown_or_unresolved() {
-            continue;
-        }
-        if expected != found {
-            diagnostics.push(interface_method_signature_mismatch_diagnostic(
-                sources,
-                interface_symbol,
-                target_symbol,
-                required,
-                actual,
-                method_shape_label(required, resolved, &self_type, &interface_substitutions),
-                method_shape_label(actual, resolved, &self_type, &actual_substitutions),
-            ));
-        }
-    }
+    super::interface_impl_members::check_interface_impl_members(
+        sources,
+        impl_,
+        interface_symbol,
+        target_symbol,
+        &interface_type,
+        &target_type,
+        resolved,
+        diagnostics,
+    );
 }
 
 fn resolve_interface_symbol<'a>(
@@ -190,6 +152,8 @@ fn conformance_key(interface_type: &Type, target_type: &Type) -> (String, String
 
 fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> String {
     match ty {
+        Type::Callable(_) => ty.display(),
+        Type::Closure(closure) => closure.identity_name(),
         Type::I32 => "i32".to_string(),
         Type::Primitive(name) => name.clone(),
         Type::StrData => "str".to_string(),
@@ -238,7 +202,10 @@ fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> S
     }
 }
 
-fn type_symbol_generic_substitutions(symbol: &TypeSymbol, ty: &Type) -> HashMap<String, Type> {
+pub(super) fn type_symbol_generic_substitutions(
+    symbol: &TypeSymbol,
+    ty: &Type,
+) -> HashMap<String, Type> {
     let Type::Generic { name, arguments } = ty else {
         return HashMap::new();
     };
@@ -254,7 +221,7 @@ fn type_symbol_generic_substitutions(symbol: &TypeSymbol, ty: &Type) -> HashMap<
         .collect()
 }
 
-fn method_impl_target_substitutions(
+pub(super) fn method_impl_target_substitutions(
     method: &MethodSignature,
     self_type: &Type,
     resolved: &ResolveOutput,
@@ -281,7 +248,7 @@ fn method_impl_target_substitutions(
     substitutions
 }
 
-fn method_shape(
+pub(super) fn method_shape(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
@@ -289,7 +256,7 @@ fn method_shape(
 ) -> MethodShape {
     MethodShape {
         receiver: type_expr_to_type_with_substitutions(
-            &method.receiver.ty,
+            &method.receiver.implicit_parameter().ty,
             resolved,
             Some(self_type),
             substitutions,
@@ -316,7 +283,7 @@ fn method_shape(
     }
 }
 
-fn method_shape_label(
+pub(super) fn method_shape_label(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
@@ -329,13 +296,72 @@ fn method_shape_label(
         .map(Type::display)
         .collect::<Vec<_>>()
         .join(", ");
-    format!(
+    let mut label = format!(
         "method {}.{}({}): {}",
         method_receiver_shape_label(&shape.receiver),
         method.name,
         parameters,
         shape.return_type.display()
-    )
+    );
+    if let Some(clause) = &method.signature.result_provenance {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+    label
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProvenanceSlot {
+    Receiver,
+    Parameter(usize),
+    Static,
+    Current,
+}
+
+pub(super) fn result_provenance_contract_is_compatible(
+    required: &MethodSignature,
+    actual: &MethodSignature,
+) -> bool {
+    let Some(required_clause) = &required.signature.result_provenance else {
+        return true;
+    };
+    let Some(actual_clause) = &actual.signature.result_provenance else {
+        return false;
+    };
+    let required_slots = provenance_slots(required, required_clause);
+    provenance_slots(actual, actual_clause)
+        .into_iter()
+        .all(|slot| slot == ProvenanceSlot::Static || required_slots.contains(&slot))
+}
+
+fn provenance_slots(
+    method: &MethodSignature,
+    clause: &crate::ast::ResultProvenanceClause,
+) -> Vec<ProvenanceSlot> {
+    clause
+        .origins
+        .iter()
+        .filter_map(|origin| match &origin.kind {
+            crate::ast::ResultProvenanceOriginKind::Receiver => Some(ProvenanceSlot::Receiver),
+            crate::ast::ResultProvenanceOriginKind::Parameter(name) => method
+                .signature
+                .parameters
+                .iter()
+                .position(|parameter| parameter.name == *name)
+                .map(ProvenanceSlot::Parameter),
+            crate::ast::ResultProvenanceOriginKind::Static => Some(ProvenanceSlot::Static),
+            crate::ast::ResultProvenanceOriginKind::CurrentAllocationContext => {
+                Some(ProvenanceSlot::Current)
+            }
+        })
+        .collect()
 }
 
 fn method_receiver_shape_label(receiver: &Type) -> &'static str {
@@ -350,14 +376,14 @@ fn method_receiver_shape_label(receiver: &Type) -> &'static str {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct MethodShape {
+pub(super) struct MethodShape {
     receiver: Type,
     parameters: Vec<Type>,
     return_type: Type,
 }
 
 impl MethodShape {
-    fn has_unknown_or_unresolved(&self) -> bool {
+    pub(super) fn has_unknown_or_unresolved(&self) -> bool {
         self.receiver.is_unknown_or_unresolved()
             || self.parameters.iter().any(Type::is_unknown_or_unresolved)
             || self.return_type.is_unknown_or_unresolved()

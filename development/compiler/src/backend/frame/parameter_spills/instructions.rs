@@ -36,6 +36,7 @@ pub(super) fn record_instruction_parameter_spill_requests(
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBorrow { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
@@ -49,47 +50,52 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 include_value_parameters,
             );
         }
-        Instruction::CallFallibleI32 {
+        Instruction::CallOutcomeI32 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleU8 {
+        | Instruction::CallOutcomeU8 {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleUsize {
+        | Instruction::CallOutcomeUsize {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleBool {
+        | Instruction::CallOutcomeBorrow {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleStr {
+        | Instruction::CallOutcomeBool {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleSlice {
+        | Instruction::CallOutcomeStr {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleDirectAggregate {
+        | Instruction::CallOutcomeSlice {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleAggregate {
+        | Instruction::CallOutcomeDirectAggregate {
             arguments,
             failure_mode,
             ..
         }
-        | Instruction::CallFallibleVoid {
+        | Instruction::CallOutcomeAggregate {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallOutcomeVoid {
             arguments,
             failure_mode,
             ..
@@ -101,6 +107,35 @@ pub(super) fn record_instruction_parameter_spill_requests(
             );
             record_failure_mode_parameter_spill_requests(
                 failure_mode,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::CallComposedOutcome {
+            arguments,
+            outer_mode,
+            inner_mode,
+            ..
+        } => {
+            record_scalar_arguments_parameter_spill_requests(
+                arguments,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                outer_mode,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                inner_mode,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::CallStoredOutcome { arguments, .. } => {
+            record_scalar_arguments_parameter_spill_requests(
+                arguments,
                 requests,
                 include_value_parameters,
             );
@@ -121,6 +156,38 @@ pub(super) fn record_instruction_parameter_spill_requests(
             );
             record_instruction_list_parameter_spill_requests(
                 else_instructions,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::IfStoredOutcomeTag {
+            success_instructions,
+            outcome_instructions,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(
+                success_instructions,
+                requests,
+                include_value_parameters,
+            );
+            record_instruction_list_parameter_spill_requests(
+                outcome_instructions,
+                requests,
+                include_value_parameters,
+            );
+        }
+        Instruction::CheckStoredFallible {
+            success_instructions,
+            failure_mode,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(
+                success_instructions,
+                requests,
+                include_value_parameters,
+            );
+            record_failure_mode_parameter_spill_requests(
+                failure_mode,
                 requests,
                 include_value_parameters,
             );
@@ -709,6 +776,24 @@ pub(super) fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
+        Instruction::RegionEnter { .. } => {}
+        Instruction::SetCurrentAllocationContext { state, kind } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(state, requests);
+                record_usize_value_parameter_spill_requests(kind, requests);
+            }
+        }
+        Instruction::RegionRelease {
+            state,
+            parent_state,
+            parent_kind,
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(state, requests);
+                record_usize_value_parameter_spill_requests(parent_state, requests);
+                record_usize_value_parameter_spill_requests(parent_kind, requests);
+            }
+        }
         Instruction::SetUsizeFromBorrow { source, .. } => {
             record_borrow_source_parameter_spill_request(*source, requests);
         }
@@ -777,9 +862,11 @@ pub(super) fn record_instruction_parameter_spill_requests(
         }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
-        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOutcomeSuccess
         | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
+        | Instruction::LoadStoredOutcomePayload { .. }
+        | Instruction::ReturnStoredOutcome { .. }
         | Instruction::Trap
         | Instruction::Break
         | Instruction::Continue
@@ -788,16 +875,16 @@ pub(super) fn record_instruction_parameter_spill_requests(
 }
 
 pub(super) fn record_failure_mode_parameter_spill_requests(
-    failure_mode: &FallibleFailureMode,
+    failure_mode: &OutcomeFailureMode,
     requests: &mut BTreeSet<usize>,
     include_value_parameters: bool,
 ) {
     match failure_mode {
-        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
-        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
-        | FallibleFailureMode::Handle { instructions }
-        | FallibleFailureMode::Recover { instructions }
-        | FallibleFailureMode::Catch { instructions, .. } => {
+        OutcomeFailureMode::Propagate | OutcomeFailureMode::Trap => {}
+        OutcomeFailureMode::PropagateWithCleanup { instructions, .. }
+        | OutcomeFailureMode::Handle { instructions }
+        | OutcomeFailureMode::Recover { instructions }
+        | OutcomeFailureMode::Catch { instructions, .. } => {
             record_instruction_list_parameter_spill_requests(
                 instructions,
                 requests,

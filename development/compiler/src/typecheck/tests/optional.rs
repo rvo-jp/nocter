@@ -88,6 +88,12 @@ func maybe_answer(): i32? {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0335");
+    assert_eq!(
+        diagnostics[0].help.as_deref(),
+        Some(
+            "handle `none` with `otherwise` or make the current callable return an optional value"
+        )
+    );
     let span = diagnostics[0].primary_span.as_ref().unwrap();
     assert_eq!(span.end_byte - span.start_byte, 1);
 }

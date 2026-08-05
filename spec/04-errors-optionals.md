@@ -135,8 +135,8 @@ Rules:
 - `trap` does not unwind the stack.
 - `abort` has type `never`.
 - `abort` terminates the process immediately and does not run Nocter cleanup.
-- `panic` is not a language feature in v0.
-- Stack unwinding is not part of v0.
+- `panic` is not a language feature in v0.2.0.
+- Stack unwinding is not part of v0.2.0.
 - Build modes must not disable these trap checks; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 
 Adopted: `catch` handles the failure side of a fallible expression.
@@ -240,6 +240,8 @@ Rules:
 
 Adopted: optional and fallible type constructors may be composed explicitly.
 
+Nocter v0.3.0 implements fallible-optional callable returns and immediate consumers.
+
 Preferred source spelling:
 
 ```text
@@ -254,12 +256,15 @@ Rules:
 - `T?` means an optional value.
 - Prefer `T?!` in official style.
 - `expr?` on `T?!` unwraps only the fallible layer and produces `T?`.
+- `expr catch error { ... }` on `T?!` handles only failure and leaves the optional success layer.
+- `otherwise` applied after that `catch` handles only successful absence; it does not enter the
+  catch block.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
 - In a function returning `T?!`, a compatible function body result or `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
 - `T` must not be `error`. Use a wrapper type if an `error` payload must be carried as successful optional data.
-- Other mixed forms must use parentheses in v0.
+- Other mixed forms must use parentheses in v0.2.0.
 - `(T!)?` means an optional fallible value.
 
 Example:
@@ -282,9 +287,19 @@ Using a fallible optional:
 
 ```nct
 let maybe_config = load_config()?
-let config = maybe_config otherwise { return none }
+let config = maybe_config?
 
 use(config)
+```
+
+Handling failure and absence independently:
+
+```nct
+let home = env("HOME") catch error {
+    return report(error)
+} otherwise {
+    "unknown"
+}
 ```
 
 ### Optional Propagation
@@ -295,7 +310,7 @@ When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`,
 
 ```nct
 func require_home(): &str? {
-    let home = lookup("HOME") otherwise { return none }
+    let home = lookup("HOME")?
 
     return home
 }
@@ -306,7 +321,8 @@ Rules:
 - Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
-- Absence defaulting and absence-side early exit use `otherwise`.
+- Exact absence propagation uses `?`. Absence defaulting and control flow other than returning the
+  same `none` use `otherwise`.
 - `otherwise` does not propagate absence by itself; it selects a fallback block when the optional value is `none`.
 
 ### Optional Otherwise Expressions
@@ -364,4 +380,4 @@ Rules:
 
 - `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
 - Optional values are not automatically iterable.
-- Collection iteration helpers may return `T?`, but v0 does not introduce a dedicated optional loop syntax.
+- Collection iteration helpers may return `T?`, but v0.2.0 does not introduce a dedicated optional loop syntax.

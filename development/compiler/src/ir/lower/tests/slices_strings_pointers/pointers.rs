@@ -485,6 +485,53 @@ pub func store_word(address: usize, offset: usize, value: usize): void {
 }
 
 #[test]
+fn lowers_store_value_to_ptr_call_for_borrow() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_store.store_borrow
+
+func main(): void {
+    return
+}
+"#,
+        "store_borrow",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.store_value_to_ptr
+
+struct Item { value: i32 }
+
+pub func store_borrow(address: usize, offset: usize, value: &Item): void {
+    store_value_to_ptr(from_addr(address), offset, value)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert!(
+        store
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::SetUsizeFromBorrow { .. }))
+    );
+    assert!(
+        store
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::StoreUsizeToPointer { .. }))
+    );
+}
+
+#[test]
 fn lowers_store_value_to_ptr_call_for_i32() {
     let store = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_store.store_number

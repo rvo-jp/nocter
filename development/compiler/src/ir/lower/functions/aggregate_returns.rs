@@ -13,7 +13,7 @@ pub(in crate::ir::lower) use drops::{
     lower_aggregate_drop_instructions_at_location, lower_array_prefix_drop_instructions,
     lower_payload_fields_drop_instructions, lower_struct_fields_drop_instructions,
 };
-pub(super) use entry::*;
+pub(in crate::ir::lower) use entry::lower_aggregate_return_expression_to_location;
 pub(super) use literals::*;
 pub(super) use otherwise::*;
 pub(super) use sources::*;

@@ -94,6 +94,25 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_never_return_expression_in_void_function() {
+    let diagnostics = check_text(
+        r#"primitive stop(): never
+
+func close(): void {
+    return stop()
+}
+
+func main(): i32 {
+    close()
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_return_from_never_function() {
     let diagnostics = check_text(
         r#"primitive trap(): never
@@ -223,6 +242,25 @@ func leak(): &i32 {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0433");
     assert!(diagnostics[0].message.contains("temporary"));
+}
+
+#[test]
+fn accepts_return_borrow_of_slice_index_from_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(values: &[i32]): (&i32)? {
+    if values.len() == 0 {
+        return none
+    }
+    return &values[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

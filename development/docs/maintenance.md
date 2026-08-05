@@ -22,22 +22,41 @@ responsibility naturally explains it.
 | Information | Owner |
 |---|---|
 | Language and public standard-library semantics | `spec/` |
-| Current release completion and priorities | `docs/v0.2.0.md` |
+| Current release completion and qualification | `docs/v0.3.0.md` |
+| Previous v0.2.0 completion record | `docs/v0.2.0.md` |
 | Compiler phase boundaries | `docs/architecture.md` |
+| Region, provenance, and allocation-context design | `docs/region-provenance.md` |
 | Allocator, ownership, and drop invariants | `docs/allocator-ownership.md` |
+| Explicit iteration and collection access design | `docs/iteration.md` |
+| Owned interpolation and formatting design | `docs/interpolation.md` |
+| Capability sets, conditional conformance, adapters, and collection builders | `docs/iterator-composition.md` |
+| Callable values, interface default methods, and iterator chains | `docs/callable-default-methods.md` |
+| Construction declarations, defaults, and editor construction surfaces | `docs/construction-surfaces.md` |
 | Distributed standard-library implementation | `docs/standard-library.md` |
 | LSP capabilities and analysis design | `docs/lsp.md` |
 | Next task and handoff facts | `TODO.md` |
 | Historical sequence | Git history |
 
-Do not keep the same status table in multiple documents. Keep the v0.2.0 checklist only in
-`v0.2.0.md`; focused documents own design and concrete acceptance behavior.
+Do not keep the same status table in multiple documents. Keep release qualification only in
+`v0.3.0.md`; focused documents own design and concrete acceptance behavior. `v0.2.0.md` is a
+historical release record and does not receive new work items.
 
 ## Update Triggers
 
-- Release gate, non-goal, or work order changed: update `v0.2.0.md`.
+- Current release status, non-goal, or qualification changed: update `v0.3.0.md`.
+- Region, provenance, allocation-effect, or callable-summary design changed: update
+  `region-provenance.md`.
 - Compiler module ownership or phase data flow changed: update `architecture.md`.
 - Allocation, drop, or collection invariant changed: update `allocator-ownership.md`.
+- Iterator ownership, element access, or transient shifting changed: update `iteration.md`.
+- Capability-set, conditional-conformance, iterator-adapter, or collection-builder design changed:
+  update `iterator-composition.md`.
+- Method-generic, default-method, closure, callable specialization, or chain API design changed:
+  update `callable-default-methods.md`.
+- Construction member grammar, default selection, or type-owned creation presentation changed:
+  update `construction-surfaces.md`.
+- Interpolation runtime binding, evaluation, formatting, or cleanup changed: update
+  `interpolation.md`.
 - Runtime behavior in tracked `development/std` changed: update `standard-library.md`.
 - Editor-facing capability or analysis API changed: update `lsp.md`.
 - Next concrete task, blocker, or uncommitted state changed: update `TODO.md`.
@@ -50,6 +69,16 @@ needed for current decisions.
 Public-facing documentation is written in English. The repository-level `AGENTS.md` defines the
 scope and the exceptions for internal files. Edit source Markdown and regenerate the website with
 `node docs/build-docs.js`.
+
+## Documentation Placement
+
+- Keep the repository-root `README.md` focused on released-product overview, installation, use, and
+  links to deeper documentation.
+- Keep language and public standard-library semantics in `spec/`.
+- Keep contributor setup, repository-local commands, compiler architecture, implementation design,
+  milestone plans, maintenance policy, and handoff state under `development/`.
+- Use `development/README.md` as the single root-to-development entry point. Do not duplicate
+  developer instructions or active milestone status in root documentation.
 
 ## Verification
 

@@ -12,7 +12,10 @@ pub(in crate::analysis::hover) fn function_like_header(
         .to_string()
 }
 
-pub(in crate::analysis::hover) fn parameters_label(text: &str, parameters: &[Parameter]) -> String {
+pub(in crate::analysis::hover) fn parameter_labels(
+    text: &str,
+    parameters: &[Parameter],
+) -> Vec<String> {
     parameters
         .iter()
         .map(|parameter| {
@@ -22,8 +25,7 @@ pub(in crate::analysis::hover) fn parameters_label(text: &str, parameters: &[Par
                 source_fragment(text, parameter.ty.span())
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect()
 }
 
 pub(in crate::analysis::hover) fn binding_kind_label(
@@ -33,40 +35,6 @@ pub(in crate::analysis::hover) fn binding_kind_label(
         crate::ast::BindingKind::Let => "let",
         crate::ast::BindingKind::Var => "var",
     }
-}
-
-pub(in crate::analysis::hover) fn single_file_resolved_reference_hover_contents(
-    text: &str,
-    symbols: &[HoverSymbol],
-    documentation: &crate::comments::AttachedDocumentation,
-    reference: &ResolvedReference,
-) -> (String, Option<String>) {
-    match reference {
-        ResolvedReference::TopLevel(symbol) => {
-            single_file_symbol_hover_contents(text, symbols, documentation, symbol)
-        }
-        ResolvedReference::Local(symbol) => {
-            local_symbol_hover_contents(symbols, documentation, symbol)
-        }
-    }
-}
-
-pub(in crate::analysis::hover) fn single_file_symbol_hover_contents(
-    text: &str,
-    symbols: &[HoverSymbol],
-    documentation: &crate::comments::AttachedDocumentation,
-    symbol: &Symbol,
-) -> (String, Option<String>) {
-    let referenced = symbols
-        .iter()
-        .find(|candidate| candidate.name_span == symbol.name_span);
-    let label = referenced
-        .map(|symbol| symbol.label.clone())
-        .unwrap_or_else(|| symbol_hover_label(text, symbol));
-    let docs = referenced
-        .and_then(|symbol| documentation.get(symbol.name_span.start))
-        .map(str::to_string);
-    (label, docs)
 }
 
 pub(in crate::analysis::hover) fn resolved_reference_hover_contents(
@@ -90,49 +58,42 @@ pub(in crate::analysis::hover) fn resolved_reference_hover_contents(
     }
 }
 
-pub(in crate::analysis::hover) fn local_symbol_hover_contents(
-    symbols: &[HoverSymbol],
-    documentation: &crate::comments::AttachedDocumentation,
-    symbol: &LocalSymbol,
-) -> (String, Option<String>) {
-    let referenced = symbols
-        .iter()
-        .find(|candidate| candidate.name_span == symbol.name_span);
-    let label = referenced
-        .map(|symbol| symbol.label.clone())
-        .unwrap_or_else(|| local_symbol_hover_label(symbol));
-    let docs = referenced
-        .and_then(|symbol| documentation.get(symbol.name_span.start))
-        .map(str::to_string);
-
-    (label, docs)
-}
-
 pub(in crate::analysis::hover) fn resolved_local_symbol_hover_contents(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
     symbol: &LocalSymbol,
 ) -> Option<(String, Option<String>)> {
     let file = analysis.file_by_source(symbol.name_span.source)?;
-    let source_file = sources.get(file.ast.span.source)?;
-    let text = source_file.text();
-    let symbols = hover_symbols_for_file_analysis(text, file);
-    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
-
-    Some(local_symbol_hover_contents(
-        &symbols,
-        &documentation,
+    let label = crate::analysis::presentation::local_presentation(
         symbol,
-    ))
+        file.typecheck_facts.binding_type_expr(symbol.name_span),
+        &file.resolved,
+    )
+    .render();
+    let documentation = target_documentation(sources, analysis, symbol.name_span);
+    let region = matches!(symbol.kind, LocalSymbolKind::Region)
+        .then(|| crate::analysis::regions::region_markdown(sources, file, symbol.name_span))
+        .flatten();
+
+    Some((label, combine_documentation(documentation, region)))
 }
 
 pub(in crate::analysis::hover) fn local_symbol_hover_label(symbol: &LocalSymbol) -> String {
     match symbol.kind {
         LocalSymbolKind::Parameter => format!("parameter {}", symbol.name),
         LocalSymbolKind::Binding(kind) => format!("{} {}", binding_kind_label(kind), symbol.name),
+        LocalSymbolKind::Region => format!("region {}", symbol.name),
         LocalSymbolKind::PatternPayload => format!("payload {}", symbol.name),
         LocalSymbolKind::CatchError => format!("catch {}", symbol.name),
-        LocalSymbolKind::ForRange => format!("for {}", symbol.name),
+        LocalSymbolKind::ForRange
+        | LocalSymbolKind::CollectionFor
+        | LocalSymbolKind::LiteralPackFor => {
+            format!("for {}", symbol.name)
+        }
+        LocalSymbolKind::LiteralCapture => format!("literal pack {}", symbol.name),
+        LocalSymbolKind::ClosureCapture(mode) => {
+            format!("capture {}{}", mode.source_prefix(), symbol.name)
+        }
     }
 }
 
@@ -142,56 +103,61 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
     symbol: &Symbol,
 ) -> Option<(String, Option<String>)> {
     let file = analysis.file_by_source(symbol.declaration_span.source)?;
-    let source_file = sources.get(file.ast.span.source)?;
-    let text = source_file.text();
-    let symbols = hover_symbols_for_file_analysis(text, file);
-    let hover_symbol = symbols
-        .iter()
-        .find(|candidate| candidate.name_span == symbol.declaration_span)
-        .or_else(|| {
-            symbols
-                .iter()
-                .find(|candidate| candidate.name_span == symbol.name_span)
-        })?;
-    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
-    let docs = documentation
-        .get(hover_symbol.name_span.start)
-        .map(str::to_string);
+    let declaration = file
+        .resolved
+        .symbols
+        .symbols()
+        .find(|candidate| candidate.declaration_span == symbol.declaration_span)?;
+    let label = match &declaration.kind {
+        SymbolKind::Function(signature) => {
+            crate::analysis::presentation::callable_signature_presentation(
+                "func",
+                &symbol.name,
+                signature,
+                &file.resolved,
+            )
+            .render()
+        }
+        SymbolKind::Primitive(signature) => {
+            crate::analysis::presentation::callable_signature_presentation(
+                "primitive",
+                &symbol.name,
+                signature,
+                &file.resolved,
+            )
+            .render()
+        }
+        SymbolKind::Type(_) => {
+            let mut displayed = declaration.clone();
+            displayed.name = symbol.name.clone();
+            crate::analysis::presentation::type_declaration_presentation(
+                &displayed,
+                &file.resolved,
+            )?
+            .render()
+        }
+        SymbolKind::Imported(_) => return None,
+    };
 
-    Some((hover_symbol.label.clone(), docs))
-}
-
-pub(in crate::analysis::hover) fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
-    match &symbol.kind {
-        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
-            "{} {}({}): {}",
-            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
-                "primitive"
-            } else {
-                "func"
-            },
-            symbol.name,
-            parameter_signatures_label(text, &signature.parameters),
-            source_fragment(text, signature.return_type.span())
+    let construction = match &symbol.kind {
+        SymbolKind::Type(type_symbol) => {
+            crate::analysis::constructions::construction_surface_markdown(
+                type_symbol,
+                &file.resolved,
+            )
+        }
+        _ => None,
+    };
+    Some((
+        label,
+        combine_documentation(
+            combine_documentation(
+                target_documentation(sources, analysis, declaration.name_span),
+                semantic_documentation(sources, analysis, symbol.declaration_span),
+            ),
+            construction,
         ),
-        SymbolKind::Type(type_symbol) => match type_symbol.kind {
-            TypeSymbolKind::Alias => type_symbol
-                .alias_target
-                .as_ref()
-                .map(|target| {
-                    format!(
-                        "type {} = {}",
-                        symbol.name,
-                        source_fragment(text, target.span())
-                    )
-                })
-                .unwrap_or_else(|| format!("type {}", symbol.name)),
-            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
-            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
-            TypeSymbolKind::Interface => format!("interface {}", symbol.name),
-        },
-        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
-    }
+    ))
 }
 
 pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
@@ -199,17 +165,22 @@ pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
     symbol: &Symbol,
 ) -> String {
     match &symbol.kind {
-        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
-            "{} {}({}): {}",
-            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
-                "primitive"
-            } else {
-                "func"
-            },
-            symbol.name,
-            parameter_signatures_label_for_sources(sources, &signature.parameters),
-            source_fragment_from_sources(sources, signature.return_type.span())
-        ),
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
+            append_signature_provenance(
+                format!(
+                    "{} {}({}): {}",
+                    if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                        "primitive"
+                    } else {
+                        "func"
+                    },
+                    symbol.name,
+                    parameter_signatures_label_for_sources(sources, &signature.parameters),
+                    source_fragment_from_sources(sources, signature.return_type.span())
+                ),
+                signature.result_provenance.as_ref(),
+            )
+        }
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
             TypeSymbolKind::Alias => type_symbol
                 .alias_target
@@ -228,6 +199,24 @@ pub(in crate::analysis::hover) fn symbol_hover_label_for_sources(
         },
         SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
     }
+}
+
+fn append_signature_provenance(
+    mut label: String,
+    clause: Option<&crate::ast::ResultProvenanceClause>,
+) -> String {
+    if let Some(clause) = clause {
+        label.push_str(" from ");
+        label.push_str(
+            &clause
+                .origins
+                .iter()
+                .map(|origin| origin.kind.source_label())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+    label
 }
 
 pub(in crate::analysis::hover) fn parameter_signatures_label_for_sources(
@@ -255,23 +244,6 @@ pub(in crate::analysis::hover) fn source_fragment_from_sources(
         .get(span.source)
         .map(|source| source_fragment(source.text(), span).to_string())
         .unwrap_or_default()
-}
-
-pub(in crate::analysis::hover) fn parameter_signatures_label(
-    text: &str,
-    parameters: &[crate::resolve::ParameterSignature],
-) -> String {
-    parameters
-        .iter()
-        .map(|parameter| {
-            format!(
-                "{}: {}",
-                parameter.name,
-                source_fragment(text, parameter.ty.span())
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 pub(in crate::analysis::hover) fn source_fragment(text: &str, span: ByteSpan) -> &str {

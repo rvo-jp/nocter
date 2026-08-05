@@ -41,14 +41,14 @@ func main(): void! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleAggregate {
+            Instruction::CallOutcomeAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             }
-            | Instruction::CallFallibleDirectAggregate {
+            | Instruction::CallOutcomeDirectAggregate {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("make_file") => Some(instructions),
             _ => None,
@@ -115,9 +115,9 @@ func main(): void! {
         .instructions
         .iter()
         .find_map(|instruction| match instruction {
-            Instruction::CallFallibleI32 {
+            Instruction::CallOutcomeI32 {
                 target,
-                failure_mode: FallibleFailureMode::PropagateWithCleanup { instructions, .. },
+                failure_mode: OutcomeFailureMode::PropagateWithCleanup { instructions, .. },
                 ..
             } if target == &CallTarget::same_file("code") => Some(instructions),
             _ => None,

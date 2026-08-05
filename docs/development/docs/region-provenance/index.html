@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Region, Provenance, and Allocation Context - Nocter</title>
+    <meta name="description" content="This document owns the implementation design for the v0.3.0 region and allocation-context foundation. Public semantics belong to Memory, Regions, and Alloc">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/docs/region-provenance/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Region, Provenance, and Allocation Context - Nocter">
+    <meta property="og:description" content="This document owns the implementation design for the v0.3.0 region and allocation-context foundation. Public semantics belong to Memory, Regions, and Alloc">
+    <meta property="og:url" content="https://nocter.dev/development/docs/region-provenance/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-05">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Region, Provenance, and Allocation Context - Nocter">
+    <meta name="twitter:description" content="This document owns the implementation design for the v0.3.0 region and allocation-context foundation. Public semantics belong to Memory, Regions, and Alloc">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Region, Provenance, and Allocation Context - Nocter","description":"This document owns the implementation design for the v0.3.0 region and allocation-context foundation. Public semantics belong to Memory, Regions, and Alloc","url":"https://nocter.dev/development/docs/region-provenance/","mainEntityOfPage":"https://nocter.dev/development/docs/region-provenance/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Region Provenance","item":"https://nocter.dev/development/docs/region-provenance/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="profile">profile</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="literal">literal</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">save_log</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Writer</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Session</span><span class="token-operator">.</span><span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+        id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+        expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="profile" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span><span class="token-type">UserSummary</span>
+    <span class="token-operator">...</span><span class="token-type">ActivityStats</span>
+    visits<span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">profile</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">User</span><span class="token-operator">,</span> stats<span class="token-operator">:</span> <span class="token-type">ActivityStats</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">Profile</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>user<span class="token-operator">.</span><span class="token-function">summary</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">...</span><span class="token-keyword">move</span> stats<span class="token-operator">,</span>
+        visits<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="literal" hidden><code class="language-nocter"><span class="token-keyword">literal</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span>first<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">,</span> <span class="token-operator">...</span>rest<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">]</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">with_first</span><span class="token-operator">(</span><span class="token-keyword">move</span> first<span class="token-operator">)</span>
+
+    <span class="token-keyword">for</span> item <span class="token-keyword">in</span> rest <span class="token-operator">{</span>
+        list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> list
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/docs/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
+                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
+                <li><a href="../architecture/index.html#content">Architecture</a></li>
+                <li><a href="./index.html#content" aria-current="page">Region, Provenance, and Allocation Context</a></li>
+                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
+                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
+                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
+                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
+                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
+                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
+                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
+                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
+                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
+                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
+                <li><a href="../lsp/index.html#content">LSP</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/docs/region-provenance.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="region-provenance-and-allocation-context">Region, Provenance, and Allocation Context</h1><p>This document owns the implementation design for the v0.3.0 region and allocation-context foundation. Public semantics belong to <a href="../../../spec/06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a>, and the completed gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a>.</p><h2 id="separate-concepts">Separate Concepts</h2><p>Do not collapse these concepts into a single lifetime label:</p><table><thead><tr><th>Concept</th><th>Meaning</th></tr></thead><tbody><tr><td>storage origin</td><td>the storage whose lifetime constrains a value</td></tr><tr><td>loan</td><td>a readonly or readwrite access restriction over a source place</td></tr><tr><td>value provenance</td><td>storage origins carried through a value and its projections</td></tr><tr><td>allocator backend</td><td>runtime mechanism that allocates and releases bytes</td></tr><tr><td>allocation context</td><td>statically propagated capability selecting an allocator and region</td></tr><tr><td>lexical region</td><td>child lifetime boundary that owns an allocation context</td></tr><tr><td>drop obligation</td><td>runtime record of initialized owned values that require cleanup</td></tr></tbody></table><p>Allocator backend identity remains runtime data where deallocation needs it. Storage origins and outlives constraints are compile-time facts. Drop obligations remain IR/runtime control-flow state.</p><h2 id="provenance-data-flow">Provenance Data Flow</h2><pre><code class="language-text">AST places and calls
+  -&gt; resolver declaration/place identity
+  -&gt; typecheck storage origins and callable summaries
+  -&gt; ownership loan ranges + escape diagnostics
+  -&gt; analysis facts                    -&gt; LSP
+  -&gt; IR allocation/region/drop facts
+  -&gt; backend execution
+</code></pre><p>The resolver owns identity but not lifetime policy. Typecheck owns origin construction, joins, outlives constraints, and diagnostics. Ownership consumes those facts to calculate NLL loans; it does not reconstruct call behavior. IR receives only validated region and cleanup operations.</p><h2 id="internal-model">Internal Model</h2><p>The exact Rust representation may evolve, but the semantic model must distinguish:</p><pre><code class="language-text">StorageOrigin
+  Static
+  Scope(ScopeId)
+  Input(CallableId, InputId)
+  Region(RegionId)
+  CurrentAllocationContext
+  Unknown
+
+ValueProvenance
+  Independent
+  Origins(set&lt;StorageOrigin&gt;)
+  Aggregate { fallback, fields, elements }
+  Optional { present }
+  Fallible { success, error }
+</code></pre><p><code>InputId</code> is declaration identity, not a parameter name string. A method receiver has its own input identity. Renaming a parameter must not change callable-summary behavior.</p><p><code>CurrentAllocationContext</code> is a symbolic summary origin. At a call site it is concretized to the innermost lexical <code>RegionId</code>, or to <code>Static</code> in the root context. This lets an allocating helper retain storage provenance without baking a caller's region identity into its callable summary.</p><p>Origin joins are conservative unions. Escape succeeds only when every possible origin outlives the destination. A known static alternative does not erase a shorter alternative.</p><h2 id="callable-summaries">Callable Summaries</h2><p>The existing return-only summary becomes a shared <code>CallableProvenanceSummary</code> keyed by declaration identity. It contains result provenance plus allocation effect.</p><p>Summary construction must:</p><ul><li>preserve field, element, optional, success, and error distinctions</li><li>converge across recursive and mutually recursive source call graphs</li><li>map callee input identities to caller expressions at each call site</li><li>fall back to <code>Unknown</code>, never to a guessed parameter, when analysis is incomplete</li><li>expose a stable owned query API to analysis and LSP</li></ul><p>Return checking rejects local, owned-parameter, temporary, region, and unknown escapes. NLL maps returned origins back to source places and keeps those loans active through the result's last use.</p><p>Phase 4 exposes the inferred relationship as an optional identity-resolved <code>from</code> contract at API boundaries. A concrete body is still inferred and then checked against that upper bound. A bodyless interface method seeds its callable summary from the contract. Call sites substitute receiver and parameter identities exactly as they do for inferred summaries; source syntax never introduces lifetime arithmetic or a parallel provenance graph.</p><p>Phase 10 closure environments enter this model as compiler-generated aggregates. Each explicit capture field retains the captured place's exact provenance and loan. Generated closure call targets use receiver and parameter identities in the same callable-summary fixed point as source functions. An adapter calling a closure therefore propagates result origins and allocation effects without a closure-specific provenance graph.</p><h2 id="allocation-effects">Allocation Effects</h2><p>An allocating source callable receives the current allocation context as a hidden capability. The effect is inferred through calls to a fixed point and is part of compiler semantic facts. It is not implemented as a mutable global or thread-local lookup.</p><p>The root driver supplies a program-lifetime aborting system context. Entering a lexical region derives a child context from its parent and installs it for the region body's allocating calls.</p><p>Trusted allocation declarations carry metadata such as:</p><pre><code class="language-text">allocation operation
+result storage comes from allocator input N
+failure policy: aborting | recoverable
+</code></pre><p>The metadata belongs to trusted declaration identity. No analysis searches for names such as <code>alloc</code>, <code>String</code>, <code>Vec</code>, or <code>reserve</code>.</p><h2 id="failure-policies">Failure Policies</h2><p><code>TryAllocator</code> is the fundamental fallible capability. Its failure-atomic operations return <code>error</code>. <code>Allocator</code> is an aborting adapter over the same backend.</p><p>Normal and <code>try_*</code> collection operations share one implementation path:</p><pre><code class="language-text">try operation
+  -&gt; checked layout/growth
+  -&gt; backend attempt
+  -&gt; publish only on success
+
+normal operation
+  -&gt; try operation
+  -&gt; allocation error becomes non-allocating process termination
+</code></pre><p>Failure policy is not stored as value provenance. <code>RawBuffer</code> stores the backend and region identity needed for release. An operation chooses whether failure is returned or terminates.</p><h2 id="region-lowering">Region Lowering</h2><p>Conceptually:</p><pre><code class="language-text">evaluate parent context
+enter child RegionId and runtime region
+install child allocation context
+execute body
+for every exiting edge:
+  drop live body values in reverse ownership order
+  release child region
+  transfer control
+</code></pre><p>The exiting-edge transformation covers fallthrough, <code>return</code>, <code>break</code>, <code>continue</code>, and propagation. Calling a <code>never</code> function does not synthesize cleanup because the process may terminate without unwinding.</p><p>Dropping a region-backed buffer and releasing the region must not free the same storage twice. The child backend owns whether individual deallocation reclaims a block immediately or records it as no longer live before bulk release; collection code uses only the ordinary buffer release contract.</p><p>Nested regions form lexical outlives edges. A child origin can flow into a shorter nested child but cannot flow into its parent or another region whose lifetime is not proven shorter.</p><h2 id="diagnostics-and-tooling">Diagnostics and Tooling</h2><p>Diagnostics identify both the value being escaped and the origin that is too short. They should name source bindings or lexical regions where possible and avoid Rust lifetime terminology.</p><p>Compiler analysis exposes:</p><ul><li>region declaration and binding spans</li><li>parent/current allocation context identity</li><li>allocating-call effect</li><li>value origin summary suitable for hover</li><li>the source range responsible for an escape</li></ul><p>LSP converts these facts to hover, semantic tokens, completion, and diagnostics without maintaining a second provenance graph.</p><h2 id="completed-migration-boundary">Completed Migration Boundary</h2><p>Phase 0 retains the v0.2.0 explicit fallible behavior through the shared fallible core and exposes ordinary allocation through its aborting adapter. Default allocation uses statically propagated context facts; it does not call <code>page_allocator()</code> at each use site and does not depend on a mutable global or thread-local allocator.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

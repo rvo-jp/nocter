@@ -56,6 +56,39 @@ pub(super) fn lower_usize_local_binding(
     Ok(instructions)
 }
 
+pub(super) fn lower_borrow_local_binding(
+    statement: &BindingStmt,
+    is_readwrite: bool,
+    inner: Type,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination = context.next_usize_local_location()?;
+    let borrow_type = Type::Borrow {
+        is_readwrite,
+        inner: Box::new(inner.clone()),
+    };
+    if let Some(instructions) = lower_stored_optional_otherwise(
+        &statement.initializer,
+        ComposedOutcomeDestination::Borrow(destination),
+        context,
+        |expression, context| {
+            lower_borrow_expression_to_location(expression, destination, &borrow_type, context)
+        },
+        "IR can only lower stored borrow `otherwise` fallbacks that produce a matching borrow or exit",
+    )? {
+        context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
+        return Ok(instructions);
+    }
+    let instructions = lower_borrow_expression_to_location(
+        &statement.initializer,
+        destination,
+        &borrow_type,
+        context,
+    )?;
+    context.define_borrow_local(statement.name.clone(), is_readwrite, inner);
+    Ok(instructions)
+}
+
 pub(super) fn lower_bool_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
@@ -98,20 +131,28 @@ pub(super) fn scalar_binding_kind(
         Some(ty) => {
             let Some((_root_source, resolved)) = context.resolved_calls() else {
                 return Err(unsupported_binding_diagnostic(
-                    "IR v0 cannot lower annotated local bindings without resolved type information",
+                    "native lowering cannot lower annotated local bindings without resolved type information",
                 ));
             };
-            match scalar_or_view_type_from_type_expr(ty, resolved) {
+            let ty = context.specialize_type_expr(ty);
+            match parameter_type_from_type_expr_with_resolver(&ty, resolved, |_| Some(resolved)) {
                 Some(Type::I32) => Ok(ScalarBindingKind::I32),
                 Some(Type::U8) => Ok(ScalarBindingKind::U8),
                 Some(Type::Usize) => Ok(ScalarBindingKind::Usize),
                 Some(Type::Bool) => Ok(ScalarBindingKind::Bool),
                 Some(Type::Str) => Ok(ScalarBindingKind::Str),
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice(
-                    slice_type_info_from_type_expr(ty, context),
+                    slice_type_info_from_type_expr(&ty, context),
                 )),
+                Some(Type::Borrow {
+                    is_readwrite,
+                    inner,
+                }) => Ok(ScalarBindingKind::Borrow {
+                    is_readwrite,
+                    inner: *inner,
+                }),
                 _ => Err(unsupported_binding_diagnostic(
-                    "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, or aliases to those types",
+                    "IR lowering can only represent this annotation as a supported scalar, borrow, or view local",
                 )),
             }
         }
@@ -121,6 +162,20 @@ pub(super) fn scalar_binding_kind(
                     kind,
                     slice_type_info_from_expression(&statement.initializer, context),
                 ));
+            }
+            if let Some(ty) = context.binding_type_expr(statement.name_span)
+                && let Some((_root_source, resolved)) = context.resolved_calls()
+                && let Some(Type::Borrow {
+                    is_readwrite,
+                    inner,
+                }) = parameter_type_from_type_expr_with_resolver(&ty, resolved, |source| {
+                    context.resolved_source(source)
+                })
+            {
+                return Ok(ScalarBindingKind::Borrow {
+                    is_readwrite,
+                    inner: *inner,
+                });
             }
             Ok(
                 expression_is_lowerable_bool_binding(&statement.initializer, context)
@@ -161,21 +216,42 @@ pub(super) fn expression_scalar_binding_kind(
 ) -> Option<ScalarBindingKind> {
     match unwrap_group(expression) {
         Expr::Call(call) => call_return_scalar_binding_kind(call, context),
-        Expr::Propagate(propagation) => fallible_call_success_scalar_binding_kind(
-            unwrap_group(&propagation.expression),
-            context,
-        ),
+        Expr::Propagate(propagation) => {
+            propagated_expression_scalar_binding_kind(&propagation.expression, context)
+        }
         Expr::Force(force) => {
-            fallible_call_success_scalar_binding_kind(unwrap_group(&force.expression), context)
+            outcome_call_payload_scalar_binding_kind(unwrap_group(&force.expression), context)
         }
         Expr::Catch(catch) => {
-            fallible_call_success_scalar_binding_kind(unwrap_group(&catch.expression), context)
+            outcome_call_payload_scalar_binding_kind(unwrap_group(&catch.expression), context)
         }
         Expr::Member(member) if context.payloadless_enum_variant_tag(member).is_some() => {
             Some(ScalarBindingKind::U8)
         }
         _ => None,
     }
+}
+
+fn propagated_expression_scalar_binding_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    if let Expr::Identifier(identifier) = unwrap_group(expression)
+        && let Some(local) = context.outcome_local(&identifier.name)
+    {
+        return scalar_binding_kind_from_type(&local.payload_type);
+    }
+    if let Some(kind) = outcome_call_payload_scalar_binding_kind(unwrap_group(expression), context)
+    {
+        return Some(kind);
+    }
+
+    let ty = context.expression_type_expr(expression.span())?;
+    let (_, resolved) = context.resolved_calls()?;
+    let shape =
+        outcome_shape_with_resolver(&ty, resolved, |source| context.resolved_source(source));
+    let payload_type = context.ir_type_for_type_expr(&shape.payload)?;
+    scalar_binding_kind_from_type(&payload_type)
 }
 
 pub(super) fn call_return_scalar_binding_kind(
@@ -190,7 +266,7 @@ pub(super) fn call_return_scalar_binding_kind(
     scalar_binding_kind_from_call_return_type(call, context.call_return_type(&target)?, context)
 }
 
-pub(super) fn fallible_call_success_scalar_binding_kind(
+pub(super) fn outcome_call_payload_scalar_binding_kind(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
@@ -202,9 +278,7 @@ pub(super) fn fallible_call_success_scalar_binding_kind(
     }
 
     let (target, _call_name) = context.direct_call_target_and_name(call)?;
-    let Type::Fallible(success) = context.call_return_type(&target)? else {
-        return None;
-    };
+    let (_, success) = context.call_return_type(&target)?.single_outcome()?;
     scalar_binding_kind_from_call_success_type(call, success, context)
 }
 
@@ -256,6 +330,13 @@ pub(super) fn scalar_binding_kind_from_type(ty: &Type) -> Option<ScalarBindingKi
         Type::Slice { .. } => Some(ScalarBindingKind::Slice(slice_type_info_from_kind(
             TypecheckSliceElementKind::Other,
         ))),
+        Type::Borrow {
+            is_readwrite,
+            inner,
+        } => Some(ScalarBindingKind::Borrow {
+            is_readwrite: *is_readwrite,
+            inner: inner.as_ref().clone(),
+        }),
         _ => None,
     }
 }
@@ -333,6 +414,7 @@ pub(super) enum ScalarBindingKind {
     I32,
     U8,
     Usize,
+    Borrow { is_readwrite: bool, inner: Type },
     Bool,
     Str,
     Slice(SliceTypeInfo),
@@ -341,7 +423,7 @@ pub(super) enum ScalarBindingKind {
 impl ScalarBindingKind {
     pub(super) fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
+            Self::I32 | Self::U8 | Self::Usize | Self::Borrow { .. } | Self::Bool => 1,
             Self::Str | Self::Slice(_) => 2,
         }
     }

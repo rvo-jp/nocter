@@ -41,7 +41,7 @@ pub(in crate::ir::lower::functions) fn aggregate_call_return_abi_mismatch_diagno
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 aggregate return ABI mismatch in function `{function_name}`: expected callee success return to use `{}`, got `{}`",
+            "native lowering aggregate return ABI mismatch in function `{function_name}`: expected callee success return to use `{}`, got `{}`",
             expected.description(),
             actual.description(),
         ),
@@ -60,7 +60,7 @@ pub(in crate::ir::lower::functions) fn unsupported_aggregate_return_diagnostic(
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower aggregate returns from function `{function_name}` from a supported struct literal, an aggregate call, or a supported aggregate local slot"
+            "native lowering can only lower aggregate returns from function `{function_name}` from a supported struct literal, an aggregate call, or a supported aggregate local slot"
         ),
     )]
 }
