@@ -8,7 +8,7 @@ chronological implementation history.
 ## Current Baseline
 
 - branch: `develop`
-- qualified release candidate: `v0.3.0`
+- released baseline: `v0.3.0` (published 2026-08-05)
 - completed milestone gates: `v0.3.0 Phase 0`, `v0.3.0 Phase 1 Typed Literal Core`,
   `v0.3.0 Phase 2 Explicit Iteration and Collection Access`, and
   `v0.3.0 Phase 3 Owned String Interpolation and Formatting`,
@@ -44,12 +44,13 @@ editor integration.
 
 ## Current Objective
 
-Preserve the qualified v0.3.0 release candidate without expanding its feature set. The next
-operation is explicit merge, tag, and remote publication, not additional language or standard-
-library work. Optional and fallible outcome identity is preserved through IR, including stored
-borrow payloads and contextual generic specialization. User-facing compiler diagnostics no longer
-describe implementation limits as a bare `v0` contract, and call-lowering failures distinguish
-unavailable targets from borrow and scalar materialization failures.
+Preserve v0.3.0 as an immutable released baseline. No later milestone is active. Before feature or
+standard-library work resumes, choose an exact next milestone and create its scope, completion
+criteria, dependency order, and non-goals without reopening the v0.3.0 release record. Optional and
+fallible outcome identity is preserved through IR, including stored borrow payloads and contextual
+generic specialization. User-facing compiler diagnostics no longer describe implementation limits
+as a bare `v0` contract, and call-lowering failures distinguish unavailable targets from borrow and
+scalar materialization failures.
 
 The ownership, allocation, and region cleanup audit now enforces allocator restoration before
 outer-owner destruction, reverse region release after destruction, and non-unwinding `never`
@@ -103,9 +104,9 @@ semantic tokens, and document symbols. `Vec<T>`, `String`, `Layout`, iterator co
 `File` use this model in distributed std. Detached legacy declarations receive migration
 diagnostics; the compiler does not synthesize a compatibility surface.
 
-## Release Qualification Boundary
+## Post-release Boundary
 
-No feature work is admitted before the v0.3.0 release. Version coherence, generated documentation,
-full compiler verification, warnings-denied Clippy, optimized local packaging, installed-home
-`doctor`, packaged-home execution, and archive inspection all pass. The next operation is the
-explicit merge, tag, and remote publication workflow.
+No further work belongs to v0.3.0. Version coherence, generated documentation, full compiler
+verification, warnings-denied Clippy, optimized local packaging, installed-home `doctor`,
+packaged-home execution, and archive inspection passed before publication. The release tag and
+GitHub asset are published; the next operation is an explicit decision for a later milestone.
