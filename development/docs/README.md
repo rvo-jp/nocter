@@ -14,14 +14,16 @@ Composable Element Packs**, **Phase 9: Composable Iterators and Collection Build
 type-owned construction surfaces, and **v0.3.0 Stabilization** are complete. Do not use `v0` as
 shorthand for a release name or work scope.
 
-The active milestone is **v0.4.0 Phase 1: Deterministic Package Graph**.
+The latest completed milestone is **v0.4.0 Phase 2: Immutable Package-wide LSP Snapshot**.
 
 ## Documents
 
-- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 record, active Phase 1 contract,
-  verification, and non-goals
+- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 through Phase 2 records,
+  qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries
+- [Immutable LSP Snapshots](lsp-snapshots.md): editor generations, package contexts, source
+  overlays, invalidation, and request consistency
 - [v0.3.0 Release Record](v0.3.0.md): completed Phase 0 through Phase 10 records,
   stabilization criteria, release qualification, and explicit limits
 - [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
@@ -63,8 +65,9 @@ The active milestone is **v0.4.0 Phase 1: Deterministic Package Graph**.
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| v0.4.0 Phase 1 status and acceptance | `v0.4.0.md` |
+| v0.4.0 milestone status and acceptance | `v0.4.0.md` |
 | Package/compiler responsibility boundary | `packages.md` |
+| Package-wide editor state and invalidation | `lsp-snapshots.md` |
 | v0.3.0 release status, scope, and qualification | `v0.3.0.md` |
 | Previous v0.2.0 completion record | `v0.2.0.md` |
 | Compiler responsibility boundaries | `architecture.md` |

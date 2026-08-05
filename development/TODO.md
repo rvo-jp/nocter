@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.3.0
-- completed milestone: v0.4.0 Phase 1 — Deterministic Package Graph
-- next milestone: v0.4.0 Phase 2 — Immutable Package-wide LSP Snapshot
+- completed milestone: v0.4.0 Phase 2 — Immutable Package-wide LSP Snapshot
+- next milestone: v0.4.0 stabilization audit
 - target: `arm64-darwin`
 
 The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
@@ -29,16 +29,23 @@ The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries a
 - nearest-package LSP ownership, nested package navigation, manifest semantic ranges, and dependency
   import completion
 - package-aware formatter and JSON AST
+- immutable generation-numbered LSP snapshots shared by diagnostics and semantic requests
+- locked-offline package graphs reused per package, including read-only unsaved `nocter.nct`
+  overlays
+- source-dependency invalidation, reverse-import rebuilding, unrelated-analysis reuse, watched-file
+  updates, and nested-package isolation
+- versioned diagnostics and semantic-token generation identifiers
 
 ## Qualification State
 
 Phase 1 passes path, Git, archive, generated-lock transaction, offline reuse, cache-miss,
 source/lock mismatch, cycle, package compilation, LSP, formatter, full repository, optimized
-distribution, installed-home, native packaged-home, and archive acceptance gates.
+distribution, installed-home, native packaged-home, and archive acceptance gates. Phase 2 passes
+focused snapshot, LSP, package, compiler-library, formatter, warnings-denied Clippy, full repository,
+optimized distribution, installed-home `doctor`, and packaged LSP acceptance gates.
 
 ## Next Work
 
-Phase 2 should replace per-request LSP package reconstruction with one immutable package snapshot
-shared by diagnostics, hover, completion, definition, and references. Snapshot invalidation must
-use package/module identity and open-document versions; it must not add network or manifest writes
-to LSP request handling.
+Run the v0.4.0 stabilization audit after full Phase 2 qualification. Inspect package diagnostics,
+editor behavior under incomplete manifests, snapshot memory growth, and package command/LSP parity
+before selecting a Phase 3 feature contract.

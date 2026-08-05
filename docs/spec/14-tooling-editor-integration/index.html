@@ -177,7 +177,11 @@
   compilation.</li><li>Go to definition on an executable <code>entry</code> string selects the resolved <code>.nct</code> file or directory
   module and uses only the string content as the origin range.</li><li>Package directives outside <code>nocter.nct</code> are diagnostics.</li><li>Dependency aliases use namespace spans. LSP graph loading is locked and offline and never
   rewrites <code>nocter.nct</code>.</li><li><code>pub use path</code> exposes one namespace identity; hover, completion, definition, references, and
-  semantic tokens must not reconstruct a flattened substitute.</li></ul><p>Nocter v0.3.0 Phase 4 editor rules:</p><ul><li>Hover and signature help show normalized result provenance clauses such as <code>from self</code> and
+  semantic tokens must not reconstruct a flattened substitute.</li></ul><p>Nocter v0.4.0 Phase 2 editor rules:</p><ul><li>Diagnostics, hover, completion, signature help, definition, references, and semantic tokens for
+  one accepted document version observe one immutable editor generation.</li><li>An open document overrides its disk contents throughout that generation, including an open
+  <code>nocter.nct</code> used to construct a locked, offline package graph.</li><li>An unsaved package-file overlay never fetches dependencies, generates locks, or rewrites source.</li><li>Accepted source changes invalidate dependent analyses; unrelated open modules and nested packages
+  retain independent analysis state.</li><li>Published diagnostics include the accepted document version. Semantic-token results include a
+  generation identifier suitable for rejecting stale cached results.</li><li>Watched disk changes invalidate open analyses that imported the changed source.</li></ul><p>Nocter v0.3.0 Phase 4 editor rules:</p><ul><li>Hover and signature help show normalized result provenance clauses such as <code>from self</code> and
   <code>from left | right</code>.</li><li>Completion after <code>from</code> offers only eligible receiver and borrow-like parameter declarations,
   plus <code>static</code> and <code>current</code>.</li><li>Member completion on a bounded generic receiver lists only methods from its declared interface.</li><li>Definition and references for a generic bound call target the interface method declaration.</li><li>Generic parameter names use type semantic tokens. Receiver and parameter names referenced by a
   provenance clause use readonly parameter tokens.</li><li>Recovery may complete missing delimiters or insert a temporary placeholder, but a response is

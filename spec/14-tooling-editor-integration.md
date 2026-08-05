@@ -170,6 +170,19 @@ Nocter v0.4.0 Phase 1 editor rules:
 - `pub use path` exposes one namespace identity; hover, completion, definition, references, and
   semantic tokens must not reconstruct a flattened substitute.
 
+Nocter v0.4.0 Phase 2 editor rules:
+
+- Diagnostics, hover, completion, signature help, definition, references, and semantic tokens for
+  one accepted document version observe one immutable editor generation.
+- An open document overrides its disk contents throughout that generation, including an open
+  `nocter.nct` used to construct a locked, offline package graph.
+- An unsaved package-file overlay never fetches dependencies, generates locks, or rewrites source.
+- Accepted source changes invalidate dependent analyses; unrelated open modules and nested packages
+  retain independent analysis state.
+- Published diagnostics include the accepted document version. Semantic-token results include a
+  generation identifier suitable for rejecting stale cached results.
+- Watched disk changes invalidate open analyses that imported the changed source.
+
 Nocter v0.3.0 Phase 4 editor rules:
 
 - Hover and signature help show normalized result provenance clauses such as `from self` and
