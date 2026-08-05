@@ -70,7 +70,7 @@ pub(crate) use interface_methods::completion_candidates_for_type_expr as interfa
 pub(crate) use interface_methods::implementation_for_interface_type_expr;
 pub(crate) use literals::sequence_spread;
 pub(crate) use member_presentation::{
-    enum_variant_member_label, field_member_label, generic_type_owner_name, qualified_member_name,
+    enum_variant_member_label, field_member_label, generic_type_owner_name,
 };
 pub(crate) use semantic_facts::{
     CallableSemanticFacts, StorageOriginFact, ValueProvenanceFact, collect_callable_semantic_facts,

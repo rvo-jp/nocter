@@ -139,11 +139,23 @@ pub(in crate::analysis::hover) fn resolved_symbol_hover_contents(
         SymbolKind::Imported(_) => return None,
     };
 
+    let construction = match &symbol.kind {
+        SymbolKind::Type(type_symbol) => {
+            crate::analysis::constructions::construction_surface_markdown(
+                type_symbol,
+                &file.resolved,
+            )
+        }
+        _ => None,
+    };
     Some((
         label,
         combine_documentation(
-            target_documentation(sources, analysis, declaration.name_span),
-            semantic_documentation(sources, analysis, symbol.declaration_span),
+            combine_documentation(
+                target_documentation(sources, analysis, declaration.name_span),
+                semantic_documentation(sources, analysis, symbol.declaration_span),
+            ),
+            construction,
         ),
     ))
 }

@@ -1410,6 +1410,114 @@ fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     child.wait_with_output().unwrap()
 }
 
+#[test]
+fn lsp_exposes_type_owned_construction_surfaces() {
+    let project = TempProject::new("cli-lsp-construction-surfaces");
+    let source_text = r#"pub struct Bucket<T> { pub value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+}
+
+func main(): i32 {
+    let value = Bucket.new(1)
+    return 0
+}
+"#;
+    let source = project.write_source("construction.nct", source_text);
+    let uri = file_uri(&source);
+    let hover_offset = source_text.find("struct Bucket").unwrap() + "struct ".len();
+    let completion_offset = source_text.rfind("Bucket.new").unwrap() + "Bucket.".len();
+    let (hover_line, hover_character) =
+        lsp_position_for_ascii_byte_offset(source_text, hover_offset);
+    let (completion_line, completion_character) =
+        lsp_position_for_ascii_byte_offset(source_text, completion_offset);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": { "line": hover_line, "character": hover_character }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": uri.clone() },
+                    "position": {
+                        "line": completion_line,
+                        "character": completion_character
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+    let messages = read_frames(&output.stdout);
+    let hover = response_with_id(&messages, 2)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover contents");
+    assert!(hover.contains("struct Bucket<T>"), "hover:\n{hover}");
+    assert!(hover.contains("**Construction**"), "hover:\n{hover}");
+    assert!(
+        hover.contains("default func Bucket<T>.new(value: T): Bucket<T>"),
+        "hover:\n{hover}"
+    );
+
+    let items = response_with_id(&messages, 3)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    let constructor =
+        completion_item_with_label(items, "new").expect("expected constructor completion");
+    assert_eq!(constructor["kind"], json!(4));
+    assert_eq!(
+        constructor["detail"],
+        json!("func Bucket<T>.new(value: T): Bucket<T>")
+    );
+}
+
 fn response_with_id(messages: &[Value], id: u64) -> &Value {
     messages
         .iter()

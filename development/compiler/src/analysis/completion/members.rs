@@ -42,7 +42,6 @@ fn type_member_completion_items(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,
 ) -> Vec<CompletionItemInfo> {
-    let owner = type_symbol_presentation_label(symbol, resolved);
     let mut items = Vec::new();
     if symbol.kind == TypeSymbolKind::Enum {
         items.extend(enum_variant_completion_items(symbol, resolved));
@@ -52,7 +51,7 @@ fn type_member_completion_items(
             .associated_functions
             .iter()
             .filter(|function| function.is_accessible)
-            .map(|function| associated_function_completion_item(function, &owner, resolved)),
+            .map(|function| associated_function_completion_item(function, symbol, resolved)),
     );
     items
 }
@@ -180,21 +179,31 @@ fn enum_variant_completion_item(
 
 fn associated_function_completion_item(
     function: &AssociatedFunctionSignature,
-    owner: &str,
+    owner: &TypeSymbol,
     resolved: &ResolveOutput,
 ) -> CompletionItemInfo {
+    let is_construction =
+        crate::analysis::constructions::construction_owns_function(owner, &function.name);
     CompletionItemInfo {
         label: function.name.clone(),
-        kind: CompletionItemKind::Function,
-        detail: Some(callable_detail(
-            "func",
-            &qualified_member_name(owner, &function.name),
-            &function.signature,
-            resolved,
-        )),
+        kind: if is_construction {
+            CompletionItemKind::Constructor
+        } else {
+            CompletionItemKind::Function
+        },
+        detail: Some(
+            crate::analysis::presentation::associated_function_presentation(
+                owner, function, resolved,
+            )
+            .render(),
+        ),
         documentation: None,
         insert_text: Some(format!("{}()", function.name)),
-        sort_text: None,
+        sort_text: crate::analysis::constructions::construction_function_is_default(
+            owner,
+            &function.name,
+        )
+        .then(|| format!("0-{}", function.name)),
         declaration_span: Some(function.name_span),
     }
 }

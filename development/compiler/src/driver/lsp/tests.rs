@@ -1072,7 +1072,9 @@ fn returns_documented_hover_for_type_reference() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Header\n```\n\nRequest header.")
+        json!(
+            "```nocter\nstruct Header\n```\n\nRequest header.\n\n**Construction**\n\n- `default Header { code: i32 }`"
+        )
     );
     assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
     assert_eq!(response["result"]["range"]["start"]["character"], json!(20));
@@ -1598,7 +1600,9 @@ pub struct Vec<T> { value: T }
     );
     assert_eq!(
         struct_response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Node<T>\n```")
+        json!(
+            "```nocter\nstruct Node<T>\n```\n\n**Construction**\n\n- `default Node<T> { value: T }`"
+        )
     );
     assert_eq!(
         struct_response["result"]["range"]["start"],
@@ -1925,7 +1929,9 @@ fn returns_documented_hover_for_imported_type_reference() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Config\n```\n\nRuntime configuration.")
+        json!(
+            "```nocter\nstruct Config\n```\n\nRuntime configuration.\n\n**Construction**\n\n- `default Config { value: i32 }`"
+        )
     );
     assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
     assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
@@ -1966,7 +1972,9 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
 
     assert_eq!(
         response["result"]["contents"]["value"],
-        json!("```nocter\nstruct Error\n```\n\nA recoverable failure.")
+        json!(
+            "```nocter\nstruct Error\n```\n\nA recoverable failure.\n\n**Construction**\n\nNo direct construction entry is available here."
+        )
     );
     assert_eq!(response["result"]["range"]["start"]["character"], json!(14));
     assert_eq!(response["result"]["range"]["end"]["character"], json!(19));

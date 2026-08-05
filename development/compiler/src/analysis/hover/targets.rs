@@ -360,9 +360,27 @@ pub(in crate::analysis::hover) fn type_occurrence_hover_for_file_analysis(
         return None;
     };
     let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
+    let construction_symbol = file
+        .resolved
+        .symbol_reference_at_offset(offset)
+        .map(|(_, symbol)| symbol)
+        .filter(|symbol| matches!(symbol.kind, SymbolKind::Type(_)))
+        .unwrap_or(symbol);
+    let construction = match &construction_symbol.kind {
+        SymbolKind::Type(type_symbol) => {
+            crate::analysis::constructions::construction_surface_markdown(
+                type_symbol,
+                &file.resolved,
+            )
+        }
+        _ => None,
+    };
     let documentation = combine_documentation(
-        target_documentation(sources, analysis, symbol.name_span),
-        semantic_documentation(sources, analysis, declaration_span),
+        combine_documentation(
+            target_documentation(sources, analysis, symbol.name_span),
+            semantic_documentation(sources, analysis, declaration_span),
+        ),
+        construction,
     );
     let presentation = match occurrence.contextual_type.as_ref() {
         Some(contextual_type) => crate::analysis::presentation::type_reference_presentation(

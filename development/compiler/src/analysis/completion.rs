@@ -23,8 +23,8 @@ use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 use crate::typecheck::{
     enum_variant_member_label, field_member_label, interface_method_completion_candidates,
-    qualified_member_name, type_expr_is_aborting_allocator_capability,
-    type_expr_presentation_label, type_symbol_presentation_label,
+    type_expr_is_aborting_allocator_capability, type_expr_presentation_label,
+    type_symbol_presentation_label,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -138,6 +138,10 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
         .map(|source| identifier_prefix_at_offset(source.text(), offset))
         .unwrap_or_default();
     for item in &mut items {
+        let is_default_construction = item
+            .sort_text
+            .as_deref()
+            .is_some_and(|sort| sort.starts_with("0-"));
         let expected_rank = if item
             .declaration_span
             .is_some_and(|span| compatible_locals.contains(&span))
@@ -147,7 +151,8 @@ pub(crate) fn completion_items_for_compile_unit_at_offset(
             1
         };
         let prefix_rank = usize::from(!prefix.is_empty() && !item.label.starts_with(prefix));
-        let locality_rank = usize::from(item.kind != CompletionItemKind::Variable);
+        let locality_rank =
+            usize::from(item.kind != CompletionItemKind::Variable && !is_default_construction);
         item.sort_text = Some(format!(
             "{prefix_rank}{locality_rank}{expected_rank}-{}",
             item.label

@@ -203,7 +203,11 @@ pub(crate) fn associated_function_presentation(
     resolved: &ResolveOutput,
 ) -> CallablePresentation {
     let owner_label = type_owner_presentation_label(owner, resolved);
-    let signature = signature_with_owner_type(&function.signature, owner, 0);
+    let owner_generic_count =
+        crate::analysis::constructions::construction_owns_function(owner, &function.name)
+            .then_some(owner.generic_parameters.len())
+            .unwrap_or_default();
+    let signature = signature_with_owner_type(&function.signature, owner, owner_generic_count);
     callable_signature_presentation(
         "func",
         &format!("{owner_label}.{}", function.name),

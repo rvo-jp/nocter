@@ -408,6 +408,37 @@ func main(): i32 {
 }
 
 #[test]
+fn completion_candidates_present_construct_members_as_owned_constructors() {
+    let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+}
+
+func main(): i32 {
+    let value = Bucket.new(1)
+    return 0
+}
+"#;
+    let (_, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.rfind("Bucket.new").unwrap() + "Bucket.".len();
+
+    let items = completion_items_for_file_analysis_at_offset(file, offset);
+    let constructor = items
+        .iter()
+        .find(|item| item.label == "new")
+        .expect("expected constructor completion");
+
+    assert_eq!(constructor.kind, CompletionItemKind::Constructor);
+    assert_eq!(
+        constructor.detail.as_deref(),
+        Some("func Bucket<T>.new(value: T): Bucket<T>")
+    );
+    assert_eq!(constructor.sort_text.as_deref(), Some("0-new"));
+}
+
+#[test]
 fn completion_candidates_include_type_members_after_incomplete_member_dot() {
     let text = r#"enum Choice {
     yes

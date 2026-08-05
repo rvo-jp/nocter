@@ -6,6 +6,7 @@ pub(crate) mod call_specializations;
 mod collection_for_recovery;
 pub(crate) mod completion;
 mod completion_recovery;
+pub(crate) mod constructions;
 pub(crate) mod definition;
 mod delimiter_recovery;
 mod drop_dependencies;

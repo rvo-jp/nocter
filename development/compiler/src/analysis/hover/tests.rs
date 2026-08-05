@@ -49,6 +49,51 @@ func File.open(): Self {
 }
 
 #[test]
+fn construct_type_hover_explains_its_complete_public_surface() {
+    let text = r#"pub struct Bucket<T> { pub value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+    pub literal [](...items: T): Self { return Bucket.new(move items[0]) }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("struct Bucket").unwrap() + "struct ".len();
+
+    let hover =
+        hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected type hover");
+    let documentation = hover
+        .documentation
+        .expect("expected construction documentation");
+
+    assert_eq!(hover.label, "struct Bucket<T>");
+    assert!(documentation.contains("**Construction**"));
+    assert!(documentation.contains("default func Bucket<T>.new(value: T): Bucket<T>"));
+    assert!(documentation.contains("literal Bucket<T> [](...items: T): Bucket<T>"));
+    assert!(!documentation.contains("new<T>"));
+}
+
+#[test]
+fn construct_member_hover_uses_normalized_owned_type_signature() {
+    let text = r#"struct Bucket<T> { value: T }
+
+construct Bucket<T> {
+    pub default func new(value: T): Self { return Bucket<T> { value: value } }
+}
+"#;
+    let (sources, analysis) = analyze_text(text);
+    let file = analysis.root_file().expect("expected root file");
+    let offset = text.find("func new").unwrap() + "func ".len();
+
+    let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+        .expect("expected constructor member hover");
+
+    assert_eq!(hover.label, "func Bucket<T>.new(value: T): Bucket<T>");
+    assert_eq!(&text[hover.span.start..hover.span.end], "new");
+}
+
+#[test]
 fn drop_declaration_has_separate_keyword_and_receiver_hover_targets() {
     let text = r#"struct Token { value: i32 }
 
@@ -91,7 +136,9 @@ fn workspace_hover_resolves_an_imported_name_at_its_import_site() {
     assert_eq!(hover.label, "struct Error");
     assert_eq!(
         hover.documentation.as_deref(),
-        Some("A recoverable failure.")
+        Some(
+            "A recoverable failure.\n\n**Construction**\n\nNo direct construction entry is available here."
+        )
     );
     assert_eq!(&root_text[hover.span.start..hover.span.end], "Error");
 }
@@ -406,7 +453,10 @@ fn workspace_hover_uses_typecheck_facts_for_type_reference() {
         hover_for_file_analysis(&sources, &analysis, file, offset).expect("expected hover info");
 
     assert_eq!(hover.label, "struct Header");
-    assert_eq!(hover.documentation.as_deref(), Some("Request header."));
+    assert_eq!(
+        hover.documentation.as_deref(),
+        Some("Request header.\n\n**Construction**\n\n- `default Header { code: i32 }`")
+    );
 }
 
 #[test]
