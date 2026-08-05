@@ -98,16 +98,13 @@ fn lower_named_function_with_signatures(
     let fixture = analyze_text_fixture(text);
     let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(analysis, root.ast.span.source);
     let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
         matches!(item, crate::ast::Item::Function(function) if function.name == function_name)
     }) else {
         panic!("missing function `{function_name}`");
     };
-    let resolved_sources = analysis
-        .files
-        .iter()
-        .map(|file| (file.ast.span.source, &file.resolved))
-        .collect();
+    let function_signatures = index.signatures().with_test_overrides(function_signatures);
 
     functions::lower_function(
         function,
@@ -116,12 +113,12 @@ fn lower_named_function_with_signatures(
         &fixture.sources,
         CallTarget::same_file(function_name),
         function_signatures,
-        context::FunctionNames::default(),
+        index.names(),
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
-        resolved_sources,
-        context::ErrorPayloads::default(),
+        index.resolved_sources(),
+        index.error_payloads(root.ast.span.source),
     )
 }
 

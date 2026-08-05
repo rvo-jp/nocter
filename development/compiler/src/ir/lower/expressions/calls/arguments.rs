@@ -19,15 +19,10 @@ pub(in crate::ir::lower) fn lower_call_arguments_with_explicit_types(
     explicit_parameter_types: Option<&[TypeExpr]>,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let Some(parameter_types) = context.call_parameter_types(target) else {
-        if explicit_parameter_types.is_some() {
-            return Err(vec![Diagnostic::error(
-                "E8006",
-                format!(
-                    "IR cannot find the specialized signature for planned call `{callee_name}`"
-                ),
-            )]);
-        }
-        return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!("IR cannot find the specialized signature for planned call `{callee_name}`"),
+        )]);
     };
     let mut evaluation = CallEvaluationContext::new(context, temporaries)?;
 
@@ -465,22 +460,4 @@ fn call_argument_abi_word_count_mismatch_diagnostic(
             "native lowering produced {actual} argument ABI words for function `{callee_name}`, but the resolved signature expects {expected}"
         ),
     )]
-}
-
-fn lower_legacy_i32_call_arguments(
-    call: &CallExpr,
-    callee_name: &str,
-    context: &LoweringContext,
-    temporaries: &mut TemporaryAllocator,
-) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
-    let mut instructions = Vec::new();
-    let mut arguments = Vec::new();
-    for argument in &call.arguments {
-        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
-        instructions.extend(argument.instructions);
-        arguments.push(ScalarArgument::I32(argument.value));
-    }
-
-    let _actual_abi_words = validate_call_argument_abi_word_count(callee_name, &arguments)?;
-    Ok((instructions, arguments))
 }

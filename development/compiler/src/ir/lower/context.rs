@@ -375,6 +375,25 @@ impl FunctionSignatures {
         Self { signatures }
     }
 
+    #[cfg(test)]
+    pub(super) fn with_test_overrides(mut self, overrides: Self) -> Self {
+        for (target, override_) in overrides.signatures {
+            let Some(signature) = self.signatures.get_mut(&target) else {
+                self.signatures.insert(target, override_);
+                continue;
+            };
+            signature.return_type = override_.return_type;
+            signature.success_return_passing = override_.success_return_passing;
+            if override_.parameter_types.is_some() {
+                signature.parameter_types = override_.parameter_types;
+                signature.parameter_abi_word_count = override_.parameter_abi_word_count;
+            } else if override_.parameter_abi_word_count.is_some() {
+                signature.parameter_abi_word_count = override_.parameter_abi_word_count;
+            }
+        }
+        self
+    }
+
     pub(super) fn return_type(&self, target: &CallTarget) -> Option<&Type> {
         self.signatures
             .get(target)
