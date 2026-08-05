@@ -21,7 +21,7 @@ const PAGE_META = {
     },
     "spec/README.md": {
         title: "Nocter Language Specification",
-        description: "Language specification for Nocter v0.3.0, covering syntax, types, modules, interfaces, ownership, diagnostics, tooling, and the preserved v0.2.0 contract."
+        description: "Language specification for Nocter v0.4.0, covering syntax, types, packages, interfaces, ownership, diagnostics, tooling, and historical release contracts."
     },
     "development/README.md": {
         title: "Nocter Development Documentation",

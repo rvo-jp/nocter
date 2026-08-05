@@ -3,33 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Allocator and Ownership - Nocter</title>
-    <meta name="description" content="This document defines the stable buffer, ownership, and recursive-drop invariants established by v0.2.0 and retained by v0.3.0. Public syntax and type rule">
+    <title>Nocter v0.4.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.4.0 makes one source-owned package graph the shared unit of command-line compilation and editor analysis. Package declarations, executable target">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/allocator-ownership/">
+    <link rel="canonical" href="https://nocter.dev/development/packaging/v0.4.0-release-notes/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Allocator and Ownership - Nocter">
-    <meta property="og:description" content="This document defines the stable buffer, ownership, and recursive-drop invariants established by v0.2.0 and retained by v0.3.0. Public syntax and type rule">
-    <meta property="og:url" content="https://nocter.dev/development/docs/allocator-ownership/">
+    <meta property="og:title" content="Nocter v0.4.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.4.0 makes one source-owned package graph the shared unit of command-line compilation and editor analysis. Package declarations, executable target">
+    <meta property="og:url" content="https://nocter.dev/development/packaging/v0.4.0-release-notes/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-05">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Allocator and Ownership - Nocter">
-    <meta name="twitter:description" content="This document defines the stable buffer, ownership, and recursive-drop invariants established by v0.2.0 and retained by v0.3.0. Public syntax and type rule">
+    <meta name="twitter:title" content="Nocter v0.4.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.4.0 makes one source-owned package graph the shared unit of command-line compilation and editor analysis. Package declarations, executable target">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Allocator and Ownership - Nocter","description":"This document defines the stable buffer, ownership, and recursive-drop invariants established by v0.2.0 and retained by v0.3.0. Public syntax and type rule","url":"https://nocter.dev/development/docs/allocator-ownership/","mainEntityOfPage":"https://nocter.dev/development/docs/allocator-ownership/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Allocator Ownership","item":"https://nocter.dev/development/docs/allocator-ownership/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.4.0 Release Notes - Nocter","description":"Nocter v0.4.0 makes one source-owned package graph the shared unit of command-line compilation and editor analysis. Package declarations, executable target","url":"https://nocter.dev/development/packaging/v0.4.0-release-notes/","mainEntityOfPage":"https://nocter.dev/development/packaging/v0.4.0-release-notes/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"},{"@type":"ListItem","position":4,"name":"V0.4.0 Release Notes","item":"https://nocter.dev/development/packaging/v0.4.0-release-notes/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
@@ -123,56 +123,71 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/docs/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.4.0/index.html#content">v0.4.0 Release Record</a></li>
-                <li><a href="../packages/index.html#content">Packages, Dependencies, and Locks</a></li>
-                <li><a href="../lsp-snapshots/index.html#content">Immutable LSP Snapshots</a></li>
-                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
-                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
-                <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
-                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="../provenance-contracts/index.html#content">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
-                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
-                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="./index.html#content" aria-current="page">Allocator and Ownership</a></li>
-                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="../lsp/index.html#content">LSP</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/allocator-ownership.md</span>
+                <span class="markdown-path-text">/development/packaging/v0.4.0-release-notes.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="allocator-and-ownership">Allocator and Ownership</h1><p>This document defines the stable buffer, ownership, and recursive-drop invariants established by v0.2.0 and retained by v0.3.0. Public syntax and type rules follow the <a href="../../../spec/index.html#content">specification</a>. Storage-origin inference, allocation contexts, and lexical regions are owned by <a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a>.</p><h2 id="separation-of-responsibilities">Separation of Responsibilities</h2><table><thead><tr><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>type checker</td><td>initialized, moved, and borrowed state of source places</td></tr><tr><td>aggregate drop shape</td><td>recursive per-type drop structure, independent of execution paths</td></tr><tr><td>runtime drop obligation</td><td>subtrees and prefixes actually owned on a path</td></tr><tr><td>IR</td><td>explicit activation, publication, transfer, and drop of obligations</td></tr><tr><td>backend</td><td>execution of IR state transitions according to ABI layout</td></tr><tr><td><code>std/mem</code></td><td>allocation layout, growth, deallocation, allocator provenance</td></tr><tr><td><code>std/string</code>, <code>std/vec</code></td><td>type-specific buffer and initialized-length invariants</td></tr></tbody></table><p>Phase 0 added storage provenance and allocation failure policy as separate axes. Neither replaces source-place state, drop obligations, or runtime allocator-backend identity.</p><p>Do not collapse source-place state and runtime cleanup state into one bitset or ad hoc flag. The former rejects invalid source operations; the latter drops only resources acquired on a failure path.</p><h2 id="allocator-contract">Allocator Contract</h2><p><code>Layout</code> is a validated allocation request, not merely a size/alignment pair.</p><ul><li>Alignment is nonzero, a power of two, and within the target limit.</li><li><code>count * element_size</code> and growth calculations use checked arithmetic before allocation.</li><li>Zero-sized values and zero-capacity collections use a canonical empty state with no allocation.
-  Free distinguishes the presence of an allocation.</li><li><code>RawBuffer</code> retains its pointer, allocated byte length, alignment, and allocator provenance.</li><li>Free uses the allocator and actual layout from allocation time, never logical length as allocation
-  size.</li><li>Grow proceeds as allocate → transfer initialized bytes/elements → publish new state → free old
-  allocation. Failure before publication leaves the old state unchanged.</li><li>Public callers cannot construct or mutate the <code>RawBuffer</code> representation.</li></ul><p>OS syscalls stay inside allocator implementations. <code>String</code> and <code>Vec&lt;T&gt;</code> use a private <code>RawBuffer</code> and do not call page primitives directly.</p><p>v0.3.0 preserves one fallible implementation core. <code>TryAllocator</code> returns allocation errors; <code>Allocator</code> adapts the same backend and aborts without unwinding on failure. Failure-atomic publication remains mandatory for both surfaces. <code>RawBuffer</code> stores the backend and storage origin needed for release, not a duplicated implementation for each policy.</p><h2 id="recursive-drop-model">Recursive Drop Model</h2><p>A runtime obligation represents at least these states recursively:</p><pre><code class="language-text">Inactive
-Complete(shape)
-ArrayPrefix { completed, element_shape }
-StructFields { initialized fields }
-PayloadFields { active variant, initialized fields }
-</code></pre><p>Constructing a fixed-array element does not add it immediately to the completed array prefix:</p><ol><li>1. Create an independent recursive obligation for the current element.</li><li>Initialize fields or payloads one at a time and publish them to that obligation.</li><li>After the whole element completes, move the current obligation into the array and increment the
-   completed prefix.</li><li>On intermediate failure, recursively drop the current element, then drop the completed prefix in
-   reverse order.</li></ol><p>This represents nested partial initialization that a completed-element count alone cannot express.</p><h2 id="collection-ownership">Collection Ownership</h2><p><code>Vec&lt;T&gt;</code> maintains these invariants:</p><ul><li><code>0 &lt;= len &lt;= capacity</code></li><li>the allocation provides capacity elements of storage, but only <code>[0, len)</code> is owned</li><li>every element in <code>[0, len)</code> is complete; <code>[len, capacity)</code> is uninitialized</li><li>drop and clear destroy <code>[0, len)</code> exactly once in reverse order</li><li>reserve transfers element ownership to new storage without duplicating elements</li><li>push increments <code>len</code> only after publishing a complete destination-element obligation</li><li>pop transfers the last element to tracked return storage and decrements vector <code>len</code></li><li>insert completes every fallible operation first, shifts through one transient hole, fills it, and
-  publishes the new <code>len</code> last</li><li>remove takes the selected owner, shifts the remaining suffix through one transient hole, and
-  publishes the shorter initialized prefix before returning the removed owner</li><li>consuming iteration transfers the raw buffer and <code>[0, len)</code> obligation to <code>VecIntoIter&lt;T&gt;</code>;
-  extraction shortens its remaining range and destruction drops only that range in reverse order</li></ul><p>Even when non-copy <code>T</code> storage moves through raw bytes, the semantic operation is relocation rather than copying. Invalidate obligations in the old storage before freeing it so drop glue cannot run twice.</p><p><code>String</code> is a specialized buffer that owns a UTF-8 byte prefix. Bytes have no drop behavior, but <code>String</code> shares <code>0 &lt;= len &lt;= capacity</code>, failure-atomic growth, and allocator provenance with <code>Vec&lt;T&gt;</code>.</p><h2 id="error-path-invariants">Error-path Invariants</h2><ul><li>Register every value acquired by an initializer in an obligation before the next fallible
-  operation.</li><li>Publish a value as complete only after all subvalues initialize.</li><li>Complete a replacement value under a separate obligation before destroying and replacing the old
-  value.</li><li>Clean up in reverse acquisition order without replacing the original error.</li><li>Represent ownership transfer as one IR-level transition that invalidates the source obligation and
-  activates the destination obligation.</li></ul><h2 id="rejected-shortcuts">Rejected Shortcuts</h2><ul><li>implementing <code>Vec&lt;T&gt;.clear</code> as only <code>len = 0</code></li><li>duplicating non-copy element bytes while both copies remain live</li><li>freeing by logical length instead of allocation size</li><li>leaving a half-updated state with an old pointer and new capacity after failure</li><li>letting the backend inspect AST to guess what to drop</li><li>exposing a transient insertion/removal hole across a function, fallible call, or cleanup edge</li><li>representing dense arbitrary-position removal as persistent sparse ownership state</li></ul>
+                <h1 id="nocter-v0-4-0-release-notes">Nocter v0.4.0 Release Notes</h1><p>Nocter v0.4.0 makes one source-owned package graph the shared unit of command-line compilation and editor analysis. Package declarations, executable targets, dependency requests, exact locks, and root-module code live together in <code>nocter.nct</code>. The compiler and language server resolve the same typed package, module, and executable identities instead of reconstructing project structure from entry-file paths.</p><h2 id="highlights">Highlights</h2><ul><li>A package root is exactly a directory containing <code>nocter.nct</code>. The file has a parsed manifest
+  section and an ordinary root module; <code>index.nct</code> remains only a directory module.</li><li><code>#executable</code> declarations replace implicit <code>main.nct</code> discovery. An omitted <code>entry</code> selects the
+  code in <code>nocter.nct</code>, <code>entry: "."</code> selects the root <code>index.nct</code>, and an explicit logical path
+  selects a file or directory module without a <code>.nct</code> suffix.</li><li>Imports are classified before filesystem discovery. <code>./</code> and <code>../</code> are module-relative, <code>/</code> is
+  package-relative, declared aliases enter exact dependencies, and <code>std</code> enters the compiler-matched
+  standard library. The compiler performs no ambient package-name search.</li><li><code>#dependencies</code> accepts path, Git, and archive sources. Generated format-1 <code>#lock</code> data records
+  exact Git commits and archive SHA-256 identities in the same <code>nocter.nct</code>; there is no separate
+  lockfile.</li><li><code>nocter fetch</code>, <code>--locked</code>, and <code>--offline</code> provide explicit dependency resolution policy. Lock
+  updates are failure-atomic, package caches are keyed by content-derived <code>PackageId</code>, and nested
+  packages keep independent alias scopes.</li><li>Git and archive installation validates package boundaries, canonical paths, archive entries,
+  symbolic links, and executable/module escapes before a package enters analysis.</li><li>The language server owns immutable, generation-numbered package snapshots. Diagnostics, hover,
+  completion, signature help, definition, references, symbols, and semantic tokens observe one
+  document/graph generation per request.</li><li>Dependency traces survive failed frontend and package-graph loads. Creating a missing import,
+  repairing malformed source or manifests, deleting a symbolic-link target, and fixing transitive
+  package metadata deterministically invalidate affected analyses without discarding unrelated
+  snapshots.</li><li>The server supports versioned diagnostics, generation-backed semantic-token result identifiers,
+  saved-text synchronization, dynamic <code>**/*.nct</code> file watching, nested package ownership, and an
+  explicit initialize/shutdown lifecycle.</li><li>Native lowering now requires complete planned-call signatures. It no longer treats unknown call
+  arguments as legacy <code>i32</code> values, eliminating a test-only path that could conceal an invalid
+  lowering plan.</li></ul><h2 id="package-example">Package Example</h2><pre><code class="language-nct"><span class="token-comment">//! JSON command-line tool.</span>
+
+#name<span class="token-operator">:</span> <span class="token-string">"json-tool"</span>
+#version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span>
+#executable<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"json-tool"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+#dependencies<span class="token-operator">:</span> <span class="token-operator">{</span>
+    json<span class="token-operator">:</span> <span class="token-operator">{</span>
+        git<span class="token-operator">:</span> <span class="token-string">"https://github.com/example/json.git"</span><span class="token-operator">,</span>
+        revision<span class="token-operator">:</span> <span class="token-string">"main"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+#lock<span class="token-operator">:</span> <span class="token-operator">{</span>
+    format<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span>
+    dependencies<span class="token-operator">:</span> <span class="token-operator">{</span>
+        json<span class="token-operator">:</span> <span class="token-string">"git:7db21c1000000000000000000000000000000000"</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"json-tool\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-number">0</span>
+<span class="token-operator">}</span>
+</code></pre><h2 id="migration-from-v0-3-0">Migration from v0.3.0</h2><ul><li>Create <code>nocter.nct</code> at the package root and declare each executable with <code>#executable</code>. Package
+  <code>build</code>, <code>run</code>, and <code>check</code> no longer infer <code>main.nct</code>.</li><li>Put the customary <code>main</code> function directly in <code>nocter.nct</code>, or set <code>entry</code> to another logical
+  module path. Use <code>entry: "."</code> only when the intended entry is the package-root <code>index.nct</code>.</li><li>Declare every non-standard-library package alias in <code>#dependencies</code>. An installed directory with
+  a matching name does not create an importable dependency.</li><li>Run <code>nocter fetch</code> to resolve missing exact Git/archive locks and install package data. Commit the
+  generated <code>#lock</code> change in <code>nocter.nct</code>; use <code>--locked</code> in verification and <code>--offline</code> when
+  network access must be prohibited.</li><li>Keep script-style compilation explicit with <code>nocter run app.nct</code>, <code>nocter build app.nct</code>, or
+  <code>--file</code>. Single-file mode has no package directives or dependency namespace.</li><li>v0.3.0 remains a historical release record. v0.4.0 is still pre-1.0 and does not promise source,
+  package-manifest, or binary compatibility with later releases.</li></ul><h2 id="distribution-and-verification">Distribution and Verification</h2><p>The release asset contains one <code>.nocter/</code> directory with the compiler, version and manifest metadata, license files, and standard library. The supported host and native target are <code>arm64-darwin</code>. Normal builds require no LLVM, external assembler, linker, SDK tool, or runtime library.</p><p>Release qualification covers 2,204 compiler-library tests; all CLI build, run, package, formatter, LSP, distributed-home, and example-corpus integration suites; formatting; warnings-denied Clippy; public documentation generation; optimized local packaging; installed-home <code>doctor</code>; packaged check/build/run and JSON-RPC acceptance; generated native execution; and archive inspection. The installed compiler reports <code>Nocter 0.4.0</code>, and repository and packaged homes use the same release metadata.</p><p>See the <a href="../../docs/v0.4.0/index.html#content">v0.4.0 release record</a> for architecture, completed gates, qualification boundaries, and non-goals.</p><h2 id="explicit-limits">Explicit Limits</h2><ul><li>The only supported native host and target are <code>arm64-darwin</code>.</li><li>Package dependencies use exact source identities; registries, semantic-version resolution, and
+  multi-package workspace membership are not included.</li><li>Package test targets and a package test runner are not included.</li><li>The language server does not scan every unopened module into an ambient symbol index. Rename,
+  code actions, inlay hints, persistent semantic caches, and concurrent request scheduling remain
+  future work.</li><li>No source-level lifetime parameters, runtime interface dispatch, async execution, concurrency,
+  or stable cross-version ABI is included.</li></ul>
             </div>
         </main>
     </div>

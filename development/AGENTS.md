@@ -11,7 +11,7 @@ Before compiler changes, read:
 - `README.md`
 - `TODO.md`
 - `docs/README.md`
-- `docs/v0.3.0.md`
+- `docs/v0.4.0.md`
 - `docs/architecture.md`
 - `docs/region-provenance.md`
 - the focused design document for the area being changed
@@ -22,10 +22,11 @@ rewrite them.
 
 ## Recorded Milestone
 
-v0.3.0 is complete through Phase 10, stabilization, body-bearing interface implementations, and
-type-owned construction surfaces. No later milestone is active. Do not use `v0` as shorthand for a
-release scope. Use [docs/v0.3.0.md](docs/v0.3.0.md) for the current release record and
-[docs/v0.2.0.md](docs/v0.2.0.md) only for the previous released baseline.
+v0.4.0 is complete through Phase 2 and the snapshot/package-graph stabilization audit. Its feature
+scope is frozen for release. Do not use `v0` as shorthand for a release scope. Use
+[docs/v0.4.0.md](docs/v0.4.0.md) for the current release record,
+[docs/v0.3.0.md](docs/v0.3.0.md) for the previous release, and
+[docs/v0.2.0.md](docs/v0.2.0.md) only for the earlier historical baseline.
 
 ## Engineering Priority
 
@@ -65,7 +66,8 @@ Keep structural changes and behavior changes in separate commits when practical.
 Update only the owner of the changed fact:
 
 - `TODO.md`: next concrete task, blockers, uncommitted handoff state
-- `docs/v0.3.0.md`: current release status, completion gate, scope, non-goal, or qualification
+- `docs/v0.4.0.md`: current release status, completion gate, scope, non-goal, or qualification
+- `docs/v0.3.0.md`: previous release record
 - `docs/v0.2.0.md`: released v0.2.0 completion record
 - `docs/architecture.md`: phase/module responsibility or data flow
 - `docs/region-provenance.md`: region, storage-origin, allocation-effect, or callable-summary design

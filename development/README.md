@@ -4,25 +4,15 @@ This directory contains the Rust bootstrap compiler, the distributed standard li
 packaging inputs, and implementation documentation. See the [repository README](../README.md) for
 the public overview and the [specification](../spec/README.md) for language rules.
 
-The released baseline is **Nocter v0.3.0**. **Phase 0: Region and Allocation Context**,
-**Phase 1: Typed Literal Core**, **Phase 2: Explicit Iteration and Collection Access**, and
-**Phase 3: Owned String Interpolation and Formatting**, **Phase 4: Public Provenance Contracts
-and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Process Context**,
-**Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
-**Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
-Iterators and Collection Builders**, and **Phase 10: Callable Values and Interface Default
-Methods** and **v0.3.0 Stabilization** are complete, including the body-bearing interface
-implementation migration, type-owned construction surfaces, and clean release qualification. The
-repository and packaged release metadata identify v0.3.0. Completion records, stabilization
-criteria, and dependency order are defined in the
-[v0.3.0 Release Record](docs/v0.3.0.md); the implementation boundary is
-defined in [Body-Bearing Interface Implementations](docs/interface-implementations.md). The
-completed v0.2.0 criteria remain available in the [v0.2.0 release record](docs/v0.2.0.md).
-
-The latest completed milestone is the **v0.4.0 Snapshot and Package-Graph Stabilization Audit**.
-Its record is in the [v0.4.0 development plan](docs/v0.4.0.md), with compiler boundaries in
+The current release is **Nocter v0.4.0**. It adds source-native package roots, deterministic exact
+dependency graphs, and immutable package-wide LSP snapshots to the v0.3.0 language foundation.
+The completed Phase 0 through Phase 2 contracts, stabilization audit, qualification, and non-goals
+are recorded in the [v0.4.0 Release Record](docs/v0.4.0.md), with compiler boundaries in
 [Packages, Dependencies, and Locks](docs/packages.md) and
 [Immutable LSP Snapshots](docs/lsp-snapshots.md).
+
+The previous language milestone remains available in the [v0.3.0 release record](docs/v0.3.0.md),
+and the v0.2.0 criteria remain in the [v0.2.0 release record](docs/v0.2.0.md).
 
 ## Quick Start
 
@@ -56,7 +46,7 @@ external runtime library, or the Xcode Command Line Tools.
 ## Documents
 
 - [Documentation Index](docs/README.md)
-- [v0.4.0 Development Plan](docs/v0.4.0.md)
+- [v0.4.0 Release Record](docs/v0.4.0.md)
 - [Packages, Dependencies, and Locks](docs/packages.md)
 - [Immutable LSP Snapshots](docs/lsp-snapshots.md)
 - [v0.3.0 Release Record](docs/v0.3.0.md)

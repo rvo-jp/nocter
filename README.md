@@ -8,11 +8,12 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.3.0 builds typed construction, lexical regions, composable iterators,
-callable values, and interface default methods on the Allocator and ownership
-foundation. Its compiler-backed language server presents the same resolved
-types, declarations, capabilities, provenance, and allocation effects as the
-compiler. The implementation target is `arm64-darwin`.
+Nocter v0.4.0 makes a source-owned package graph the shared compilation unit for
+the command line and language server. A package keeps its declarations,
+executable targets, dependency requests, and generated exact locks in
+`nocter.nct`. Immutable editor snapshots use that same graph for diagnostics,
+navigation, completion, and semantic information. The implementation target is
+`arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -59,8 +60,9 @@ resource handling.
 
 - `struct`, `enum`, `func`, `impl`, and `method` form the value-oriented core.
 - Declarations are private unless marked `pub`.
-- `interface` describes public capability; v0.3.0 adds reusable default methods
-  derived from that capability without adding state or implicit conformance.
+- `interface` describes public capability and can provide reusable default
+  methods derived from that capability without adding state or implicit
+  conformance.
 - Future `embedding` is composition-only: it will own contained values and
   promote only their public contracts without exposing private internals.
 - `let`, `var`, `&T`, and `&+T` make assignment and borrow capability visible.
@@ -96,7 +98,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.3.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.4.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -122,47 +124,66 @@ rm -rf "$HOME/.nocter"
 
 ## First Program
 
-Create `main.nct`:
+Create a directory containing `nocter.nct`:
 
 ```nct
+//! Hello executable.
+
+#name: "hello"
+#version: "0.1.0"
+#executable: {
+    name: "hello",
+}
+
 use std/io.print
 
 func main(): i32! {
     print("Hello from Nocter\n")?
-    return 0
+    0
 }
 ```
 
-Run the source file explicitly:
+Run the package from that directory:
 
 ```sh
-nocter run main.nct
+nocter run
 ```
-
-The entry function is the selected source file's function named `main`.
 
 Build an executable:
 
 ```sh
-nocter build main.nct -o hello
+nocter build
 ./hello
 ```
 
 Check without building:
 
 ```sh
-nocter check main.nct
+nocter check
 ```
 
-Format a file:
+Format the package file:
 
 ```sh
-nocter fmt main.nct
+nocter fmt nocter.nct
+```
+
+`nocter.nct` is both the package manifest and its root module. Omitting an
+executable `entry` selects the code in `nocter.nct`; an explicit path such as
+`entry: "./src/app"` selects another module. Dependencies and generated exact
+locks also live in this file, so dependency changes appear in ordinary source
+review. The compiler does not guess an implicit `main.nct`.
+
+For an isolated script or experiment, select single-file mode explicitly:
+
+```sh
+nocter run app.nct
+nocter check --file app.nct
 ```
 
 ## Current Status
 
-The v0.3.0 compiler parses, checks, builds, and runs the supported language on
+The v0.4.0 compiler parses, checks, builds, and runs the supported language on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
@@ -178,8 +199,10 @@ the [language specification](spec/README.md).
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [v0.3.0 Release Notes](development/packaging/v0.3.0-release-notes.md): the
+- [v0.4.0 Release Notes](development/packaging/v0.4.0-release-notes.md): the
   release highlights, distribution shape, verification, and explicit limits.
+- [v0.3.0 Release Notes](development/packaging/v0.3.0-release-notes.md): the
+  previous release record.
 - [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the preserved
   historical boundary of the previous release.
 - [Contributor Documentation](development/README.md): development setup,

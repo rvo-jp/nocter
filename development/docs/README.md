@@ -4,21 +4,14 @@ This directory contains implementation design and completion criteria. The publi
 [specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
 those rules here.
 
-The released baseline is **v0.3.0**. Phase 0, **Phase 1: Typed Literal Core**,
-**Phase 2: Explicit Iteration and Collection Access**, **Phase 3: Owned String Interpolation and
-Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
-Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
-**Phase 7: Protocol-Driven Collection Iteration**, **Phase 8: Explicit Sequence Spread and
-Composable Element Packs**, **Phase 9: Composable Iterators and Collection Builders**, and **Phase
-10: Callable Values and Interface Default Methods**, body-bearing interface implementations,
-type-owned construction surfaces, and **v0.3.0 Stabilization** are complete. Do not use `v0` as
-shorthand for a release name or work scope.
-
-The latest completed milestone is the **v0.4.0 Snapshot and Package-Graph Stabilization Audit**.
+The current release is **v0.4.0**. It includes source-native package roots, deterministic exact
+dependency graphs, immutable package-wide LSP snapshots, and the completed stabilization audit.
+The previous v0.3.0 language milestone and v0.2.0 contract remain historical records. Do not use
+`v0` as shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
+- [v0.4.0 Release Record](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
   records, qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries
@@ -65,7 +58,7 @@ The latest completed milestone is the **v0.4.0 Snapshot and Package-Graph Stabil
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| v0.4.0 milestone status and acceptance | `v0.4.0.md` |
+| v0.4.0 release status, scope, and qualification | `v0.4.0.md` |
 | Package/compiler responsibility boundary | `packages.md` |
 | Package-wide editor state and invalidation | `lsp-snapshots.md` |
 | v0.3.0 release status, scope, and qualification | `v0.3.0.md` |

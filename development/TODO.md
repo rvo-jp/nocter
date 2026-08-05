@@ -3,9 +3,9 @@
 ## Baseline
 
 - branch: `develop`
-- released baseline: v0.3.0
-- completed milestone: v0.4.0 snapshot and package-graph stabilization audit
-- next milestone: v0.4.0 release-readiness review
+- release candidate: v0.4.0
+- completed milestone: v0.4.0 release-readiness implementation and documentation
+- next milestone: final distribution qualification and publication authorization
 - target: `arm64-darwin`
 
 The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
@@ -55,7 +55,8 @@ all pass after the audit.
 
 ## Next Work
 
-Complete the v0.4.0 release-readiness review. Confirm version metadata, public release notes,
-archive contents, package command/LSP parity, and installed-home acceptance. Add a Phase 3 feature
-contract only for a release blocker; otherwise keep the qualified package and snapshot scope
-closed.
+Run the final v0.4.0 distribution qualification against the exact release identity: complete
+repository verification, generated public documentation, optimized packaging, installed-home
+doctor, packaged package-mode check/build/run, packaged LSP JSON-RPC acceptance, native executable
+execution, archive inspection, and clean-worktree confirmation. Do not publish until the user
+authorizes publication after this gate passes.
