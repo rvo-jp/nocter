@@ -46,8 +46,10 @@ borrowed construct members through shared iterators rather than duplicate their 
 
 ## Acceptance Boundary
 
-The implementation is complete when parser and diagnostic tests cover malformed blocks and every
+The implementation is complete. Parser and diagnostic tests cover malformed blocks and every
 invariant; distributed standard-library tests build and run `String` and `Vec<T>` through construct
 members; raw external struct construction follows default selection; and hover, completion,
 signature help, definition, references, semantic tokens, and document symbols agree on the same
-member identities and exact spans.
+member identities and exact spans. Top-level literal declarations have no AST representation, and
+detached nominal construction functions receive migration diagnostics rather than a compatibility
+surface.

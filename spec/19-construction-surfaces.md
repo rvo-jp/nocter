@@ -3,11 +3,10 @@
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
-This chapter defines the adopted v0.3.0 construction-surface model. Its stabilization implementation
-is in progress on `develop`; until that gate completes, the implemented top-level literal and
-associated-function forms remain described in their owning chapters. A construction surface groups
-the public operations that directly create one nominal type so source readers and editor tooling do
-not have to discover field literals, typed literals, and associated functions independently.
+This chapter defines the implemented v0.3.0 construction-surface model. A construction surface
+groups the public operations that directly create one nominal type so source readers and editor
+tooling do not have to discover field literals, typed literals, and associated functions
+independently.
 
 ## Construct Declarations
 
@@ -110,18 +109,22 @@ reconstruct a list independently. Entries shown at a use site must respect type 
 visibility and must use the visible type spelling rather than an internal canonical module path.
 
 Enum variants are intrinsic construction entries and are not duplicated inside `construct`.
-Interfaces and type aliases do not own construction surfaces: interfaces are not values, and a type
-alias preserves the construction surface of its resolved target.
+Interfaces and type aliases do not own construction surfaces. Interfaces are not values. An alias
+does not acquire a second construction API under its alias spelling; callers use the nominal target
+or an ordinary alias-specific factory when the alias names a builtin representation.
 
 ## Legacy Declaration Forms
 
-The earlier top-level forms place construction behavior outside its owner and are removed when this
-model's stabilization gate completes:
+The earlier top-level forms place construction behavior outside its owner and have been removed:
 
 ```nct
 literal Vec<T> [](...items: T): Self { ... }
 pub func Vec.new<T>(): Vec<T> { ... }
 ```
 
-The compiler diagnoses these forms with a direct migration to `construct Vec<T> { ... }`. It does
-not maintain a second compatibility representation or silently synthesize a construct declaration.
+The compiler diagnoses a top-level literal directly. It also diagnoses a top-level associated
+function when its owner is a nominal struct or enum and its result, present payload, or success
+payload is that owner. Both diagnostics direct the declaration into `construct Vec<T> { ... }`.
+Ordinary associated functions that do not construct their owner remain valid, as do factories on
+aliases of builtin representations. The compiler does not maintain a second compatibility AST or
+silently synthesize a construct declaration.

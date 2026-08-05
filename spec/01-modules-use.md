@@ -295,9 +295,11 @@ pub struct Config {
     pub name: &str
 }
 
-pub func Config.default(): Config {
-    return Config {
-        name: "Nocter",
+construct Config {
+    pub default func default(): Self {
+        return Config {
+            name: "Nocter",
+        }
     }
 }
 ```
@@ -478,8 +480,10 @@ pub struct File {
     fd: i32
 }
 
-pub func File.open(path: &str): File! {
-    ...
+construct File {
+    pub default func open(path: &str): Self! {
+        ...
+    }
 }
 
 impl File {

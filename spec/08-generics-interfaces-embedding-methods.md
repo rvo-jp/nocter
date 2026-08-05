@@ -41,15 +41,18 @@ positions such as a function name.
 Adopted: `impl` associates receiver methods and destructor members with a
 nominal type. It is not a class declaration and does not introduce inheritance.
 
-Associated functions are declared at top level with a qualified function name.
-They have no receiver and are called through the type.
+Associated functions have no receiver and are called through the type. Functions that directly
+construct their nominal owner belong to its `construct` declaration. Other associated functions
+remain top-level qualified declarations.
 
 ```nct
-pub func WordStats.empty(): WordStats {
-    return WordStats {
-        bytes: 0,
-        lines: 0,
-        words: 0,
+construct WordStats {
+    pub default func empty(): Self {
+        return WordStats {
+            bytes: 0,
+            lines: 0,
+            words: 0,
+        }
     }
 }
 ```

@@ -255,7 +255,9 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
-pub func Layout.new(size: usize, align: usize): Layout!
+construct Layout {
+    pub default func new(size: usize, align: usize): Self!
+}
 pub func layout(size: usize, align: usize): Layout!
 pub func layout_size(value: &Layout): usize
 pub func layout_align(value: &Layout): usize
@@ -488,7 +490,9 @@ pub struct File {
 }
 
 pub func open(path: &str): File!
-pub func File.open(path: &str): File!
+construct File {
+    pub default func open(path: &str): Self!
+}
 pub func read(file: &+File, buffer: &+[u8]): usize!
 pub func write(file: &+File, bytes: &[u8]): void!
 pub func write_text(file: &+File, text: &str): void!

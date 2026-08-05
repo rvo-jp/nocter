@@ -23,16 +23,20 @@ names, private representation, or delimiter-adjacent text rewriting.
 Phase 1 implements only sequence and string shapes:
 
 ```nct
-pub literal Vec<T> [](...items: T): Self from current {
-    let result = Self.with_capacity(items.len())
-    for item in items {
-        result.push(move item)
+construct Vec<T> {
+    pub default literal [](...items: T): Self from current {
+        let result = Self.with_capacity(items.len())
+        for item in items {
+            result.push(move item)
+        }
+        return move result
     }
-    return move result
 }
 
-pub literal String ""(text: &str): Self from current {
-    return Self.copy(text)
+construct String {
+    pub default literal ""(text: &str): Self from current {
+        return Self.copy(text)
+    }
 }
 ```
 

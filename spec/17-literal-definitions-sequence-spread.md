@@ -37,12 +37,16 @@ The following source forms are implemented on `develop` by v0.3.0 Phase 1 but
 are not part of the v0.2.0 release:
 
 ```nct
-literal Vec<T> [](...items: T): Self from current {
-    ...
+construct Vec<T> {
+    pub default literal [](...items: T): Self from current {
+        ...
+    }
 }
 
-literal String ""(text: &str): Self from current {
-    ...
+construct String {
+    pub default literal ""(text: &str): Self from current {
+        ...
+    }
 }
 
 Vec [1, 2, 3]
@@ -78,17 +82,21 @@ and methods remain valid construction APIs.
 Implemented syntax:
 
 ```nct
-literal Vec<T> [](...items: T): Self from current {
-    let result = Self.with_capacity(items.len())
+construct Vec<T> {
+    pub default literal [](...items: T): Self from current {
+        let result = Self.with_capacity(items.len())
 
-    for item in items {
-        result.push(move item)
+        for item in items {
+            result.push(move item)
+        }
+        return move result
     }
-    return move result
 }
 
-literal String ""(text: &str): Self from current {
-    return Self.copy(text)
+construct String {
+    pub default literal ""(text: &str): Self from current {
+        return Self.copy(text)
+    }
 }
 ```
 
@@ -97,14 +105,14 @@ type.
 
 Rules:
 
-- A literal definition target must be a nominal type.
-- A literal definition must be declared in the same module as the target type.
+- A literal definition is a public member of the target's same-module `construct` declaration.
+- The construct target must be a nominal struct or enum.
 - Empty delimiters between the target and parameter list are a shape marker,
   not a value passed to the body.
 - A literal definition body returns `Self`.
 - `Self` means the target type after substituting generic parameters.
-- A literal definition is private by default. `pub literal` exposes it anywhere
-  the target type is visible.
+- Every literal definition is explicitly `pub`; private construction helpers remain ordinary
+  functions called by the public member body.
 - Literal construction never bypasses the literal definition body.
 - A literal definition uses the current aborting allocation context when its
   body performs allocation.
@@ -231,7 +239,9 @@ behavior.
 The canonical sequence definition and capture parameter are:
 
 ```nct
-literal Vec<T> [](...items: T): Self
+construct Vec<T> {
+    pub default literal [](...items: T): Self { ... }
+}
 ```
 
 `[]` selects the sequence shape. `...items: T` binds a compiler-owned ephemeral
@@ -247,7 +257,9 @@ suffixes are dropped exactly once on every body exit.
 A non-empty collection can require leading elements before the rest capture:
 
 ```nct
-literal NonEmptyVec<T> [](first: T, ...rest: T): Self
+construct NonEmptyVec<T> {
+    pub default literal [](first: T, ...rest: T): Self { ... }
+}
 ```
 
 Rules:
@@ -284,11 +296,13 @@ struct Color {
     b: u8
 }
 
-literal Color {}(r: u8, g: u8, b: u8): Self {
-    return Self {
-        r: r,
-        g: g,
-        b: b,
+construct Color {
+    pub default literal {}(r: u8, g: u8, b: u8): Self {
+        return Self {
+            r: r,
+            g: g,
+            b: b,
+        }
     }
 }
 
@@ -306,8 +320,10 @@ expression.
 Phase 1 string example:
 
 ```nct
-literal Path ""(text: &str): Self {
-    ...
+construct Path {
+    pub default literal ""(text: &str): Self {
+        ...
+    }
 }
 
 let path = Path "README.md"
@@ -392,7 +408,9 @@ Variadic capture. The callee receives a temporary element sequence without
 requiring callers to allocate an intermediate collection.
 
 ```nct
-literal Vec<T> [](...items: T): Self
+construct Vec<T> {
+    pub default literal [](...items: T): Self { ... }
+}
 ```
 
 Literal rest capture. The literal body receives the source elements as an

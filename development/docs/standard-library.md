@@ -125,8 +125,13 @@ Distributed `std/vec` and `std/string` now declare their construction syntax in 
 source:
 
 ```nct
-pub literal Vec<T> [](...items: T): Self { ... }
-pub literal String ""(text: &str): Self { ... }
+construct Vec<T> {
+    pub default literal [](...items: T): Self { ... }
+}
+
+construct String {
+    pub default literal ""(text: &str): Self { ... }
+}
 ```
 
 `Vec [..]` evaluates and transfers its owned elements from left to right, reserves exactly the

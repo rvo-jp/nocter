@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-01">
+    <meta property="article:modified_time" content="2026-08-05">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Modules and Use Declarations - Nocter">
     <meta name="twitter:description" content="This file is part of the Nocter language specification. The specification entry point is README.md.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Modules and Use Declarations - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/01-modules-use/","mainEntityOfPage":"https://nocter.dev/spec/01-modules-use/","dateModified":"2026-08-01","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"01 Modules Use","item":"https://nocter.dev/spec/01-modules-use/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Modules and Use Declarations - Nocter","description":"This file is part of the Nocter language specification. The specification entry point is README.md.","url":"https://nocter.dev/spec/01-modules-use/","mainEntityOfPage":"https://nocter.dev/spec/01-modules-use/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"01 Modules Use","item":"https://nocter.dev/spec/01-modules-use/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -256,9 +256,11 @@ include std<span class="token-operator">/</span>prelude
     <span class="token-keyword">pub</span> name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">Config</span><span class="token-operator">.</span><span class="token-function">default</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
-        name<span class="token-operator">:</span> <span class="token-string">"Nocter"</span><span class="token-operator">,</span>
+<span class="token-keyword">construct</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">default</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Config</span> <span class="token-operator">{</span>
+            name<span class="token-operator">:</span> <span class="token-string">"Nocter"</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 </code></pre><h2 id="compile-unit">Compile Unit</h2><p><code>nocter build app.nct</code>, <code>nocter run app.nct</code>, and <code>nocter check app.nct</code> treat <code>app.nct</code> as the root file. The CLI contract is specified in <a href="../15-command-line-interface/index.html#content">Command Line Interface</a>.</p><p>The compile unit is the root file plus every <code>.nct</code> file reached by following top-level <code>use</code>, block-scope <code>use</code>, public re-export, and eligible synthetic prelude loads recursively.</p><p>Rules:</p><ul><li>Top-level <code>use</code> and <code>pub use</code> declarations are allowed only at the start of a
@@ -292,8 +294,10 @@ resolved:     app/config.nct
     fd<span class="token-operator">:</span> <span class="token-type">i32</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-operator">...</span>
+<span class="token-keyword">construct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">func</span> <span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">impl</span> <span class="token-type">File</span> <span class="token-operator">{</span>

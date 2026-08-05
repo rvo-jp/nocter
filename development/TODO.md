@@ -92,3 +92,11 @@ inherent-method satisfaction have no compatibility path. The full clean-worktree
 warnings-denied Clippy, documentation build, optimized local distribution, installed-home `doctor`,
 packaged-home runtime suite, and archive inspection pass. The next operation is an explicit v0.3.0
 release-preparation decision, not further interface stabilization work.
+
+Type-owned construction-surface stabilization is also complete. `construct` is the sole AST owner
+for public literal definitions and for associated functions that directly produce a nominal struct
+or enum. Resolver-owned `ConstructionSurface` identities drive raw structural accessibility,
+default selection, imports, hover, completion ordering, signature help, definition, references,
+semantic tokens, and document symbols. `Vec<T>`, `String`, `Layout`, iterator constructors, and
+`File` use this model in distributed std. Detached legacy declarations receive migration
+diagnostics; the compiler does not synthesize a compatibility surface.
