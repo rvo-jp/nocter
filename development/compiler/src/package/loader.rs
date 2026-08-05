@@ -22,10 +22,19 @@ impl PackageLoad {
 }
 
 pub fn load_package(root: &Path) -> PackageLoad {
-    load_package_with_id(root, None)
+    load_package_with_id_and_overlay(root, None, None)
 }
 
+#[cfg(test)]
 pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) -> PackageLoad {
+    load_package_with_id_and_overlay(root, id, None)
+}
+
+pub(super) fn load_package_with_id_and_overlay(
+    root: &Path,
+    id: Option<super::PackageId>,
+    overlay: Option<&super::PackageSourceOverlay>,
+) -> PackageLoad {
     let root = canonical_package_root(root);
     let package_file_candidate = root.join("nocter.nct");
     let package_file_path =
@@ -41,18 +50,27 @@ pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) ->
             ))],
         };
     }
-    let source = match sources.load_file(&package_file_path) {
-        Ok(source) => source,
-        Err(diagnostic) => {
-            return PackageLoad {
-                package: None,
-                sources,
-                diagnostics: vec![package_filesystem_diagnostic(format!(
-                    "package root `{}` must contain `nocter.nct`: {}",
-                    root.display(),
-                    diagnostic.message
-                ))],
-            };
+    let source = if let Some(text) = overlay.and_then(|overlay| overlay.source(&package_file_path))
+    {
+        sources.add_source(
+            package_file_path.to_string_lossy(),
+            Some(package_file_path.clone()),
+            text,
+        )
+    } else {
+        match sources.load_file(&package_file_path) {
+            Ok(source) => source,
+            Err(diagnostic) => {
+                return PackageLoad {
+                    package: None,
+                    sources,
+                    diagnostics: vec![package_filesystem_diagnostic(format!(
+                        "package root `{}` must contain `nocter.nct`: {}",
+                        root.display(),
+                        diagnostic.message
+                    ))],
+                };
+            }
         }
     };
     let lexed = lex(&sources, source);

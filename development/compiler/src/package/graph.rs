@@ -1,5 +1,5 @@
 use super::fetch::{archive_digest, fetch, resolve_git_revision};
-use super::loader::load_package_with_id;
+use super::loader::load_package_with_id_and_overlay;
 use super::lockfile::write_generated_lock;
 use super::store::PackageStore;
 use super::{
@@ -69,10 +69,33 @@ pub struct PackageGraphLoad {
 }
 
 pub fn load_package_graph(root: &Path, options: PackageGraphOptions) -> PackageGraphLoad {
+    load_package_graph_impl(root, options, &super::PackageSourceOverlay::default())
+}
+
+pub(crate) fn load_locked_offline_package_graph_with_overlay(
+    root: &Path,
+    overlay: &super::PackageSourceOverlay,
+) -> PackageGraphLoad {
+    load_package_graph_impl(
+        root,
+        PackageGraphOptions {
+            locked: true,
+            offline: true,
+        },
+        overlay,
+    )
+}
+
+fn load_package_graph_impl(
+    root: &Path,
+    options: PackageGraphOptions,
+    overlay: &super::PackageSourceOverlay,
+) -> PackageGraphLoad {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let store = PackageStore::new(&root);
     let mut builder = GraphBuilder {
         options,
+        overlay,
         store,
         packages: BTreeMap::new(),
         namespaces: HashMap::new(),
@@ -103,8 +126,9 @@ pub fn load_package_graph(root: &Path, options: PackageGraphOptions) -> PackageG
     }
 }
 
-struct GraphBuilder {
+struct GraphBuilder<'a> {
     options: PackageGraphOptions,
+    overlay: &'a super::PackageSourceOverlay,
     store: PackageStore,
     packages: BTreeMap<PackageId, SourcePackage>,
     namespaces: HashMap<(PackageId, String), PackageId>,
@@ -114,7 +138,7 @@ struct GraphBuilder {
     lock_changed: bool,
 }
 
-impl GraphBuilder {
+impl GraphBuilder<'_> {
     fn visit(
         &mut self,
         root: &Path,
@@ -129,7 +153,7 @@ impl GraphBuilder {
             ));
             return None;
         }
-        let load = load_package_with_id(&canonical, expected_id);
+        let load = load_package_with_id_and_overlay(&canonical, expected_id, Some(self.overlay));
         if !load.diagnostics.is_empty() {
             self.diagnostics.extend(load.diagnostics);
             self.visiting.remove(&canonical);

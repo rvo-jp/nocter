@@ -11,20 +11,20 @@ use std::path::{Path, PathBuf};
 
 pub(super) fn module_completion_items(
     document: &OpenDocument,
-    workspace_roots: &[WorkspaceRoot],
+    package_graph: Option<&crate::package::PackageGraph>,
     offset: usize,
 ) -> Option<Vec<Value>> {
     let typed_path = import_path_at_offset(&document.text, offset)?;
     let source_dir = document.absolute_path.as_deref()?.parent()?;
     let (parent, prefix) = typed_path.rsplit_once('/').unwrap_or(("", typed_path));
-    let directories = search_directories(source_dir, workspace_roots, parent, typed_path);
+    let directories = search_directories(source_dir, package_graph, parent, typed_path);
     let mut candidates = directories
         .iter()
         .flat_map(|directory| module_segment_candidates(directory, prefix))
         .collect::<BTreeSet<_>>();
     if parent.is_empty() && !typed_path.starts_with('.') && !typed_path.starts_with('/') {
         candidates.extend(
-            dependency_aliases(document, workspace_roots)
+            dependency_aliases(document, package_graph)
                 .into_iter()
                 .filter(|name| name.starts_with(prefix)),
         );
@@ -68,16 +68,14 @@ pub(super) fn package_root_for_document<'a>(
 
 fn search_directories(
     source_dir: &Path,
-    _workspace_roots: &[WorkspaceRoot],
+    package_graph: Option<&crate::package::PackageGraph>,
     parent: &str,
     typed_path: &str,
 ) -> Vec<PathBuf> {
     if typed_path.starts_with('/') {
-        let package = source_dir
-            .ancestors()
-            .find(|ancestor| ancestor.join("nocter.nct").is_file());
-        return package
-            .map(|root| vec![root.join(parent.trim_start_matches('/'))])
+        return package_graph
+            .and_then(|graph| graph.package_containing(source_dir))
+            .map(|package| vec![package.root().join(parent.trim_start_matches('/'))])
             .unwrap_or_default();
     }
     if typed_path.starts_with("./") || typed_path.starts_with("../") {
@@ -89,20 +87,7 @@ fn search_directories(
             .map(|home| vec![home.join(parent)])
             .unwrap_or_default();
     }
-    let Some(package_root) = source_dir
-        .ancestors()
-        .find(|ancestor| ancestor.join("nocter.nct").is_file())
-    else {
-        return Vec::new();
-    };
-    let load = crate::package::load_package_graph(
-        package_root,
-        crate::package::PackageGraphOptions {
-            locked: true,
-            offline: true,
-        },
-    );
-    let Some(graph) = load.graph else {
+    let Some(graph) = package_graph else {
         return Vec::new();
     };
     let Some(owner) = graph.package_containing(source_dir) else {
@@ -115,26 +100,14 @@ fn search_directories(
         .unwrap_or_default()
 }
 
-fn dependency_aliases(document: &OpenDocument, _workspace_roots: &[WorkspaceRoot]) -> Vec<String> {
+fn dependency_aliases(
+    document: &OpenDocument,
+    package_graph: Option<&crate::package::PackageGraph>,
+) -> Vec<String> {
     let Some(path) = document.absolute_path.as_deref() else {
         return Vec::new();
     };
-    let Some(root) = path.parent().and_then(|directory| {
-        directory
-            .ancestors()
-            .find(|root| root.join("nocter.nct").is_file())
-    }) else {
-        return Vec::new();
-    };
-    let Some(graph) = crate::package::load_package_graph(
-        root,
-        crate::package::PackageGraphOptions {
-            locked: true,
-            offline: true,
-        },
-    )
-    .graph
-    else {
+    let Some(graph) = package_graph else {
         return Vec::new();
     };
     let Some(owner) = graph.package_containing(path) else {

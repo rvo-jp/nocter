@@ -154,6 +154,7 @@ pub func identity<T>(value: T): T {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(
@@ -199,6 +200,7 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(
@@ -248,6 +250,7 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
@@ -298,6 +301,7 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
@@ -348,6 +352,7 @@ construct Vec<T> {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
@@ -400,6 +405,7 @@ func main(candidate: i32, text: &str): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
@@ -444,6 +450,7 @@ construct Text {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
@@ -476,6 +483,7 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -506,6 +514,7 @@ fn drop_declaration_editor_features_share_the_keyword_range() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -578,6 +587,7 @@ fn returns_semantic_tokens_for_open_document() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -634,6 +644,7 @@ fn semantic_tokens_are_empty_when_document_cannot_be_analyzed() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -921,6 +932,7 @@ fn returns_null_hover_when_document_cannot_be_analyzed() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -952,6 +964,7 @@ fn returns_null_hover_for_unresolved_identifier() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -983,6 +996,7 @@ fn returns_hover_for_identifier() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1020,6 +1034,7 @@ fn returns_hover_for_local_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1057,6 +1072,7 @@ fn returns_documented_hover_for_function_declaration() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1094,6 +1110,7 @@ fn returns_documented_hover_for_type_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1146,6 +1163,7 @@ fn returns_markdown_hover_for_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1191,6 +1209,7 @@ fn returns_markdown_hover_for_block_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1229,6 +1248,7 @@ fn returns_documented_hover_for_local_binding_declaration() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1264,6 +1284,7 @@ fn returns_documented_hover_for_local_binding_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1299,6 +1320,7 @@ fn returns_inferred_hover_for_integer_binding() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1346,6 +1368,7 @@ func run(arena: Arena): i32 {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(
@@ -1400,6 +1423,7 @@ func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("using\n").expect("expected using") + "using".len();
@@ -1441,6 +1465,7 @@ func run(parent: Allocator): void {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("temp using").expect("expected region binding");
@@ -1480,6 +1505,7 @@ fn returns_short_visible_type_names_for_hover() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1571,6 +1597,7 @@ pub struct Vec<T> { value: T }
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
@@ -1700,6 +1727,7 @@ fn shortens_hidden_canonical_type_names_for_hover() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1742,6 +1770,7 @@ fn returns_documented_workspace_hover_for_local_binding_reference() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1777,6 +1806,7 @@ fn returns_documented_hover_for_resolved_function_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1839,6 +1869,7 @@ fn returns_documented_hover_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1888,6 +1919,7 @@ fn returns_documented_hover_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1951,6 +1983,7 @@ fn returns_documented_hover_for_imported_type_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -1999,6 +2032,7 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2059,6 +2093,7 @@ fn returns_definition_for_resolved_function_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2093,6 +2128,7 @@ fn returns_definition_for_local_reference() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2127,6 +2163,7 @@ fn returns_references_for_local_binding() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2190,6 +2227,7 @@ fn returns_definition_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2237,6 +2275,7 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2294,6 +2333,7 @@ fn returns_references_for_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2351,6 +2391,7 @@ fn returns_references_for_block_imported_function_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2411,6 +2452,7 @@ fn returns_references_for_namespace_imported_function_member_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2470,6 +2512,7 @@ fn returns_definition_for_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2524,6 +2567,7 @@ fn returns_definition_for_package_executable_entry() {
             uri: file_uri(&root),
             path: Some(root),
         }],
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2568,6 +2612,7 @@ fn nested_nocter_file_is_treated_as_its_own_package_root() {
             uri: file_uri(&root),
             path: Some(root),
         }],
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2609,6 +2654,7 @@ fn returns_definition_for_block_import_module_path() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2675,6 +2721,7 @@ fn returns_definition_for_imported_type_reference() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2713,6 +2760,7 @@ fn returns_definition_for_method_call() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2748,6 +2796,7 @@ fn returns_document_symbols_for_top_level_declarations() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2791,6 +2840,7 @@ fn document_features_recover_an_unclosed_member_body() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2825,6 +2875,7 @@ fn navigation_recovers_an_unclosed_function_body() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
@@ -2856,6 +2907,7 @@ fn returns_completion_items_for_keywords_and_top_level_symbols() {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2924,6 +2976,7 @@ fn returns_completion_items_for_imported_symbols() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -2975,6 +3028,7 @@ return match choice {
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
@@ -3036,6 +3090,7 @@ return file.fd
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3127,6 +3182,7 @@ return file.fd
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3192,6 +3248,7 @@ return file.
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3246,6 +3303,7 @@ return 0
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3296,6 +3354,7 @@ return 0
         documents: HashMap::from([(uri.clone(), document)]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3356,6 +3415,7 @@ fn returns_completion_items_for_namespace_import_without_member_leakage() {
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3415,6 +3475,7 @@ return 0
         ]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
 
@@ -3548,6 +3609,7 @@ fn publishes_diagnostics_for_open_document() {
 
     let text = String::from_utf8(output).unwrap();
     assert!(text.contains("textDocument/publishDiagnostics"));
+    assert!(text.contains("\"version\":1"));
     assert!(text.contains("E0200"));
 }
 
@@ -3799,9 +3861,7 @@ fn clears_diagnostics_for_uris_missing_from_next_publish() {
     let uri = "file:///tmp/nocter-cleared.nct".to_string();
     server.published_diagnostic_uris.insert(uri.clone());
 
-    server
-        .publish_workspace_diagnostics("file:///tmp/missing-root.nct", &mut output)
-        .unwrap();
+    server.publish_snapshot_diagnostics(&mut output).unwrap();
 
     let text = String::from_utf8(output).unwrap();
     assert!(text.contains(&uri));
@@ -3833,6 +3893,7 @@ fn returns_only_lexically_visible_local_completion_items() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(
@@ -3887,6 +3948,7 @@ func main(): i32 {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("answer(1)").unwrap());
@@ -3955,6 +4017,7 @@ func edit(values: &+Vec<String>): void {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let position =
@@ -4001,6 +4064,7 @@ fn signature_help_recovers_incomplete_imported_call() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("20, ").unwrap() + "20, ".len();
@@ -4043,6 +4107,7 @@ func main(good: bool, bad: i32): bool {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.rfind("bad)").expect("expected call argument");
@@ -4082,6 +4147,7 @@ fn import_symbol_completion_recovers_and_filters_visibility() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("math.").unwrap() + "math.".len();
@@ -4122,6 +4188,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("./lib/ma").unwrap() + "./lib/ma".len();
@@ -4172,6 +4239,7 @@ impl<T> Box<T> {
         )]),
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
+        snapshots: SnapshotStore::default(),
         shutdown_requested: false,
     };
     let offset = text.find("value.").unwrap() + "value.".len();
@@ -4438,13 +4506,13 @@ fn field_name_offset_for_access(text: &str, access: &str) -> usize {
 
 static NOCTER_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
 
-struct NocterHomeEnv {
+pub(super) struct NocterHomeEnv {
     previous: Option<std::ffi::OsString>,
     _guard: MutexGuard<'static, ()>,
 }
 
 impl NocterHomeEnv {
-    fn set(home: &Path) -> Self {
+    pub(super) fn set(home: &Path) -> Self {
         let guard = NOCTER_HOME_ENV_LOCK.lock().unwrap();
         let previous = std::env::var_os("NOCTER_HOME");
         // Exercise the same process-level home resolution path as the CLI.

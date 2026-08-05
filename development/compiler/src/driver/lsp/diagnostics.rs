@@ -34,15 +34,23 @@ pub(super) struct LspLocation {
     pub(super) range: LspRange,
 }
 
-pub(super) fn publish_diagnostics(uri: &str, diagnostics: Vec<LspDiagnostic>) -> Value {
-    json!({
+pub(super) fn publish_diagnostics(
+    uri: &str,
+    version: Option<i64>,
+    diagnostics: Vec<LspDiagnostic>,
+) -> Value {
+    let mut message = json!({
         "jsonrpc": "2.0",
         "method": "textDocument/publishDiagnostics",
         "params": {
             "uri": uri,
             "diagnostics": diagnostics
         }
-    })
+    });
+    if let Some(version) = version {
+        message["params"]["version"] = json!(version);
+    }
+    message
 }
 
 pub(super) fn diagnostics_for_lsp(

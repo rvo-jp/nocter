@@ -18,12 +18,10 @@ mod references;
 mod request_validation;
 mod semantic;
 mod signature_help;
+mod snapshot;
 mod symbols;
 
-use analysis::{
-    LspWorkspaceAnalysis, diagnostics_for_workspace_with_package_root,
-    workspace_analysis_for_uri_with_package_root,
-};
+use analysis::LspWorkspaceAnalysis;
 #[cfg(test)]
 use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
@@ -40,13 +38,13 @@ use completion::{
 use definition::{definition_for_document, definition_for_file_analysis};
 use diagnostics::publish_diagnostics;
 use documents::{
-    OpenDocument, WorkspaceRoot, changed_document_from_params, document_uri_from_params,
-    open_document_from_params, workspace_roots_from_initialize_params,
+    OpenDocument, WorkspaceRoot, changed_document_from_params, changed_file_paths_from_params,
+    document_uri_from_params, open_document_from_params, workspace_roots_from_initialize_params,
 };
 #[cfg(test)]
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
-use import_completion::{module_completion_items, package_root_for_document};
+use import_completion::module_completion_items;
 use package_navigation::package_entry_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
@@ -73,6 +71,7 @@ use semantic::{
 #[cfg(test)]
 use semantic::{classified_identifiers, classified_identifiers_for_file_analysis};
 use signature_help::signature_help_value;
+use snapshot::{LspSnapshot, SnapshotChange, SnapshotStore};
 use symbols::document_symbols_for_document;
 #[cfg(test)]
 use symbols::{
@@ -110,6 +109,7 @@ struct LspServer {
     documents: HashMap<String, OpenDocument>,
     published_diagnostic_uris: HashSet<String>,
     workspace_roots: Vec<WorkspaceRoot>,
+    snapshots: SnapshotStore,
     shutdown_requested: bool,
 }
 
@@ -119,6 +119,7 @@ impl LspServer {
             documents: HashMap::new(),
             published_diagnostic_uris: HashSet::new(),
             workspace_roots: Vec::new(),
+            snapshots: SnapshotStore::default(),
             shutdown_requested: false,
         }
     }
@@ -183,6 +184,11 @@ impl LspServer {
         match method {
             "initialize" => {
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
+                self.snapshots.rebuild(
+                    &self.documents,
+                    &self.workspace_roots,
+                    SnapshotChange::Full,
+                );
                 write_message(writer, initialize_response(id))?;
                 Ok(None)
             }
@@ -261,8 +267,14 @@ impl LspServer {
             "textDocument/didOpen" => {
                 if let Some(document) = open_document_from_params(params) {
                     let uri = document.uri.clone();
+                    let changed_path = document.absolute_path.clone();
                     self.documents.insert(uri.clone(), document);
-                    self.publish_workspace_diagnostics(&uri, writer)?;
+                    self.snapshots.rebuild(
+                        &self.documents,
+                        &self.workspace_roots,
+                        SnapshotChange::path(changed_path.as_deref()),
+                    );
+                    self.publish_snapshot_diagnostics(writer)?;
                 }
             }
             "textDocument/didChange" => {
@@ -276,15 +288,41 @@ impl LspServer {
 
                     document.version = version;
                     document.text = text;
+                    let changed_path = document.absolute_path.clone();
                     self.documents.insert(uri.clone(), document);
-                    self.publish_workspace_diagnostics(&uri, writer)?;
+                    self.snapshots.rebuild(
+                        &self.documents,
+                        &self.workspace_roots,
+                        SnapshotChange::path(changed_path.as_deref()),
+                    );
+                    self.publish_snapshot_diagnostics(writer)?;
                 }
             }
             "textDocument/didClose" => {
                 if let Some(uri) = document_uri_from_params(params) {
-                    self.documents.remove(&uri);
+                    let changed_path = self
+                        .documents
+                        .remove(&uri)
+                        .and_then(|document| document.absolute_path);
+                    self.snapshots.rebuild(
+                        &self.documents,
+                        &self.workspace_roots,
+                        SnapshotChange::path(changed_path.as_deref()),
+                    );
                     self.published_diagnostic_uris.remove(&uri);
-                    write_message(writer, publish_diagnostics(&uri, Vec::new()))?;
+                    write_message(writer, publish_diagnostics(&uri, None, Vec::new()))?;
+                    self.publish_snapshot_diagnostics(writer)?;
+                }
+            }
+            "workspace/didChangeWatchedFiles" => {
+                let paths = changed_file_paths_from_params(params);
+                if !paths.is_empty() {
+                    self.snapshots.rebuild(
+                        &self.documents,
+                        &self.workspace_roots,
+                        SnapshotChange::paths(paths),
+                    );
+                    self.publish_snapshot_diagnostics(writer)?;
                 }
             }
             _ => {}
@@ -293,20 +331,12 @@ impl LspServer {
         Ok(None)
     }
 
-    fn publish_workspace_diagnostics<W: Write>(
-        &mut self,
-        root_uri: &str,
-        writer: &mut W,
-    ) -> io::Result<()> {
-        let package_root = self
-            .documents
-            .get(root_uri)
-            .and_then(|document| package_root_for_document(document, &self.workspace_roots));
-        let diagnostics_by_uri =
-            diagnostics_for_workspace_with_package_root(root_uri, &self.documents, package_root);
-        let current_uris = diagnostics_by_uri
-            .iter()
-            .map(|(uri, _)| uri.clone())
+    fn publish_snapshot_diagnostics<W: Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        let snapshot = self.snapshot();
+        let current_uris = snapshot
+            .document_uris()
+            .into_iter()
+            .map(str::to_string)
             .collect::<HashSet<_>>();
 
         for uri in self
@@ -315,33 +345,54 @@ impl LspServer {
             .cloned()
             .collect::<Vec<_>>()
         {
-            write_message(writer, publish_diagnostics(&uri, Vec::new()))?;
+            write_message(writer, publish_diagnostics(&uri, None, Vec::new()))?;
         }
 
-        for (uri, diagnostics) in diagnostics_by_uri {
-            write_message(writer, publish_diagnostics(&uri, diagnostics))?;
+        for uri in snapshot.document_uris() {
+            write_message(
+                writer,
+                publish_diagnostics(
+                    uri,
+                    snapshot.document(uri).and_then(|document| document.version),
+                    snapshot.diagnostics_for_uri(uri).to_vec(),
+                ),
+            )?;
         }
 
         self.published_diagnostic_uris = current_uris;
         Ok(())
     }
 
+    fn snapshot(&self) -> std::sync::Arc<LspSnapshot> {
+        self.snapshots
+            .current(&self.documents, &self.workspace_roots)
+    }
+
     fn semantic_tokens_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let data = document_uri_from_params(params)
             .and_then(|uri| {
-                self.workspace_semantic_tokens_for_uri(&uri)
-                    .or_else(|| self.documents.get(&uri).map(semantic_tokens_for_document))
+                self.workspace_semantic_tokens_for_uri(&snapshot, &uri)
+                    .or_else(|| snapshot.document(&uri).map(semantic_tokens_for_document))
             })
             .unwrap_or_default();
-        response(id, json!({ "data": data }))
+        response(
+            id,
+            json!({
+                "data": data,
+                "resultId": snapshot.generation().to_string()
+            }),
+        )
     }
 
     fn hover_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let hover = document_uri_from_params(params).and_then(|uri| {
-            self.workspace_hover_for_uri(&uri, params)
-                .or_else(|| self.workspace_hover_for_recovered_uri(&uri, params))
+            self.workspace_hover_for_uri(&snapshot, &uri, params)
+                .or_else(|| self.workspace_hover_for_recovered_uri(&snapshot, &uri, params))
                 .or_else(|| {
-                    self.documents
+                    snapshot
+                        .documents()
                         .get(&uri)
                         .and_then(|document| hover_for_document(document, params))
                 })
@@ -350,15 +401,18 @@ impl LspServer {
     }
 
     fn definition_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let definition = document_uri_from_params(params).and_then(|uri| {
-            self.documents
+            snapshot
+                .documents()
                 .get(&uri)
                 .and_then(|document| {
-                    package_entry_definition(document, &self.workspace_roots, params)
+                    package_entry_definition(document, snapshot.package_root(&uri), params)
                 })
-                .or_else(|| self.workspace_definition_for_uri(&uri, params))
+                .or_else(|| self.workspace_definition_for_uri(&snapshot, &uri, params))
                 .or_else(|| {
-                    self.documents
+                    snapshot
+                        .documents()
                         .get(&uri)
                         .and_then(|document| definition_for_document(document, params))
                 })
@@ -367,39 +421,48 @@ impl LspServer {
     }
 
     fn references_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let references = document_uri_from_params(params)
             .and_then(|uri| {
-                self.workspace_references_for_uri(&uri, params).or_else(|| {
-                    self.documents
-                        .get(&uri)
-                        .map(|document| references_for_document(document, params))
-                })
+                self.workspace_references_for_uri(&snapshot, &uri, params)
+                    .or_else(|| {
+                        snapshot
+                            .documents()
+                            .get(&uri)
+                            .map(|document| references_for_document(document, params))
+                    })
             })
             .unwrap_or_default();
         response(id, Value::Array(references))
     }
 
     fn document_symbol_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let symbols = document_uri_from_params(params)
-            .and_then(|uri| self.documents.get(&uri))
+            .and_then(|uri| snapshot.document(&uri))
             .and_then(document_symbols_for_document)
             .unwrap_or_default();
         response(id, Value::Array(symbols))
     }
 
     fn completion_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let items = document_uri_from_params(params)
             .and_then(|uri| {
                 let position = position_from_params(params)?;
-                let document = self.documents.get(&uri)?;
+                let document = snapshot.document(&uri)?;
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
-                module_completion_items(document, &self.workspace_roots, offset)
+                module_completion_items(document, snapshot.package_graph(&uri), offset)
                     .or_else(|| {
-                        self.workspace_literal_completion_for_recovered_uri(&uri, &position)
+                        self.workspace_literal_completion_for_recovered_uri(
+                            &snapshot, &uri, &position,
+                        )
                     })
-                    .or_else(|| self.workspace_completion_for_recovered_uri(&uri, &position))
-                    .or_else(|| self.workspace_completion_for_uri(&uri, &position))
+                    .or_else(|| {
+                        self.workspace_completion_for_recovered_uri(&snapshot, &uri, &position)
+                    })
+                    .or_else(|| self.workspace_completion_for_uri(&snapshot, &uri, &position))
                     .or_else(|| completion_items_for_document_at_offset(document, offset))
             })
             .unwrap_or_else(keyword_completion_items);
@@ -413,19 +476,20 @@ impl LspServer {
     }
 
     fn signature_help_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let snapshot = self.snapshot();
         let signature = document_uri_from_params(params).and_then(|uri| {
             let position = position_from_params(params)?;
-            self.with_workspace_file_for_uri(&uri, |document, workspace, file| {
+            self.with_workspace_file_for_uri(&snapshot, &uri, |document, workspace, file| {
                 let offset =
                     lsp_position_to_byte_offset(&document.text, position.line, position.character);
                 crate::analysis::signature_help::signature_help_for_file_analysis(
                     &workspace.sources,
-                    &workspace.analysis,
+                    workspace.semantic()?,
                     file,
                     offset,
                 )
             })
-            .or_else(|| self.workspace_signature_help_for_recovered_uri(&uri, &position))
+            .or_else(|| self.workspace_signature_help_for_recovered_uri(&snapshot, &uri, &position))
         });
         response(
             id,
@@ -433,24 +497,29 @@ impl LspServer {
         )
     }
 
-    fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
+    fn workspace_hover_for_uri(
+        &self,
+        snapshot: &LspSnapshot,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Value> {
         let position = position_from_params(params)?;
-        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+        self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
-            hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
+            hover_for_file_analysis(&workspace.sources, workspace.semantic()?, file, root_offset)
         })
     }
 
     fn workspace_hover_for_recovered_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         params: Option<&Value>,
     ) -> Option<Value> {
         let position = position_from_params(params)?;
-        let document = self.documents.get(uri)?;
+        let document = snapshot.document(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let package_root = package_root_for_document(document, &self.workspace_roots);
         for recovered in [
             crate::analysis::interpolation_recovery_text(&document.text, offset),
             crate::analysis::literal_recovery_text(&document.text, offset),
@@ -463,9 +532,9 @@ impl LspServer {
         {
             let Some(workspace) = workspace_analysis_with_recovered_document(
                 uri,
-                &self.documents,
+                snapshot.documents(),
                 recovered,
-                package_root,
+                snapshot.package_graph(uri),
             ) else {
                 continue;
             };
@@ -473,7 +542,7 @@ impl LspServer {
                 continue;
             };
             if let Some(hover) =
-                hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, offset)
+                hover_for_file_analysis(&workspace.sources, workspace.semantic()?, file, offset)
             {
                 return Some(hover);
             }
@@ -481,23 +550,32 @@ impl LspServer {
         None
     }
 
-    fn workspace_semantic_tokens_for_uri(&self, uri: &str) -> Option<Vec<usize>> {
-        self.with_workspace_file_for_uri(uri, |document, _workspace, file| {
+    fn workspace_semantic_tokens_for_uri(
+        &self,
+        snapshot: &LspSnapshot,
+        uri: &str,
+    ) -> Option<Vec<usize>> {
+        self.with_workspace_file_for_uri(snapshot, uri, |document, _workspace, file| {
             Some(semantic_tokens_for_file_analysis(document, file))
         })
     }
 
-    fn workspace_definition_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
+    fn workspace_definition_for_uri(
+        &self,
+        snapshot: &LspSnapshot,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Value> {
         let position = position_from_params(params)?;
-        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+        self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
             definition_for_file_analysis(
                 &workspace.sources,
-                &workspace.analysis,
+                workspace.semantic()?,
                 file,
                 document,
-                &self.documents,
+                snapshot.documents(),
                 root_offset,
             )
         })
@@ -505,18 +583,19 @@ impl LspServer {
 
     fn workspace_references_for_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         params: Option<&Value>,
     ) -> Option<Vec<Value>> {
         let position = position_from_params(params)?;
-        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+        self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
             Some(references_for_file_analysis(
                 &workspace.sources,
-                &workspace.analysis,
+                workspace.semantic()?,
                 file,
-                &self.documents,
+                snapshot.documents(),
                 params,
                 root_offset,
             ))
@@ -525,15 +604,16 @@ impl LspServer {
 
     fn workspace_completion_for_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         position: &LspPosition,
     ) -> Option<Vec<Value>> {
-        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+        self.with_workspace_file_for_uri(snapshot, uri, |document, workspace, file| {
             let root_offset =
                 lsp_position_to_byte_offset(&document.text, position.line, position.character);
             Some(completion_items_for_file_analysis_at_offset(
                 &workspace.sources,
-                &workspace.analysis,
+                workspace.semantic()?,
                 file,
                 root_offset,
             ))
@@ -542,24 +622,24 @@ impl LspServer {
 
     fn workspace_completion_for_recovered_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         position: &LspPosition,
     ) -> Option<Vec<Value>> {
-        let document = self.documents.get(uri)?;
+        let document = snapshot.document(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
         let (recovered, recovered_offset) =
             crate::analysis::completion_recovery_overlay(&document.text, offset)?;
-        let package_root = package_root_for_document(document, &self.workspace_roots);
         let workspace = workspace_analysis_with_recovered_document(
             uri,
-            &self.documents,
+            snapshot.documents(),
             recovered,
-            package_root,
+            snapshot.package_graph(uri),
         )?;
         let file = workspace.root_file()?;
         Some(completion_items_for_file_analysis_at_offset(
             &workspace.sources,
-            &workspace.analysis,
+            workspace.semantic()?,
             file,
             recovered_offset,
         ))
@@ -567,30 +647,30 @@ impl LspServer {
 
     fn workspace_literal_completion_for_recovered_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         position: &LspPosition,
     ) -> Option<Vec<Value>> {
-        let document = self.documents.get(uri)?;
+        let document = snapshot.document(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
         let (recovered, recovered_offset) =
             crate::analysis::literal_recovery_overlay(&document.text, offset)?;
-        let package_root = package_root_for_document(document, &self.workspace_roots);
         let workspace = workspace_analysis_with_recovered_document(
             uri,
-            &self.documents,
+            snapshot.documents(),
             recovered,
-            package_root,
+            snapshot.package_graph(uri),
         )?;
         let file = workspace.root_file()?;
         literal_shape_completion_items_for_file_analysis_at_offset(
             &workspace.sources,
-            &workspace.analysis,
+            workspace.semantic()?,
             file,
             recovered_offset,
         )
         .or_else(|| {
             let has_semantic_literal = crate::analysis::literals::literal_editor_info_at_offset(
-                &workspace.analysis,
+                workspace.semantic()?,
                 file,
                 recovered_offset,
                 crate::analysis::literals::LiteralCursorRegion::Arguments,
@@ -606,7 +686,7 @@ impl LspServer {
             }
             Some(completion_items_for_file_analysis_at_offset(
                 &workspace.sources,
-                &workspace.analysis,
+                workspace.semantic()?,
                 file,
                 recovered_offset,
             ))
@@ -615,12 +695,12 @@ impl LspServer {
 
     fn workspace_signature_help_for_recovered_uri(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         position: &LspPosition,
     ) -> Option<crate::analysis::signature_help::SignatureHelpInfo> {
-        let document = self.documents.get(uri)?;
+        let document = snapshot.document(uri)?;
         let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let package_root = package_root_for_document(document, &self.workspace_roots);
         let recoveries = crate::analysis::literal_recovery_text(&document.text, offset)
             .into_iter()
             .chain(crate::analysis::interpolation_signature_recovery_texts(
@@ -634,9 +714,9 @@ impl LspServer {
         for recovered in recoveries {
             let Some(workspace) = workspace_analysis_with_recovered_document(
                 uri,
-                &self.documents,
+                snapshot.documents(),
                 recovered,
-                package_root,
+                snapshot.package_graph(uri),
             ) else {
                 continue;
             };
@@ -646,7 +726,7 @@ impl LspServer {
             if let Some(signature) =
                 crate::analysis::signature_help::signature_help_for_file_analysis(
                     &workspace.sources,
-                    &workspace.analysis,
+                    workspace.semantic()?,
                     file,
                     offset,
                 )
@@ -659,16 +739,15 @@ impl LspServer {
 
     fn with_workspace_file_for_uri<T>(
         &self,
+        snapshot: &LspSnapshot,
         uri: &str,
         f: impl FnOnce(&OpenDocument, &LspWorkspaceAnalysis, &FileAnalysis) -> Option<T>,
     ) -> Option<T> {
-        let document = self.documents.get(uri)?;
-        let package_root = package_root_for_document(document, &self.workspace_roots);
-        let workspace =
-            workspace_analysis_for_uri_with_package_root(uri, &self.documents, package_root)?;
+        let document = snapshot.document(uri)?;
+        let workspace = snapshot.analysis(uri)?;
         let file = workspace.root_file()?;
 
-        f(document, &workspace, file)
+        f(document, workspace, file)
     }
 }
 

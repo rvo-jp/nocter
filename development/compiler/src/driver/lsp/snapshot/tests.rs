@@ -1,0 +1,255 @@
+use super::*;
+use crate::driver::lsp::documents::{WorkspaceRoot, open_document};
+use crate::driver::lsp::protocol::file_uri_for_path;
+use crate::driver::lsp::tests::NocterHomeEnv;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[test]
+fn stable_inputs_reuse_one_immutable_generation() {
+    let project = TempProject::new("stable-generation");
+    let source = project.write("app.nct", "pub func value(): i32 { 1 }\n");
+    let uri = file_uri_for_path(&source);
+    let documents = HashMap::from([(
+        uri.clone(),
+        open_document(uri, Some(1), fs::read_to_string(&source).unwrap()),
+    )]);
+    let store = SnapshotStore::default();
+
+    let first = store.current(&documents, &[]);
+    let second = store.current(&documents, &[]);
+
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(first.generation(), second.generation());
+}
+
+#[test]
+fn invalidation_follows_reverse_imports_and_reuses_unrelated_analyses() {
+    let project = TempProject::new("reverse-import-invalidation");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app = project.write(
+        "app.nct",
+        "use ./config.value\n\npub func read(): i32 { value() }\n",
+    );
+    let config = project.write("config.nct", "pub func value(): i32 { 1 }\n");
+    let other = project.write("other.nct", "pub func other(): i32 { 2 }\n");
+    let mut documents = documents_for([&app, &config, &other]);
+    let store = SnapshotStore::default();
+    let first = store.current(&documents, &[]);
+
+    let config_uri = file_uri_for_path(&config);
+    let config_document = documents.get_mut(&config_uri).unwrap();
+    config_document.version = Some(2);
+    config_document.text = "pub func value(): i32 { 3 }\n".to_string();
+    let second = store.rebuild(
+        &documents,
+        &[],
+        SnapshotChange::path(Some(config.as_path())),
+    );
+
+    let app_uri = file_uri_for_path(&app);
+    let other_uri = file_uri_for_path(&other);
+    assert!(!Arc::ptr_eq(
+        &first.document_snapshot(&app_uri).unwrap().analysis,
+        &second.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+    assert!(!Arc::ptr_eq(
+        &first.document_snapshot(&config_uri).unwrap().analysis,
+        &second.document_snapshot(&config_uri).unwrap().analysis,
+    ));
+    assert!(Arc::ptr_eq(
+        &first.document_snapshot(&other_uri).unwrap().analysis,
+        &second.document_snapshot(&other_uri).unwrap().analysis,
+    ));
+}
+
+#[test]
+fn unsaved_package_manifest_overlay_drives_the_shared_graph() {
+    let project = TempProject::new("manifest-overlay");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let package_file = project.write("nocter.nct", "#name: \"app\"\n");
+    let app = project.write(
+        "app.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
+    );
+    project.write("math/nocter.nct", "pub func answer(): i32 { 42 }\n");
+    let package_uri = file_uri_for_path(&package_file);
+    let app_uri = file_uri_for_path(&app);
+    let mut documents = documents_for([&package_file, &app]);
+    let workspace_roots = vec![WorkspaceRoot {
+        uri: file_uri_for_path(&project.root),
+        path: Some(project.root.clone()),
+    }];
+    let store = SnapshotStore::default();
+    let before = store.current(&documents, &workspace_roots);
+    let package_document = documents.get_mut(&package_uri).unwrap();
+    package_document.version = Some(2);
+    package_document.text =
+        "#name: \"app\"\n#dependencies: { math: { path: \"./math\" } }\n".to_string();
+
+    let snapshot = store.rebuild(
+        &documents,
+        &workspace_roots,
+        SnapshotChange::path(Some(package_file.as_path())),
+    );
+    let graph = snapshot
+        .package_graph(&app_uri)
+        .expect("unsaved package directives should produce a graph");
+    let aliases = graph
+        .dependency_names(graph.root_package().id())
+        .collect::<Vec<_>>();
+
+    assert_eq!(aliases, vec!["math"]);
+    assert!(!Arc::ptr_eq(
+        &before.document_snapshot(&app_uri).unwrap().analysis,
+        &snapshot.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+    assert_eq!(
+        fs::read_to_string(&package_file).unwrap(),
+        "#name: \"app\"\n"
+    );
+    assert!(
+        snapshot
+            .analysis(&app_uri)
+            .unwrap()
+            .diagnostics()
+            .is_empty(),
+        "{:?}",
+        snapshot.analysis(&app_uri).unwrap().diagnostics()
+    );
+}
+
+#[test]
+fn watched_disk_dependency_change_invalidates_its_importers() {
+    let project = TempProject::new("watched-dependency");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app = project.write(
+        "app.nct",
+        "use ./config.value\n\npub func read(): i32 { value() }\n",
+    );
+    let config = project.write("config.nct", "pub func value(): i32 { 1 }\n");
+    let documents = documents_for([&app]);
+    let store = SnapshotStore::default();
+    let first = store.current(&documents, &[]);
+
+    fs::write(&config, "pub func value(): i32 { 2 }\n").unwrap();
+    let second = store.rebuild(
+        &documents,
+        &[],
+        SnapshotChange::path(Some(config.as_path())),
+    );
+    let app_uri = file_uri_for_path(&app);
+
+    assert!(!Arc::ptr_eq(
+        &first.document_snapshot(&app_uri).unwrap().analysis,
+        &second.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+}
+
+#[test]
+fn nested_packages_receive_distinct_graph_snapshots() {
+    let project = TempProject::new("nested-packages");
+    let root_package = project.write("nocter.nct", "#name: \"root\"\n");
+    let root_source = project.write("root.nct", "pub func root(): i32 { 1 }\n");
+    let nested_package = project.write("nested/nocter.nct", "#name: \"nested\"\n");
+    let nested_source = project.write("nested/app.nct", "pub func nested(): i32 { 2 }\n");
+    let documents = documents_for([&root_package, &root_source, &nested_package, &nested_source]);
+    let workspace_roots = vec![WorkspaceRoot {
+        uri: file_uri_for_path(&project.root),
+        path: Some(project.root.clone()),
+    }];
+    let snapshot = SnapshotStore::default().current(&documents, &workspace_roots);
+
+    let root_graph = snapshot
+        .package_graph(&file_uri_for_path(&root_source))
+        .unwrap();
+    let nested_graph = snapshot
+        .package_graph(&file_uri_for_path(&nested_source))
+        .unwrap();
+    assert_eq!(root_graph.root_package().display_name(), "root");
+    assert_eq!(nested_graph.root_package().display_name(), "nested");
+    assert_ne!(
+        root_graph.root_package().id(),
+        nested_graph.root_package().id()
+    );
+}
+
+#[test]
+fn diagnostics_for_independent_documents_survive_one_snapshot() {
+    let project = TempProject::new("independent-diagnostics");
+    let first = project.write("first.nct", "func first(: i32 {\n");
+    let second = project.write("second.nct", "func second(: i32 {\n");
+    let documents = documents_for([&first, &second]);
+    let snapshot = SnapshotStore::default().current(&documents, &[]);
+
+    assert!(
+        !snapshot
+            .diagnostics_for_uri(&file_uri_for_path(&first))
+            .is_empty()
+    );
+    assert!(
+        !snapshot
+            .diagnostics_for_uri(&file_uri_for_path(&second))
+            .is_empty()
+    );
+}
+
+fn documents_for<'a>(
+    paths: impl IntoIterator<Item = &'a PathBuf>,
+) -> HashMap<String, crate::driver::lsp::documents::OpenDocument> {
+    paths
+        .into_iter()
+        .map(|path| {
+            let uri = file_uri_for_path(path);
+            let document = open_document(uri.clone(), Some(1), fs::read_to_string(path).unwrap());
+            (uri, document)
+        })
+        .collect()
+}
+
+struct TempProject {
+    root: PathBuf,
+}
+
+impl TempProject {
+    fn new(name: &str) -> Self {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "nocter-lsp-snapshot-{name}-{}-{stamp}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        Self { root }
+    }
+
+    fn write(&self, relative: &str, text: &str) -> PathBuf {
+        let path = self.root.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(&path, text).unwrap();
+        path.canonicalize().unwrap()
+    }
+
+    fn write_nocter_home(&self) -> PathBuf {
+        let home = self.root.join(".nocter");
+        fs::create_dir_all(home.join("std")).unwrap();
+        fs::write(home.join("std/prelude.nct"), "").unwrap();
+        home
+    }
+}
+
+impl Drop for TempProject {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}

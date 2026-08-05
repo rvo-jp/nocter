@@ -8,7 +8,7 @@ pub(super) struct WorkspaceRoot {
     pub(super) path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OpenDocument {
     pub(super) uri: String,
     pub(super) version: Option<i64>,
@@ -88,6 +88,18 @@ pub(super) fn document_uri_from_params(params: Option<&Value>) -> Option<String>
         .get("uri")?
         .as_str()
         .map(str::to_string)
+}
+
+pub(super) fn changed_file_paths_from_params(params: Option<&Value>) -> Vec<PathBuf> {
+    params
+        .and_then(|params| params.get("changes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|change| change.get("uri").and_then(Value::as_str))
+        .filter_map(file_uri_to_path)
+        .map(|path| path.canonicalize().unwrap_or(path))
+        .collect()
 }
 
 pub(super) fn open_document(uri: String, version: Option<i64>, text: String) -> OpenDocument {

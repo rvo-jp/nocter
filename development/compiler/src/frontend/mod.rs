@@ -274,13 +274,14 @@ fn source_is_package_file(
     source: SourceId,
     options: &FrontendOptions,
 ) -> bool {
-    let Some(graph) = options.package_graph.as_ref() else {
-        return false;
-    };
     let Some(path) = sources.get(source).and_then(|file| file.absolute_path()) else {
         return false;
     };
-    graph.is_package_file(path)
+    path.file_name().is_some_and(|name| name == "nocter.nct")
+        || options
+            .package_graph
+            .as_ref()
+            .is_some_and(|graph| graph.is_package_file(path))
 }
 
 fn filter_target_items(ast: &mut AstFile, target: &str) {
