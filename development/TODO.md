@@ -3,10 +3,10 @@
 ## Baseline
 
 - branch: `develop`
-- release candidate: v0.4.0
-- completed milestone: v0.4.0 release-readiness implementation and documentation
-- qualification: complete for the exact v0.4.0 distribution candidate
-- next milestone: publication after explicit user authorization
+- released baseline: v0.4.0
+- completed milestone: v0.4.0 publication
+- qualification: complete for the published v0.4.0 distribution
+- active milestone: none
 - target: `arm64-darwin`
 
 The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
@@ -54,8 +54,14 @@ symlink deletion, dynamic watcher registration, `didSave`, lifecycle, and a dete
 optimized package build, installed-home `doctor`, archive inspection, and packaged LSP acceptance
 all pass after the audit.
 
+## Publication State
+
+v0.4.0 is published at <https://github.com/rvo-jp/nocter/releases/tag/v0.4.0>. The annotated tag
+targets qualification commit `d878ff69`; `main` contains the identical tree through release merge
+`aa1d8c60`. The uploaded `nocter-v0.4.0-arm64-darwin.tar.gz` digest matches the qualified local
+artifact.
+
 ## Next Work
 
-Publish the already-qualified v0.4.0 candidate only after explicit user authorization. Preserve
-the frozen feature scope and exact release identity; do not add a Phase 3 feature or rebuild the
-archive as part of publication unless an external release check finds a blocker.
+Preserve v0.4.0 as a released record. Select and document the next exact milestone before changing
+the language, package format, standard library, or editor contract.
