@@ -285,7 +285,7 @@ pub(super) fn resolve_import_path(
     if let Some((dependency, remainder)) = dependency_import(sources, source, &path.value, options)
     {
         let candidate = if remainder.is_empty() {
-            dependency.manifest_path().to_path_buf()
+            dependency.package_file_path().to_path_buf()
         } else {
             match resolve_module_candidate(dependency.root().join(remainder)) {
                 Ok(path) => path,

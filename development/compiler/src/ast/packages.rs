@@ -10,7 +10,7 @@ pub struct PackageManifest {
 pub struct PackageFile {
     pub span: ByteSpan,
     pub manifest: PackageManifest,
-    pub module: super::AstFile,
+    pub root_module: super::AstFile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -40,10 +40,13 @@ pub(super) fn parse_package_source_for_check(
     if !parsed.diagnostics.is_empty() {
         return Err(parsed.diagnostics);
     }
-    parsed.package_file.map(|file| file.module).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "E0200",
-            "package parser did not produce an AST and did not report a diagnostic",
-        )]
-    })
+    parsed
+        .package_file
+        .map(|file| file.root_module)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E0200",
+                "package parser did not produce an AST and did not report a diagnostic",
+            )]
+        })
 }

@@ -9,7 +9,7 @@ impl PackageFile {
                 .directives
                 .iter()
                 .map(|directive| directive.to_json(sources))
-                .chain(std::iter::once(self.module.to_json(sources)))
+                .chain(std::iter::once(self.root_module.to_json(sources)))
                 .collect(),
         )
     }

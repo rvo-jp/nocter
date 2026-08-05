@@ -46,7 +46,7 @@ fn build_command_uses_package_declared_executable_when_source_is_omitted() {
         "nocter.nct",
         r#"#executable: {
     name: "app",
-    module: "./main",
+    entry: "./main",
 }
 "#,
     );

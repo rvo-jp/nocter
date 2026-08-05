@@ -9,6 +9,7 @@ mod json;
 mod json_tool_options;
 mod lsp;
 mod package_commands;
+mod package_plan;
 mod pipeline;
 mod run;
 

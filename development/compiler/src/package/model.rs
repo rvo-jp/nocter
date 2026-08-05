@@ -23,23 +23,59 @@ impl PackageId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModuleId {
     package: PackageId,
-    logical_path: String,
+    key: ModuleKey,
 }
 
 impl ModuleId {
-    pub(super) fn new(package: PackageId, logical_path: String) -> Self {
-        Self {
-            package,
-            logical_path,
-        }
+    pub(super) fn new(package: PackageId, key: ModuleKey) -> Self {
+        Self { package, key }
     }
 
     pub fn package(&self) -> &PackageId {
         &self.package
     }
 
-    pub fn logical_path(&self) -> &str {
-        &self.logical_path
+    pub fn key(&self) -> &ModuleKey {
+        &self.key
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ModuleKey {
+    PackageRoot,
+    Path(NormalizedModulePath),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalizedModulePath(String);
+
+impl NormalizedModulePath {
+    pub(super) fn new(path: String) -> Self {
+        Self(path)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedModule {
+    id: ModuleId,
+    source_path: PathBuf,
+}
+
+impl ResolvedModule {
+    pub(super) fn new(id: ModuleId, source_path: PathBuf) -> Self {
+        Self { id, source_path }
+    }
+
+    pub fn id(&self) -> &ModuleId {
+        &self.id
+    }
+
+    pub fn source_path(&self) -> &Path {
+        &self.source_path
     }
 }
 
@@ -66,24 +102,12 @@ impl ExecutableId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableTarget {
     id: ExecutableId,
-    name: String,
-    module: ModuleId,
-    source_path: PathBuf,
+    entry: ResolvedModule,
 }
 
 impl ExecutableTarget {
-    pub(super) fn new(
-        id: ExecutableId,
-        name: String,
-        module: ModuleId,
-        source_path: PathBuf,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            module,
-            source_path,
-        }
+    pub(super) fn new(id: ExecutableId, entry: ResolvedModule) -> Self {
+        Self { id, entry }
     }
 
     pub fn id(&self) -> &ExecutableId {
@@ -91,15 +115,11 @@ impl ExecutableTarget {
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        self.id.name()
     }
 
-    pub fn module(&self) -> &ModuleId {
-        &self.module
-    }
-
-    pub fn source_path(&self) -> &Path {
-        &self.source_path
+    pub fn entry(&self) -> &ResolvedModule {
+        &self.entry
     }
 }
 
@@ -107,7 +127,7 @@ impl ExecutableTarget {
 pub struct SourcePackage {
     id: PackageId,
     root: PathBuf,
-    manifest_path: PathBuf,
+    root_module: ResolvedModule,
     display_name: String,
     version: Option<String>,
     dependencies: Vec<super::DependencyDeclaration>,
@@ -119,7 +139,7 @@ impl SourcePackage {
     pub(super) fn new(
         id: PackageId,
         root: PathBuf,
-        manifest_path: PathBuf,
+        root_module: ResolvedModule,
         display_name: String,
         version: Option<String>,
         dependencies: Vec<super::DependencyDeclaration>,
@@ -129,7 +149,7 @@ impl SourcePackage {
         Self {
             id,
             root,
-            manifest_path,
+            root_module,
             display_name,
             version,
             dependencies,
@@ -146,8 +166,12 @@ impl SourcePackage {
         &self.root
     }
 
-    pub fn manifest_path(&self) -> &Path {
-        &self.manifest_path
+    pub fn root_module(&self) -> &ResolvedModule {
+        &self.root_module
+    }
+
+    pub fn package_file_path(&self) -> &Path {
+        self.root_module.source_path()
     }
 
     pub fn display_name(&self) -> &str {
@@ -182,6 +206,6 @@ impl SourcePackage {
     }
 
     pub fn executable(&self, name: &str) -> Option<&ExecutableTarget> {
-        self.executables.iter().find(|target| target.name == name)
+        self.executables.iter().find(|target| target.name() == name)
     }
 }

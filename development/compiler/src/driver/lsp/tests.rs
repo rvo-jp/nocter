@@ -2503,11 +2503,11 @@ fn returns_definition_for_import_module_path() {
 }
 
 #[test]
-fn returns_definition_for_package_executable_module() {
-    let project = TempProject::new("lsp-definition-package-module");
+fn returns_definition_for_package_executable_entry() {
+    let project = TempProject::new("lsp-definition-package-entry");
     let manifest_text = r#"#executable: {
     name: "app",
-    module: "./src/app",
+    entry: "./src/app",
 }
 "#;
     let manifest = project.write_source("nocter.nct", manifest_text);
@@ -2542,18 +2542,18 @@ fn returns_definition_for_package_executable_module() {
     );
     assert_eq!(
         definition["originSelectionRange"]["start"]["character"],
-        json!(13)
+        json!(12)
     );
     assert_eq!(
         definition["originSelectionRange"]["end"]["character"],
-        json!(22)
+        json!(21)
     );
 }
 
 #[test]
 fn nested_nocter_file_is_treated_as_its_own_package_root() {
     let project = TempProject::new("lsp-definition-nested-manifest");
-    let manifest_text = "#executable: { name: \"app\", module: \"./app\" }\n";
+    let manifest_text = "#executable: { name: \"app\", entry: \"./app\" }\n";
     let manifest = project.write_source("src/nocter.nct", manifest_text);
     project.write_source("src/app.nct", "func main(): i32 { 0 }\n");
     let manifest_uri = file_uri(&manifest.canonicalize().unwrap());

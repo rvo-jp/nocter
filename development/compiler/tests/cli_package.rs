@@ -16,20 +16,66 @@ fn package_check_accepts_code_in_the_package_file() {
 }
 
 #[test]
-fn package_build_uses_declared_module_and_artifact_name() {
+fn package_build_uses_declared_entry_and_artifact_name() {
     let project = TempPackage::new("build");
     project.write(
         "nocter.nct",
         r#"#name: "tool-package"
 #executable: {
     name: "tool",
-    module: "./src/app",
+    entry: "./src/app",
 }
 "#,
     );
     project.write("src/app.nct", "func main(): i32 { 0 }\n");
     assert_success(&project.nocter(["build"]));
     assert!(project.root.join("tool").is_file());
+}
+
+#[test]
+fn package_build_uses_the_root_module_when_entry_is_omitted() {
+    let project = TempPackage::new("root-entry");
+    project.write(
+        "nocter.nct",
+        r#"#executable: {
+    name: "app",
+}
+
+func main(): i32 { 0 }
+"#,
+    );
+
+    assert_success(&project.nocter(["build"]));
+    assert!(project.root.join("app").is_file());
+}
+
+#[test]
+fn package_check_analyzes_a_root_executable_once() {
+    let project = TempPackage::new("root-entry-check-plan");
+    project.write(
+        "nocter.nct",
+        r#"#executable: { name: "app" }
+
+func main(value: i32): i32 { value }
+"#,
+    );
+
+    let output = project.nocter(["check"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert_eq!(stderr.matches("error[").count(), 1, "{stderr}");
+}
+
+#[test]
+fn dot_entry_selects_index_nct() {
+    let project = TempPackage::new("index-entry");
+    project.write(
+        "nocter.nct",
+        "#executable: { name: \"app\", entry: \".\" }\n",
+    );
+    project.write("index.nct", "func main(): i32 { 0 }\n");
+
+    assert_success(&project.nocter(["check", "--executable", "app"]));
 }
 
 #[test]
@@ -272,7 +318,7 @@ fn package_directives_are_rejected_outside_nocter_file() {
     let project = TempPackage::new("directive-location");
     project.write(
         "nocter.nct",
-        r#"#executable: { name: "app", module: "./app" }
+        r#"#executable: { name: "app", entry: "./app" }
 "#,
     );
     project.write("app.nct", "#name: \"nested\"\n\nfunc main(): i32 { 0 }\n");
@@ -293,11 +339,11 @@ fn package_run_requires_selection_for_multiple_executables() {
         "nocter.nct",
         r#"#executable: {
     name: "first",
-    module: "./first",
+    entry: "./first",
 }
 #executable: {
     name: "second",
-    module: "./second",
+    entry: "./second",
 }
 "#,
     );
@@ -310,13 +356,13 @@ fn package_run_requires_selection_for_multiple_executables() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn package_run_executes_selected_declared_module() {
+fn package_run_executes_selected_declared_entry() {
     let project = TempPackage::new("run");
     project.write(
         "nocter.nct",
         r#"#executable: {
     name: "tool",
-    module: "./app",
+    entry: "./app",
 }
 "#,
     );

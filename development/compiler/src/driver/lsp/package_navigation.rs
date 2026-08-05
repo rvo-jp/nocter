@@ -2,21 +2,20 @@
 
 use super::documents::{OpenDocument, WorkspaceRoot};
 use super::protocol::{file_uri_for_path, lsp_position_to_byte_offset, position_from_params};
-use crate::ast::DirectiveValue;
 use crate::lexer::lex;
 use crate::parser::parse_package_file;
 use crate::source::SourceMap;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
-pub(super) fn package_module_definition(
+pub(super) fn package_entry_definition(
     document: &OpenDocument,
     workspace_roots: &[WorkspaceRoot],
     params: Option<&Value>,
 ) -> Option<Value> {
     let position = position_from_params(params)?;
     let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-    let root = package_root_for_manifest(document, workspace_roots)?;
+    let root = package_root_for_package_file(document, workspace_roots)?;
 
     let mut sources = SourceMap::new();
     let source = sources.add_source(
@@ -29,23 +28,10 @@ pub(super) fn package_module_definition(
         return None;
     }
     let package_file = parse_package_file(&sources, source, &lexed.tokens).package_file?;
-    let (logical, origin) = package_file
-        .manifest
-        .directives
-        .iter()
-        .filter(|directive| directive.name == "executable")
-        .filter_map(|directive| match &directive.value {
-            DirectiveValue::Record { fields, .. } => Some(fields),
-            _ => None,
-        })
-        .flatten()
-        .filter(|field| field.name == "module")
-        .filter_map(|field| field.value.string_value())
-        .find(|(_, span)| span.start <= offset && offset <= span.end)?;
+    let (entry, origin) =
+        crate::package::executable_entry_at_offset(&package_file.manifest, offset)?;
 
-    let target =
-        crate::package::resolve_package_module(&root, document.absolute_path.as_deref()?, logical)
-            .ok()?;
+    let target = crate::package::resolve_explicit_module_path(&root, entry).ok()?;
     Some(json!([{
         "originSelectionRange": super::protocol::range_for_byte_span(&document.text, origin),
         "targetUri": file_uri_for_path(&target),
@@ -60,15 +46,15 @@ pub(super) fn package_module_definition(
     }]))
 }
 
-fn package_root_for_manifest(
+fn package_root_for_package_file(
     document: &OpenDocument,
     workspace_roots: &[WorkspaceRoot],
 ) -> Option<PathBuf> {
-    let manifest_path = document.absolute_path.as_deref()?;
-    if manifest_path.file_name()? != "nocter.nct" {
+    let package_file_path = document.absolute_path.as_deref()?;
+    if package_file_path.file_name()? != "nocter.nct" {
         return None;
     }
-    let parent = canonical_or_owned(manifest_path.parent()?);
+    let parent = canonical_or_owned(package_file_path.parent()?);
     let inside_workspace = workspace_roots
         .iter()
         .filter_map(|root| root.path.as_deref())

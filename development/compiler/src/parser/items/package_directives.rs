@@ -22,11 +22,11 @@ impl Parser<'_> {
             span: self.span(start, manifest_end),
             directives,
         };
-        let module = self.parse_module_body()?;
+        let root_module = self.parse_module_body()?;
         Ok(PackageFile {
-            span: self.span(start, module.span.end),
+            span: self.span(start, root_module.span.end),
             manifest,
-            module,
+            root_module,
         })
     }
 

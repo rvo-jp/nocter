@@ -15,10 +15,10 @@ impl Formatter {
             }
             self.format_package_directive(directive);
         }
-        if !file.manifest.directives.is_empty() && !file.module.items.is_empty() {
+        if !file.manifest.directives.is_empty() && !file.root_module.items.is_empty() {
             self.blank_line();
         }
-        for (index, item) in file.module.items.iter().enumerate() {
+        for (index, item) in file.root_module.items.iter().enumerate() {
             if index > 0 {
                 self.blank_line();
             }

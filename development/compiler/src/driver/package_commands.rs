@@ -1,15 +1,14 @@
 use super::compile_options::{BuildCommand, CompileInput, SourceCommand};
 use super::errors::{exit_for_diagnostics, write_human_diagnostics};
 use super::json::write_diagnostics_json;
+use super::package_plan::{check_targets, selected_executables};
 use super::pipeline::{
     build_file_to_path_with_target, build_package_executable_to_path_with_target,
     check_file_with_target, check_package_executable_with_target, check_package_module_with_target,
 };
 use super::run::{run_file, run_package_file};
 use crate::diagnostics::Diagnostic;
-use crate::package::{
-    ExecutableTarget, PackageGraph, PackageGraphOptions, SourcePackage, load_package_graph,
-};
+use crate::package::{PackageGraph, PackageGraphOptions, load_package_graph};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -64,8 +63,8 @@ pub(super) fn run_check_json_command(command: &SourceCommand) -> ExitCode {
             write_diagnostics_json(
                 "check",
                 Some(command.target.clone()),
-                Some(package.manifest_path().to_string_lossy().into_owned()),
-                canonical_string(package.manifest_path()),
+                Some(package.package_file_path().to_string_lossy().into_owned()),
+                canonical_string(package.package_file_path()),
                 diagnostics,
                 status,
             )
@@ -110,9 +109,9 @@ pub(super) fn run_run_command(command: &SourceCommand) -> ExitCode {
                         package.display_name()
                     ));
                 }
-                Err(diagnostic) => return write_package_command_diagnostic(diagnostic),
+                Err(message) => return write_package_command_error(message),
             };
-            run_package_file(selected.source_path(), &graph, &command.target)
+            run_package_file(selected.entry().source_path(), &graph, &command.target)
         }
     }
 }
@@ -135,23 +134,22 @@ fn collect_package_check_diagnostics(
     command: &SourceCommand,
     graph: &PackageGraph,
 ) -> Vec<Diagnostic> {
-    let package = graph.root_package();
-    let selected = match selected_executables(package, command.executable.as_deref()) {
-        Ok(selected) => selected,
-        Err(diagnostic) => return vec![diagnostic],
+    let targets = match check_targets(graph.root_package(), command.executable.as_deref()) {
+        Ok(targets) => targets,
+        Err(message) => return vec![package_command_diagnostic(message)],
     };
     let mut diagnostics = Vec::new();
-    if command.executable.is_none() {
-        diagnostics.extend(
-            check_package_module_with_target(package.manifest_path(), graph, &command.target)
-                .diagnostics,
-        );
-    }
-    for executable in selected {
-        diagnostics.extend(
-            check_package_executable_with_target(executable.source_path(), graph, &command.target)
-                .diagnostics,
-        );
+    for target in targets {
+        let output = if target.executable {
+            check_package_executable_with_target(
+                target.module.source_path(),
+                graph,
+                &command.target,
+            )
+        } else {
+            check_package_module_with_target(target.module.source_path(), graph, &command.target)
+        };
+        diagnostics.extend(output.diagnostics);
     }
     diagnostics
 }
@@ -165,7 +163,7 @@ fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
     let package = graph.root_package();
     let selected = match selected_executables(package, command.source.executable.as_deref()) {
         Ok(selected) => selected,
-        Err(diagnostic) => return write_package_command_diagnostic(diagnostic),
+        Err(message) => return write_package_command_error(message),
     };
     if selected.is_empty() {
         return write_package_command_error(format!(
@@ -185,7 +183,7 @@ fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
             .clone()
             .unwrap_or_else(|| package.root().join(executable.name()));
         let output = build_package_executable_to_path_with_target(
-            executable.source_path(),
+            executable.entry().source_path(),
             &graph,
             &output_path,
             &command.source.target,
@@ -200,24 +198,6 @@ fn run_package_build(command: &BuildCommand, root: &Path) -> ExitCode {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
-    }
-}
-
-fn selected_executables<'a>(
-    package: &'a SourcePackage,
-    selected: Option<&str>,
-) -> Result<Vec<&'a ExecutableTarget>, Diagnostic> {
-    match selected {
-        Some(name) => package
-            .executable(name)
-            .map(|target| vec![target])
-            .ok_or_else(|| {
-                package_command_diagnostic(format!(
-                    "package `{}` has no executable named `{name}`",
-                    package.display_name()
-                ))
-            }),
-        None => Ok(package.executables().iter().collect()),
     }
 }
 

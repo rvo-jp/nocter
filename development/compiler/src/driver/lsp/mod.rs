@@ -47,7 +47,7 @@ use documents::{
 use documents::{file_uri_to_path, open_document};
 use hover::{hover_for_document, hover_for_file_analysis};
 use import_completion::{module_completion_items, package_root_for_document};
-use package_navigation::package_module_definition;
+use package_navigation::package_entry_definition;
 #[cfg(test)]
 use protocol::byte_offset_to_lsp_position;
 use protocol::{
@@ -354,7 +354,7 @@ impl LspServer {
             self.documents
                 .get(&uri)
                 .and_then(|document| {
-                    package_module_definition(document, &self.workspace_roots, params)
+                    package_entry_definition(document, &self.workspace_roots, params)
                 })
                 .or_else(|| self.workspace_definition_for_uri(&uri, params))
                 .or_else(|| {

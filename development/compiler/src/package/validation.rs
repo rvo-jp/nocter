@@ -1,28 +1,24 @@
 use super::diagnostics::package_diagnostic;
-use super::model::{ExecutableId, ExecutableTarget, ModuleId, PackageId};
+use super::targets::{ExecutableDeclaration, parse_executable_declaration};
 use super::{DependencyDeclaration, DependencyLock, DependencySource, LockedDependency};
 use crate::ast::{DirectiveField, DirectiveValue, PackageManifest};
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::{HashMap, HashSet};
-use std::path::{Component, Path, PathBuf};
 
-pub(super) struct ValidatedHeader {
+pub(super) struct PackageDefinition {
     pub(super) name: Option<String>,
     pub(super) version: Option<String>,
     pub(super) dependencies: Vec<DependencyDeclaration>,
     pub(super) locks: Vec<LockedDependency>,
-    pub(super) executables: Vec<ExecutableTarget>,
+    pub(super) executables: Vec<ExecutableDeclaration>,
 }
 
-pub(super) fn validate_header(
+pub(super) fn validate_manifest(
     sources: &SourceMap,
     manifest: &PackageManifest,
-    root: &Path,
-    manifest_path: &Path,
-) -> Result<ValidatedHeader, Vec<Diagnostic>> {
+) -> Result<PackageDefinition, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let package_id = PackageId::root(root);
     let mut name = None;
     let mut version = None;
     let mut dependencies = None;
@@ -47,7 +43,7 @@ pub(super) fn validate_header(
                 &mut version,
                 &mut diagnostics,
             ),
-            "executable" => match executable_fields(sources, &directive.value) {
+            "executable" => match parse_executable_declaration(sources, &directive.value) {
                 Ok(spec) => executable_specs.push(spec),
                 Err(mut errors) => diagnostics.append(&mut errors),
             },
@@ -87,38 +83,6 @@ pub(super) fn validate_header(
         }
     }
 
-    let mut names = HashSet::new();
-    let mut executables = Vec::new();
-    for spec in executable_specs {
-        if !is_executable_name(&spec.name) {
-            diagnostics.push(package_diagnostic(
-                sources,
-                spec.name_span,
-                "executable name must start with an ASCII letter or `_` and contain only ASCII letters, digits, `_`, or `-`",
-            ));
-            continue;
-        }
-        if !names.insert(spec.name.clone()) {
-            diagnostics.push(package_diagnostic(
-                sources,
-                spec.name_span,
-                format!("duplicate executable name `{}`", spec.name),
-            ));
-            continue;
-        }
-        match resolve_package_module(root, manifest_path, &spec.module) {
-            Ok(source_path) => executables.push(ExecutableTarget::new(
-                ExecutableId::new(package_id.clone(), spec.name.clone()),
-                spec.name,
-                ModuleId::new(package_id.clone(), spec.module),
-                source_path,
-            )),
-            Err(message) => {
-                diagnostics.push(package_diagnostic(sources, spec.module_span, message))
-            }
-        }
-    }
-
     if diagnostics.is_empty() {
         let dependencies = dependencies.unwrap_or_default();
         let locks = locks.unwrap_or_default();
@@ -126,12 +90,12 @@ pub(super) fn validate_header(
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        Ok(ValidatedHeader {
+        Ok(PackageDefinition {
             name,
             version,
             dependencies,
             locks,
-            executables,
+            executables: executable_specs,
         })
     } else {
         Err(diagnostics)
@@ -453,50 +417,6 @@ fn validate_unique_string(
     *destination = Some(value.clone());
 }
 
-struct ExecutableSpec {
-    name: String,
-    name_span: ByteSpan,
-    module: String,
-    module_span: ByteSpan,
-}
-
-fn executable_fields(
-    sources: &SourceMap,
-    value: &DirectiveValue,
-) -> Result<ExecutableSpec, Vec<Diagnostic>> {
-    let DirectiveValue::Record { fields, .. } = value else {
-        return Err(vec![package_diagnostic(
-            sources,
-            value.span(),
-            "`#executable` requires a record value",
-        )]);
-    };
-    let mut diagnostics = Vec::new();
-    let by_name = unique_fields(sources, fields, &mut diagnostics);
-    for field in fields {
-        if !matches!(field.name.as_str(), "name" | "module") {
-            diagnostics.push(package_diagnostic(
-                sources,
-                field.name_span,
-                format!("unknown executable field `{}`", field.name),
-            ));
-        }
-    }
-    let name = required_string_field(sources, &by_name, "name", value.span(), &mut diagnostics);
-    let module = required_string_field(sources, &by_name, "module", value.span(), &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    let (name, name_span) = name.expect("validated executable name");
-    let (module, module_span) = module.expect("validated executable module");
-    Ok(ExecutableSpec {
-        name,
-        name_span,
-        module,
-        module_span,
-    })
-}
-
 fn unique_fields<'a>(
     sources: &SourceMap,
     fields: &'a [DirectiveField],
@@ -513,108 +433,4 @@ fn unique_fields<'a>(
         }
     }
     by_name
-}
-
-fn required_string_field(
-    sources: &SourceMap,
-    fields: &HashMap<&str, &DirectiveField>,
-    name: &str,
-    fallback: ByteSpan,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(String, ByteSpan)> {
-    required_string_field_for(sources, fields, name, fallback, "executable", diagnostics)
-}
-
-fn required_string_field_for(
-    sources: &SourceMap,
-    fields: &HashMap<&str, &DirectiveField>,
-    name: &str,
-    fallback: ByteSpan,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(String, ByteSpan)> {
-    let Some(field) = fields.get(name) else {
-        diagnostics.push(package_diagnostic(
-            sources,
-            fallback,
-            format!("missing required {owner} field `{name}`"),
-        ));
-        return None;
-    };
-    let DirectiveValue::String { span, value, .. } = &field.value else {
-        diagnostics.push(package_diagnostic(
-            sources,
-            field.value.span(),
-            format!("{owner} field `{name}` requires a string"),
-        ));
-        return None;
-    };
-    Some((value.clone(), *span))
-}
-
-pub(crate) fn resolve_package_module(
-    root: &Path,
-    manifest_path: &Path,
-    logical: &str,
-) -> Result<PathBuf, String> {
-    if logical == "." {
-        return Ok(manifest_path.to_path_buf());
-    }
-    let Some(relative) = logical.strip_prefix("./") else {
-        return Err(
-            "package module must be `.` or a package-relative path beginning with `./`".to_string(),
-        );
-    };
-    if relative.is_empty() || logical.ends_with(".nct") {
-        return Err(
-            "executable module must name a logical module without a `.nct` suffix".to_string(),
-        );
-    }
-    let relative_path = Path::new(relative);
-    if relative_path
-        .components()
-        .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err("executable module cannot escape the package root".to_string());
-    }
-    let base = root.join(relative_path);
-    let file = base.with_extension("nct");
-    let index = base.join("index.nct");
-    match (file.is_file(), index.is_file()) {
-        (true, true) => Err(format!(
-            "executable module `{logical}` is ambiguous because both `{}` and `{}` exist",
-            file.display(),
-            index.display()
-        )),
-        (true, false) => canonical_module_path(root, logical, file),
-        (false, true) => canonical_module_path(root, logical, index),
-        (false, false) => Err(format!("executable module `{logical}` does not exist")),
-    }
-}
-
-fn canonical_module_path(root: &Path, logical: &str, selected: PathBuf) -> Result<PathBuf, String> {
-    let canonical = std::fs::canonicalize(&selected).map_err(|error| {
-        format!(
-            "executable module `{logical}` could not be canonicalized at `{}`: {error}",
-            selected.display()
-        )
-    })?;
-    if canonical.starts_with(root) {
-        Ok(canonical)
-    } else {
-        Err(format!(
-            "executable module `{logical}` escapes the package root through `{}`",
-            selected.display()
-        ))
-    }
-}
-
-fn is_executable_name(value: &str) -> bool {
-    let mut characters = value.chars();
-    let Some(first) = characters.next() else {
-        return false;
-    };
-    (first.is_ascii_alphabetic() || first == '_')
-        && characters
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
 }

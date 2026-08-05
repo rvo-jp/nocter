@@ -1,6 +1,8 @@
 use super::diagnostics::package_filesystem_diagnostic;
 use super::model::SourcePackage;
-use super::validation::validate_header;
+use super::modules::package_root_module;
+use super::targets::resolve_executable_targets;
+use super::validation::validate_manifest;
 use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
 use crate::parser::parse_package_file;
@@ -25,10 +27,11 @@ pub fn load_package(root: &Path) -> PackageLoad {
 
 pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) -> PackageLoad {
     let root = canonical_package_root(root);
-    let manifest_candidate = root.join("nocter.nct");
-    let manifest_path = std::fs::canonicalize(&manifest_candidate).unwrap_or(manifest_candidate);
+    let package_file_candidate = root.join("nocter.nct");
+    let package_file_path =
+        std::fs::canonicalize(&package_file_candidate).unwrap_or(package_file_candidate);
     let mut sources = SourceMap::new();
-    if !manifest_path.starts_with(&root) {
+    if !package_file_path.starts_with(&root) {
         return PackageLoad {
             package: None,
             sources,
@@ -38,7 +41,7 @@ pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) ->
             ))],
         };
     }
-    let source = match sources.load_file(&manifest_path) {
+    let source = match sources.load_file(&package_file_path) {
         Ok(source) => source,
         Err(diagnostic) => {
             return PackageLoad {
@@ -77,8 +80,8 @@ pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) ->
             )],
         };
     };
-    let validated = match validate_header(&sources, &package_file.manifest, &root, &manifest_path) {
-        Ok(validated) => validated,
+    let definition = match validate_manifest(&sources, &package_file.manifest) {
+        Ok(definition) => definition,
         Err(diagnostics) => {
             return PackageLoad {
                 package: None,
@@ -87,19 +90,37 @@ pub(super) fn load_package_with_id(root: &Path, id: Option<super::PackageId>) ->
             };
         }
     };
-    let display_name = validated
+    let id = id.unwrap_or_else(|| super::model::PackageId::root(&root));
+    let root_module = package_root_module(id.clone(), package_file_path);
+    let executables = match resolve_executable_targets(
+        &sources,
+        &root,
+        &id,
+        &root_module,
+        definition.executables,
+    ) {
+        Ok(executables) => executables,
+        Err(diagnostics) => {
+            return PackageLoad {
+                package: None,
+                sources,
+                diagnostics,
+            };
+        }
+    };
+    let display_name = definition
         .name
         .unwrap_or_else(|| default_display_name(&root));
     PackageLoad {
         package: Some(SourcePackage::new(
-            id.unwrap_or_else(|| super::model::PackageId::root(&root)),
+            id,
             root,
-            manifest_path,
+            root_module,
             display_name,
-            validated.version,
-            validated.dependencies,
-            validated.locks,
-            validated.executables,
+            definition.version,
+            definition.dependencies,
+            definition.locks,
+            executables,
         )),
         sources,
         diagnostics: Vec::new(),

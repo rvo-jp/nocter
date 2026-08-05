@@ -58,7 +58,7 @@ impl PackageGraph {
     pub fn is_package_file(&self, path: &Path) -> bool {
         self.packages
             .values()
-            .any(|package| package.manifest_path() == path)
+            .any(|package| package.package_file_path() == path)
     }
 }
 
@@ -165,7 +165,7 @@ impl GraphBuilder {
         if may_generate_lock && package_lock_changed {
             package.replace_locks(locks.clone());
             self.pending_lock_writes
-                .push((package.manifest_path().to_path_buf(), locks));
+                .push((package.package_file_path().to_path_buf(), locks));
         }
         self.packages.insert(id.clone(), package);
         self.visiting.remove(&canonical);

@@ -6,12 +6,12 @@ use std::fs;
 use std::path::Path;
 
 pub(super) fn write_generated_lock(
-    manifest_path: &Path,
+    package_file_path: &Path,
     locks: &[LockedDependency],
 ) -> Result<(), String> {
     let mut sources = SourceMap::new();
     let source = sources
-        .load_file(manifest_path)
+        .load_file(package_file_path)
         .map_err(|diagnostic| diagnostic.message)?;
     let lexed = lex(&sources, source);
     if !lexed.diagnostics.is_empty() {
@@ -62,10 +62,10 @@ pub(super) fn write_generated_lock(
             &text[offset..]
         )
     };
-    let temporary = manifest_path.with_extension("nct.lock-write");
+    let temporary = package_file_path.with_extension("nct.lock-write");
     fs::write(&temporary, rewritten)
         .map_err(|error| format!("failed to write generated lock: {error}"))?;
-    fs::rename(&temporary, manifest_path)
+    fs::rename(&temporary, package_file_path)
         .map_err(|error| format!("failed to install generated lock: {error}"))
 }
 
