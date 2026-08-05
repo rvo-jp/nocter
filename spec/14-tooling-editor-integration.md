@@ -183,6 +183,20 @@ Nocter v0.4.0 Phase 2 editor rules:
   generation identifier suitable for rejecting stale cached results.
 - Watched disk changes invalidate open analyses that imported the changed source.
 
+Nocter v0.4.0 stabilization editor rules:
+
+- Failed frontend loading retains reached sources and unresolved file/directory-module candidates.
+  Creating a missing import, repairing malformed source, and deleting a symlinked import invalidate
+  the affected reverse importers.
+- A failed package graph is not replaced by a stale successful graph. Every visited transitive
+  `nocter.nct` remains watched so repairing it can rebuild the graph.
+- The server advertises saved-text synchronization. Included `didSave` text is analyzed before new
+  diagnostics are published.
+- Clients supporting dynamic watched-file registration receive a `**/*.nct` watcher after
+  initialization.
+- Requests are accepted only in the initialized running state. Requests before initialization,
+  repeated initialization, and requests after shutdown return JSON-RPC/LSP protocol errors.
+
 Nocter v0.3.0 Phase 4 editor rules:
 
 - Hover and signature help show normalized result provenance clauses such as `from self` and

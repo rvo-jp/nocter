@@ -335,6 +335,10 @@ diagnostics, and range-safe semantic recovery. Phase 9 tests cover complete capa
 signature help, unambiguous/ambiguous member completion, incomplete additional-bound recovery, and
 JSON-RPC agreement. Phase 10 tests cover normalized closure/capture presentation, default-method
 specialization, semantic identity, shared delimiter recovery, and direct plus JSON-RPC agreement.
+v0.4.0 snapshot and stabilization tests additionally cover immutable generations, exact reverse
+invalidation, missing and malformed dependency recovery, symlink deletion, root and transitive
+manifest failure recovery, dynamic file-watcher registration, saved text, lifecycle ordering, and
+deterministic reuse in a 49-document workspace.
 
 ## Deferred Features
 

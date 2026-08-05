@@ -4,8 +4,8 @@
 
 - branch: `develop`
 - released baseline: v0.3.0
-- completed milestone: v0.4.0 Phase 2 — Immutable Package-wide LSP Snapshot
-- next milestone: v0.4.0 stabilization audit
+- completed milestone: v0.4.0 snapshot and package-graph stabilization audit
+- next milestone: v0.4.0 release-readiness review
 - target: `arm64-darwin`
 
 The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
@@ -35,6 +35,10 @@ The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries a
 - source-dependency invalidation, reverse-import rebuilding, unrelated-analysis reuse, watched-file
   updates, and nested-package isolation
 - versioned diagnostics and semantic-token generation identifiers
+- failure-stable frontend dependency traces for missing, malformed, deleted, and symlinked imports
+- failure-stable transitive package-manifest traces and deterministic graph recovery
+- dynamic `.nct` file-watcher registration, saved-text synchronization, and an explicit LSP
+  lifecycle state machine
 
 ## Qualification State
 
@@ -42,10 +46,16 @@ Phase 1 passes path, Git, archive, generated-lock transaction, offline reuse, ca
 source/lock mismatch, cycle, package compilation, LSP, formatter, full repository, optimized
 distribution, installed-home, native packaged-home, and archive acceptance gates. Phase 2 passes
 focused snapshot, LSP, package, compiler-library, formatter, warnings-denied Clippy, full repository,
-optimized distribution, installed-home `doctor`, and packaged LSP acceptance gates.
+optimized distribution, installed-home `doctor`, and packaged LSP acceptance gates. The subsequent
+stabilization audit adds malformed root/transitive manifest recovery, missing-import creation,
+symlink deletion, dynamic watcher registration, `didSave`, lifecycle, and a deterministic
+49-document invalidation partition. The complete verification script, public documentation build,
+optimized package build, installed-home `doctor`, archive inspection, and packaged LSP acceptance
+all pass after the audit.
 
 ## Next Work
 
-Run the v0.4.0 stabilization audit after full Phase 2 qualification. Inspect package diagnostics,
-editor behavior under incomplete manifests, snapshot memory growth, and package command/LSP parity
-before selecting a Phase 3 feature contract.
+Complete the v0.4.0 release-readiness review. Confirm version metadata, public release notes,
+archive contents, package command/LSP parity, and installed-home acceptance. Add a Phase 3 feature
+contract only for a release blocker; otherwise keep the qualified package and snapshot scope
+closed.

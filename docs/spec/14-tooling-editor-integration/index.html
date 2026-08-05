@@ -181,7 +181,13 @@
   one accepted document version observe one immutable editor generation.</li><li>An open document overrides its disk contents throughout that generation, including an open
   <code>nocter.nct</code> used to construct a locked, offline package graph.</li><li>An unsaved package-file overlay never fetches dependencies, generates locks, or rewrites source.</li><li>Accepted source changes invalidate dependent analyses; unrelated open modules and nested packages
   retain independent analysis state.</li><li>Published diagnostics include the accepted document version. Semantic-token results include a
-  generation identifier suitable for rejecting stale cached results.</li><li>Watched disk changes invalidate open analyses that imported the changed source.</li></ul><p>Nocter v0.3.0 Phase 4 editor rules:</p><ul><li>Hover and signature help show normalized result provenance clauses such as <code>from self</code> and
+  generation identifier suitable for rejecting stale cached results.</li><li>Watched disk changes invalidate open analyses that imported the changed source.</li></ul><p>Nocter v0.4.0 stabilization editor rules:</p><ul><li>Failed frontend loading retains reached sources and unresolved file/directory-module candidates.
+  Creating a missing import, repairing malformed source, and deleting a symlinked import invalidate
+  the affected reverse importers.</li><li>A failed package graph is not replaced by a stale successful graph. Every visited transitive
+  <code>nocter.nct</code> remains watched so repairing it can rebuild the graph.</li><li>The server advertises saved-text synchronization. Included <code>didSave</code> text is analyzed before new
+  diagnostics are published.</li><li>Clients supporting dynamic watched-file registration receive a <code>**/*.nct</code> watcher after
+  initialization.</li><li>Requests are accepted only in the initialized running state. Requests before initialization,
+  repeated initialization, and requests after shutdown return JSON-RPC/LSP protocol errors.</li></ul><p>Nocter v0.3.0 Phase 4 editor rules:</p><ul><li>Hover and signature help show normalized result provenance clauses such as <code>from self</code> and
   <code>from left | right</code>.</li><li>Completion after <code>from</code> offers only eligible receiver and borrow-like parameter declarations,
   plus <code>static</code> and <code>current</code>.</li><li>Member completion on a bounded generic receiver lists only methods from its declared interface.</li><li>Definition and references for a generic bound call target the interface method declaration.</li><li>Generic parameter names use type semantic tokens. Receiver and parameter names referenced by a
   provenance clause use readonly parameter tokens.</li><li>Recovery may complete missing delimiters or insert a temporary placeholder, but a response is

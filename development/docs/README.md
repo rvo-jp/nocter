@@ -14,12 +14,12 @@ Composable Element Packs**, **Phase 9: Composable Iterators and Collection Build
 type-owned construction surfaces, and **v0.3.0 Stabilization** are complete. Do not use `v0` as
 shorthand for a release name or work scope.
 
-The latest completed milestone is **v0.4.0 Phase 2: Immutable Package-wide LSP Snapshot**.
+The latest completed milestone is the **v0.4.0 Snapshot and Package-Graph Stabilization Audit**.
 
 ## Documents
 
-- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 through Phase 2 records,
-  qualification, and non-goals
+- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 through Phase 2 and stabilization
+  records, qualification, and non-goals
 - [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
   dependency graphs, exact locks, stores, and compiler boundaries
 - [Immutable LSP Snapshots](lsp-snapshots.md): editor generations, package contexts, source

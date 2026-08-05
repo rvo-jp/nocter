@@ -19,8 +19,8 @@ criteria, and dependency order are defined in the
 defined in [Body-Bearing Interface Implementations](docs/interface-implementations.md). The
 completed v0.2.0 criteria remain available in the [v0.2.0 release record](docs/v0.2.0.md).
 
-The latest completed milestone is **v0.4.0 Phase 2: Immutable Package-wide LSP Snapshot**. Its
-record is in the [v0.4.0 development plan](docs/v0.4.0.md), with compiler boundaries in
+The latest completed milestone is the **v0.4.0 Snapshot and Package-Graph Stabilization Audit**.
+Its record is in the [v0.4.0 development plan](docs/v0.4.0.md), with compiler boundaries in
 [Packages, Dependencies, and Locks](docs/packages.md) and
 [Immutable LSP Snapshots](docs/lsp-snapshots.md).
 
