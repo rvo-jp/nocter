@@ -5,7 +5,7 @@ use super::super::import_completion::package_root_for_document;
 use super::invalidation::{SnapshotChange, can_reuse_document, can_reuse_package};
 use super::model::{DocumentSnapshot, LspSnapshot, PackageSnapshot};
 use crate::package::{PackageSourceOverlay, load_locked_offline_package_graph_with_overlay};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -134,15 +134,10 @@ fn load_package_snapshot(
 ) -> PackageSnapshot {
     let load = load_locked_offline_package_graph_with_overlay(root, overlay);
     let package_files = load
-        .graph
-        .as_ref()
-        .map(|graph| {
-            graph
-                .packages()
-                .map(|package| package.package_file_path().to_path_buf())
-                .collect()
-        })
-        .unwrap_or_else(|| HashSet::from([root.join("nocter.nct")]));
+        .package_files
+        .into_iter()
+        .flat_map(crate::frontend::dependency_path_aliases)
+        .collect();
     PackageSnapshot {
         graph: load.graph.map(Arc::new),
         diagnostics: load.diagnostics,

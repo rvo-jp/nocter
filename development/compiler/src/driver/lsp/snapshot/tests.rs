@@ -125,6 +125,114 @@ fn unsaved_package_manifest_overlay_drives_the_shared_graph() {
 }
 
 #[test]
+fn malformed_manifest_invalidates_the_graph_and_recovery_restores_it() {
+    let project = TempProject::new("manifest-recovery");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let valid_manifest = "#name: \"app\"\n#dependencies: { math: { path: \"./math\" } }\n";
+    let package_file = project.write("nocter.nct", valid_manifest);
+    let app = project.write(
+        "app.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
+    );
+    project.write("math/nocter.nct", "pub func answer(): i32 { 42 }\n");
+    let package_uri = file_uri_for_path(&package_file);
+    let app_uri = file_uri_for_path(&app);
+    let mut documents = documents_for([&package_file, &app]);
+    let workspace_roots = vec![WorkspaceRoot {
+        uri: file_uri_for_path(&project.root),
+        path: Some(project.root.clone()),
+    }];
+    let store = SnapshotStore::default();
+    let valid = store.current(&documents, &workspace_roots);
+    assert!(valid.package_graph(&app_uri).is_some());
+    assert!(valid.analysis(&app_uri).unwrap().semantic().is_some());
+
+    let package_document = documents.get_mut(&package_uri).unwrap();
+    package_document.version = Some(2);
+    package_document.text = "#dependencies: { math: }\n".to_string();
+    let malformed = store.rebuild(
+        &documents,
+        &workspace_roots,
+        SnapshotChange::path(Some(package_file.as_path())),
+    );
+
+    assert!(malformed.package_graph(&app_uri).is_none());
+    assert!(malformed.analysis(&app_uri).unwrap().semantic().is_none());
+    assert!(!malformed.diagnostics_for_uri(&package_uri).is_empty());
+    assert!(!Arc::ptr_eq(
+        &valid.document_snapshot(&app_uri).unwrap().analysis,
+        &malformed.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+
+    let package_document = documents.get_mut(&package_uri).unwrap();
+    package_document.version = Some(3);
+    package_document.text = valid_manifest.to_string();
+    let repaired = store.rebuild(
+        &documents,
+        &workspace_roots,
+        SnapshotChange::path(Some(package_file.as_path())),
+    );
+
+    assert!(repaired.package_graph(&app_uri).is_some());
+    assert!(repaired.analysis(&app_uri).unwrap().semantic().is_some());
+    assert!(repaired.diagnostics_for_uri(&package_uri).is_empty());
+    assert!(!Arc::ptr_eq(
+        &malformed.document_snapshot(&app_uri).unwrap().analysis,
+        &repaired.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+}
+
+#[test]
+fn repairing_a_failed_dependency_manifest_reloads_the_package_graph() {
+    let project = TempProject::new("dependency-manifest-recovery");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    project.write(
+        "nocter.nct",
+        "#name: \"app\"\n#dependencies: { math: { path: \"./math\" } }\n",
+    );
+    let app = project.write(
+        "app.nct",
+        "use math.answer\n\npub func value(): i32 { answer() }\n",
+    );
+    let dependency_manifest = project.write("math/nocter.nct", "pub func answer(): i32 { 42 }\n");
+    let app_uri = file_uri_for_path(&app);
+    let documents = documents_for([&app]);
+    let workspace_roots = vec![WorkspaceRoot {
+        uri: file_uri_for_path(&project.root),
+        path: Some(project.root.clone()),
+    }];
+    let store = SnapshotStore::default();
+    let valid = store.current(&documents, &workspace_roots);
+    assert!(valid.package_graph(&app_uri).is_some());
+    assert!(valid.analysis(&app_uri).unwrap().semantic().is_some());
+
+    fs::write(&dependency_manifest, "#name: \"math\n").unwrap();
+    let malformed = store.rebuild(
+        &documents,
+        &workspace_roots,
+        SnapshotChange::path(Some(dependency_manifest.as_path())),
+    );
+    assert!(malformed.package_graph(&app_uri).is_none());
+    assert!(malformed.analysis(&app_uri).unwrap().semantic().is_none());
+
+    fs::write(&dependency_manifest, "pub func answer(): i32 { 42 }\n").unwrap();
+    let repaired = store.rebuild(
+        &documents,
+        &workspace_roots,
+        SnapshotChange::path(Some(dependency_manifest.as_path())),
+    );
+
+    assert!(repaired.package_graph(&app_uri).is_some());
+    assert!(repaired.analysis(&app_uri).unwrap().semantic().is_some());
+    assert!(!Arc::ptr_eq(
+        &malformed.document_snapshot(&app_uri).unwrap().analysis,
+        &repaired.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+}
+
+#[test]
 fn watched_disk_dependency_change_invalidates_its_importers() {
     let project = TempProject::new("watched-dependency");
     let home = project.write_nocter_home();
@@ -303,6 +411,65 @@ fn diagnostics_for_independent_documents_survive_one_snapshot() {
             .diagnostics_for_uri(&file_uri_for_path(&second))
             .is_empty()
     );
+}
+
+#[test]
+fn large_workspace_rebuilds_exactly_the_affected_partition() {
+    let project = TempProject::new("large-invalidation-partition");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let shared = project.write("shared.nct", "pub func value(): i32 { 1 }\n");
+    let mut paths = vec![shared.clone()];
+    let mut importers = Vec::new();
+    let mut independent = Vec::new();
+    for index in 0..24 {
+        let path = project.write(
+            &format!("consumer_{index}.nct"),
+            &format!("use ./shared.value\n\npub func read_{index}(): i32 {{ value() }}\n"),
+        );
+        paths.push(path.clone());
+        importers.push(path);
+    }
+    for index in 0..24 {
+        let path = project.write(
+            &format!("independent_{index}.nct"),
+            &format!("pub func value_{index}(): i32 {{ {index} }}\n"),
+        );
+        paths.push(path.clone());
+        independent.push(path);
+    }
+    let mut documents = documents_for(paths.iter());
+    let store = SnapshotStore::default();
+    let first = store.current(&documents, &[]);
+
+    let shared_uri = file_uri_for_path(&shared);
+    let shared_document = documents.get_mut(&shared_uri).unwrap();
+    shared_document.version = Some(2);
+    shared_document.text = "pub func value(): i32 { 2 }\n".to_string();
+    let second = store.rebuild(
+        &documents,
+        &[],
+        SnapshotChange::path(Some(shared.as_path())),
+    );
+
+    assert!(!Arc::ptr_eq(
+        &first.document_snapshot(&shared_uri).unwrap().analysis,
+        &second.document_snapshot(&shared_uri).unwrap().analysis,
+    ));
+    for path in importers {
+        let uri = file_uri_for_path(&path);
+        assert!(!Arc::ptr_eq(
+            &first.document_snapshot(&uri).unwrap().analysis,
+            &second.document_snapshot(&uri).unwrap().analysis,
+        ));
+    }
+    for path in independent {
+        let uri = file_uri_for_path(&path);
+        assert!(Arc::ptr_eq(
+            &first.document_snapshot(&uri).unwrap().analysis,
+            &second.document_snapshot(&uri).unwrap().analysis,
+        ));
+    }
 }
 
 fn documents_for<'a>(

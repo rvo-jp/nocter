@@ -66,6 +66,7 @@ pub struct PackageGraphLoad {
     pub graph: Option<PackageGraph>,
     pub diagnostics: Vec<Diagnostic>,
     pub lock_changed: bool,
+    pub package_files: HashSet<PathBuf>,
 }
 
 pub fn load_package_graph(root: &Path, options: PackageGraphOptions) -> PackageGraphLoad {
@@ -100,6 +101,7 @@ fn load_package_graph_impl(
         packages: BTreeMap::new(),
         namespaces: HashMap::new(),
         visiting: HashSet::new(),
+        package_files: HashSet::new(),
         diagnostics: Vec::new(),
         pending_lock_writes: Vec::new(),
         lock_changed: false,
@@ -113,6 +115,7 @@ fn load_package_graph_impl(
             graph: None,
             diagnostics: builder.diagnostics,
             lock_changed: builder.lock_changed,
+            package_files: builder.package_files,
         };
     }
     PackageGraphLoad {
@@ -123,6 +126,7 @@ fn load_package_graph_impl(
         }),
         diagnostics: Vec::new(),
         lock_changed: builder.lock_changed,
+        package_files: builder.package_files,
     }
 }
 
@@ -133,6 +137,7 @@ struct GraphBuilder<'a> {
     packages: BTreeMap<PackageId, SourcePackage>,
     namespaces: HashMap<(PackageId, String), PackageId>,
     visiting: HashSet<PathBuf>,
+    package_files: HashSet<PathBuf>,
     diagnostics: Vec<Diagnostic>,
     pending_lock_writes: Vec<(PathBuf, Vec<LockedDependency>)>,
     lock_changed: bool,
@@ -146,6 +151,7 @@ impl GraphBuilder<'_> {
         may_generate_lock: bool,
     ) -> Option<PackageId> {
         let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        self.package_files.insert(canonical.join("nocter.nct"));
         if !self.visiting.insert(canonical.clone()) {
             self.error(format!(
                 "dependency cycle reaches package `{}`",
