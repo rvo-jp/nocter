@@ -24,7 +24,10 @@ Nocter is a statically typed, value-centered, module-oriented, low-dependency sy
 Its durable design pillars are simplicity, encapsulation, and foolproof design;
 the full rationale is defined in [Design Principles](00-design-principles.md).
 
-The language avoids giving intrinsic language semantics to most ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is the root-file top-level function named `main`; v0.2.0 fixes this name to remove command-line ambiguity.
+The language avoids giving intrinsic language semantics to most ordinary identifier names. Names
+such as `self`, `this`, and `init` are not magic. An executable declaration selects a module whose
+top-level function named `main` is the entry point; the function name is fixed to remove
+command-line ambiguity.
 
 Nocter prioritizes:
 
@@ -44,7 +47,8 @@ AI support must not fragment the language surface. Nocter should prefer `nocter 
 
 Adopted: Nocter uses a normal top-level function as the executable entry point.
 
-In v0.2.0, the executable entry name is fixed to `main`. The CLI does not provide `--entry`.
+The executable entry name is fixed to `main`. The CLI does not provide `--entry`. v0.4.0 Phase 0
+selects the containing module through `#executable` in package-root `index.nct`.
 
 ```nct
 func main(): i32! {
@@ -88,9 +92,9 @@ func main(): i32 {
 
 Rules:
 
-- An executable root file must define exactly one top-level function named `main`.
+- A selected executable module must define exactly one top-level function named `main`.
 - `--entry` is not part of v0.2.0.
-- Entry lookup considers only the root file's top-level functions.
+- Entry lookup considers only the selected executable module's top-level functions.
 - Imported modules may define ordinary functions named `main`; they are not selected as the executable entry point.
 - Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.
 - `func main(): i32!` is the standard executable entry form.
@@ -107,7 +111,7 @@ Rules:
 - Entry functions with type parameters, such as `func main<T>(): i32!`, are not part of v0.2.0.
 - Entry functions with value parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.2.0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
-- Future manifest configuration may add project-level executable metadata, but v0.2.0 does not.
+- Package-root `#executable` metadata selects the module, not a different function name.
 
 Process entry context:
 
@@ -145,7 +149,7 @@ Rules:
 
 - The `@` character is reserved for possible future attribute-like syntax and is invalid in v0.2.0 source outside string literals, byte literals, and comments.
 - Layout is governed by Nocter ABI v0.2.0, not by a `repr` attribute.
-- Target-specific std declarations are selected by `#target("...")` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
+- Target-specific std declarations are selected by `#target: "..."` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
 - Low-level compiler boundaries are expressed by typed `primitive` declarations inside the active Nocter home, not by attributes.
 - Visibility is expressed by `pub` and `pub(nocter)`, not by attributes.
 - Test, inline, deprecation, documentation, export-name, and link-name attributes are not part of v0.2.0.

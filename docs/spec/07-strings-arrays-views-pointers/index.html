@@ -201,7 +201,7 @@ pointer<span class="token-operator">.</span><span class="token-function">store</
     ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>bytes<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
     bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
 <span class="token-operator">)</span>
-</code></pre><p>User project modules must not call syscall primitives directly.</p><h3 id="pointer-intrinsics">Pointer Intrinsics</h3><p>The <code>std/ptr</code> functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as <code>std/os.syscall0</code> under <code>#target("arm64-darwin")</code>.</p><p>The compiler validates them by module path, name, and exact signature:</p><pre><code class="language-text">std/ptr.addr
+</code></pre><p>User project modules must not call syscall primitives directly.</p><h3 id="pointer-intrinsics">Pointer Intrinsics</h3><p>The <code>std/ptr</code> functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as <code>std/os.syscall0</code> under <code>#target: "arm64-darwin"</code>.</p><p>The compiler validates them by module path, name, and exact signature:</p><pre><code class="language-text">std/ptr.addr
 std/ptr.from_ref
 std/ptr.from_ref_mut
 std/ptr.from_addr

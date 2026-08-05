@@ -53,6 +53,7 @@ Before LSP, editor diagnostics should come from the compiler.
 Initial command direction:
 
 ```sh
+nocter check --format json
 nocter check app.nct --format json
 ```
 
@@ -154,6 +155,17 @@ Semantic token rules:
 - Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-mutability).
 - Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
 - Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
+- Package directive names and record-field names use their exact identifier spans. Executable
+  module string contents use an exact namespace span that excludes quotation marks.
+
+Nocter v0.4.0 Phase 0 editor rules:
+
+- An opened package-root `index.nct` uses the same package-header AST as command-line compilation.
+- Go to definition on an executable `module` string selects the resolved `.nct` file or directory
+  module and uses only the string content as the origin range.
+- Package directives outside the selected root `index.nct` are diagnostics.
+- `pub use path` exposes one namespace identity; hover, completion, definition, references, and
+  semantic tokens must not reconstruct a flattened substitute.
 
 Nocter v0.3.0 Phase 4 editor rules:
 

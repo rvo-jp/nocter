@@ -152,10 +152,10 @@
     <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
-</code></pre><p>Run it:</p><pre><code class="language-sh"><span class="token-function">nocter</span> run
-</code></pre><p><code>nocter run</code>, <code>nocter build</code>, and <code>nocter check</code> use <code>main.nct</code> when no file is specified. The entry function is the root-file function named <code>main</code>.</p><p>Build an executable:</p><pre><code class="language-sh"><span class="token-function">nocter</span> build <span class="token-option">-o</span> hello
+</code></pre><p>Run the source file explicitly:</p><pre><code class="language-sh"><span class="token-function">nocter</span> run main.nct
+</code></pre><p>The entry function is the selected source file's function named <code>main</code>.</p><p>Build an executable:</p><pre><code class="language-sh"><span class="token-function">nocter</span> build main.nct <span class="token-option">-o</span> hello
 ./hello
-</code></pre><p>Check without building:</p><pre><code class="language-sh"><span class="token-function">nocter</span> check
+</code></pre><p>Check without building:</p><pre><code class="language-sh"><span class="token-function">nocter</span> check main.nct
 </code></pre><p>Format a file:</p><pre><code class="language-sh"><span class="token-function">nocter</span> fmt main.nct
 </code></pre><h2 id="current-status">Current Status</h2><p>The v0.3.0 compiler parses, checks, builds, and runs the supported language on <code>arm64-darwin</code>. It emits ARM64 Mach-O executables directly.</p><p>The buildable subset is intentionally narrower than the checkable language. Unsupported runtime forms must reject with source-backed diagnostics before machine code is emitted. The released language boundary is defined throughout the <a href="./spec/index.html#content">language specification</a>.</p><h2 id="learn-more">Learn More</h2><ul><li><a href="./spec/index.html#content">Language Specification</a>: Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.</li><li><a href="./spec/00-design-principles/index.html#content">Design Principles</a>: the simplicity,

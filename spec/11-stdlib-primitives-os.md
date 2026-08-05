@@ -20,16 +20,16 @@ The compiler must not special-case names such as `Error`, `ErrorCode`, `OSError`
 
 ### Target Raw Errors
 
-`std/os` owns the raw macOS syscall result and errno wrapper behind `#target("arm64-darwin")`.
+`std/os` owns the raw macOS syscall result and errno wrapper behind `#target: "arm64-darwin"`.
 
 ```nct
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct Errno {
     pub code: i32
 }
@@ -542,7 +542,7 @@ Physical placement:
 
 - `std/io` is the user-facing module path and owns `File` plus the public I/O API.
 - Target-dependent raw file-descriptor helpers live in `std/io` as `pub(nocter)` implementation details.
-- Target-dependent helper functions and primitive declarations use `#target("...")`.
+- Target-dependent helper functions and primitive declarations use `#target: "..."`.
 - Raw helper names such as `write_text_raw` are not user-facing API.
 - Common I/O API names should remain stable across targets.
 
@@ -744,13 +744,13 @@ func main(): i32! {
 The standard library may use typed `primitive` declarations to connect Nocter code to compiler-provided low-level implementations. Arbitrary inline ARM64 `asm` is not part of the initial language.
 
 ```nct
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall3(
     number: usize,
     a0: usize,
@@ -758,10 +758,10 @@ pub(nocter) primitive syscall3(
     a2: usize,
 ): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive unreachable(): never
 ```
 
@@ -775,7 +775,7 @@ Initial policy:
 - A primitive declaration has no function body.
 - A primitive declaration uses normal Nocter parameter and return types.
 - Target-independent declarations do not use `#target`.
-- Target-dependent type declarations, helper functions, and primitive declarations must be preceded by `#target("target-name")`.
+- Target-dependent type declarations, helper functions, and primitive declarations must be preceded by `#target: "target-name"`.
 - `#target` applies only to top-level function, primitive, struct, enum, interface, and type-alias declarations in v0.2.0.
 - `target` is not a reserved keyword; it is treated as the directive name only after `#`.
 - Primitive calls follow normal visibility rules. A `pub` primitive may be called by any module that can import it. A `pub(nocter)` primitive may be called only inside the active Nocter home.
@@ -820,7 +820,7 @@ Initial primitive declaration syntax:
 pub primitive name(params): ReturnType
 pub(nocter) primitive name(params): ReturnType
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive target_dependent_name(params): ReturnType
 ```
 
@@ -843,7 +843,7 @@ Initial primitive declaration modules:
 
 `std/io.nct` contains the initial `arm64-darwin` raw file descriptor primitives used by `File.open`, `File.read`, `File.write`, `File.write_text`, and `print`. These declarations are `pub(nocter)` and are not part of the user-facing I/O API.
 
-`std/os.nct` contains common OS declarations plus target-specific declarations for `arm64-darwin` behind `#target("arm64-darwin")`. Future OS targets should add new `#target("...")` declarations inside stable std-internal modules instead of changing import resolution.
+`std/os.nct` contains common OS declarations plus target-specific declarations for `arm64-darwin` behind `#target: "arm64-darwin"`. Future OS targets should add new `#target: "..."` declarations inside stable std-internal modules instead of changing import resolution.
 
 `std/process.nct` contains the initial `arm64-darwin` process termination primitive used by `std/process.exit`. It is `pub(nocter)` and is not part of the user-facing process API.
 
@@ -890,55 +890,55 @@ pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 Initial `arm64-darwin` target primitive set v0.2.0:
 
 ```nct
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall0(number: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall1(number: usize, a0: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive trap(): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive unreachable(): never
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive open_read_raw(path: *u8): i32!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive close_fd_raw(fd: i32): void
 
-#target("arm64-darwin")
+#target: "arm64-darwin"
 pub(nocter) primitive exit_raw(code: i32): never
 ```
 

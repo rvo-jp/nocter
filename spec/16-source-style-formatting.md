@@ -42,7 +42,25 @@ Rules:
 - `fmt --check` exits successfully only when the file already matches formatter output.
 - `fmt` does not need a target option.
 
-Project-wide formatting is deferred until package roots or manifests exist.
+Project-wide formatting remains deferred after v0.4.0 Phase 0; package identity alone does not
+define comment-preserving traversal, atomic multi-file writes, or partial-failure behavior.
+
+## Package Directives
+
+Package directive records use the same four-space indentation as declarations. Multi-line records
+place one field per line and retain a trailing comma.
+
+```nct
+#name: "json-tool"
+#version: "0.1.0"
+#executable: {
+    name: "json-tool",
+    module: "./src/app",
+}
+```
+
+Directive values are formatted as declarative data. The formatter does not interpret them as
+ordinary expressions or perform module resolution.
 
 ## Indentation and Blocks
 

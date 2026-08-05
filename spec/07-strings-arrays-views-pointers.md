@@ -134,7 +134,7 @@ User project modules must not call syscall primitives directly.
 
 ### Pointer Intrinsics
 
-The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/os.syscall0` under `#target("arm64-darwin")`.
+The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/os.syscall0` under `#target: "arm64-darwin"`.
 
 The compiler validates them by module path, name, and exact signature:
 

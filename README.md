@@ -133,26 +133,25 @@ func main(): i32! {
 }
 ```
 
-Run it:
+Run the source file explicitly:
 
 ```sh
-nocter run
+nocter run main.nct
 ```
 
-`nocter run`, `nocter build`, and `nocter check` use `main.nct` when no file is
-specified. The entry function is the root-file function named `main`.
+The entry function is the selected source file's function named `main`.
 
 Build an executable:
 
 ```sh
-nocter build -o hello
+nocter build main.nct -o hello
 ./hello
 ```
 
 Check without building:
 
 ```sh
-nocter check
+nocter check main.nct
 ```
 
 Format a file:

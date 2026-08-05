@@ -44,11 +44,12 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Version Status
 
-The implemented and released language baseline is v0.3.0. Its Phase 0 through Phase 10 contracts
-and release qualification are recorded in the
+The released language baseline is v0.3.0. Its Phase 0 through Phase 10 contracts and release
+qualification are recorded in the
 [v0.3.0 Release Record](../development/docs/v0.3.0.md). The
-[v0.2.0 Language Contract](00-v0.2.0-contract.md) remains an immutable historical boundary. A
-future design is not buildable until its own stated implementation gate passes.
+[v0.2.0 Language Contract](00-v0.2.0-contract.md) remains an immutable historical boundary.
+v0.4.0 Phase 0 package-root and executable-target behavior is a completed development contract; it
+is not a released-version claim.
 
 ## Editing Policy
 
