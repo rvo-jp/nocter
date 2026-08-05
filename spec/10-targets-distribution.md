@@ -240,7 +240,7 @@ nocter build --target x64-linux
 
 The command-line contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-In v0.4.0 Phase 0, `build`, `run`, and `check` select the current directory's `index.nct` package
+In v0.4.0 Phase 1, `build`, `run`, and `check` select the current directory's `nocter.nct` package
 when no explicit file is supplied. Package metadata remains Nocter source rather than a second
 manifest language. The immutable v0.2.0 single-file boundary is recorded separately.
 

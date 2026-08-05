@@ -58,8 +58,8 @@ Rules:
 - `use path.Name` imports selected public names.
 - `use path as name` imports a namespace alias.
 - Paths starting with `./` or `../` are resolved relative to the current file.
-- Non-relative paths such as `std/io` are resolved from the source root first and
-  the active Nocter home second.
+- Non-relative paths name a declared dependency or `std`; `std/io` resolves only through the
+  active Nocter home.
 - Do not invent wildcard imports, textual includes, explicit `.nct` import suffixes, or `module` declarations.
 
 ## Errors And Optionals

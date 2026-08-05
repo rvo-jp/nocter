@@ -19,9 +19,9 @@ criteria, and dependency order are defined in the
 defined in [Body-Bearing Interface Implementations](docs/interface-implementations.md). The
 completed v0.2.0 criteria remain available in the [v0.2.0 release record](docs/v0.2.0.md).
 
-The most recent completed development milestone is **v0.4.0 Phase 0: Source-Native Package Roots
-and Executable Targets**. Its completion record is in the [v0.4.0 plan](docs/v0.4.0.md), with the
-compiler boundary in [Source-Native Package Roots](docs/package-roots.md).
+The active milestone is **v0.4.0 Phase 1: Deterministic Package Graph**. Its plan is in the
+[v0.4.0 development plan](docs/v0.4.0.md), with the compiler boundary in
+[Packages, Dependencies, and Locks](docs/packages.md).
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ external runtime library, or the Xcode Command Line Tools.
 
 - [Documentation Index](docs/README.md)
 - [v0.4.0 Development Plan](docs/v0.4.0.md)
-- [Source-Native Package Roots](docs/package-roots.md)
+- [Packages, Dependencies, and Locks](docs/packages.md)
 - [v0.3.0 Release Record](docs/v0.3.0.md)
 - [v0.2.0 Release Record](docs/v0.2.0.md)
 - [Compiler Architecture](docs/architecture.md)

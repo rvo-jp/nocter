@@ -14,15 +14,14 @@ Composable Element Packs**, **Phase 9: Composable Iterators and Collection Build
 type-owned construction surfaces, and **v0.3.0 Stabilization** are complete. Do not use `v0` as
 shorthand for a release name or work scope.
 
-The most recent completed development milestone is **v0.4.0 Phase 0: Source-Native Package Roots
-and Executable Targets**.
+The active milestone is **v0.4.0 Phase 1: Deterministic Package Graph**.
 
 ## Documents
 
-- [v0.4.0 Development Plan](v0.4.0.md): completed phase outcome, work order, acceptance matrix,
+- [v0.4.0 Development Plan](v0.4.0.md): completed Phase 0 record, active Phase 1 contract,
   verification, and non-goals
-- [Source-Native Package Roots](package-roots.md): package-header data, semantic identities,
-  executable selection, namespace re-exports, CLI, and dependency boundary
+- [Packages, Dependencies, and Locks](packages.md): package files, semantic identities,
+  dependency graphs, exact locks, stores, and compiler boundaries
 - [v0.3.0 Release Record](v0.3.0.md): completed Phase 0 through Phase 10 records,
   stabilization criteria, release qualification, and explicit limits
 - [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
@@ -64,8 +63,8 @@ and Executable Targets**.
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| v0.4.0 Phase 0 status and acceptance | `v0.4.0.md` |
-| Package/compiler responsibility boundary | `package-roots.md` |
+| v0.4.0 Phase 1 status and acceptance | `v0.4.0.md` |
+| Package/compiler responsibility boundary | `packages.md` |
 | v0.3.0 release status, scope, and qualification | `v0.3.0.md` |
 | Previous v0.2.0 completion record | `v0.2.0.md` |
 | Compiler responsibility boundaries | `architecture.md` |

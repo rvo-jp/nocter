@@ -248,7 +248,7 @@ tokens:
 # target : "target-name"
 ```
 
-At the start of package-root `index.nct`, package directives accept declarative strings, integers,
+At the start of package-root `nocter.nct`, package directives accept declarative strings, integers,
 booleans, lists, and records. These values are data: they do not perform lookup, calls,
 interpolation, allocation, or target execution. `#target` remains a declaration directive and is
 recognized only before an eligible top-level declaration. A `#` token in any other source position

@@ -5,13 +5,15 @@ The specification entry point is [README.md](README.md).
 
 ## Direction
 
-Adopted for v0.4.0 Phase 0: package commands operate on a source-owned `index.nct`. Omitting a
+Adopted for v0.4.0 Phase 1: package commands operate on a source-owned `nocter.nct`. Omitting a
 source selects a package; it never guesses that `main.nct` is an executable. Explicit single-file
 operation remains available for scripts and isolated experiments.
 
 ```sh
 nocter --version
 nocter doctor
+nocter fetch
+nocter fetch --locked --offline
 nocter build
 nocter build --root path/to/package
 nocter build --executable tool
@@ -45,8 +47,8 @@ nocter check --root ./tools/json
 
 - The default root is the current directory.
 - `--root path` selects another package directory.
-- The selected directory must contain `index.nct`.
-- The package header declares zero or more executable targets.
+- The selected directory must contain `nocter.nct`.
+- The package manifest declares zero or more executable targets.
 - The compiler never searches for `main.nct`, walks upward for another package, or invents an
   executable target.
 
@@ -62,14 +64,14 @@ nocter check --file app.nct
 - `--root` and file mode cannot be combined.
 - `--executable` cannot be used in file mode.
 - Package directives are rejected in file mode because they belong to a selected package-root
-  `index.nct`.
+  `nocter.nct`.
 
 The compiler follows imports from each selected root module to form a compile unit. Import and
 source identity rules are specified in [Modules and Use Declarations](01-modules-use.md).
 
-## Package Header
+## Package File
 
-The leading package header uses declarative directives:
+The leading package manifest uses declarative directives:
 
 ```nct
 //! JSON command-line tool.
@@ -88,9 +90,37 @@ pub use ./src/json
 display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
 unique package-local name and a logical module path without a `.nct` suffix.
 
-`#depend` reserves the source shape for a later phase. A dependency-bearing package is rejected
-until dependency identity, retrieval, caching, cycles, and offline behavior are implemented as one
-capability.
+Ordinary imports and declarations after the leading directives form the package root module.
+`index.nct` remains a directory module and has no package metadata responsibility.
+
+Dependencies and their generated exact locks share `nocter.nct`:
+
+```nct
+#dependencies: {
+    json: {
+        git: "https://github.com/example/json.git",
+        revision: "main",
+    },
+    http: {
+        archive: "https://nocter.dev/lib/http-v1.0.0.tar.gz",
+    },
+    local_math: {
+        path: "./packages/math",
+    },
+}
+
+#lock: {
+    format: 1,
+    dependencies: {
+        http: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        json: "git:7db21c1000000000000000000000000000000000",
+    },
+}
+```
+
+Git builds use only the locked commit and archives use only the locked SHA-256 content. Path
+dependencies are mutable development inputs and have no lock entry. No separate lockfile exists.
+The generated block is sorted by dependency alias.
 
 ## Executable Selection
 
@@ -106,7 +136,7 @@ main` with no type or value parameters and a supported process result type.
 
 Rules:
 
-- `module: "."` selects `index.nct`.
+- `module: "."` selects `nocter.nct`.
 - `module: "./src/server"` selects `src/server.nct` or `src/server/index.nct`.
 - If both module forms exist, selection is an error.
 - A module path cannot contain `.nct` or escape the package root.
@@ -135,6 +165,29 @@ file mode, the output uses the source stem. `-o` requires exactly one selected e
 `build` uses the same parser, resolver, type checker, ownership checker, buildability validation,
 lowering, code generator, and executable writer as `run`. It does not invoke an external assembler,
 linker, SDK tool, or runtime. Failure must not leave a partial executable at the output path.
+
+## Fetching and Lock Control
+
+```sh
+nocter fetch
+nocter fetch --root ./tools/json
+nocter fetch --locked
+nocter fetch --offline
+```
+
+`fetch` resolves missing direct locks, writes the generated `#lock` block atomically, and installs
+exact packages under `.nocter/packages/<PackageId>`. Package commands may perform the same missing
+lock generation and fetch before analysis.
+
+The complete dependency graph is validated before generated lock data is committed. A failed graph
+does not partially rewrite `nocter.nct`.
+
+- `--locked` rejects any operation that would create or change lock selection.
+- `--offline` prohibits source resolution and downloads; every exact package must already exist in
+  the package-local or Nocter-home store.
+- Existing locks are never changed implicitly.
+- LSP behaves as locked and offline regardless of command defaults.
+- Nocter home is searched only for an exact `PackageId`, never for a matching package name.
 
 ## Run
 
@@ -194,7 +247,7 @@ only stdout data while the server is running.
 The language server reuses compiler-owned parsing, resolution, types, ownership facts, declaration
 identities, and exact source spans. In v0.4.0 Phase 0 it also:
 
-- diagnoses package headers through the same parser and validation model as package commands
+- diagnoses package manifests through the same parser and validation model as package commands
 - classifies directive and record-field names without coloring surrounding punctuation or space
 - classifies executable module string contents as namespaces
 - resolves go-to-definition from an executable `module` value to the selected module file

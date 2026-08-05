@@ -62,7 +62,7 @@ and documentation for hover and signature help.
 
 Completion derives lexical scope and shadowing, generic member specialization, receiver capability,
 signature detail, documentation, and insertion text from compiler facts. Import paths share the
-frontend module layout and workspace/source roots; imported symbols come from resolved import
+frontend module layout and package graphs; imported symbols come from resolved import
 identity and visibility. Call-argument candidates use typechecker assignability for ranking.
 Incomplete calls, member expressions, imports, regions, and typed literals use temporary
 compile-unit recovery overlays separate from the authoritative document.

@@ -56,7 +56,7 @@ Initial spanless CLI diagnostic codes:
 - `E0702`: filesystem path or permission failure.
 - `E0703`: Nocter home resolution or validation failed.
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
-- `E0800`: package header, package-root, executable declaration, or package target selection failed.
+- `E0800`: package manifest, package-root, executable declaration, or package target selection failed.
 
 ## Source And Span Model
 
@@ -123,8 +123,8 @@ Top-level envelope:
   "ok": false,
   "command": "check",
   "target": "arm64-darwin",
-  "root": "/Users/me/project/index.nct",
-  "root_absolute_path": "/Users/me/project/index.nct",
+  "root": "/Users/me/project/nocter.nct",
+  "root_absolute_path": "/Users/me/project/nocter.nct",
   "diagnostics": []
 }
 ```
@@ -140,7 +140,7 @@ Envelope rules:
 - `ok` is `false` when at least one diagnostic is present.
 - `command` is the command that produced the diagnostics, initially `"check"`.
 - `target` is the active target when known, or `null` if target selection did not complete.
-- `root` is the selected package `index.nct` or explicit file display path when known, or `null` if
+- `root` is the selected package `nocter.nct` or explicit file display path when known, or `null` if
   input selection did not complete.
 - `root_absolute_path` is the canonical absolute path of the root file when known, or `null` if root-file discovery did not complete.
 - `diagnostics` is an array of diagnostic objects.

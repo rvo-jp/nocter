@@ -4,30 +4,39 @@
 
 - branch: `develop`
 - released baseline: v0.3.0
-- completed milestone: v0.4.0 Phase 0 — Source-Native Package Roots and Executable Targets
+- completed milestone: v0.4.0 Phase 1 — Deterministic Package Graph
+- next milestone: v0.4.0 Phase 2 — Immutable Package-wide LSP Snapshot
 - target: `arm64-darwin`
 
-The normative implementation plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are
-defined in [package-roots.md](docs/package-roots.md). Public behavior belongs in `spec/`.
+The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
+[packages.md](docs/packages.md). Public behavior belongs in `spec/`.
 
 ## Implemented Scope
 
-- package-header AST, parser, formatter, and JSON AST for declarative directive data
-- compiler-owned package, module, and executable identities
-- `index.nct` package loading with `#name`, `#version`, and repeatable `#executable`
-- exact validation for package-directive placement, fields, names, and logical module paths
-- package-default `check`, `build`, and `run`; explicit `--root`, `--executable`, and file mode
-- removal of implicit `main.nct` and bare-source command discovery
-- public namespace re-export through `pub use path`
-- `#target: "..."` declaration directive spelling
-- LSP semantic ranges and go to definition for executable module values
+- composite `nocter.nct` package file with separate manifest and root-module AST responsibilities
+- removal of package responsibility from `index.nct`
+- removal of source-root and entry-file-parent import discovery
+- module-relative, package-absolute, dependency, and standard-library import namespaces
+- `#dependencies` for path, Git revision, and archive sources
+- generated format-1 `#lock` with exact Git commits and SHA-256 archive identities
+- digest-backed `PackageId`, scoped dependency aliases, graph cycles, and transitive loading
+- package-local and exact-identity Nocter-home stores
+- isolated Git/archive fetcher with archive and canonical-path safety validation
+- `nocter fetch`, `--locked`, and `--offline`
+- CLI dependency compilation and locked-offline LSP graph loading
+- nearest-package LSP ownership, nested package navigation, manifest semantic ranges, and dependency
+  import completion
+- package-aware formatter and JSON AST
 
-## Phase 0 Qualification
+## Qualification State
 
-- repository verification and warnings-denied Clippy passed
-- public documentation was regenerated and verified
-- optimized local distribution passed `doctor` and package check/build/run
-- generated ARM64 Mach-O execution and archive inspection passed
+Phase 1 passes path, Git, archive, generated-lock transaction, offline reuse, cache-miss,
+source/lock mismatch, cycle, package compilation, LSP, formatter, full repository, optimized
+distribution, installed-home, native packaged-home, and archive acceptance gates.
 
-No v0.4.0 Phase 0 work remains. Define the next phase contract before beginning dependency
-resolution or another package capability.
+## Next Work
+
+Phase 2 should replace per-request LSP package reconstruction with one immutable package snapshot
+shared by diagnostics, hover, completion, definition, and references. Snapshot invalidation must
+use package/module identity and open-document versions; it must not add network or manifest writes
+to LSP request handling.
