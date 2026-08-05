@@ -385,8 +385,10 @@ fn completion_candidates_include_associated_functions_after_type_member_dot() {
     fd: i32
 }
 
-func File.open(): File {
-    return File { fd: 1 }
+construct File {
+    pub default func open(): Self {
+        return File { fd: 1 }
+    }
 }
 
 func main(): i32 {
@@ -405,7 +407,7 @@ func main(): i32 {
 
     assert!(items.iter().any(|item| {
         item.label == "open"
-            && item.kind == CompletionItemKind::Function
+            && item.kind == CompletionItemKind::Constructor
             && item.detail.as_deref() == Some("func File.open(): File")
     }));
     assert!(!items.iter().any(|item| item.label == "File"));

@@ -10,11 +10,48 @@ use crate::source::ByteSpan;
 
 impl Resolver<'_> {
     pub(super) fn collect_construction_surfaces(&mut self, ast: &crate::ast::AstFile) {
+        self.reject_detached_construction_functions(ast);
         for item in &ast.items {
             let crate::ast::Item::Construct(construct) = item else {
                 continue;
             };
             self.collect_construction_surface(ast, construct);
+        }
+    }
+
+    fn reject_detached_construction_functions(&mut self, ast: &crate::ast::AstFile) {
+        for item in &ast.items {
+            let crate::ast::Item::Function(function) = item else {
+                continue;
+            };
+            let Some(owner) = &function.owner else {
+                continue;
+            };
+            let Some(symbol) = self
+                .output
+                .symbols
+                .id_by_name(&owner.name)
+                .and_then(|id| self.output.symbols.get(id))
+            else {
+                continue;
+            };
+            let SymbolKind::Type(target) = &symbol.kind else {
+                continue;
+            };
+            if !matches!(target.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
+                || !result_constructs_owner(&function.return_type, &owner.name)
+            {
+                continue;
+            }
+            self.output.diagnostics.push(construction_diagnostic(
+                self.sources,
+                format!(
+                    "construction function `{}` must be declared inside `construct {} {{ ... }}`",
+                    function.name, owner.name
+                ),
+                function.member_name_span,
+                None,
+            ));
         }
     }
 
@@ -216,6 +253,16 @@ fn success_payload_is_self(ty: &TypeExpr) -> bool {
         TypeExpr::Reference(reference) => reference.name == "Self",
         TypeExpr::Optional(optional) => success_payload_is_self(&optional.inner),
         TypeExpr::Fallible(fallible) => success_payload_is_self(&fallible.success),
+        _ => false,
+    }
+}
+
+fn result_constructs_owner(ty: &TypeExpr, owner: &str) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name == "Self" || reference.name == owner,
+        TypeExpr::Generic(generic) => generic.name == owner,
+        TypeExpr::Optional(optional) => result_constructs_owner(&optional.inner, owner),
+        TypeExpr::Fallible(fallible) => result_constructs_owner(&fallible.success, owner),
         _ => false,
     }
 }

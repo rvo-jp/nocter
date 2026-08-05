@@ -87,8 +87,10 @@ fn collects_associated_function_symbols() {
     x: i32
 }
 
-pub func Point.origin(): Point {
-    return Point { x: 0 }
+construct Point {
+    pub default func origin(): Self {
+        return Point { x: 0 }
+    }
 }
 
 impl Point {

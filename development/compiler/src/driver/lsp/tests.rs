@@ -2902,8 +2902,10 @@ struct File {
 fd: i32
 }
 
-func File.open(): File {
+construct File {
+pub default func open(): Self {
 return File { fd: 1 }
+}
 }
 
 func main(): i32 {
@@ -2977,7 +2979,7 @@ return file.fd
 
     assert_eq!(
         open_item["kind"].as_u64(),
-        Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        Some(LSP_COMPLETION_ITEM_KIND_CONSTRUCTOR as u64)
     );
     assert_eq!(open_item["detail"].as_str(), Some("func File.open(): File"));
     assert_eq!(open_item["insertText"].as_str(), Some("open()"));

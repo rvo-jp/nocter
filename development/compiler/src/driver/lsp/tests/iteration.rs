@@ -8,8 +8,10 @@ fn write_iteration_std(home: &Path) {
     next_index: usize
 }
 
-pub func ViewIter.from_view<T>(view: &[T]): ViewIter<T> {
-    return ViewIter<T> { view: view, next_index: 0 }
+construct ViewIter<T> {
+    pub default func from_view(view: &[T]): Self {
+        return ViewIter<T> { view: view, next_index: 0 }
+    }
 }
 
 impl<T> ViewIter<T> {

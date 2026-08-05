@@ -390,8 +390,10 @@ fn accepts_self_type_in_inherent_member_type_positions() {
     x: i32
 }
 
-pub func Point.origin(): Self {
-    return Self { x: 1 }
+construct Point {
+    pub default func origin(): Self {
+        return Self { x: 1 }
+    }
 }
 
 impl Point {

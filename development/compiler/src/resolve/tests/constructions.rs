@@ -90,3 +90,21 @@ construct Value {}
         diagnostic.code == "E0460" && diagnostic.message.contains("already has a construct")
     }));
 }
+
+#[test]
+fn rejects_construction_functions_detached_from_their_nominal_owner() {
+    let output = resolve_text(
+        r#"struct Point { x: i32 }
+
+pub func Point.origin(): Point {
+    return Point { x: 0 }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must be declared inside `construct Point { ... }`")
+    }));
+}

@@ -28,20 +28,23 @@ construct Text {
 }
 
 #[test]
-fn associated_function_declaration_has_separate_owner_and_member_hover_targets() {
+fn construct_function_declaration_has_separate_owner_and_member_hover_targets() {
     let text = r#"struct File { fd: i32 }
 
-func File.open(): Self {
-    return File { fd: 1 }
+construct File {
+    pub default func open(): Self {
+        return File { fd: 1 }
+    }
 }
 "#;
     let (sources, analysis) = analyze_text(text);
     let file = analysis.root_file().expect("expected root file");
-    let declaration = text.find("File.open").expect("expected declaration");
+    let owner_offset = text.find("construct File").unwrap() + "construct ".len();
+    let member_offset = text.find("func open").unwrap() + "func ".len();
 
-    let owner = hover_for_file_analysis(&sources, &analysis, file, declaration)
+    let owner = hover_for_file_analysis(&sources, &analysis, file, owner_offset)
         .expect("expected owner hover");
-    let member = hover_for_file_analysis(&sources, &analysis, file, declaration + "File.".len())
+    let member = hover_for_file_analysis(&sources, &analysis, file, member_offset)
         .expect("expected member hover");
 
     assert_eq!(owner.label, "struct File");

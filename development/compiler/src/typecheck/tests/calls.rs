@@ -253,8 +253,10 @@ fn accepts_associated_function_return_type() {
     x: i32
 }
 
-pub func Point.origin(): Self {
-    return Self { x: 0 }
+construct Point {
+    pub default func origin(): Self {
+        return Self { x: 0 }
+    }
 }
 
 func main(): i32 {
