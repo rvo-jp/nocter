@@ -1,4 +1,4 @@
-use super::super::{FrontendOptions, load_compile_unit};
+use super::super::{FrontendOptions, load_compile_unit, load_compile_unit_with_trace};
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
 use crate::analysis::analyze_executable_compile_unit;
 use crate::source::SourceMap;
@@ -130,6 +130,33 @@ func main(): i32 {
             .iter()
             .any(|diagnostic| diagnostic.code == "E0312")
     );
+}
+
+#[test]
+fn failed_compile_unit_retains_only_reached_source_dependencies() {
+    let root = make_temp_project("failed-compile-unit-source-trace");
+    let home = make_nocter_home(&root);
+    fs::write(root.join("app.nct"), "use ./config.value\n").unwrap();
+    fs::write(root.join("config.nct"), "pub func value(: i32 {\n").unwrap();
+    fs::write(root.join("unrelated.nct"), "pub func value(): i32 { 0 }\n").unwrap();
+
+    let mut sources = SourceMap::new();
+    let app = sources.load_file(root.join("app.nct")).unwrap();
+    let config = sources.load_file(root.join("config.nct")).unwrap();
+    let unrelated = sources.load_file(root.join("unrelated.nct")).unwrap();
+    let options = FrontendOptions {
+        nocter_home: Some(home),
+        package_graph: None,
+        target: DEFAULT_TARGET.to_string(),
+    };
+
+    let load = load_compile_unit_with_trace(&mut sources, app, &options);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(load.result.is_err());
+    assert!(load.loaded_sources.contains(&app));
+    assert!(load.loaded_sources.contains(&config));
+    assert!(!load.loaded_sources.contains(&unrelated));
 }
 
 #[test]

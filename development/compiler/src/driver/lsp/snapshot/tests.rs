@@ -153,6 +153,111 @@ fn watched_disk_dependency_change_invalidates_its_importers() {
 }
 
 #[test]
+fn repairing_a_failed_disk_dependency_rebuilds_its_importer() {
+    let project = TempProject::new("failed-watched-dependency");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app = project.write(
+        "app.nct",
+        "use ./config.value\n\npub func read(): i32 { value() }\n",
+    );
+    let config = project.write("config.nct", "pub func value(: i32 {\n");
+    let documents = documents_for([&app]);
+    let store = SnapshotStore::default();
+    let failed = store.current(&documents, &[]);
+    let app_uri = file_uri_for_path(&app);
+    assert!(failed.analysis(&app_uri).unwrap().semantic().is_none());
+
+    fs::write(&config, "pub func value(): i32 { 2 }\n").unwrap();
+    let repaired = store.rebuild(
+        &documents,
+        &[],
+        SnapshotChange::path(Some(config.as_path())),
+    );
+
+    assert!(!Arc::ptr_eq(
+        &failed.document_snapshot(&app_uri).unwrap().analysis,
+        &repaired.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+    assert!(repaired.analysis(&app_uri).unwrap().semantic().is_some());
+    assert!(
+        repaired
+            .analysis(&app_uri)
+            .unwrap()
+            .diagnostics()
+            .is_empty()
+    );
+}
+
+#[test]
+fn creating_a_previously_missing_dependency_rebuilds_its_importer() {
+    let project = TempProject::new("created-dependency");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app = project.write(
+        "app.nct",
+        "use ./config.value\n\npub func read(): i32 { value() }\n",
+    );
+    let config = project.root.join("config.nct");
+    let documents = documents_for([&app]);
+    let store = SnapshotStore::default();
+    let missing = store.current(&documents, &[]);
+    let app_uri = file_uri_for_path(&app);
+    assert!(missing.analysis(&app_uri).unwrap().semantic().is_none());
+
+    fs::write(&config, "pub func value(): i32 { 2 }\n").unwrap();
+    let repaired = store.rebuild(
+        &documents,
+        &[],
+        SnapshotChange::path(Some(config.as_path())),
+    );
+
+    assert!(!Arc::ptr_eq(
+        &missing.document_snapshot(&app_uri).unwrap().analysis,
+        &repaired.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+    assert!(repaired.analysis(&app_uri).unwrap().semantic().is_some());
+    assert!(
+        repaired
+            .analysis(&app_uri)
+            .unwrap()
+            .diagnostics()
+            .is_empty()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn deleting_a_symlinked_dependency_rebuilds_its_importer() {
+    use std::os::unix::fs::symlink;
+
+    let project = TempProject::new("deleted-symlink-dependency");
+    let home = project.write_nocter_home();
+    let _home = NocterHomeEnv::set(&home);
+    let app = project.write(
+        "app.nct",
+        "use ./config.value\n\npub func read(): i32 { value() }\n",
+    );
+    let target = project.write("shared/config.nct", "pub func value(): i32 { 1 }\n");
+    let link = project.root.join("config.nct");
+    symlink(&target, &link).unwrap();
+    let documents = documents_for([&app]);
+    let store = SnapshotStore::default();
+    let available = store.current(&documents, &[]);
+    let app_uri = file_uri_for_path(&app);
+    assert!(available.analysis(&app_uri).unwrap().semantic().is_some());
+
+    fs::remove_file(&link).unwrap();
+    let missing = store.rebuild(&documents, &[], SnapshotChange::path(Some(link.as_path())));
+
+    assert!(!Arc::ptr_eq(
+        &available.document_snapshot(&app_uri).unwrap().analysis,
+        &missing.document_snapshot(&app_uri).unwrap().analysis,
+    ));
+    assert!(missing.analysis(&app_uri).unwrap().semantic().is_none());
+}
+
+#[test]
 fn nested_packages_receive_distinct_graph_snapshots() {
     let project = TempProject::new("nested-packages");
     let root_package = project.write("nocter.nct", "#name: \"root\"\n");

@@ -3,7 +3,9 @@ use super::diagnostics::{LspDiagnostic, diagnostics_for_lsp};
 use super::documents::OpenDocument;
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis, analyze_module_compile_unit};
 use crate::diagnostics::Diagnostic;
-use crate::frontend::{FrontendOptions, load_compile_unit};
+#[cfg(test)]
+use crate::frontend::load_compile_unit;
+use crate::frontend::{FrontendOptions, load_compile_unit_with_trace};
 use crate::package::PackageGraph;
 use crate::source::{SourceId, SourceMap};
 use std::collections::{HashMap, HashSet};
@@ -61,7 +63,10 @@ pub(super) fn workspace_analysis_for_uri_with_package_graph(
 
     let root = workspace.source_for_uri(uri)?;
     let options = lsp_frontend_options(package_graph);
-    let (analysis, diagnostics) = match load_compile_unit(&mut workspace.sources, root, &options) {
+    let load = load_compile_unit_with_trace(&mut workspace.sources, root, &options);
+    let active_sources = load.loaded_sources;
+    let mut source_paths = load.dependency_paths;
+    let (analysis, diagnostics) = match load.result {
         Ok(unit) => {
             let analysis = analyze_module_compile_unit(&workspace.sources, &unit);
             let diagnostics = analysis.diagnostics();
@@ -69,22 +74,13 @@ pub(super) fn workspace_analysis_for_uri_with_package_graph(
         }
         Err(diagnostics) => (None, diagnostics),
     };
-    let active_sources = analysis
-        .as_ref()
-        .map(|analysis| {
-            analysis
-                .files
-                .iter()
-                .map(|file| file.ast.span.source)
-                .collect::<HashSet<_>>()
-        })
-        .unwrap_or_else(|| HashSet::from([root]));
-    let source_paths = workspace
-        .sources
-        .sources_with_absolute_paths()
-        .filter(|(_, source)| active_sources.contains(source))
-        .map(|(path, _)| path.to_path_buf())
-        .collect();
+    source_paths.extend(
+        workspace
+            .sources
+            .sources_with_absolute_paths()
+            .filter(|(_, source)| active_sources.contains(source))
+            .flat_map(|(path, _)| crate::frontend::dependency_path_aliases(path)),
+    );
 
     Some(LspWorkspaceAnalysis {
         sources: workspace.sources,
