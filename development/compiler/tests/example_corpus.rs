@@ -161,6 +161,23 @@ fn valid_example_corpus_passes_check_json() {
 }
 
 #[test]
+fn package_example_corpus_passes_package_check() {
+    let project = TempProject::new("example-corpus-package");
+    let root = repo_root().join("spec/examples/packages/hello");
+    let output = check_package(&project, &root);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "package example failed\nstdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
 fn invalid_example_corpus_reports_check_json_diagnostics() {
     let project = TempProject::new("example-corpus-invalid-json");
 
@@ -296,6 +313,21 @@ fn check(project: &TempProject, source: &Path) -> Output {
 fn check_json(project: &TempProject, source: &Path) -> Output {
     Command::new(NOCTER)
         .args(["check", source.to_str().unwrap(), "--format", "json"])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", project.nocter_home())
+        .output()
+        .unwrap()
+}
+
+fn check_package(project: &TempProject, root: &Path) -> Output {
+    Command::new(NOCTER)
+        .args([
+            "check",
+            "--root",
+            root.to_str().unwrap(),
+            "--locked",
+            "--offline",
+        ])
         .current_dir(project.root())
         .env("NOCTER_HOME", project.nocter_home())
         .output()
