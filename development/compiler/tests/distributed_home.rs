@@ -1898,8 +1898,9 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("hidden field") || stderr.contains("not visible"),
-        "expected private Vec field diagnostic, got:\n{stderr}"
+        stderr.contains("E0461")
+            && stderr.contains("raw structural construction of `std/vec.Vec` is restricted"),
+        "expected restricted Vec construction diagnostic, got:\n{stderr}"
     );
 }
 
@@ -2786,9 +2787,7 @@ fn distributed_std_string_representation_is_private() {
     let project = TempProject::new("distributed-home-string-private");
     let source = project.write_source(
         "string_private.nct",
-        r#"use std/string.String
-
-func main(): i32 {
+        r#"func main(): i32 {
     let text = String { len: 0 }
     return 0
 }
@@ -2811,8 +2810,9 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0377") && stderr.contains("not visible here"),
-        "expected private String field diagnostic, got:\n{stderr}"
+        stderr.contains("E0461")
+            && stderr.contains("raw structural construction of `std/string.String` is restricted"),
+        "expected restricted String construction diagnostic, got:\n{stderr}"
     );
 }
 
@@ -3671,8 +3671,9 @@ func main(): i32 {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("E0377") && stderr.contains("not visible here"),
-        "expected private File field diagnostic, got:\n{stderr}"
+        stderr.contains("E0461")
+            && stderr.contains("raw structural construction of `std/io.File` is restricted"),
+        "expected restricted File construction diagnostic, got:\n{stderr}"
     );
 }
 
