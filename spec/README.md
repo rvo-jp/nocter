@@ -44,11 +44,11 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Version Status
 
-The implemented and released language baseline is v0.2.0. Adopted v0.3.0 directions are marked by
-version and implementation phase in their owning chapters. The
-[v0.3.0 Phase 0 through Phase 10](../development/docs/v0.3.0.md) implementation gates are complete
-on `develop`. This does not make v0.3.0 a released language version. A future design is not
-buildable until its own stated gate passes.
+The implemented and released language baseline is v0.3.0. Its Phase 0 through Phase 10 contracts
+and release qualification are recorded in the
+[v0.3.0 Release Record](../development/docs/v0.3.0.md). The
+[v0.2.0 Language Contract](00-v0.2.0-contract.md) remains an immutable historical boundary. A
+future design is not buildable until its own stated implementation gate passes.
 
 ## Editing Policy
 

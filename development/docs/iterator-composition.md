@@ -2,7 +2,7 @@
 
 This document owns the compiler and standard-library implementation design for v0.3.0 Phase 9.
 Public generic and iterator semantics belong to the specification. The active completion gate
-belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+belongs to the [v0.3.0 Release Record](v0.3.0.md).
 
 ## Capability Sets
 

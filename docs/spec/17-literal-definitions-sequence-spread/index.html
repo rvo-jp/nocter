@@ -149,7 +149,8 @@
                 <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
                 <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Phase 0 through Phase 10</a></li>
+                <li><a href="../../development/docs/v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
+                <li><a href="../00-v0.2.0-contract/index.html#content">v0.2.0 Language Contract</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -161,7 +162,7 @@
 <span class="token-keyword">let</span> empty <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">[</span><span class="token-operator">]</span>
 
 <span class="token-keyword">let</span> joined <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">,</span> <span class="token-operator">...</span>nums<span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">]</span>
-</code></pre><p>The type name is mandatory. Bare <code>[1, 2, 3]</code> remains the built-in fixed-size array literal unless another future chapter changes that rule explicitly.</p><h2 id="implementation-boundary">Implementation Boundary</h2><p>The following source forms are implemented on <code>develop</code> by v0.3.0 Phase 1 but are not part of the v0.2.0 release:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+</code></pre><p>The type name is mandatory. Bare <code>[1, 2, 3]</code> remains the built-in fixed-size array literal unless another future chapter changes that rule explicitly.</p><h2 id="implementation-boundary">Implementation Boundary</h2><p>The following source forms are implemented by v0.3.0 and are not part of the v0.2.0 release:</p><pre><code class="language-nct"><span class="token-keyword">construct</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> default <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from current <span class="token-operator">{</span>
         <span class="token-operator">...</span>
     <span class="token-operator">}</span>
@@ -175,7 +176,7 @@
 
 <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
 <span class="token-type">String</span> <span class="token-string">"hello"</span>
-</code></pre><p>The sequence-spread form is implemented on <code>develop</code> by v0.3.0 Phase 8:</p><pre><code class="language-nct"><span class="token-type">Vec</span> <span class="token-operator">[</span>
+</code></pre><p>The sequence-spread form is implemented by v0.3.0:</p><pre><code class="language-nct"><span class="token-type">Vec</span> <span class="token-operator">[</span>
     <span class="token-operator">...</span>copyable<span class="token-operator">,</span>
     <span class="token-operator">...</span><span class="token-operator">&amp;</span>borrowed<span class="token-operator">,</span>
     <span class="token-operator">...</span><span class="token-keyword">move</span> owned<span class="token-operator">,</span>

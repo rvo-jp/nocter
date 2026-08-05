@@ -1,14 +1,14 @@
 # Nocter v0.3.0 Handoff
 
 The completion criteria and implementation boundaries are owned by the
-[v0.3.0 Development Contract](docs/v0.3.0.md) and
+[v0.3.0 Release Record](docs/v0.3.0.md) and
 [First-Class Outcome Values](docs/outcome-values.md). Git owns
 chronological implementation history.
 
 ## Current Baseline
 
 - branch: `develop`
-- released baseline: `v0.2.0`
+- release candidate: `v0.3.0`
 - completed milestone gates: `v0.3.0 Phase 0`, `v0.3.0 Phase 1 Typed Literal Core`,
   `v0.3.0 Phase 2 Explicit Iteration and Collection Access`, and
   `v0.3.0 Phase 3 Owned String Interpolation and Formatting`,
@@ -19,7 +19,7 @@ chronological implementation history.
   `v0.3.0 Phase 8 Explicit Sequence Spread and Composable Element Packs`, and
   `v0.3.0 Phase 9 Composable Iterators and Collection Builders`, and
   `v0.3.0 Phase 10 Callable Values and Interface Default Methods`
-- active milestone gate: none; `v0.3.0` release preparation requires an explicit release decision
+- active milestone gate: `v0.3.0` release qualification
 - target: `arm64-darwin`
 - required Phase 0 items: none
 - required Phase 1 items: none
@@ -44,7 +44,7 @@ editor integration.
 
 ## Current Objective
 
-Qualify v0.3.0 as one stable release without expanding its feature set. Optional and fallible
+Qualify the versioned v0.3.0 release artifact without expanding its feature set. Optional and fallible
 outcome identity is now preserved through IR, including stored borrow payloads and contextual
 generic specialization. User-facing compiler diagnostics no longer describe implementation limits
 as a bare `v0` contract, and call-lowering failures distinguish unavailable targets from borrow and
@@ -90,8 +90,9 @@ parser, formatter, JSON AST, resolver, typecheck, specialization, buildability, 
 LSP, the distributed standard library, and packaged execution. Brace-less conformance and
 inherent-method satisfaction have no compatibility path. The full clean-worktree compiler matrix,
 warnings-denied Clippy, documentation build, optimized local distribution, installed-home `doctor`,
-packaged-home runtime suite, and archive inspection pass. The next operation is an explicit v0.3.0
-release-preparation decision, not further interface stabilization work.
+packaged-home runtime suite, and archive inspection pass. Release preparation now updates the
+compiler, distribution, documentation, and release notes to v0.3.0 and reruns the complete gate
+against that exact artifact.
 
 Type-owned construction-surface stabilization is also complete. `construct` is the sole AST owner
 for public literal definitions and for associated functions that directly produce a nominal struct
@@ -100,3 +101,11 @@ default selection, imports, hover, completion ordering, signature help, definiti
 semantic tokens, and document symbols. `Vec<T>`, `String`, `Layout`, iterator constructors, and
 `File` use this model in distributed std. Detached legacy declarations receive migration
 diagnostics; the compiler does not synthesize a compatibility surface.
+
+## Release Qualification Boundary
+
+No feature work is admitted before the v0.3.0 release. The remaining gate is version coherence,
+generated documentation, full compiler verification, warnings-denied Clippy, optimized local
+packaging, installed-home `doctor`, packaged-home execution, and archive inspection. Once those
+checks pass and the release commit is clean, the next operation is the explicit tag, merge, and
+remote publication workflow.

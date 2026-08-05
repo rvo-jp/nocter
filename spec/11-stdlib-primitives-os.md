@@ -627,7 +627,7 @@ errors, but allocation failure terminates. A recoverable-memory variant, if
 needed, takes a `TryAllocator` explicitly and preserves the same OS error
 identity.
 
-v0.3.0 Phase 5 implements the executable process-context surface below on `develop`:
+Nocter v0.3.0 implements the executable process-context surface below:
 
 ```nct
 pub func args(): Vec<&str>! from current | static
@@ -654,8 +654,7 @@ v0.3.0 Phase 5 rules:
 - compiler buildability and lowering depend on resolved outcome shapes and declaration identities,
   not the spelling `std/process.env`
 
-These rules are implemented in the v0.3.0 development line but are not retroactively part of the
-released v0.2.0 runtime.
+These v0.3.0 rules do not retroactively alter the v0.2.0 runtime contract.
 
 Example:
 

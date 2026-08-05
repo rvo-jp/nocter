@@ -4,20 +4,20 @@ This directory contains implementation design and completion criteria. The publi
 [specification](../../spec/README.md) is the sole authority for language semantics; do not duplicate
 those rules here.
 
-The released baseline is **v0.2.0**. v0.3.0 Phase 0, **Phase 1: Typed Literal Core**,
+The released baseline is **v0.3.0**. Phase 0, **Phase 1: Typed Literal Core**,
 **Phase 2: Explicit Iteration and Collection Access**, **Phase 3: Owned String Interpolation and
 Formatting**, **Phase 4: Public Provenance Contracts and Generic Interface Bounds**, and **Phase 5:
 Nested Outcomes and Executable Process Context**, **Phase 6: First-Class Outcome Values**, and
 **Phase 7: Protocol-Driven Collection Iteration**, **Phase 8: Explicit Sequence Spread and
 Composable Element Packs**, **Phase 9: Composable Iterators and Collection Builders**, and **Phase
-10: Callable Values and Interface Default Methods** are complete on `develop`. **v0.3.0
-Stabilization** is active again for body-bearing interface implementations. Do not use `v0` as
+10: Callable Values and Interface Default Methods**, body-bearing interface implementations,
+type-owned construction surfaces, and **v0.3.0 Stabilization** are complete. Do not use `v0` as
 shorthand for a release name or work scope.
 
 ## Documents
 
-- [v0.3.0 Development Contract](v0.3.0.md): completed Phase 0 through Phase 10 records,
-  stabilization criteria, and the single entry point for current milestone status
+- [v0.3.0 Release Record](v0.3.0.md): completed Phase 0 through Phase 10 records,
+  stabilization criteria, release qualification, and explicit limits
 - [Body-Bearing Interface Implementations](interface-implementations.md): canonical conformance
   member identity, lookup, validation, migration, and editor boundaries
 - [Construction Surfaces](construction-surfaces.md): compiler-owned construction entries,
@@ -57,8 +57,8 @@ shorthand for a release name or work scope.
 | Information | Owner |
 |---|---|
 | Public language rules | `spec/` |
-| v0.3.0 phase status, scope, and priority | `v0.3.0.md` |
-| Released v0.2.0 completion record | `v0.2.0.md` |
+| v0.3.0 release status, scope, and qualification | `v0.3.0.md` |
+| Previous v0.2.0 completion record | `v0.2.0.md` |
 | Compiler responsibility boundaries | `architecture.md` |
 | Region, provenance, and allocation-context implementation design | `region-provenance.md` |
 | Typed literal and ephemeral element-pack implementation design | `typed-literals.md` |

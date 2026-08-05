@@ -500,8 +500,7 @@ The value is equivalent to:
 
 ## String Interpolation
 
-The v0.3.0 Phase 3 implementation gate for `${expr}` inside a string source form is complete on
-`develop`. v0.2.0 remains the released language baseline.
+Nocter v0.3.0 implements `${expr}` interpolation inside string source forms.
 
 ```nct
 let message = "hello ${name}"

@@ -5,15 +5,11 @@ This file is part of the Nocter language specification. The specification entry 
 
 ## Status
 
-Nocter v0.2.0 implements deterministic ownership and explicit fallible allocation for `String`,
-`Vec<T>`, and `RawBuffer`. The lexical `region` syntax is reserved but is not implemented in that
-release.
-
-The design in this chapter is the adopted v0.3.0 direction. Its Phase 0 region, provenance, and
-allocation-context implementation is complete on `develop`, but is not a released language
-version. Later v0.3.0 phases build typed literals, sequence spread, and collection iteration on
-that foundation. Development completion criteria live in the
-[v0.3.0 Development Contract](../development/docs/v0.3.0.md).
+Nocter v0.3.0 implements deterministic ownership, explicit fallible allocation, lexical regions,
+storage provenance, and a statically propagated current allocation context for `String`, `Vec<T>`,
+and `RawBuffer`. Typed literals, sequence spread, and collection iteration build on that
+foundation. The completed release criteria live in the
+[v0.3.0 Release Record](../development/docs/v0.3.0.md).
 
 ## Memory Model
 
@@ -278,7 +274,8 @@ Allocation effects otherwise remain inferred and have no source annotation in Ph
 
 ## Typed Literal Allocation
 
-Typed literals are a later v0.3.0 phase, but their allocation boundary is fixed by Phase 0:
+Typed literals were completed after Phase 0, and their allocation boundary follows the Phase 0
+contract:
 
 ```nct
 let values = Vec [1, 2, 3]

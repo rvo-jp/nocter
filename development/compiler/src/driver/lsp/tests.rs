@@ -60,6 +60,37 @@ fn handles_initialize_request() {
 }
 
 #[test]
+fn unsupported_request_reports_the_compiler_version() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "nocter/unsupported"
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    let response = response_with_id(&messages, 2);
+
+    assert_eq!(response["error"]["code"], json!(-32601));
+    assert_eq!(
+        response["error"]["message"],
+        json!(format!(
+            "method `nocter/unsupported` is not supported by Nocter LSP v{}",
+            crate::driver::VERSION
+        ))
+    );
+}
+
+#[test]
 fn rejects_invalid_text_document_request_params_and_keeps_serving() {
     let uri = "file:///tmp/nocter-invalid-request-params.nct";
     let mut input = frame(&json!({

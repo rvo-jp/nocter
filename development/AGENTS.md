@@ -22,13 +22,10 @@ rewrite them.
 
 ## Recorded Milestone
 
-v0.2.0 is released and complete. v0.3.0 Phase 0, Phase 1 Typed Literal Core, Phase 2 Explicit
-Iteration and Collection Access, Phase 3 Owned String Interpolation and Formatting, and Phase 4
-Public Provenance Contracts and Generic Interface Bounds are complete on `develop`, as are Phase 5
-through Phase 10 Callable Values and Interface Default Methods. No later milestone is active. Do not
-use `v0` as shorthand for a release scope. Use
-[docs/v0.3.0.md](docs/v0.3.0.md) for current milestone status and
-[docs/v0.2.0.md](docs/v0.2.0.md) only for the released baseline.
+v0.3.0 is complete through Phase 10, stabilization, body-bearing interface implementations, and
+type-owned construction surfaces. No later milestone is active. Do not use `v0` as shorthand for a
+release scope. Use [docs/v0.3.0.md](docs/v0.3.0.md) for the current release record and
+[docs/v0.2.0.md](docs/v0.2.0.md) only for the previous released baseline.
 
 ## Engineering Priority
 
@@ -68,7 +65,7 @@ Keep structural changes and behavior changes in separate commits when practical.
 Update only the owner of the changed fact:
 
 - `TODO.md`: next concrete task, blockers, uncommitted handoff state
-- `docs/v0.3.0.md`: current milestone status, completion gate, scope, non-goal, or work order
+- `docs/v0.3.0.md`: current release status, completion gate, scope, non-goal, or qualification
 - `docs/v0.2.0.md`: released v0.2.0 completion record
 - `docs/architecture.md`: phase/module responsibility or data flow
 - `docs/region-provenance.md`: region, storage-origin, allocation-effect, or callable-summary design

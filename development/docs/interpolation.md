@@ -3,7 +3,7 @@
 This document owns the compiler and standard-library design for v0.3.0 Phase 3. Public string and
 formatting semantics belong to [Strings, Arrays, Views, and Pointers](../../spec/07-strings-arrays-views-pointers.md)
 and [Standard Library, Primitives, and OS](../../spec/11-stdlib-primitives-os.md). The completed gate
-belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+belongs to the [v0.3.0 Release Record](v0.3.0.md).
 
 ## Boundary
 
@@ -110,7 +110,7 @@ when the trusted runtime capability or expression type is unresolved.
 
 ## Completion Record
 
-Phase 3 is complete on `develop`. `target/trusted_interpolation` validates the atomic runtime
+Phase 3 is complete. `target/trusted_interpolation` validates the atomic runtime
 capability, typecheck records one semantic plan per expression, `ir/lower/interpolation` lowers the
 owned result and cleanup state, and `analysis/interpolation` owns editor-facing facts and recovery.
 Distributed-home tests exercise exact native output, scalar boundaries, evaluation order, existing

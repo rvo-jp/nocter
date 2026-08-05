@@ -240,8 +240,7 @@ Rules:
 
 Adopted: optional and fallible type constructors may be composed explicitly.
 
-v0.3.0 Phase 5 implements fallible-optional callable returns and immediate consumers on `develop`.
-v0.2.0 remains the released build boundary until a later release publishes this work.
+Nocter v0.3.0 implements fallible-optional callable returns and immediate consumers.
 
 Preferred source spelling:
 

@@ -2,9 +2,9 @@
 
 This document owns the compiler design for v0.3.0 Phase 7 explicit readonly and consuming
 collection iteration. Public control-flow semantics belong to the specification. The completed
-gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+gate belongs to the [v0.3.0 Release Record](v0.3.0.md).
 
-Phase 7 completed on `develop` on 2026-08-03. The compiler, standard library, native backend, and
+Phase 7 completed on 2026-08-03. The compiler, standard library, native backend, and
 LSP implement the boundaries and acceptance observations recorded below.
 
 ## Boundary

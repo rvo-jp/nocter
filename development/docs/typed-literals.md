@@ -3,7 +3,7 @@
 This document owns the compiler design for v0.3.0 Phase 1 typed literal definitions and v0.3.0
 Phase 8 composable sequence packs. Public semantics belong to
 [Literal Definitions and Sequence Spread](../../spec/17-literal-definitions-sequence-spread.md),
-and the completed gates belong to the [v0.3.0 Development Contract](v0.3.0.md).
+and the completed gates belong to the [v0.3.0 Release Record](v0.3.0.md).
 
 ## Separate Concepts
 

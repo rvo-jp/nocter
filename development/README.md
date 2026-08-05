@@ -4,18 +4,18 @@ This directory contains the Rust bootstrap compiler, the distributed standard li
 packaging inputs, and implementation documentation. See the [repository README](../README.md) for
 the public overview and the [specification](../spec/README.md) for language rules.
 
-The released baseline is **Nocter v0.2.0**. **v0.3.0 Phase 0: Region and Allocation Context**,
+The released baseline is **Nocter v0.3.0**. **Phase 0: Region and Allocation Context**,
 **Phase 1: Typed Literal Core**, **Phase 2: Explicit Iteration and Collection Access**, and
 **Phase 3: Owned String Interpolation and Formatting**, **Phase 4: Public Provenance Contracts
 and Generic Interface Bounds**, **Phase 5: Nested Outcomes and Executable Process Context**,
 **Phase 6: First-Class Outcome Values**, **Phase 7: Protocol-Driven Collection Iteration**, and
 **Phase 8: Explicit Sequence Spread and Composable Element Packs**, and **Phase 9: Composable
 Iterators and Collection Builders**, and **Phase 10: Callable Values and Interface Default
-Methods** and **v0.3.0 Stabilization** are complete on `develop`, including the body-bearing
-interface implementation migration and clean release requalification. The repository and packaged
-release metadata remain at the released v0.2.0 baseline until a separate v0.3.0 release-preparation
-operation. Completion records, stabilization criteria, and dependency order are
-defined in the [v0.3.0 Development Contract](docs/v0.3.0.md); the implementation boundary is
+Methods** and **v0.3.0 Stabilization** are complete, including the body-bearing interface
+implementation migration, type-owned construction surfaces, and clean release qualification. The
+repository and packaged release metadata identify v0.3.0. Completion records, stabilization
+criteria, and dependency order are defined in the
+[v0.3.0 Release Record](docs/v0.3.0.md); the implementation boundary is
 defined in [Body-Bearing Interface Implementations](docs/interface-implementations.md). The
 completed v0.2.0 criteria remain available in the [v0.2.0 release record](docs/v0.2.0.md).
 
@@ -51,7 +51,7 @@ external runtime library, or the Xcode Command Line Tools.
 ## Documents
 
 - [Documentation Index](docs/README.md)
-- [v0.3.0 Development Contract](docs/v0.3.0.md)
+- [v0.3.0 Release Record](docs/v0.3.0.md)
 - [v0.2.0 Release Record](docs/v0.2.0.md)
 - [Compiler Architecture](docs/architecture.md)
 - [Region, Provenance, and Allocation Context](docs/region-provenance.md)

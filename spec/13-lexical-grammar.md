@@ -192,8 +192,7 @@ Keyword rules:
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0.2.0 and are emitted as identifier tokens.
-- `literal` is not reserved in v0.2.0. The v0.3.0 Phase 1 grammar on `develop` reserves it for
-  literal definitions.
+- `literal` is not reserved in v0.2.0. The v0.3.0 grammar reserves it for literal definitions.
 
 Newline rules:
 

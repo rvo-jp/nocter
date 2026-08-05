@@ -2,7 +2,7 @@
 
 This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong
 in the specification. The completion gate belongs to the
-[v0.3.0 Development Contract](v0.3.0.md).
+[v0.3.0 Release Record](v0.3.0.md).
 
 ## Design Boundary
 

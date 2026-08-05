@@ -2,11 +2,11 @@
 
 This document owns the compiler design for v0.3.0 Phase 6 stored optional and fallible values.
 Public value, ownership, and control-flow semantics belong to the specification. The completed
-milestone gate belongs to the [v0.3.0 Development Contract](v0.3.0.md).
+milestone gate belongs to the [v0.3.0 Release Record](v0.3.0.md).
 
 ## Completion Record
 
-v0.3.0 Phase 6 completed on `develop` on 2026-08-03. The compiler implements the recursive stored
+v0.3.0 Phase 6 completed on 2026-08-03. The compiler implements the recursive stored
 layout, explicit callable bridges, active-payload ownership and cleanup, saved-value consumers,
 aggregate and fixed-array storage, generic specialization, provenance retention, and normalized
 analysis/LSP presentation described here. Repository-home and packaged-home native tests cover the

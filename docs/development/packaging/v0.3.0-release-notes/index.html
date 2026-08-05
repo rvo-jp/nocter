@@ -3,33 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Public Provenance Contracts and Generic Interface Bounds - Nocter</title>
-    <meta name="description" content="This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ">
+    <title>Nocter v0.3.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.3.0 turns the allocator and ownership foundation from v0.2.0 into a more productive language surface. It adds compiler-tracked lexical regions, t">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/docs/provenance-contracts/">
+    <link rel="canonical" href="https://nocter.dev/development/packaging/v0.3.0-release-notes/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Public Provenance Contracts and Generic Interface Bounds - Nocter">
-    <meta property="og:description" content="This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ">
-    <meta property="og:url" content="https://nocter.dev/development/docs/provenance-contracts/">
+    <meta property="og:title" content="Nocter v0.3.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.3.0 turns the allocator and ownership foundation from v0.2.0 into a more productive language surface. It adds compiler-tracked lexical regions, t">
+    <meta property="og:url" content="https://nocter.dev/development/packaging/v0.3.0-release-notes/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="article:modified_time" content="2026-08-05">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Public Provenance Contracts and Generic Interface Bounds - Nocter">
-    <meta name="twitter:description" content="This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ">
+    <meta name="twitter:title" content="Nocter v0.3.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.3.0 turns the allocator and ownership foundation from v0.2.0 into a more productive language surface. It adds compiler-tracked lexical regions, t">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Public Provenance Contracts and Generic Interface Bounds - Nocter","description":"This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the ","url":"https://nocter.dev/development/docs/provenance-contracts/","mainEntityOfPage":"https://nocter.dev/development/docs/provenance-contracts/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Docs","item":"https://nocter.dev/development/docs/"},{"@type":"ListItem","position":4,"name":"Provenance Contracts","item":"https://nocter.dev/development/docs/provenance-contracts/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.3.0 Release Notes - Nocter","description":"Nocter v0.3.0 turns the allocator and ownership foundation from v0.2.0 into a more productive language surface. It adds compiler-tracked lexical regions, t","url":"https://nocter.dev/development/packaging/v0.3.0-release-notes/","mainEntityOfPage":"https://nocter.dev/development/packaging/v0.3.0-release-notes/","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"},{"@type":"ListItem","position":4,"name":"V0.3.0 Release Notes","item":"https://nocter.dev/development/packaging/v0.3.0-release-notes/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
@@ -123,58 +123,40 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/docs/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">specification</a></li>
-                <li><a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a></li>
-                <li><a href="../interface-implementations/index.html#content">Body-Bearing Interface Implementations</a></li>
-                <li><a href="../construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../v0.2.0/index.html#content">v0.2.0 Release Record</a></li>
-                <li><a href="../architecture/index.html#content">Architecture</a></li>
-                <li><a href="../region-provenance/index.html#content">Region, Provenance, and Allocation Context</a></li>
-                <li><a href="../typed-literals/index.html#content">Typed Literals and Composable Element Packs</a></li>
-                <li><a href="../iteration/index.html#content">Explicit Iteration and Collection Access</a></li>
-                <li><a href="../interpolation/index.html#content">Owned String Interpolation and Formatting</a></li>
-                <li><a href="./index.html#content" aria-current="page">Public Provenance Contracts and Generic Interface Bounds</a></li>
-                <li><a href="../outcomes-process-context/index.html#content">Nested Outcomes and Executable Process Context</a></li>
-                <li><a href="../outcome-values/index.html#content">First-Class Outcome Values</a></li>
-                <li><a href="../iteration-protocol/index.html#content">Protocol-Driven Collection Iteration</a></li>
-                <li><a href="../iterator-composition/index.html#content">Composable Iterators and Collection Builders</a></li>
-                <li><a href="../callable-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="../allocator-ownership/index.html#content">Allocator and Ownership</a></li>
-                <li><a href="../standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="../lsp/index.html#content">LSP</a></li>
-                <li><a href="../maintenance/index.html#content">Maintenance</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/docs/provenance-contracts.md</span>
+                <span class="markdown-path-text">/development/packaging/v0.3.0-release-notes.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="public-provenance-contracts-and-generic-interface-bounds">Public Provenance Contracts and Generic Interface Bounds</h1><p>This document owns the implementation design for v0.3.0 Phase 4. Public language semantics belong in the specification. The completion gate belongs to the <a href="../v0.3.0/index.html#content">v0.3.0 Release Record</a>.</p><h2 id="design-boundary">Design Boundary</h2><p>Phase 4 exposes only result-storage relationships that cannot safely be guessed at an abstraction boundary. It does not expose lexical lifetime arithmetic. Concrete bodies retain inference, and allocation effects remain compiler-owned inferred facts.</p><p>The dependency flow is:</p><pre><code class="language-text">source `from` clause
-  -&gt; resolver input identities
-  -&gt; callable provenance contract
-  -&gt; inferred-summary validation or bodyless-summary seed
-  -&gt; call-site origin substitution
-  -&gt; ownership and region escape
-  -&gt; analysis and LSP
-</code></pre><p>Generic interface dispatch is a separate layer over that summary:</p><pre><code class="language-text">generic bound
-  -&gt; canonical interface identity and type arguments
-  -&gt; bound method declaration
-  -&gt; concrete explicit conformance at specialization
-  -&gt; public inherent implementation
-  -&gt; ordinary static call lowering
-</code></pre><p>Neither layer searches for standard-library names.</p><h2 id="surface-grammar">Surface Grammar</h2><p>A callable, including a typed literal definition, may append one result provenance clause after its return type:</p><pre><code class="language-nct">from self
-from value
-from left | right
-from static
-from current
-</code></pre><p><code>self</code> is eligible only for methods. Other identifiers must name borrow-like input parameters. <code>static</code> means program-lifetime storage. <code>current</code> means the caller's current allocation context and implies the existing allocation effect. Duplicate origins are invalid. Source order is retained for formatting and diagnostics; semantic comparison uses declaration identities.</p><p>A Phase 1 sequence literal pack is a set of owned element values rather than one borrow-like input identity, so its capture name is not an eligible origin. Literal definitions that allocate their result use <code>from current</code>; a string literal definition may use its <code>&amp;str</code> parameter as an origin.</p><p>The clause describes an upper bound on possible result storage. A concrete result may be storage-independent or static when the contract permits a shorter input origin. It may not contain an input, region, scope, or current-context origin absent from the contract.</p><p>Tracked result storage includes source-level borrows and pointer-backed owned aggregates. The distinction is intentional: raw pointers do not participate in borrow checking, but an owning value such as <code>String</code> or <code>Vec&lt;T&gt;</code> must still retain the allocation context that owns its buffer.</p><p>Generic parameters accept one interface bound:</p><pre><code class="language-nct"><span class="token-keyword">func</span> inspect<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">:</span> <span class="token-type">Readable</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span>
-</code></pre><p>Phase 4 deliberately excludes <code>where</code> clauses and multiple bounds. Bound lookup never falls back to methods from an unconstrained receiver. Phase 10 default bodies remain attached to their exact interface declaration identity.</p><h2 id="internal-ownership">Internal Ownership</h2><ul><li><code>ast/provenance</code> owns source clauses and source spans.</li><li><code>resolve/body</code> binds origin spans to receiver and parameter symbols for navigation.</li><li><code>typecheck/provenance/contracts</code> converts eligible declarations into semantic storage origins.</li><li><code>resolve/signatures</code> and <code>resolve/imports/qualification</code> preserve bound and conformance identities
-  across module boundaries.</li><li><code>typecheck/interface_bounds</code> owns generic-receiver lookup and conformance substitution.</li><li><code>typecheck/facts</code> records bound-call targets and specializations; <code>analysis/call_specializations</code>
-  redirects reachable concrete calls to conformance implementation members.</li><li><code>analysis</code> presents compiler facts; protocol code only converts source ranges and labels.</li></ul><p>Contract validation is covariant in safety: an implementation may return storage that outlives the declared source, but never storage that may die earlier or comes from an undeclared peer source. Unknown provenance never satisfies an explicit contract.</p><h2 id="static-dispatch">Static Dispatch</h2><p>Generic source is checked against the interface method signature. Each reachable concrete specialization must have explicit conformance to the canonical interface instantiation. The selected conformance member is lowered through the ordinary static method call path. No vtable, witness table, runtime type identity, or name-based backend lookup is introduced.</p><h2 id="editor-contract">Editor Contract</h2><p>Hover and signature help show normalized types and the resolved provenance relation. Completion on a generic receiver lists only accessible methods from its declared bound. Definition from a generic call targets the interface declaration; concrete-specialization facts may additionally identify the implementation internally. Recovery may insert delimiters or placeholder identifiers, but it may not invent bound or origin identities.</p><h2 id="allocation-effects">Allocation Effects</h2><p>There is no Phase 4 allocation-effect annotation. Source bodies infer their effect to a fixed point; trusted bodyless declarations retain compiler metadata. <code>from current</code> necessarily seeds the current-context effect. Result-independent temporary allocation remains inferred and visible in hover without becoming source syntax.</p><h2 id="completion-status">Completion Status</h2><p>Phase 4 completed on 2026-08-03. The parser, formatter, AST JSON, resolver, type checker, ownership checker, allocation propagation, buildability validation, IR, analysis, and LSP consume the shared models described here. The distributed <code>std/sequence.Sequence&lt;T&gt;</code> interface and generic <code>first</code> helper verify exact receiver-to-result provenance through <code>Vec&lt;T&gt;</code> across source modules. Import qualification retains both generic bounds and explicit conformance contracts, and IR selects a concrete method target only when the reachable callable index proves it unique.</p><p>Repository-home and packaged-home checks retain the source loan, packaged native execution observes the specialized element result, and protocol tests verify bound hover/completion plus definition ranges. No Phase 4 work remains active.</p>
+                <h1 id="nocter-v0-3-0-release-notes">Nocter v0.3.0 Release Notes</h1><p>Nocter v0.3.0 turns the allocator and ownership foundation from v0.2.0 into a more productive language surface. It adds compiler-tracked lexical regions, typed construction, sequence and iterator composition, callable values, interface default methods, and substantially deeper editor support without introducing runtime dispatch or a process-global allocator.</p><h2 id="highlights">Highlights</h2><ul><li>Ordinary allocating APIs use a statically propagated current allocation context. Lexical
+  <code>region name using allocator { ... }</code> scopes create shorter storage origins, reject escapes, and
+  clean up correctly across normal and early exits. Explicit <code>TryAllocator</code> APIs retain
+  failure-atomic recoverable allocation.</li><li>Nominal types own their public creation APIs in <code>construct Type { ... }</code> declarations. A type can
+  select one public default construction entry from raw construction, a literal, or an associated
+  function while keeping fields and representation private.</li><li>User-defined typed <code>[]</code> and <code>""</code> literals support generic element packs, explicit <code>using</code>
+  allocation selection, and sequence spread through copy, borrow, or move modes.</li><li>String interpolation produces owned <code>String</code> values through trusted formatting capabilities and
+  the current allocation context.</li><li>Public <code>from</code> contracts expose result provenance without source-level lifetime parameters.
+  Generic capability sets and body-bearing <code>impl Interface for Type { ... }</code> declarations provide
+  explicit, statically selected conformance.</li><li>Optional and fallible values compose as first-class values. Postfix <code>?</code> propagates either
+  channel while preserving nested outcome identity through storage, cleanup, ABI classification,
+  lowering, and editor presentation.</li><li>Protocol-driven <code>for</code> loops, conditional iterator conformances, lazy adapters, exact-size
+  preservation, and <code>Vec</code> builders support collection pipelines without hidden intermediate
+  collections.</li><li>Explicit-capture closures implement built-in <code>&amp;func</code>, <code>&amp;+func</code>, and <code>func</code> callable contracts.
+  Interface default methods provide reusable behavior derived only from required capabilities;
+  <code>map</code>, <code>filter</code>, terminal operations, and <code>to_vec</code> compose as statically specialized method
+  chains.</li><li>Hover, completion, signature help, definition, references, semantic tokens, and document symbols
+  share compiler-owned occurrence and presentation models. Generic bounds, concrete owners,
+  construction entries, conformance members, callable capabilities, provenance, and allocation
+  effects therefore use the same declaration identities as compilation.</li></ul><h2 id="migration-from-v0-2-0">Migration from v0.2.0</h2><ul><li>Interface conformance is written as a body-bearing <code>impl Interface for Type { ... }</code> declaration.
+  Required members belong to that declaration; same-named inherent methods do not establish or
+  override conformance.</li><li>Public literal definitions and associated functions that directly produce their nominal type
+  belong to that type's <code>construct</code> declaration. The compiler does not synthesize compatibility
+  surfaces for detached declarations.</li><li>Closure capture is explicit. Readonly, readwrite, and owned captures use <code>&amp;name</code>, <code>&amp;+name</code>, and
+  <code>move name</code>; unlisted outer bindings are rejected.</li><li>The v0.2.0 contract remains available as a historical reference. v0.3.0 is still a pre-1.0
+  release and does not promise source or binary compatibility with future releases.</li></ul><h2 id="distribution">Distribution</h2><p>The release asset contains one <code>.nocter/</code> directory with the compiler, version and manifest metadata, license files, and standard library. The supported host and native target are <code>arm64-darwin</code>.</p><p>Normal Nocter builds do not require LLVM, <code>clang</code>, <code>as</code>, <code>ld</code>, an external runtime library, or the Xcode Command Line Tools. The compiler emits ARM64 Mach-O executables directly and resolves the standard library relative to its installed <code>.nocter/nocter</code> binary.</p><h2 id="verification">Verification</h2><p>The release gate covers the complete compiler suite, formatting, Clippy with warnings denied, public documentation generation, optimized local packaging, installed-home <code>doctor</code>, packaged-home runtime execution, and archive-content inspection. Repository and packaged homes must agree across all Phase 0 through Phase 10 acceptance surfaces.</p><p>See the <a href="../../docs/v0.3.0/index.html#content">v0.3.0 release record</a> for completion criteria, verification boundaries, and explicit non-goals.</p><h2 id="explicit-limits">Explicit Limits</h2><ul><li>The only supported native host and target are <code>arm64-darwin</code>.</li><li>No source-level lifetime parameters, runtime interface dispatch, async execution, concurrency,
+  workspace package manager, or stable cross-version ABI is included.</li><li>LSP rename, code actions, formatting requests, workspace-wide indexing, and inlay hints remain
+  future work.</li></ul>
             </div>
         </main>
     </div>

@@ -338,5 +338,5 @@ specialization, semantic identity, shared delimiter recovery, and direct plus JS
 ## Deferred Features
 
 Rename, code actions, formatting requests, a workspace-wide package index, and inlay hints remain
-later v0.3.0 work. Add them after the semantic facts and recovery APIs used by hover, completion,
-and signature help remain stable.
+post-v0.3.0 work. Add them only through the semantic facts and recovery APIs already shared by
+hover, completion, and signature help.

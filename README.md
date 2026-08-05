@@ -8,9 +8,11 @@
 Nocter is a statically typed, value-centered systems language for building
 native executables from `.nct` source files.
 
-Nocter v0.2.0 provides a complete Allocator and ownership foundation for
-practical `String` and `Vec<T>` programs, together with richer compiler-backed
-LSP support. The implementation target is `arm64-darwin`.
+Nocter v0.3.0 builds typed construction, lexical regions, composable iterators,
+callable values, and interface default methods on the Allocator and ownership
+foundation. Its compiler-backed language server presents the same resolved
+types, declarations, capabilities, provenance, and allocation effects as the
+compiler. The implementation target is `arm64-darwin`.
 
 ## Why Nocter Exists
 
@@ -94,7 +96,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.2.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.3.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -161,13 +163,13 @@ nocter fmt main.nct
 
 ## Current Status
 
-The v0.2.0 compiler parses, checks, builds, and runs the supported language on
+The v0.3.0 compiler parses, checks, builds, and runs the supported language on
 `arm64-darwin`. It emits ARM64 Mach-O executables directly.
 
 The buildable subset is intentionally narrower than the checkable language.
 Unsupported runtime forms must reject with source-backed diagnostics before
-machine code is emitted. The released language boundary is defined in the
-[v0.2.0 Language Contract](spec/00-v0.2.0-contract.md).
+machine code is emitted. The released language boundary is defined throughout
+the [language specification](spec/README.md).
 
 ## Learn More
 
@@ -177,8 +179,10 @@ machine code is emitted. The released language boundary is defined in the
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Generics, Interfaces, Embedding, and Methods](spec/08-generics-interfaces-embedding-methods.md):
   the separation between explicit contracts and composition-based reuse.
-- [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the implemented
-  language boundary of the released compiler.
+- [v0.3.0 Release Notes](development/packaging/v0.3.0-release-notes.md): the
+  release highlights, distribution shape, verification, and explicit limits.
+- [v0.2.0 Language Contract](spec/00-v0.2.0-contract.md): the preserved
+  historical boundary of the previous release.
 - [Contributor Documentation](development/README.md): development setup,
   compiler architecture, milestone plans, tests, and maintenance policy.
 

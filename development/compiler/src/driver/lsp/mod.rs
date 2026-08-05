@@ -225,7 +225,10 @@ impl LspServer {
                         "id": id,
                         "error": {
                             "code": -32601,
-                        "message": format!("method `{method}` is not supported by Nocter LSP v0.2.0")
+                        "message": format!(
+                            "method `{method}` is not supported by Nocter LSP v{}",
+                            crate::driver::VERSION
+                        )
                         }
                     }),
                 )?;

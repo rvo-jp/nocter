@@ -33,8 +33,7 @@ array literal unless another future chapter changes that rule explicitly.
 
 ## Implementation Boundary
 
-The following source forms are implemented on `develop` by v0.3.0 Phase 1 but
-are not part of the v0.2.0 release:
+The following source forms are implemented by v0.3.0 and are not part of the v0.2.0 release:
 
 ```nct
 construct Vec<T> {
@@ -53,7 +52,7 @@ Vec [1, 2, 3]
 String "hello"
 ```
 
-The sequence-spread form is implemented on `develop` by v0.3.0 Phase 8:
+The sequence-spread form is implemented by v0.3.0:
 
 ```nct
 Vec [
