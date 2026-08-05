@@ -57,6 +57,109 @@ fn handles_initialize_request() {
     assert!(text.contains("\"documentSymbolProvider\""));
     assert!(text.contains("\"completionProvider\""));
     assert!(text.contains("\"signatureHelpProvider\""));
+    assert!(text.contains("\"includeText\":true"));
+}
+
+#[test]
+fn registers_nct_file_watching_when_the_client_supports_it() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "capabilities": {
+                "workspace": {
+                    "didChangeWatchedFiles": {
+                        "dynamicRegistration": true
+                    }
+                }
+            }
+        }
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "method": "initialized", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": "nocter/register-file-watching", "result": null
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    let registration = messages
+        .iter()
+        .find(|message| message["method"] == json!("client/registerCapability"))
+        .expect("expected a dynamic file-watching registration");
+
+    assert_eq!(
+        registration["params"]["registrations"][0]["method"],
+        json!("workspace/didChangeWatchedFiles")
+    );
+    assert_eq!(
+        registration["params"]["registrations"][0]["registerOptions"]["watchers"][0]["globPattern"],
+        json!("**/*.nct")
+    );
+    assert_eq!(response_with_id(&messages, 2)["result"], Value::Null);
+}
+
+#[test]
+fn did_save_text_rebuilds_the_open_document_snapshot() {
+    let uri = "file:///tmp/nocter-did-save.nct";
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": uri,
+                "version": 4,
+                "text": "pub func value(): i32 { 1 }\n"
+            }
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didSave",
+        "params": {
+            "textDocument": { "uri": uri },
+            "text": "pub func value(: i32 {\n"
+        }
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let diagnostics = framed_messages(&output)
+        .into_iter()
+        .filter(|message| {
+            message["method"] == json!("textDocument/publishDiagnostics")
+                && message["params"]["uri"] == json!(uri)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(diagnostics.len(), 2);
+    assert_eq!(diagnostics[1]["params"]["version"], json!(4));
+    assert!(
+        !diagnostics[1]["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -156,6 +259,7 @@ pub func identity<T>(value: T): T {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         app_text,
@@ -202,6 +306,7 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -252,6 +357,7 @@ func main(): i32 {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
 
@@ -303,6 +409,7 @@ func main(): i32 {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
 
@@ -354,6 +461,7 @@ construct Vec<T> {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -407,6 +515,7 @@ func main(candidate: i32, text: &str): i32 {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -452,6 +561,7 @@ construct Text {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
 
@@ -485,6 +595,7 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -516,6 +627,7 @@ fn drop_declaration_editor_features_share_the_keyword_range() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let hover = server.hover_response(
@@ -589,6 +701,7 @@ fn returns_semantic_tokens_for_open_document() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.semantic_tokens_response(
@@ -646,6 +759,7 @@ fn semantic_tokens_are_empty_when_document_cannot_be_analyzed() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.semantic_tokens_response(
@@ -934,6 +1048,7 @@ fn returns_null_hover_when_document_cannot_be_analyzed() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -966,6 +1081,7 @@ fn returns_null_hover_for_unresolved_identifier() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -998,6 +1114,7 @@ fn returns_hover_for_identifier() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1036,6 +1153,7 @@ fn returns_hover_for_local_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1074,6 +1192,7 @@ fn returns_documented_hover_for_function_declaration() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1112,6 +1231,7 @@ fn returns_documented_hover_for_type_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1165,6 +1285,7 @@ fn returns_markdown_hover_for_import_module_path() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1211,6 +1332,7 @@ fn returns_markdown_hover_for_block_import_module_path() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1250,6 +1372,7 @@ fn returns_documented_hover_for_local_binding_declaration() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1286,6 +1409,7 @@ fn returns_documented_hover_for_local_binding_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1322,6 +1446,7 @@ fn returns_inferred_hover_for_integer_binding() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1370,6 +1495,7 @@ func run(arena: Arena): i32 {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -1425,6 +1551,7 @@ func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("using\n").expect("expected using") + "using".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -1467,6 +1594,7 @@ func run(parent: Allocator): void {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("temp using").expect("expected region binding");
     let position = byte_offset_to_lsp_position(text, offset);
@@ -1507,6 +1635,7 @@ fn returns_short_visible_type_names_for_hover() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let field_declaration = server.hover_response(
@@ -1599,6 +1728,7 @@ pub struct Vec<T> { value: T }
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
         .expect("expected workspace analysis");
@@ -1729,6 +1859,7 @@ fn shortens_hidden_canonical_type_names_for_hover() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let box_binding = server.hover_response(
@@ -1772,6 +1903,7 @@ fn returns_documented_workspace_hover_for_local_binding_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1808,6 +1940,7 @@ fn returns_documented_hover_for_resolved_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1871,6 +2004,7 @@ fn returns_documented_hover_for_imported_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1921,6 +2055,7 @@ fn returns_documented_hover_for_namespace_imported_function_member_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -1985,6 +2120,7 @@ fn returns_documented_hover_for_imported_type_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -2034,6 +2170,7 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.hover_response(
@@ -2095,6 +2232,7 @@ fn returns_definition_for_resolved_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2130,6 +2268,7 @@ fn returns_definition_for_local_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2165,6 +2304,7 @@ fn returns_references_for_local_binding() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2229,6 +2369,7 @@ fn returns_definition_for_imported_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2277,6 +2418,7 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2335,6 +2477,7 @@ fn returns_references_for_imported_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2393,6 +2536,7 @@ fn returns_references_for_block_imported_function_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2454,6 +2598,7 @@ fn returns_references_for_namespace_imported_function_member_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.references_response(
@@ -2514,6 +2659,7 @@ fn returns_definition_for_import_module_path() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2569,6 +2715,7 @@ fn returns_definition_for_package_executable_entry() {
         }],
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2614,6 +2761,7 @@ fn nested_nocter_file_is_treated_as_its_own_package_root() {
         }],
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2656,6 +2804,7 @@ fn returns_definition_for_block_import_module_path() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2723,6 +2872,7 @@ fn returns_definition_for_imported_type_reference() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2762,6 +2912,7 @@ fn returns_definition_for_method_call() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.definition_response(
@@ -2798,6 +2949,7 @@ fn returns_document_symbols_for_top_level_declarations() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.document_symbol_response(
@@ -2842,6 +2994,7 @@ fn document_features_recover_an_unclosed_member_body() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let symbols = server
@@ -2877,6 +3030,7 @@ fn navigation_recovers_an_unclosed_function_body() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
     let params = json!({
@@ -2909,6 +3063,7 @@ fn returns_completion_items_for_keywords_and_top_level_symbols() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -2978,6 +3133,7 @@ fn returns_completion_items_for_imported_symbols() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -3030,6 +3186,7 @@ return match choice {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -3092,6 +3249,7 @@ return file.fd
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let variant_offset = text.find("Choice.yes").expect("expected enum member") + "Choice.".len();
@@ -3184,6 +3342,7 @@ return file.fd
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text.rfind("file.fd").expect("expected field access") + "file.".len();
@@ -3250,6 +3409,7 @@ return file.
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3305,6 +3465,7 @@ return 0
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3356,6 +3517,7 @@ return 0
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let offset = text
@@ -3417,6 +3579,7 @@ fn returns_completion_items_for_namespace_import_without_member_leakage() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let response = server.completion_response(
@@ -3477,6 +3640,7 @@ return 0
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
 
     let inside_response = server.completion_response(
@@ -3895,6 +4059,7 @@ fn returns_only_lexically_visible_local_completion_items() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
         text,
@@ -3950,6 +4115,7 @@ func main(): i32 {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("answer(1)").unwrap());
 
@@ -4019,6 +4185,7 @@ func edit(values: &+Vec<String>): void {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let position =
         byte_offset_to_lsp_position(text, text.find("values.clear").unwrap() + "values.".len());
@@ -4066,6 +4233,7 @@ fn signature_help_recovers_incomplete_imported_call() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("20, ").unwrap() + "20, ".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4109,6 +4277,7 @@ func main(good: bool, bad: i32): bool {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("bad)").expect("expected call argument");
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4149,6 +4318,7 @@ fn import_symbol_completion_recovers_and_filters_visibility() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("math.").unwrap() + "math.".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4190,6 +4360,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("./lib/ma").unwrap() + "./lib/ma".len();
     let position = byte_offset_to_lsp_position(text, offset);
@@ -4241,6 +4412,7 @@ impl<T> Box<T> {
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
         shutdown_requested: false,
+        file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("value.").unwrap() + "value.".len();
     let position = byte_offset_to_lsp_position(text, offset);

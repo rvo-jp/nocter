@@ -39,7 +39,8 @@ use definition::{definition_for_document, definition_for_file_analysis};
 use diagnostics::publish_diagnostics;
 use documents::{
     OpenDocument, WorkspaceRoot, changed_document_from_params, changed_file_paths_from_params,
-    document_uri_from_params, open_document_from_params, workspace_roots_from_initialize_params,
+    document_uri_from_params, open_document_from_params, saved_document_from_params,
+    supports_dynamic_file_watching, workspace_roots_from_initialize_params,
 };
 #[cfg(test)]
 use documents::{file_uri_to_path, open_document};
@@ -111,6 +112,14 @@ struct LspServer {
     workspace_roots: Vec<WorkspaceRoot>,
     snapshots: SnapshotStore,
     shutdown_requested: bool,
+    file_watching: FileWatchingRegistration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileWatchingRegistration {
+    Unsupported,
+    Pending,
+    Sent,
 }
 
 impl LspServer {
@@ -121,6 +130,7 @@ impl LspServer {
             workspace_roots: Vec::new(),
             snapshots: SnapshotStore::default(),
             shutdown_requested: false,
+            file_watching: FileWatchingRegistration::Unsupported,
         }
     }
 
@@ -129,16 +139,16 @@ impl LspServer {
         message: Value,
         writer: &mut W,
     ) -> io::Result<Option<ExitCode>> {
-        let method = message
-            .get("method")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
+        let method = message.get("method").and_then(Value::as_str);
         let id = message.get("id").cloned();
 
-        if let Some(id) = id {
+        if let (Some(id), Some(method)) = (id, method) {
             return self.handle_request(id, method, message.get("params"), writer);
         }
 
+        let Some(method) = method else {
+            return Ok(None);
+        };
         self.handle_notification(method, message.get("params"), writer)
     }
 
@@ -184,6 +194,11 @@ impl LspServer {
         match method {
             "initialize" => {
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
+                self.file_watching = if supports_dynamic_file_watching(params) {
+                    FileWatchingRegistration::Pending
+                } else {
+                    FileWatchingRegistration::Unsupported
+                };
                 self.snapshots.rebuild(
                     &self.documents,
                     &self.workspace_roots,
@@ -256,7 +271,12 @@ impl LspServer {
         }
 
         match method {
-            "initialized" => {}
+            "initialized" => {
+                if self.file_watching == FileWatchingRegistration::Pending {
+                    write_message(writer, file_watching_registration_request())?;
+                    self.file_watching = FileWatchingRegistration::Sent;
+                }
+            }
             "exit" => {
                 return Ok(Some(if self.shutdown_requested {
                     ExitCode::SUCCESS
@@ -290,6 +310,21 @@ impl LspServer {
                     document.text = text;
                     let changed_path = document.absolute_path.clone();
                     self.documents.insert(uri.clone(), document);
+                    self.snapshots.rebuild(
+                        &self.documents,
+                        &self.workspace_roots,
+                        SnapshotChange::path(changed_path.as_deref()),
+                    );
+                    self.publish_snapshot_diagnostics(writer)?;
+                }
+            }
+            "textDocument/didSave" => {
+                if let Some((uri, Some(text))) = saved_document_from_params(params)
+                    && let Some(document) = self.documents.get_mut(&uri)
+                    && document.text != text
+                {
+                    document.text = text;
+                    let changed_path = document.absolute_path.clone();
                     self.snapshots.rebuild(
                         &self.documents,
                         &self.workspace_roots,
@@ -759,7 +794,10 @@ fn initialize_response(id: Value) -> Value {
                 "positionEncoding": "utf-16",
                 "textDocumentSync": {
                     "openClose": true,
-                    "change": 1
+                    "change": 1,
+                    "save": {
+                        "includeText": true
+                    }
                 },
                 "semanticTokensProvider": {
                     "legend": {
@@ -787,6 +825,26 @@ fn initialize_response(id: Value) -> Value {
             }
         }),
     )
+}
+
+fn file_watching_registration_request() -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": "nocter/register-file-watching",
+        "method": "client/registerCapability",
+        "params": {
+            "registrations": [{
+                "id": "nocter-watch-nct-files",
+                "method": "workspace/didChangeWatchedFiles",
+                "registerOptions": {
+                    "watchers": [{
+                        "globPattern": "**/*.nct",
+                        "kind": 7
+                    }]
+                }
+            }]
+        }
+    })
 }
 
 #[cfg(test)]

@@ -90,6 +90,32 @@ pub(super) fn document_uri_from_params(params: Option<&Value>) -> Option<String>
         .map(str::to_string)
 }
 
+pub(super) fn saved_document_from_params(
+    params: Option<&Value>,
+) -> Option<(String, Option<String>)> {
+    let params = params?;
+    let uri = params
+        .get("textDocument")?
+        .get("uri")?
+        .as_str()?
+        .to_string();
+    let text = params
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some((uri, text))
+}
+
+pub(super) fn supports_dynamic_file_watching(params: Option<&Value>) -> bool {
+    params
+        .and_then(|params| params.get("capabilities"))
+        .and_then(|capabilities| capabilities.get("workspace"))
+        .and_then(|workspace| workspace.get("didChangeWatchedFiles"))
+        .and_then(|watching| watching.get("dynamicRegistration"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
 pub(super) fn changed_file_paths_from_params(params: Option<&Value>) -> Vec<PathBuf> {
     params
         .and_then(|params| params.get("changes"))
