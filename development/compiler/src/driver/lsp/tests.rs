@@ -3819,7 +3819,13 @@ fn initialize_falls_back_to_root_uri() {
 #[test]
 fn publishes_diagnostics_for_open_document() {
     let mut output = Vec::new();
-    let input = frame(&json!({
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {}
+    }));
+    input.extend(frame(&json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didOpen",
         "params": {
@@ -3830,7 +3836,7 @@ fn publishes_diagnostics_for_open_document() {
                 "text": "func main(: i32 {\n"
             }
         }
-    }));
+    })));
 
     run_lsp_stream(Cursor::new(input), &mut output).unwrap();
 
@@ -3845,6 +3851,12 @@ fn ignores_stale_document_changes() {
     let mut output = Vec::new();
     let mut input = frame(&json!({
         "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0",
         "method": "textDocument/didOpen",
         "params": {
             "textDocument": {
@@ -3854,7 +3866,7 @@ fn ignores_stale_document_changes() {
                 "text": "func main(): i32 {\n    return 0\n}\n"
             }
         }
-    }));
+    })));
     input.extend(frame(&json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didChange",
