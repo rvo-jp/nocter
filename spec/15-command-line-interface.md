@@ -80,7 +80,7 @@ The leading package manifest uses declarative directives:
 #version: "0.1.0"
 #executable: {
     name: "json-tool",
-    module: "./src/app",
+    entry: "./src/app",
 }
 
 pub use ./src/json
@@ -88,7 +88,8 @@ pub use ./src/json
 
 `#name` is presentation metadata. If absent, the package root directory basename is used as the
 display name only. `#version` may be absent and is never synthesized. Each `#executable` contains a
-unique package-local name and a logical module path without a `.nct` suffix.
+unique package-local name and may select an explicit logical entry path without a `.nct` suffix.
+When `entry` is absent, the package-root module in `nocter.nct` is the entry.
 
 Ordinary imports and declarations after the leading directives form the package root module.
 `index.nct` remains a directory module and has no package metadata responsibility.
@@ -130,14 +131,15 @@ main` with no type or value parameters and a supported process result type.
 ```nct
 #executable: {
     name: "server",
-    module: "./src/server",
+    entry: "./src/server",
 }
 ```
 
 Rules:
 
-- `module: "."` selects `nocter.nct`.
-- `module: "./src/server"` selects `src/server.nct` or `src/server/index.nct`.
+- Omitting `entry` selects `nocter.nct`.
+- `entry: "."` selects `index.nct` in the package root.
+- `entry: "./src/server"` selects `src/server.nct` or `src/server/index.nct`.
 - If both module forms exist, selection is an error.
 - A module path cannot contain `.nct` or escape the package root.
 - `--executable name` selects one declared executable.
@@ -249,8 +251,8 @@ identities, and exact source spans. In v0.4.0 Phase 0 it also:
 
 - diagnoses package manifests through the same parser and validation model as package commands
 - classifies directive and record-field names without coloring surrounding punctuation or space
-- classifies executable module string contents as namespaces
-- resolves go-to-definition from an executable `module` value to the selected module file
+- classifies executable entry string contents as namespaces
+- resolves go-to-definition from an executable `entry` value to the selected module file
 - resolves public namespace re-exports through the same declaration identity used by compilation
 
 Rename, package-wide incremental invalidation, code actions, inlay hints, and multi-package

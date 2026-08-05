@@ -14,9 +14,9 @@ remains only a directory module.
 - its leading directives form a `PackageManifest`
 - its ordinary imports and declarations form the package root `AstFile`
 
-The parser returns `PackageFile { manifest, module }`. Manifest validation, package graph loading,
-and generated lock rewriting do not enter ordinary semantic analysis. The module portion follows
-the same resolver, typechecker, formatter, JSON AST, and LSP paths as every other module.
+The parser returns `PackageFile { manifest, root_module }`. Manifest validation, package graph
+loading, and generated lock rewriting do not enter ordinary semantic analysis. The module portion
+follows the same resolver, typechecker, formatter, JSON AST, and LSP paths as every other module.
 
 ## Identity Model
 
@@ -29,6 +29,13 @@ identity.
 - `ModuleId` and `ExecutableId` contain `PackageId`
 - dependency aliases are scoped by the declaring `PackageId`
 
+`ModuleId` contains a typed `ModuleKey`. `ModuleKey::PackageRoot` identifies the code in
+`nocter.nct`; `ModuleKey::Path` identifies an ordinary file or directory module. Consequently an
+omitted executable `entry` selects `nocter.nct`, while the explicit path `entry: "."` selects
+`index.nct`. No sentinel path string represents the package-root module. Path keys are derived from
+the resolved canonical source path, not copied from manifest spelling, so equivalent spellings and
+in-package symbolic-link aliases cannot split one source into multiple module identities.
+
 Two packages may therefore bind the same alias to different package revisions without flattening
 the graph or colliding in the package store.
 
@@ -38,7 +45,9 @@ the graph or colliding in the package store.
 `package/store.rs` locates an already identified package in the package-local store and then the
 shared Nocter-home store. `package/fetch.rs` alone executes Git, downloads archives, verifies
 content, and installs immutable package trees. `package/lockfile.rs` alone rewrites generated lock
-data in `nocter.nct`.
+data in `nocter.nct`. `package/modules.rs` is the shared explicit-module resolver, while
+`package/targets.rs` parses and resolves executable declarations. Both CLI and LSP consume their
+typed results instead of interpreting manifest strings independently.
 
 Graph construction computes effective locks in memory and validates the complete transitive graph
 before requesting any manifest rewrite. A failed graph may populate immutable cache entries, but it
@@ -97,8 +106,8 @@ An ordinary package command may create a missing direct lock but never changes a
 LSP always uses locked offline graph loading and never writes `nocter.nct` or accesses the network.
 
 Downloaded Git metadata is removed before installation. Archive paths, extracted canonical paths,
-manifest presence, symbolic-link escape, package module escape, manifest symlink escape, and
-executable module escape are validated before a package can enter analysis.
+manifest presence, symbolic-link escape, package module escape, package-file symlink escape, nested
+package crossing, and executable entry escape are validated before a package can enter analysis.
 
 ## Physical Stores
 
@@ -117,10 +126,14 @@ The shared fallback is exact-identity storage:
 These paths are caches, not source declarations. Removing them does not change the graph selected
 by committed `nocter.nct`; an online fetch recreates the same identities.
 
+Package commands build a target plan before semantic analysis. The plan deduplicates modules by
+`ModuleId`, so a package-root executable is not checked a second time as the ordinary root module;
+distinct executable names may still emit distinct artifacts from one entry module.
+
 ## Editor Contract
 
 The LSP locates the nearest containing `nocter.nct`, bounded by the opened workspace, and loads the
 same locked graph as the CLI in offline mode. Nested packages are independent package roots.
 Hover, completion, definition, references, diagnostics, and semantic module analysis use graph
-identity. Manifest directive names, dependency aliases, and executable module values use exact
-source-backed semantic ranges; executable module values navigate to their selected module.
+identity. Manifest directive names, dependency aliases, and executable entry values use exact
+source-backed semantic ranges; executable entry values navigate through the shared module resolver.

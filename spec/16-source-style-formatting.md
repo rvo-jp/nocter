@@ -55,7 +55,7 @@ place one field per line and retain a trailing comma.
 #version: "0.1.0"
 #executable: {
     name: "json-tool",
-    module: "./src/app",
+    entry: "./src/app",
 }
 ```
 

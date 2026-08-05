@@ -44,8 +44,7 @@ nocter check
 nocter run
 ```
 
-Its `#executable` selects `module: "."`, so package execution uses the `main` declared in
-`nocter.nct`.
+Its `#executable` omits `entry`, so package execution uses the `main` declared in `nocter.nct`.
 
 ## Front-End Coverage
 

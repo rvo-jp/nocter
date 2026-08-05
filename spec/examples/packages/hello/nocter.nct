@@ -2,7 +2,6 @@
 #version: "0.1.0"
 #executable: {
     name: "hello",
-    module: ".",
 }
 
 use std/io.print

@@ -240,14 +240,14 @@ include std<span class="token-operator">/</span>prelude
 #version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span>
 #executable<span class="token-operator">:</span> <span class="token-operator">{</span>
     name<span class="token-operator">:</span> <span class="token-string">"example"</span><span class="token-operator">,</span>
-    module<span class="token-operator">:</span> <span class="token-string">"./src/app"</span><span class="token-operator">,</span>
+    entry<span class="token-operator">:</span> <span class="token-string">"./src/app"</span><span class="token-operator">,</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">.</span><span class="token-operator">/</span>src<span class="token-operator">/</span>config
 </code></pre><p>Package-file rules:</p><ul><li>File documentation precedes package directives; ordinary imports and declarations follow them.</li><li><code>#name</code> and <code>#version</code> accept one string and may occur at most once.</li><li><code>#name</code> defaults to the root directory basename for display only. That display name is not
-  package identity.</li><li>An omitted <code>#version</code> remains absent.</li><li><code>#executable</code> is repeatable and contains <code>name</code> and <code>module</code> string fields.</li><li><code>module: "."</code> selects <code>nocter.nct</code>; <code>module: "./src/app"</code> resolves <code>src/app.nct</code> or
-  <code>src/app/index.nct</code>.</li><li>Logical module paths omit <code>.nct</code>, cannot escape the package root lexically or through symbolic
-  links, and are ambiguous when both file and directory-module forms exist.</li><li>The selected root <code>nocter.nct</code> itself cannot be a symbolic-link escape from the package root.</li><li>Package directives are invalid outside <code>nocter.nct</code>. A nested <code>nocter.nct</code> defines another
+  package identity.</li><li>An omitted <code>#version</code> remains absent.</li><li><code>#executable</code> is repeatable, requires a <code>name</code> string, and accepts an optional <code>entry</code> string.</li><li>Omitting <code>entry</code> selects the package-root module in <code>nocter.nct</code>.</li><li><code>entry: "."</code> selects the root directory module at <code>index.nct</code>.</li><li><code>entry: "./src/app"</code> resolves <code>src/app.nct</code> or <code>src/app/index.nct</code>.</li><li>Logical module paths omit <code>.nct</code>, cannot escape the package root lexically or through symbolic
+  links, and are ambiguous when both file and directory-module forms exist.</li><li>Neither the package-root <code>nocter.nct</code> nor an explicit executable entry may escape its package or
+  cross into a nested package through a symbolic link or path.</li><li>Package directives are invalid outside <code>nocter.nct</code>. A nested <code>nocter.nct</code> defines another
   package; a nested <code>index.nct</code> remains an ordinary directory module.</li><li>Omitting a source from <code>build</code>, <code>run</code>, or <code>check</code> selects <code>./nocter.nct</code>; it never probes for
   <code>main.nct</code>.</li><li>Explicit positional source files and <code>--file</code> retain single-file operation without changing the
   package command's default.</li><li>Relative imports are resolved from the directory containing the importing file and cannot leave

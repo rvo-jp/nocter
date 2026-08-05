@@ -15,6 +15,8 @@ The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries a
 
 - composite `nocter.nct` package file with separate manifest and root-module AST responsibilities
 - removal of package responsibility from `index.nct`
+- typed package-root and path module identities; omitted executable `entry` selects `nocter.nct`,
+  while explicit `entry: "."` selects `index.nct`
 - removal of source-root and entry-file-parent import discovery
 - module-relative, package-absolute, dependency, and standard-library import namespaces
 - `#dependencies` for path, Git revision, and archive sources

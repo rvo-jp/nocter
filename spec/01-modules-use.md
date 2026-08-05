@@ -258,7 +258,7 @@ project/
 #version: "0.1.0"
 #executable: {
     name: "example",
-    module: "./src/app",
+    entry: "./src/app",
 }
 
 pub use ./src/config
@@ -271,12 +271,14 @@ Package-file rules:
 - `#name` defaults to the root directory basename for display only. That display name is not
   package identity.
 - An omitted `#version` remains absent.
-- `#executable` is repeatable and contains `name` and `module` string fields.
-- `module: "."` selects `nocter.nct`; `module: "./src/app"` resolves `src/app.nct` or
-  `src/app/index.nct`.
+- `#executable` is repeatable, requires a `name` string, and accepts an optional `entry` string.
+- Omitting `entry` selects the package-root module in `nocter.nct`.
+- `entry: "."` selects the root directory module at `index.nct`.
+- `entry: "./src/app"` resolves `src/app.nct` or `src/app/index.nct`.
 - Logical module paths omit `.nct`, cannot escape the package root lexically or through symbolic
   links, and are ambiguous when both file and directory-module forms exist.
-- The selected root `nocter.nct` itself cannot be a symbolic-link escape from the package root.
+- Neither the package-root `nocter.nct` nor an explicit executable entry may escape its package or
+  cross into a nested package through a symbolic link or path.
 - Package directives are invalid outside `nocter.nct`. A nested `nocter.nct` defines another
   package; a nested `index.nct` remains an ordinary directory module.
 - Omitting a source from `build`, `run`, or `check` selects `./nocter.nct`; it never probes for
