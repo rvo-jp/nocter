@@ -5,7 +5,8 @@
 - branch: `develop`
 - release candidate: v0.4.0
 - completed milestone: v0.4.0 release-readiness implementation and documentation
-- next milestone: final distribution qualification and publication authorization
+- qualification: complete for the exact v0.4.0 distribution candidate
+- next milestone: publication after explicit user authorization
 - target: `arm64-darwin`
 
 The normative plan is [v0.4.0.md](docs/v0.4.0.md). Package/compiler boundaries are defined in
@@ -55,8 +56,6 @@ all pass after the audit.
 
 ## Next Work
 
-Run the final v0.4.0 distribution qualification against the exact release identity: complete
-repository verification, generated public documentation, optimized packaging, installed-home
-doctor, packaged package-mode check/build/run, packaged LSP JSON-RPC acceptance, native executable
-execution, archive inspection, and clean-worktree confirmation. Do not publish until the user
-authorizes publication after this gate passes.
+Publish the already-qualified v0.4.0 candidate only after explicit user authorization. Preserve
+the frozen feature scope and exact release identity; do not add a Phase 3 feature or rebuild the
+archive as part of publication unless an external release check finds a blocker.
