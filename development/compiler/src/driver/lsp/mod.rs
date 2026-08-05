@@ -111,8 +111,15 @@ struct LspServer {
     published_diagnostic_uris: HashSet<String>,
     workspace_roots: Vec<WorkspaceRoot>,
     snapshots: SnapshotStore,
-    shutdown_requested: bool,
+    lifecycle: ServerLifecycle,
     file_watching: FileWatchingRegistration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ServerLifecycle {
+    Uninitialized,
+    Running,
+    Shutdown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +136,7 @@ impl LspServer {
             published_diagnostic_uris: HashSet::new(),
             workspace_roots: Vec::new(),
             snapshots: SnapshotStore::default(),
-            shutdown_requested: false,
+            lifecycle: ServerLifecycle::Uninitialized,
             file_watching: FileWatchingRegistration::Unsupported,
         }
     }
@@ -159,7 +166,7 @@ impl LspServer {
         params: Option<&Value>,
         writer: &mut W,
     ) -> io::Result<Option<ExitCode>> {
-        if self.shutdown_requested && method != "shutdown" {
+        if self.lifecycle == ServerLifecycle::Shutdown {
             write_message(
                 writer,
                 json!({
@@ -168,6 +175,36 @@ impl LspServer {
                     "error": {
                         "code": -32600,
                         "message": "server is shutting down"
+                    }
+                }),
+            )?;
+            return Ok(None);
+        }
+
+        if self.lifecycle == ServerLifecycle::Uninitialized && method != "initialize" {
+            write_message(
+                writer,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32002,
+                        "message": "server has not been initialized"
+                    }
+                }),
+            )?;
+            return Ok(None);
+        }
+
+        if self.lifecycle == ServerLifecycle::Running && method == "initialize" {
+            write_message(
+                writer,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32600,
+                        "message": "initialize may only be sent once"
                     }
                 }),
             )?;
@@ -193,6 +230,7 @@ impl LspServer {
 
         match method {
             "initialize" => {
+                self.lifecycle = ServerLifecycle::Running;
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
                 self.file_watching = if supports_dynamic_file_watching(params) {
                     FileWatchingRegistration::Pending
@@ -236,7 +274,7 @@ impl LspServer {
                 Ok(None)
             }
             "shutdown" => {
-                self.shutdown_requested = true;
+                self.lifecycle = ServerLifecycle::Shutdown;
                 write_message(writer, response(id, Value::Null))?;
                 Ok(None)
             }
@@ -266,7 +304,10 @@ impl LspServer {
         params: Option<&Value>,
         writer: &mut W,
     ) -> io::Result<Option<ExitCode>> {
-        if self.shutdown_requested && method != "exit" {
+        if self.lifecycle == ServerLifecycle::Shutdown && method != "exit" {
+            return Ok(None);
+        }
+        if self.lifecycle == ServerLifecycle::Uninitialized && method != "exit" {
             return Ok(None);
         }
 
@@ -278,7 +319,7 @@ impl LspServer {
                 }
             }
             "exit" => {
-                return Ok(Some(if self.shutdown_requested {
+                return Ok(Some(if self.lifecycle == ServerLifecycle::Shutdown {
                     ExitCode::SUCCESS
                 } else {
                     ExitCode::FAILURE

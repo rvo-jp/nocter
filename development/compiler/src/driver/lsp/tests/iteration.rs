@@ -81,7 +81,7 @@ fn iteration_server(name: &str, text: &str) -> (TempProject, NocterHomeEnv, Stri
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     (project, home_guard, uri, server)

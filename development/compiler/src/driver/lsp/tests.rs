@@ -234,6 +234,69 @@ fn rejects_invalid_text_document_request_params_and_keeps_serving() {
 }
 
 #[test]
+fn rejects_requests_before_initialize_and_then_initializes_normally() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "textDocument/hover", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    assert_eq!(response_with_id(&messages, 1)["error"]["code"], -32002);
+    assert!(response_with_id(&messages, 2)["result"].is_object());
+}
+
+#[test]
+fn rejects_repeated_initialize_and_shutdown_requests() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 3, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({
+        "jsonrpc": "2.0", "id": 4, "method": "shutdown"
+    })));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    let mut output = Vec::new();
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), &mut output).unwrap(),
+        ExitCode::SUCCESS
+    );
+    let messages = framed_messages(&output);
+    assert_eq!(response_with_id(&messages, 2)["error"]["code"], -32600);
+    assert_eq!(response_with_id(&messages, 3)["result"], Value::Null);
+    assert_eq!(response_with_id(&messages, 4)["error"]["code"], -32600);
+}
+
+#[test]
+fn exit_without_shutdown_reports_failure() {
+    let mut input = frame(&json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }));
+    input.extend(frame(&json!({ "jsonrpc": "2.0", "method": "exit" })));
+
+    assert_eq!(
+        run_lsp_stream(Cursor::new(input), Vec::new()).unwrap(),
+        ExitCode::FAILURE
+    );
+}
+
+#[test]
 fn returns_specialized_signature_help_for_imported_generic_call() {
     let project = TempProject::new("lsp-signature-help-generic-import");
     let home = project.write_nocter_home();
@@ -258,7 +321,7 @@ pub func identity<T>(value: T): T {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
@@ -305,7 +368,7 @@ fn returns_builtin_callable_signature_help_for_direct_invocation() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
@@ -356,7 +419,7 @@ func main(): i32 {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("22]").unwrap());
@@ -408,7 +471,7 @@ func main(): i32 {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("Text \"hello\"").unwrap());
@@ -460,7 +523,7 @@ construct Vec<T> {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Vec \n").unwrap() + "Vec ".len();
@@ -514,7 +577,7 @@ func main(candidate: i32, text: &str): i32 {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("Bucket [").unwrap() + "Bucket [".len();
@@ -560,7 +623,7 @@ construct Text {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.find("\"\"(text").unwrap());
@@ -594,7 +657,7 @@ fn associated_function_declaration_hover_selects_only_the_member_name() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -626,7 +689,7 @@ fn drop_declaration_editor_features_share_the_keyword_range() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -700,7 +763,7 @@ fn returns_semantic_tokens_for_open_document() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -758,7 +821,7 @@ fn semantic_tokens_are_empty_when_document_cannot_be_analyzed() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1047,7 +1110,7 @@ fn returns_null_hover_when_document_cannot_be_analyzed() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1080,7 +1143,7 @@ fn returns_null_hover_for_unresolved_identifier() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1113,7 +1176,7 @@ fn returns_hover_for_identifier() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1152,7 +1215,7 @@ fn returns_hover_for_local_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1191,7 +1254,7 @@ fn returns_documented_hover_for_function_declaration() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1230,7 +1293,7 @@ fn returns_documented_hover_for_type_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1284,7 +1347,7 @@ fn returns_markdown_hover_for_import_module_path() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1331,7 +1394,7 @@ fn returns_markdown_hover_for_block_import_module_path() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1371,7 +1434,7 @@ fn returns_documented_hover_for_local_binding_declaration() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1408,7 +1471,7 @@ fn returns_documented_hover_for_local_binding_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1445,7 +1508,7 @@ fn returns_inferred_hover_for_integer_binding() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1494,7 +1557,7 @@ func run(arena: Arena): i32 {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
@@ -1550,7 +1613,7 @@ func run(parent: Allocator, recoverable: TryAllocator, count: usize): void {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("using\n").expect("expected using") + "using".len();
@@ -1593,7 +1656,7 @@ func run(parent: Allocator): void {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("temp using").expect("expected region binding");
@@ -1634,7 +1697,7 @@ fn returns_short_visible_type_names_for_hover() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1727,7 +1790,7 @@ pub struct Vec<T> { value: T }
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let workspace = workspace_analysis_for_uri(&core_uri, &server.documents)
@@ -1858,7 +1921,7 @@ fn shortens_hidden_canonical_type_names_for_hover() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1902,7 +1965,7 @@ fn returns_documented_workspace_hover_for_local_binding_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -1939,7 +2002,7 @@ fn returns_documented_hover_for_resolved_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2003,7 +2066,7 @@ fn returns_documented_hover_for_imported_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2054,7 +2117,7 @@ fn returns_documented_hover_for_namespace_imported_function_member_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2119,7 +2182,7 @@ fn returns_documented_hover_for_imported_type_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2169,7 +2232,7 @@ fn returns_documented_hover_for_an_imported_type_at_the_import_site() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2231,7 +2294,7 @@ fn returns_definition_for_resolved_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2267,7 +2330,7 @@ fn returns_definition_for_local_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2303,7 +2366,7 @@ fn returns_references_for_local_binding() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2368,7 +2431,7 @@ fn returns_definition_for_imported_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2417,7 +2480,7 @@ fn returns_definition_for_namespace_imported_function_member_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2476,7 +2539,7 @@ fn returns_references_for_imported_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2535,7 +2598,7 @@ fn returns_references_for_block_imported_function_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2597,7 +2660,7 @@ fn returns_references_for_namespace_imported_function_member_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2658,7 +2721,7 @@ fn returns_definition_for_import_module_path() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2714,7 +2777,7 @@ fn returns_definition_for_package_executable_entry() {
             path: Some(root),
         }],
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2760,7 +2823,7 @@ fn nested_nocter_file_is_treated_as_its_own_package_root() {
             path: Some(root),
         }],
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2803,7 +2866,7 @@ fn returns_definition_for_block_import_module_path() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2871,7 +2934,7 @@ fn returns_definition_for_imported_type_reference() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2911,7 +2974,7 @@ fn returns_definition_for_method_call() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2948,7 +3011,7 @@ fn returns_document_symbols_for_top_level_declarations() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -2993,7 +3056,7 @@ fn document_features_recover_an_unclosed_member_body() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3029,7 +3092,7 @@ fn navigation_recovers_an_unclosed_function_body() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let reference = byte_offset_to_lsp_position(text, text.rfind("code").unwrap());
@@ -3062,7 +3125,7 @@ fn returns_completion_items_for_keywords_and_top_level_symbols() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3132,7 +3195,7 @@ fn returns_completion_items_for_imported_symbols() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3185,7 +3248,7 @@ return match choice {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("Choice.hit").expect("expected if-is pattern") + "Choice.".len();
@@ -3248,7 +3311,7 @@ return file.fd
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3341,7 +3404,7 @@ return file.fd
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3408,7 +3471,7 @@ return file.
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3464,7 +3527,7 @@ return 0
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3516,7 +3579,7 @@ return 0
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3578,7 +3641,7 @@ fn returns_completion_items_for_namespace_import_without_member_leakage() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -3639,7 +3702,7 @@ return 0
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
 
@@ -4058,7 +4121,7 @@ fn returns_only_lexically_visible_local_completion_items() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(
@@ -4114,7 +4177,7 @@ func main(): i32 {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position = byte_offset_to_lsp_position(text, text.rfind("answer(1)").unwrap());
@@ -4184,7 +4247,7 @@ func edit(values: &+Vec<String>): void {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let position =
@@ -4232,7 +4295,7 @@ fn signature_help_recovers_incomplete_imported_call() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("20, ").unwrap() + "20, ".len();
@@ -4276,7 +4339,7 @@ func main(good: bool, bad: i32): bool {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.rfind("bad)").expect("expected call argument");
@@ -4317,7 +4380,7 @@ fn import_symbol_completion_recovers_and_filters_visibility() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("math.").unwrap() + "math.".len();
@@ -4359,7 +4422,7 @@ fn import_path_completion_discovers_reachable_module_segments() {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("./lib/ma").unwrap() + "./lib/ma".len();
@@ -4411,7 +4474,7 @@ impl<T> Box<T> {
         published_diagnostic_uris: HashSet::new(),
         workspace_roots: Vec::new(),
         snapshots: SnapshotStore::default(),
-        shutdown_requested: false,
+        lifecycle: ServerLifecycle::Running,
         file_watching: FileWatchingRegistration::Unsupported,
     };
     let offset = text.find("value.").unwrap() + "value.".len();
